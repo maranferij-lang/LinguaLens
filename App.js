@@ -24,6 +24,7 @@ import OnboardingScreen from './src/OnboardingScreen';
 import AchievementToast from './src/AchievementToast';
 import PaywallScreen from './src/PaywallScreen';
 import ShareSheet from './src/share/ShareSheet';
+import { weekStats } from './src/share/layout';
 import {
   clearLocalData,
   loadActivity,
@@ -612,7 +613,6 @@ export default function App() {
   }
 
   function shareWeek() {
-    const weekAgo = Date.now() - 7 * 86400000;
     const days = [];
     for (let i = 6; i >= 0; i--) {
       const d = new Date();
@@ -620,27 +620,13 @@ export default function App() {
       const key = localDayKey(d);
       days.push({ key, dow: d.getDay(), value: activity[key] || 0 });
     }
-    const recent = words.filter((w) => (w.addedAt || 0) >= weekAgo);
-    setShare({
-      kind: 'week',
-      stats: {
-        words: words.length,
-        weekWords: recent.length,
-        streak,
-        reviews: words.reduce((sum, w) => sum + (w.srs?.reps || 0), 0),
-        days,
-        // найсвіжіші наліпки тижня — для колажу
-        stickers: recent
-          .filter((w) => w.photo)
-          .slice(-6)
-          .reverse(),
-        langs: [...new Set(words.map((w) => w.lang || 'en'))],
-      },
-    });
+    setShare({ kind: 'week', stats: weekStats({ days, words, streak }) });
   }
 
-  function shareAchievement(achievement) {
-    setShare({ kind: 'achievement', achievement, stats: { words: words.length, streak } });
+  // fresh — щойно розблоковане (тап по тосту): тоді на картці «нове
+  // досягнення» й сьогоднішня дата. З профілю діляться давнім — без дати.
+  function shareAchievement(achievement, fresh = false) {
+    setShare({ kind: 'achievement', achievement, fresh, stats: { words: words.length, streak } });
   }
 
   const dueCount = useMemo(() => dueWords(words).length, [words, tab]);
@@ -751,7 +737,7 @@ export default function App() {
                     })
                   }
                   onShareWeek={shareWeek}
-                  onShareAchievement={shareAchievement}
+                  onShareAchievement={(a) => shareAchievement(a)}
                   t={t}
                 />
               </FadeIn>
@@ -827,7 +813,7 @@ export default function App() {
           <AchievementToast
             achievement={shownAch}
             onHide={() => setToastAch(null)}
-            onPress={(a) => shareAchievement(a)}
+            onPress={(a) => shareAchievement(a, true)}
             t={t}
           />
         </View>
@@ -890,8 +876,11 @@ function TabButton({ tb, active, badge, onPress, C, s, t }) {
         ) : null}
       </Animated.View>
       <Animated.Text
-        // великий системний шрифт не має обрізати підписи вкладок
+        // великий системний шрифт не має обрізати підписи вкладок: кегль
+        // обмежений, а довге «Einstellungen» на XXL ще й трохи стискається
         maxFontSizeMultiplier={1.2}
+        adjustsFontSizeToFit
+        minimumFontScale={0.8}
         style={[
           s.tabLabel,
           active && { color: C.accent },

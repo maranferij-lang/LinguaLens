@@ -5,6 +5,7 @@ import * as Haptics from 'expo-haptics';
 import { checkServer } from './api';
 import { PRIVACY_URL, SERVER_SOURCE, SERVER_URL, SUPPORT_EMAIL, TERMS_URL } from './config';
 import { formatDate } from './locale';
+import { uiLang } from './i18n';
 import { restoreNote } from './purchases';
 import { version as APP_VERSION } from '../package.json';
 import { LANGS, flagFor, nameFor } from './speech';
@@ -129,8 +130,11 @@ export default function SettingsScreen({
           try {
             await onEraseEverything();
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          } catch (_) {
-            Alert.alert(t('eraseFail'));
+          } catch (e) {
+            // «Немає зв'язку» — лише коли його справді немає; інакше сервер
+            // відповів помилкою, і порада перевірити інтернет збивала б з пантелику.
+            const offline = e?.code === 'OFFLINE' || e?.code === 'TIMEOUT';
+            Alert.alert(offline ? t('eraseFail') : t('eraseServerFail'));
           }
         },
       },
@@ -200,7 +204,9 @@ export default function SettingsScreen({
         />
         <LangPicker
           label={t('myLang')}
-          hint={t('myLangHint')}
+          // Інтерфейс перекладено лише чотирма мовами; для решти рідна мова
+          // — це мова перекладів, а сам застосунок лишається англійським.
+          hint={uiLang(nativeLang) === nativeLang ? t('myLangHint') : t('myLangHintNoUi')}
           value={nativeLang}
           onChange={onSetNative}
           C={C}

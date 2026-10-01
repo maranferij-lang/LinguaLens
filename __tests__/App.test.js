@@ -9,6 +9,8 @@ import AchievementToast from '../src/AchievementToast';
 import FlashcardsScreen from '../src/FlashcardsScreen';
 import OnboardingScreen from '../src/OnboardingScreen';
 import PaywallScreen from '../src/PaywallScreen';
+import ProfileScreen from '../src/ProfileScreen';
+import ShareSheet from '../src/share/ShareSheet';
 import ScannerScreen from '../src/ScannerScreen';
 import SettingsScreen from '../src/SettingsScreen';
 import { ACHIEVEMENTS } from '../src/achievements';
@@ -279,5 +281,33 @@ test('a 402 right after buying Pro makes the server re-check instead of showing 
   expect(retry).toBe(true);
   expect(one(tree, PaywallScreen)).toBeNull();
   expect(global.fetch.mock.calls.map(([url]) => new URL(url).search)).toContain('?refresh=1');
+  await act(async () => tree.unmount());
+});
+
+// ---------- картки «поділитись» ----------
+const openShare = (tree) => tree.root.findAllByType(ShareSheet).find((x) => x.props.visible)?.props.payload;
+
+test('an achievement is “fresh” only from the toast, not from the profile', async () => {
+  await returning();
+  const tree = await renderApp();
+  const a = { id: 'first_word', tier: 1, goal: 1, metric: 'words' };
+  await run(() => one(tree, AchievementToast).props.onPress(a));
+  expect(openShare(tree)).toMatchObject({ kind: 'achievement', fresh: true });
+  await run(() => one(tree, ShareSheet).props.onClose());
+
+  await openTab(tree, 'profile');
+  await run(() => one(tree, ProfileScreen).props.onShareAchievement(a));
+  expect(openShare(tree)).toMatchObject({ kind: 'achievement', fresh: false });
+  await act(async () => tree.unmount());
+});
+
+test('the week card counts this week, not a lifetime of reviews', async () => {
+  const longAgo = Date.now() - 60 * 86400000;
+  const veteran = Array.from({ length: 5 }, (_, i) => ({ ...word(i, 'fr'), addedAt: longAgo, srs: { box: 3, due: 0, reps: 40 } }));
+  await returning({ words: veteran, seen: ALL_ACH });
+  const tree = await renderApp();
+  await openTab(tree, 'profile');
+  await run(() => one(tree, ProfileScreen).props.onShareWeek());
+  expect(openShare(tree).stats).toMatchObject({ words: 5, weekWords: 0, reviews: 0, langs: [] });
   await act(async () => tree.unmount());
 });

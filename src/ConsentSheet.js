@@ -20,9 +20,10 @@ export default function ConsentSheet({ visible, onAllow, onClose, t }) {
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      {/* Тап повз аркуш — те саме, що «Не зараз» */}
-      <Pressable style={s.backdrop} onPress={onClose} accessibilityLabel={t('aiConsentLater')} />
-      <View style={s.sheet}>
+      {/* Тап повз аркуш — те саме, що «Не зараз». VoiceOver тло пропускає:
+          для нього є сама кнопка й жест виходу. */}
+      <Pressable style={s.backdrop} onPress={onClose} accessible={false} />
+      <View style={s.sheet} onAccessibilityEscape={onClose}>
         <View style={s.handle} />
         <FadeIn dy={14} style={{ alignItems: 'center' }}>
           <Mascot pose="encourage" size={96} />

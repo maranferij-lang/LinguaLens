@@ -339,14 +339,26 @@ const ListRow = memo(function ListRow({ item, open, onToggle, onAskDelete, onSha
   const uri = photoUri(item.photo);
   const lang = item.lang || 'en';
   return (
-    <Pressable style={s.card} onPress={() => onToggle(item.id)}>
+    // Уся картка — ціль для пальця, але не для VoiceOver: доступний Pressable
+    // злив би вкладені «Слухати», «Поділитись» і «Видалити» в один елемент,
+    // і до них було б не дістатись. Розгортає рядок блок зі словом.
+    <Pressable style={s.card} onPress={() => onToggle(item.id)} accessible={false}>
       <View style={s.rowTop}>
-        {uri ? (
-          <Sticker uri={uri} shape={item.shape} outline={item.outline} box={item.box} size={48} />
-        ) : (
-          <LetterTile word={item.word} lang={lang} size={48} />
-        )}
-        <View style={{ flex: 1 }}>
+        <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+          {uri ? (
+            <Sticker uri={uri} shape={item.shape} outline={item.outline} box={item.box} size={48} />
+          ) : (
+            <LetterTile word={item.word} lang={lang} size={48} />
+          )}
+        </View>
+        <View
+          style={{ flex: 1 }}
+          accessible
+          accessibilityRole="button"
+          accessibilityState={{ expanded: open }}
+          accessibilityActions={[{ name: 'activate' }]}
+          onAccessibilityAction={() => onToggle(item.id)}
+        >
           <Text style={s.word}>
             {item.word} <Text style={s.flag}>{flagFor(lang)}</Text>
           </Text>

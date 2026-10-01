@@ -3,11 +3,13 @@
 //   • згода на відправку кадру (App Review 5.1.2(i)): без неї кадр не йде нікуди;
 //   • 402 після свіжої покупки Pro: той самий кадр іде ще раз, без пейволу.
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Modal } from 'react-native';
 import { act, create } from 'react-test-renderer';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import App from '../App';
 import ScannerScreen from '../src/ScannerScreen';
 import ConsentSheet from '../src/ConsentSheet';
+import ShareSheet from '../src/share/ShareSheet';
 import { recognizeImage } from '../src/api';
 import { makeT } from '../src/i18n';
 
@@ -141,4 +143,34 @@ describe('402 from the server', () => {
     expect(recognizeImage).toHaveBeenCalledTimes(1);
     await act(async () => tree.unmount());
   });
+});
+
+// «Назад» на Android: спершу закривається картка «поділитись», а не весь
+// результат з незбереженим словом.
+test('back closes the share card first, then the result', async () => {
+  const t = makeT('en');
+  const tree = await render(
+    <SafeAreaProvider initialMetrics={metrics}>
+      <ScannerScreen targetLang="es" nativeLang="en" savedWords={[]} onSaveWord={() => true} aiConsent t={t} />
+    </SafeAreaProvider>
+  );
+  expect(shutter(tree).props.accessibilityLabel).toBe(t('scanShutter'));
+  await press(tree, () => shutter(tree).props.onPress());
+
+  // аркуш результату — єдиний Modal сканера, крім аркуша згоди
+  const result = () => tree.root.findAllByType(Modal).find((m) => m.parent?.type !== ConsentSheet);
+  const sharing = () => tree.root.findByType(ShareSheet).props.visible;
+  expect(result().props.visible).toBe(true);
+
+  const shareBtn = tree.root.findAll((n) => n.props.accessibilityLabel === t('share') && typeof n.props.onPress === 'function')[0];
+  await press(tree, () => shareBtn.props.onPress());
+  expect(sharing()).toBe(true);
+
+  await press(tree, () => result().props.onRequestClose());
+  expect(sharing()).toBe(false);
+  expect(result().props.visible).toBe(true);
+
+  await press(tree, () => result().props.onRequestClose());
+  expect(result().props.visible).toBe(false);
+  await act(async () => tree.unmount());
 });

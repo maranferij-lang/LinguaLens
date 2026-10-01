@@ -26,7 +26,9 @@ export default function WordOfDayCard({ word, lang, saved, onSave, t }) {
 
   return (
     <FadeIn>
-      <Press onPress={toggle} style={{ marginBottom: 12 }}>
+      {/* Уся картка — ціль для пальця, але не для VoiceOver: інакше «Слухати»
+          й «Зберегти» злились би з нею в один елемент. Розгортає рядок зі словом. */}
+      <Press onPress={toggle} style={{ marginBottom: 12 }} accessible={false}>
         <View style={[s.card, SHADOW]}>
           <View style={s.head}>
             <View style={s.badge}>
@@ -38,7 +40,14 @@ export default function WordOfDayCard({ word, lang, saved, onSave, t }) {
             </View>
           </View>
 
-          <View style={s.row}>
+          <View
+            style={s.row}
+            accessible
+            accessibilityRole="button"
+            accessibilityState={{ expanded: open }}
+            accessibilityActions={[{ name: 'activate' }]}
+            onAccessibilityAction={toggle}
+          >
             <View style={{ flex: 1 }}>
               <Text style={s.word}>{word.word}</Text>
               {word.ipa ? <Text style={s.ipa}>{word.ipa}</Text> : null}

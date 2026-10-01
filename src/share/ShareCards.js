@@ -381,11 +381,16 @@ function Medal({ id, tier, pal }) {
   );
 }
 
+// fresh — щойно розблоковане (тап по тосту). Давнє, поширене з профілю,
+// не вдає з себе сьогоднішнє: нейтральний заголовок і без дати.
 function AchievementCard({ payload, pal, t, locale }) {
-  const { achievement, stats = {} } = payload;
+  const { achievement, stats = {}, fresh } = payload;
+  // «Місяць поспіль» поруч із нинішньою серією в 2 дні суперечив би сам собі —
+  // для досягнень за серію показуємо саму серію, за яку його дали.
+  const streak = achievement.metric === 'streak' ? achievement.goal : stats.streak;
   return (
     <>
-      <Txt style={[capsStyle(pal.muted), { textAlign: 'center' }]}>{t('shareUnlocked')}</Txt>
+      <Txt style={[capsStyle(pal.muted), { textAlign: 'center' }]}>{fresh ? t('shareUnlocked') : t('shareMyAch')}</Txt>
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
         <Medal id={achievement.id} tier={achievement.tier} pal={pal} />
         <Txt
@@ -401,12 +406,12 @@ function AchievementCard({ payload, pal, t, locale }) {
         pal={pal}
         locale={locale}
         items={[
-          { label: t('shareStatWords'), value: stats.words },
-          { label: t('shareStatStreak'), value: stats.streak },
+          { label: t('shareStatWords', { n: stats.words }), value: stats.words },
+          { label: t('shareStatStreak', { n: streak }), value: streak },
         ]}
       />
       <View style={{ marginTop: 40 }}>
-        <Footer pal={pal} t={t} right={dateLabel(Date.now(), locale)} />
+        <Footer pal={pal} t={t} right={fresh ? dateLabel(Date.now(), locale) : null} />
       </View>
     </>
   );
@@ -480,9 +485,9 @@ function WeekCard({ payload, pal, t, locale }) {
         locale={locale}
         style={{ marginTop: 30 }}
         items={[
-          { label: t('shareStatNew'), value: stats.weekWords },
-          { label: t('shareStatStreak'), value: stats.streak },
-          { label: t('shareStatReviews'), value: stats.reviews },
+          { label: t('shareStatNew', { n: stats.weekWords }), value: stats.weekWords },
+          { label: t('shareStatStreak', { n: stats.streak }), value: stats.streak },
+          { label: t('shareStatReviews', { n: stats.reviews }), value: stats.reviews },
         ]}
       />
 

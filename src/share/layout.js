@@ -279,6 +279,31 @@ export function weekRangeLabel(days, locale) {
   }
 }
 
+// Цифри картки «Мій тиждень» — рівно за ті сім календарних днів, що на
+// графіку (days: від найстарішого до сьогодні; value — збереження й
+// повторення за день, див. logActivity в App.js). Вікно — від локальної
+// півночі першого дня, а не «168 годин тому»: інакше слово з дня, якого на
+// графіку вже немає, лічилось би новим. Окремого журналу повторень немає,
+// тож повторення тижня = активність тижня мінус слова, збережені за тиждень.
+export function weekStats({ days = [], words = [], streak = 0 }) {
+  const start = dayFromKey(days[0]?.key)?.getTime() ?? 0;
+  const recent = words.filter((w) => (w.addedAt || 0) >= start);
+  const active = days.reduce((sum, d) => sum + (d.value || 0), 0);
+  return {
+    words: words.length,
+    weekWords: recent.length,
+    streak,
+    reviews: Math.max(0, active - recent.length),
+    days,
+    // найсвіжіші наліпки тижня — для колажу
+    stickers: recent
+      .filter((w) => w.photo)
+      .slice(-6)
+      .reverse(),
+    langs: [...new Set(recent.map((w) => w.lang || 'en'))],
+  };
+}
+
 export function formatCount(n, locale) {
   const v = Math.max(0, Math.round(Number(n) || 0));
   try {

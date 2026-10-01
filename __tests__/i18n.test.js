@@ -6,7 +6,8 @@
 import fs from 'fs';
 import path from 'path';
 
-import { STRINGS, makeT, pluralIndex } from '../src/i18n';
+import { STRINGS, makeT, pluralIndex, uiLang } from '../src/i18n';
+import { formatDate } from '../src/locale';
 import { ACHIEVEMENTS } from '../src/achievements';
 import { COMPARISON, PLANS, PRO_BENEFITS } from '../src/subscription';
 
@@ -207,5 +208,22 @@ describe('copy style', () => {
 
   test('dowLetters has one letter per weekday', () => {
     for (const lang of LANGS) expect([...STRINGS[lang].dowLetters]).toHaveLength(7);
+  });
+});
+
+// Французу без перекладу UI речення англійське — і дата в ньому теж.
+describe('dates', () => {
+  const ts = new Date(2026, 9, 8, 12).getTime();
+
+  test('follow the language the interface actually speaks', () => {
+    expect(formatDate(ts, 'fr')).toBe(formatDate(ts, 'en'));
+    expect(formatDate(ts, 'pl')).toBe(formatDate(ts, 'en'));
+    expect(uiLang('fr')).toBe('en');
+    expect(uiLang('uk')).toBe('uk');
+  });
+
+  test('translated interfaces keep their own date format', () => {
+    expect(formatDate(ts, 'uk')).not.toBe(formatDate(ts, 'en'));
+    expect(formatDate(ts, 'de')).toMatch(/Oktober/);
   });
 });

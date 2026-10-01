@@ -251,10 +251,19 @@ export default function FlashcardsScreen({
       {/* key — кожна нова картка м'яко з'являється, а не підміняється миттєво */}
       <FadeIn key={current.id} style={s.cardWrap} dy={10}>
         <Animated.View style={[s.card, SHADOW, frontStyle]} pointerEvents={flipped ? 'none' : 'auto'}>
-          <Press style={s.cardInner} onPress={() => doFlip(true)}>
+          {/* Динамік вкладений у картку, а VoiceOver зливає вкладені кнопки в
+              одну — тож «Слухати» тут окрема дія картки (свайп угору/вниз). */}
+          <Press
+            style={s.cardInner}
+            onPress={() => doFlip(true)}
+            accessibilityActions={[{ name: 'activate' }, { name: 'listen', label: t('listen') }]}
+            onAccessibilityAction={(e) =>
+              e.nativeEvent.actionName === 'listen' ? speak(current.word, current.lang) : doFlip(true)
+            }
+          >
             <Text style={s.cardWord}>{current.word}</Text>
             {current.ipa ? <Text style={s.cardIpa}>{current.ipa}</Text> : null}
-            <Press style={s.speakBtn} onPress={() => speak(current.word, current.lang)}>
+            <Press style={s.speakBtn} onPress={() => speak(current.word, current.lang)} accessibilityLabel={t('listen')}>
               <IcSpeaker size={22} color={C.accent} />
             </Press>
             <Text style={s.tapHint}>{t('tapFlip')}</Text>

@@ -110,7 +110,13 @@ export function renewSession() {
 // нову ідентичність зараз отримати не вдасться, наступний старт почнеться
 // з нуля, а не з токена стертого запису.
 export async function eraseServerData() {
-  await apiDeleteMe();
+  try {
+    await apiDeleteMe();
+  } catch (e) {
+    // Сервер уже не знає цього пристрою — стирати там нічого, тож це не
+    // збій: продовжуємо з телефоном.
+    if (!deviceForgotten(e)) throw e;
+  }
   await writeToken('');
   await AsyncStorage.removeItem(USER_KEY).catch(() => {});
   setSessionToken('');

@@ -93,7 +93,7 @@ export default function PaywallScreen({
 
   return (
     <View style={s.root}>
-      <Pressable style={s.close} onPress={onClose} hitSlop={12}>
+      <Pressable style={s.close} onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel={t('close')}>
         <IcClose size={22} color={C.faint} />
       </Pressable>
 

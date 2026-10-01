@@ -27,7 +27,9 @@ import {
   toFileUri,
   exportSize,
   weekRangeLabel,
+  weekStats,
 } from '../src/share/layout';
+import { makeT } from '../src/i18n';
 
 // Пробіли в Intl різні (вузький нерозривний, тонкий) — порівнюємо без них
 const norm = (s) => s.replace(/\s+/g, ' ');
@@ -319,5 +321,61 @@ describe('pickCollage', () => {
   test('nothing to show', () => {
     expect(pickCollage(undefined)).toEqual([]);
     expect(pickCollage([{ word: 'x' }])).toEqual([]);
+  });
+});
+
+// «Мій тиждень» — рівно ті сім календарних днів, що на графіку, а не весь час.
+describe('weekStats', () => {
+  // сьогодні 1 жовтня; на графіку 25 вересня – 1 жовтня
+  const days = ['09-25', '09-26', '09-27', '09-28', '09-29', '09-30', '10-01'].map((md) => ({ key: '2026-' + md, value: 0 }));
+  const at = (m, d, h) => new Date(2026, m - 1, d, h).getTime();
+  const old = Array.from({ length: 20 }, (_, i) => ({ word: 'old' + i, lang: 'fr', addedAt: at(1, 1, 12), srs: { reps: 50 } }));
+
+  test('a year of reviews but none this week shows zero, not the lifetime total', () => {
+    const s = weekStats({ days, words: old, streak: 0 });
+    expect(s).toMatchObject({ words: 20, weekWords: 0, reviews: 0, langs: [] });
+  });
+
+  test('the window starts at midnight of the first bar, not 168 hours ago', () => {
+    const words = [
+      ...old,
+      // 6,5 доби тому, але ще 24 вересня — цього дня на графіку немає
+      { word: 'eve', lang: 'de', addedAt: at(9, 24, 18), photo: 'stickers/eve.jpg' },
+      { word: 'la taza', lang: 'es', addedAt: at(9, 25, 1), photo: 'stickers/taza.jpg' },
+      { word: 'el vaso', lang: 'es', addedAt: at(9, 26, 10) },
+    ];
+    const week = days.map((d) => ({ ...d, value: { '2026-09-25': 1, '2026-09-26': 3 }[d.key] || 0 }));
+    const s = weekStats({ days: week, words, streak: 2 });
+    expect(s.weekWords).toBe(2);
+    // активність тижня 4 мінус 2 збережені слова
+    expect(s.reviews).toBe(2);
+    expect(s.langs).toEqual(['es']);
+    expect(s.stickers.map((w) => w.word)).toEqual(['la taza']);
+    expect(s.days).toBe(week);
+  });
+
+  test('never negative when words outnumber the logged activity', () => {
+    const s = weekStats({ days, words: [{ word: 'x', addedAt: at(9, 30, 9) }] });
+    expect(s.reviews).toBe(0);
+  });
+});
+
+// Число на картці стоїть окремо, а підпис мусить з ним узгоджуватись:
+// «1 зібране слово», а не «1 зібрані слова».
+describe('count labels agree with the number', () => {
+  test('Ukrainian: one, few, many', () => {
+    const t = makeT('uk');
+    expect([1, 3, 5].map((n) => t('shareStatWords', { n }))).toEqual(['зібране слово', 'зібрані слова', 'зібраних слів']);
+    expect([1, 5].map((n) => t('shareStatStreak', { n }))).toEqual(['день поспіль', 'днів поспіль']);
+    expect([1, 5].map((n) => t('shareStatNew', { n }))).toEqual(['нове слово', 'нових слів']);
+    expect([1, 5].map((n) => t('shareStatReviews', { n }))).toEqual(['повторення', 'повторень']);
+  });
+
+  test('English, German and Spanish: singular for 1', () => {
+    expect(makeT('en')('shareStatWords', { n: 1 })).toBe('word collected');
+    expect(makeT('en')('shareStatNew', { n: 5 })).toBe('new words');
+    expect(makeT('de')('shareStatStreak', { n: 1 })).toBe('Tag in Folge');
+    expect(makeT('es')('shareStatReviews', { n: 1 })).toBe('repaso');
+    expect(makeT('es')('shareStatWords', { n: 2 })).toBe('palabras guardadas');
   });
 });

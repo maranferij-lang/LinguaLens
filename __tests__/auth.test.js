@@ -104,3 +104,11 @@ test('erasing fails loudly when the server is unreachable and keeps the identity
   await expect(eraseServerData()).rejects.toThrow('OFFLINE');
   expect(keychain.get('ll_token')).toBe('old');
 });
+
+test('erasing a device the server already forgot still starts fresh', async () => {
+  keychain.set('ll_token', 'old');
+  await AsyncStorage.setItem(USER_KEY, 'u1');
+  server({ 'DELETE /me': [401, { error: 'UNAUTHORIZED' }], 'POST /auth/device': NEW_DEVICE });
+  expect(await eraseServerData()).toEqual({ token: 'new', userId: 'u2' });
+  expect(keychain.get('ll_token')).toBe('new');
+});

@@ -316,6 +316,14 @@ export default function ScannerScreen({
     setResult(null);
   }
 
+  // «Назад» на Android і жест виходу VoiceOver: спершу закривається картка
+  // «поділитись», а не весь результат — інакше незбережене слово пропало б
+  // разом із витраченим сканом.
+  function backFromResult() {
+    if (sharing) setSharing(null);
+    else closeResult();
+  }
+
   if (!permission) return <View style={s.center} />;
 
   if (!permission.granted) {
@@ -405,7 +413,7 @@ export default function ScannerScreen({
 
       {/* Затвор як в Apple Camera: біле кільце + біле коло */}
       <View style={s.shutterWrap}>
-        <Press onPress={scan} disabled={loading} testID="shutter">
+        <Press onPress={scan} disabled={loading} testID="shutter" accessibilityLabel={t('scanShutter')}>
           <View style={s.shutterRing}>
             <View style={s.shutter}>
               {loading ? <ActivityIndicator color="#000" /> : null}
@@ -417,15 +425,21 @@ export default function ScannerScreen({
       {error ? (
         <FadeIn style={s.errorWrap}>
           <Text style={s.errorText}>{error}</Text>
-          <Pressable onPress={() => setError('')} style={s.errorClose}>
+          <Pressable
+            onPress={() => setError('')}
+            style={s.errorClose}
+            accessibilityRole="button"
+            accessibilityLabel={t('close')}
+          >
             <IcClose color="rgba(235,235,245,0.6)" />
           </Pressable>
         </FadeIn>
       ) : null}
 
-      <Modal visible={!!result} transparent animationType="slide" onRequestClose={closeResult}>
-        <Pressable style={s.modalBackdrop} onPress={closeResult} />
-        <View style={s.sheet}>
+      <Modal visible={!!result} transparent animationType="slide" onRequestClose={backFromResult}>
+        {/* Тло — лише для пальця; VoiceOver закриває аркуш кнопкою або жестом виходу */}
+        <Pressable style={s.modalBackdrop} onPress={closeResult} accessible={false} />
+        <View style={s.sheet} onAccessibilityEscape={backFromResult}>
           <View style={s.sheetHandle} />
           {result ? (
             <>
@@ -437,7 +451,7 @@ export default function ScannerScreen({
               <FadeIn dy={14}>
                 <View style={s.wordRow}>
                   <Text style={s.word}>{result.word}</Text>
-                  <Press style={s.speakBtn} onPress={() => speak(result.word, targetLang)}>
+                  <Press style={s.speakBtn} onPress={() => speak(result.word, targetLang)} accessibilityLabel={t('listen')}>
                     <IcSpeaker size={20} color={C.accent} />
                   </Press>
                 </View>

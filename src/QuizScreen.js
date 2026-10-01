@@ -254,7 +254,7 @@ export default function QuizScreen({ words, t, onExit, onQuizDone, onMiss }) {
       <Glass style={s.qCard}>
         <View style={s.qRow}>
           <Text style={s.qWord}>{q.word.word}</Text>
-          <Press style={s.speakBtn} onPress={() => speak(q.word.word, q.word.lang)}>
+          <Press style={s.speakBtn} onPress={() => speak(q.word.word, q.word.lang)} accessibilityLabel={t('listen')}>
             <IcSpeaker size={18} color={C.accent} />
           </Press>
         </View>
