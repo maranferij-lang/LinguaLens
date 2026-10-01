@@ -199,11 +199,11 @@ export function quote(text, lang) {
 
 // Скорочує текст до кількох рядків по межі слова. numberOfLines обрізав би
 // посеред слова й разом із закривальною лапкою — «…» всередині лапок
-// виглядає як задумано, а не як баг верстки. 0.85 — запас на перенесення:
+// виглядає як задумано, а не як баг верстки. 0.78 — запас на перенесення:
 // рядок рідко заповнюється до краю.
 export function clipLines(text, lines, fontSize, width = CONTENT_W) {
   const s = String(text || '').trim();
-  const budget = lines * (width / fontSize) * 0.85;
+  const budget = lines * (width / fontSize) * 0.78;
   if (textEm(s, 0) <= budget) return s;
   let out = '';
   for (const w of s.split(/\s+/)) {
