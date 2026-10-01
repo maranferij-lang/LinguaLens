@@ -95,14 +95,10 @@ const SCAN_ERRORS = {
   504: 'SCAN_TIMEOUT',
 };
 
-export async function recognizeImage(base64Jpeg, lang = 'en', nativeLang = 'uk') {
-  let data;
+// Один запит /scan із перекладом мережевих помилок у коди сканера.
+async function scanRequest(body, timeout) {
   try {
-    data = await request('/scan', {
-      method: 'POST',
-      body: { image: base64Jpeg, lang, nativeLang },
-      timeout: SCAN_TIMEOUT,
-    });
+    return await request('/scan', { method: 'POST', body, timeout });
   } catch (e) {
     if (e.code === 'TIMEOUT') throw codeError('SCAN_TIMEOUT');
     if (e.code === 'OFFLINE') throw codeError('SCAN_OFFLINE');
@@ -110,18 +106,55 @@ export async function recognizeImage(base64Jpeg, lang = 'en', nativeLang = 'uk')
     err.data = e.data;
     throw err;
   }
+}
+
+// Поля слова в тому вигляді, в якому їх зберігає словник (camelCase).
+function wordFields(d) {
+  return {
+    word: d.word,
+    ipa: d.ipa || '',
+    translation: d.translation || '',
+    example: d.example || '',
+    exampleTranslation: d.example_translation || '',
+  };
+}
+
+const validBox = (b) => Array.isArray(b) && b.length === 4 && b.every(Number.isFinite) && b[2] > b[0] && b[3] > b[1];
+
+export async function recognizeImage(base64Jpeg, lang = 'en', nativeLang = 'uk') {
+  const data = await scanRequest({ image: base64Jpeg, lang, nativeLang }, SCAN_TIMEOUT);
   if (!data || !data.word) throw codeError('SCAN_EMPTY');
 
   return {
-    word: data.word,
-    ipa: data.ipa || '',
-    translation: data.translation || '',
-    example: data.example || '',
-    exampleTranslation: data.example_translation || '',
+    ...wordFields(data),
     box: Array.isArray(data.box) && data.box.length === 4 ? data.box : null,
     outline: Array.isArray(data.outline) && data.outline.length >= 6 ? data.outline : null,
     usage: data.usage || null,
   };
+}
+
+// ---------- СЦЕНА ----------
+// Сцена — до восьми предметів з одного кадру. Моделі треба помітно більше
+// часу, ніж на один предмет: сервер дає їй 34 с, клієнт чекає трохи довше,
+// щоб відповідь «не вклались» прийшла від сервера, а не з обірваного запиту.
+const SCENE_TIMEOUT = 40000;
+export const SCENE_MAX_OBJECTS = 8;
+
+// Кадр — уже обрізаний до 9:16 (див. src/cutout.js), рамки й силуети —
+// відносно нього. Предмет без слова чи без рамки поставити на фото нікуди:
+// такі відкидаємо тут, навіть якщо сервер їх пропустив.
+export async function recognizeScene(base64Jpeg, lang = 'en', nativeLang = 'uk') {
+  const data = await scanRequest({ image: base64Jpeg, lang, nativeLang, mode: 'scene' }, SCENE_TIMEOUT);
+  const objects = (Array.isArray(data?.objects) ? data.objects : [])
+    .filter((o) => o && typeof o.word === 'string' && o.word.trim() && validBox(o.box))
+    .slice(0, SCENE_MAX_OBJECTS)
+    .map((o) => ({
+      ...wordFields(o),
+      box: o.box,
+      outline: Array.isArray(o.outline) && o.outline.length >= 6 ? o.outline : null,
+    }));
+  if (!objects.length) throw codeError('SCAN_EMPTY');
+  return { objects, usage: data.usage || null };
 }
 
 // ---------- СЛОВО ДНЯ ----------

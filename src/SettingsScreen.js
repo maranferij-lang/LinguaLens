@@ -82,6 +82,7 @@ export default function SettingsScreen({
   themeMode,
   onSetTheme,
   wordsCount,
+  scenesCount = 0,
   onClearAll,
   onEraseEverything,
   onReplayOnb,
@@ -112,7 +113,8 @@ export default function SettingsScreen({
   }
 
   function confirmClear() {
-    Alert.alert(t('clearTitle'), t('clearMsg', { n: wordsCount }), [
+    // Сцени йдуть разом зі словами — кажемо про це, лише коли вони є
+    Alert.alert(t('clearTitle'), t(scenesCount ? 'clearMsgScenes' : 'clearMsg', { n: wordsCount }), [
       { text: t('cancel'), style: 'cancel' },
       { text: t('clear'), style: 'destructive', onPress: onClearAll },
     ]);

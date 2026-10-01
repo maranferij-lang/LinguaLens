@@ -41,7 +41,9 @@ import {
   textEm,
   tierColor,
   weekRangeLabel,
+  SCENE_TEMPLATES,
 } from './layout';
+import { SceneCard } from './SceneCards';
 
 // Фото слова може бути відносним шляхом у Documents ('stickers/x.jpg') або
 // повним URI свіжого скану. data: (веб-прев'ю) віддаємо як є — photoUri
@@ -525,6 +527,10 @@ function WeekCard({ payload, pal, t, locale }) {
 // Одна картка в повному розмірі 360×640. cardRef — на кореневий View,
 // саме його знімає capture.js.
 export function ShareCard({ payload, template, pal, t, locale, cardRef }) {
+  // Сцена — фото на весь кадр, без полів звичайної картки
+  if (SCENE_TEMPLATES.includes(template)) {
+    return <SceneCard payload={payload} template={template} pal={pal} t={t} locale={locale} cardRef={cardRef} />;
+  }
   const props = { pal, t, locale };
   let body = null;
   if (template === 'sticker') body = <WordSticker word={payload.word} {...props} />;

@@ -4,8 +4,21 @@
 //     друзям, тож сітка має виглядати як альбом, а не як таблиця: наліпки
 //     трохи похилені, як їх наклеїла рука, підпис — тихий.
 // Пошук і фільтр мови спільні для обох поглядів.
+// Над ними — стрічка сцен: фото кімнат, з яких ці слова прийшли.
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, FlatList, Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import {
+  Alert,
+  Animated,
+  FlatList,
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { flagFor, speak } from './speech';
 import { IcSearch, IcShare, IcSpeaker } from './icons';
@@ -13,10 +26,13 @@ import { MascotBob } from './Mascot';
 import { Sticker } from './Sticker';
 import WordSheet, { confirmDelete, LetterTile, splitArticle } from './WordSheet';
 import { photoUri } from './photos';
+import SceneView from './scene/SceneView';
+import { sceneImageUri } from './scene/scenes';
+import { dateLabel, safeLocale } from './share/layout';
 import { FadeIn, GradBtn, Press } from './ui';
 import { UNDER_TAB } from './Chrome';
 import { layoutNext, SPRING, useReducedMotion } from './motion';
-import { F, R, type, useTheme } from './theme';
+import { CAPS, F, R, type, useTheme } from './theme';
 
 // ─── Чисті помічники (покриті тестами) ─────────────────────────────────────
 
@@ -60,7 +76,18 @@ export function gridMetrics(width) {
 // щоразу), але не перезапуск застосунку.
 let lastView = 'list';
 
-export default function DictionaryScreen({ words, onDelete, onScan, onShare, t }) {
+export default function DictionaryScreen({
+  words,
+  onDelete,
+  onScan,
+  onShare,
+  scenes = [],
+  onSaveWords,
+  onUpdateScene,
+  onDeleteScene,
+  onSceneVisible,
+  t,
+}) {
   const { C, SHADOW_SM } = useTheme();
   const s = useMemo(() => makeStyles(C, SHADOW_SM), [C, SHADOW_SM]);
   const { width } = useWindowDimensions();
@@ -70,6 +97,18 @@ export default function DictionaryScreen({ words, onDelete, onScan, onShare, t }
   const [openId, setOpenId] = useState(null);
   const [langFilter, setLangFilter] = useState(null);
   const [sheetWord, setSheetWord] = useState(null);
+  // Відкрита сцена з історії — за id: так вона бачить свіжий запис (сховані
+  // підписи), а видалена зникає сама.
+  const [sceneId, setSceneId] = useState(null);
+  const openScene = sceneId ? scenes.find((sc) => sc.id === sceneId) || null : null;
+
+  // Сцена — нативний Modal: тост досягнення App має почекати під ним.
+  const sceneOpen = !!openScene;
+  useEffect(() => {
+    if (!sceneOpen || !onSceneVisible) return;
+    onSceneVisible(true);
+    return () => onSceneVisible(false);
+  }, [sceneOpen]);
 
   const langsPresent = useMemo(() => langsOf(words), [words]);
   // Якщо видалили останнє слово обраної мови, фільтр зникає з екрана —
@@ -115,6 +154,41 @@ export default function DictionaryScreen({ words, onDelete, onScan, onShare, t }
     setLangFilter(next);
   }
 
+  function openSceneView(sc) {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setSceneId(sc.id);
+  }
+
+  // Видалити сцену — лише фото з підписами; збережені з неї слова лишаються.
+  function askDeleteScene(sc) {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Alert.alert(t('sceneDelTitle'), t('sceneDelMsg'), [
+      { text: t('cancel'), style: 'cancel' },
+      {
+        text: t('delete'),
+        style: 'destructive',
+        onPress: () => {
+          layoutNext();
+          onDeleteScene?.(sc.id);
+        },
+      },
+    ]);
+  }
+
+  const sceneStrip = scenes.length ? (
+    <SceneStrip scenes={scenes} onOpen={openSceneView} onLongPress={askDeleteScene} s={s} t={t} />
+  ) : null;
+  const sceneView = (
+    <SceneView
+      scene={openScene}
+      savedWords={words}
+      onSaveWords={onSaveWords}
+      onUpdateScene={onUpdateScene}
+      onClose={() => setSceneId(null)}
+      t={t}
+    />
+  );
+
   const renderRow = useCallback(
     ({ item }) => (
       <ListRow
@@ -143,21 +217,31 @@ export default function DictionaryScreen({ words, onDelete, onScan, onShare, t }
   );
 
   if (!words.length) {
+    const empty = (
+      <FadeIn style={{ alignItems: 'center', alignSelf: 'stretch' }}>
+        <MascotBob pose="think" size={scenes.length ? 130 : 190} />
+        <Text style={s.emptyTitle}>{t(scenes.length ? 'sceneDictEmptyTitle' : 'dictEmptyTitle')}</Text>
+        <Text style={s.emptyText}>{t(scenes.length ? 'sceneDictEmptyText' : 'dictEmptyText')}</Text>
+        {/* Порожній стан без виходу — глухий кут. Даємо дію просто тут. */}
+        {onScan && !scenes.length ? (
+          <GradBtn
+            title={t('scanFirstWord')}
+            onPress={onScan}
+            style={{ alignSelf: 'stretch', marginTop: 22 }}
+          />
+        ) : null}
+      </FadeIn>
+    );
+    // Слів ще немає, а сцени вже є (кімнату відскановано, слів не збережено):
+    // стрічка лишається, бо саме з неї ці слова й зберігають.
+    if (!scenes.length) return <View style={s.empty}>{empty}</View>;
     return (
-      <View style={s.empty}>
-        <FadeIn style={{ alignItems: 'center', alignSelf: 'stretch' }}>
-          <MascotBob pose="think" size={190} />
-          <Text style={s.emptyTitle}>{t('dictEmptyTitle')}</Text>
-          <Text style={s.emptyText}>{t('dictEmptyText')}</Text>
-          {/* Порожній стан без виходу — глухий кут. Даємо дію просто тут. */}
-          {onScan ? (
-            <GradBtn
-              title={t('scanFirstWord')}
-              onPress={onScan}
-              style={{ alignSelf: 'stretch', marginTop: 22 }}
-            />
-          ) : null}
-        </FadeIn>
+      <View style={s.root}>
+        <Text style={s.title}>{t('dictTitle')}</Text>
+        <Text style={s.subtitle}>{t('dictCount', { n: 0 })}</Text>
+        {sceneStrip}
+        <View style={[s.empty, { paddingHorizontal: 14 }]}>{empty}</View>
+        {sceneView}
       </View>
     );
   }
@@ -175,6 +259,8 @@ export default function DictionaryScreen({ words, onDelete, onScan, onShare, t }
       {/* «Збережено: 24», а не «24 слів»: так число узгоджується з будь-якою
           мовою без правил множини. */}
       <Text style={s.subtitle}>{t('dictCount', { n: words.length })}</Text>
+
+      {sceneStrip}
 
       <Segment
         value={view}
@@ -264,11 +350,51 @@ export default function DictionaryScreen({ words, onDelete, onScan, onShare, t }
         onShare={onShare}
         t={t}
       />
+      {sceneView}
     </View>
   );
 }
 
 const keyOf = (item) => item.id;
+
+// ─── Стрічка сцен ──────────────────────────────────────────────────────────
+// Компактно, як «актуальне» в профілі Instagram: мініатюри 9:16 і число слів
+// на кожній. Повний перегляд — тапом, видалення — довгим натиском (або
+// дією VoiceOver).
+const SCENE_THUMB = { w: 60, h: 106 };
+
+function SceneStrip({ scenes, onOpen, onLongPress, s, t }) {
+  const locale = safeLocale(t('shareLocale'));
+  return (
+    <View style={s.scenes}>
+      <Text style={s.scenesLabel}>{t('scenesTitle')}</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.scenesRow}>
+        {scenes.map((sc) => {
+          const n = sc.objects.length - (sc.hidden?.length || 0);
+          const count = t('sceneThumbWords', { n });
+          return (
+            <Press
+              key={sc.id}
+              onPress={() => onOpen(sc)}
+              onLongPress={() => onLongPress(sc)}
+              scaleTo={0.95}
+              accessibilityLabel={`${t('sceneThumb')}, ${count}, ${dateLabel(sc.createdAt, locale)}`}
+              accessibilityActions={[{ name: 'delete', label: t('delete') }]}
+              onAccessibilityAction={(e) => e.nativeEvent.actionName === 'delete' && onLongPress(sc)}
+              style={s.sceneThumb}
+            >
+              <Image source={{ uri: sceneImageUri(sc) }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+              <View style={s.sceneThumbShade} />
+              <Text style={s.sceneThumbText} numberOfLines={1} maxFontSizeMultiplier={1.1}>
+                {count}
+              </Text>
+            </Press>
+          );
+        })}
+      </ScrollView>
+    </View>
+  );
+}
 
 // ─── Перемикач Список / Колекція ───────────────────────────────────────────
 // Стиль той самий, що в Профілі, але біла «пігулка» не стрибає, а
@@ -402,6 +528,23 @@ const makeStyles = (C, SHADOW_SM) =>
     root: { flex: 1, backgroundColor: C.bg, padding: 20, paddingBottom: 0 },
     title: { color: C.text, ...type(34, F.bold) },
     subtitle: { color: C.dim, ...type(13, F.reg), marginTop: 2, marginBottom: 14 },
+
+    // Стрічка сцен виходить за поля екрана: мініатюри доїжджають до краю,
+    // як будь-яка горизонтальна стрічка в iOS.
+    scenes: { marginHorizontal: -20, marginBottom: 14 },
+    scenesLabel: { ...CAPS, color: C.faint, marginHorizontal: 20, marginBottom: 8 },
+    scenesRow: { paddingHorizontal: 20, gap: 8 },
+    sceneThumb: {
+      width: SCENE_THUMB.w,
+      height: SCENE_THUMB.h,
+      borderRadius: R.sm,
+      overflow: 'hidden',
+      backgroundColor: C.card2,
+      justifyContent: 'flex-end',
+    },
+    // Низ мініатюри темніший, щоб число читалось на будь-якому фото
+    sceneThumbShade: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 36, backgroundColor: 'rgba(0,0,0,0.38)' },
+    sceneThumbText: { color: '#FFFFFF', ...type(11, F.extra, { noLead: true }), textAlign: 'center', paddingHorizontal: 4, paddingBottom: 7 },
 
     segment: { flexDirection: 'row', backgroundColor: C.card2, borderRadius: R.md, padding: 3, marginBottom: 12 },
     segmentThumb: {
