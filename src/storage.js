@@ -109,13 +109,29 @@ export async function persistWords(words) {
   } catch (_) {}
 }
 
+// Лише те, що справді збережено. Типові значення (мови з телефону тощо)
+// додає App через mergeSettings: «запасний» targetLang тут перебивав би
+// мову за замовчуванням, і англомовний телефон стартував з English → English.
 export async function loadSettings() {
   try {
     const raw = await AsyncStorage.getItem(SETTINGS_KEY);
-    return raw ? JSON.parse(raw) : { autoSpeak: true, targetLang: 'en' };
+    const st = raw ? JSON.parse(raw) : null;
+    return st && typeof st === 'object' ? st : {};
   } catch (_) {
-    return { autoSpeak: true, targetLang: 'en' };
+    return {};
   }
+}
+
+// Збережене поверх типового. Якщо мови збіглися (стара версія зберігала
+// targetLang без рідної мови або вже записала English → English), рідну —
+// мову інтерфейсу — лишаємо, а мовою навчання стає типова; збігається й
+// вона — беремо типову рідну, як обмін місцями в saveSetting.
+export function mergeSettings(defaults, stored) {
+  const next = { ...defaults, ...stored };
+  if (next.targetLang === next.nativeLang) {
+    next.targetLang = defaults.targetLang !== next.nativeLang ? defaults.targetLang : defaults.nativeLang;
+  }
+  return next;
 }
 
 export async function persistSettings(settings) {

@@ -59,6 +59,14 @@ function codeError(code) {
   return e;
 }
 
+// Сервер не знає цього токена пристрою (запис стерто) — лише тоді можна
+// заводити нову ідентичність. 403 APP_TOKEN — це збірка з неправильним
+// токеном застосунку або його ротація, а не пристрій: ідентичність не чіпаємо,
+// інакше кожен такий запит знищував би її.
+export function deviceForgotten(e) {
+  return e?.status === 401 && e?.code === 'UNAUTHORIZED';
+}
+
 // ---------- ІДЕНТИЧНІСТЬ ПРИСТРОЮ ----------
 export function apiCreateDevice() {
   return request('/auth/device', { method: 'POST', body: {} });
@@ -78,8 +86,9 @@ export function apiDeleteMe() {
 const SCAN_TIMEOUT = 25000;
 
 // Статус відповіді → код помилки, який сканер перетворює на людську фразу.
+// SCAN_AUTH — лише «пристрій забуто» (див. deviceForgotten); 401/403 з іншої
+// причини — звичайна помилка сервера.
 const SCAN_ERRORS = {
-  401: 'SCAN_AUTH',
   402: 'SCAN_LIMIT', // безкоштовні скани на сьогодні вичерпано — сервер не кликав AI
   422: 'SCAN_EMPTY', // сервер дійшов до AI, але чіткого предмета в кадрі немає
   429: 'SCAN_RATE',
@@ -97,7 +106,7 @@ export async function recognizeImage(base64Jpeg, lang = 'en', nativeLang = 'uk')
   } catch (e) {
     if (e.code === 'TIMEOUT') throw codeError('SCAN_TIMEOUT');
     if (e.code === 'OFFLINE') throw codeError('SCAN_OFFLINE');
-    const err = codeError(SCAN_ERRORS[e.status] || 'SCAN_SERVER');
+    const err = codeError(deviceForgotten(e) ? 'SCAN_AUTH' : SCAN_ERRORS[e.status] || 'SCAN_SERVER');
     err.data = e.data;
     throw err;
   }

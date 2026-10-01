@@ -34,6 +34,7 @@ import {
   loadWords,
   loadWod,
   localDayKey,
+  mergeSettings,
   persistActivity,
   persistOnboarded,
   persistSeenAchievements,
@@ -46,7 +47,7 @@ import { LANGS, initAudio } from './src/speech';
 import { makeT } from './src/i18n';
 import { ensureSession, eraseServerData, renewSession } from './src/auth';
 import { deletePhoto, persistPhoto } from './src/photos';
-import { apiMe } from './src/api';
+import { apiMe, deviceForgotten } from './src/api';
 import { computeMetrics, evaluate, newlyUnlocked } from './src/achievements';
 import { maybeAskForReview } from './src/review';
 import {
@@ -140,11 +141,19 @@ export default function App() {
   const [seenAch, setSeenAch] = useState([]);
   const [wod, setWod] = useState(null);
   const [toastAch, setToastAch] = useState(null);
+  // Відкритий аркуш результату скану — це нативний Modal, і все з кореня App
+  // (тост, пейвол) iOS малює ПІД ним.
+  const [scanSheetOpen, setScanSheetOpen] = useState(false);
   // Денний облік сканів. Джерело правди — сервер; тут лише кеш, щоб
   // показати пейвол ще ДО зйомки і не гнати кадр, який сервер однаково відхилить.
   const [usage, setUsage] = useState({ scans: 0 });
   const [paywall, setPaywall] = useState(null); // null | 'scans' | 'words' | 'langs' | 'info'
   const [share, setShare] = useState(null); // payload для картки «поділитись»
+  // Слово, яке не влізло в безкоштовний словник. Якщо людина тут же оформить
+  // Pro, зберігаємо його самі — інакше відсканований предмет просто пропав би.
+  const pendingWord = useRef(null);
+  // Онбординг відкрили повторно з налаштувань (див. finishOnboarding).
+  const onbReplay = useRef(false);
 
   // Підписка: RevenueCat (або імітація в розробці без ключа). id пристрою —
   // це appUserID, тож сервер бачить ту саму покупку.
@@ -165,7 +174,9 @@ export default function App() {
         loadWod(),
         loadUsage(),
       ]);
-      const merged = { ...defaultSettings(), ...st };
+      // Збережене перебиває типове лише там, де справді щось збережено:
+      // на свіжому встановленні мови вирішує defaultLanguages().
+      const merged = mergeSettings(defaultSettings(), st);
       setWords(w);
       setSettings(merged);
       setActivity(a);
@@ -200,14 +211,15 @@ export default function App() {
     []
   );
 
-  // Серверний лічильник сканів і статус пристрою. 401 — сервер нас забув
-  // (стерли дані, змінили секрет): тихо беремо нову ідентичність.
+  // Серверний лічильник сканів і статус пристрою. 401 UNAUTHORIZED — сервер
+  // нас забув (стерли дані, змінили секрет): тихо беремо нову ідентичність.
+  // Решта помилок (офлайн, 403 APP_TOKEN) ідентичності не стосується.
   async function refreshMe(refresh = false) {
     try {
       const me = await apiMe(refresh);
       if (me?.usage) updateUsage(me.usage);
     } catch (e) {
-      if (e?.status === 401) renewIdentity();
+      if (deviceForgotten(e)) renewIdentity();
     }
   }
 
@@ -267,9 +279,15 @@ export default function App() {
       setSeenAch(ids);
       persistSeenAchievements(ids);
       setToastAch(fresh[0]); // показуємо перше, решта лишаться в профілі
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
   }, [words, activity, stats, streak, ready]);
+
+  // Поки відкритий аркуш скану, вітання чекає: під Modal воно відіграло б
+  // невидимим і зникло. Покажемо (і дамо відгук), щойно аркуш закриється.
+  const shownAch = scanSheetOpen ? null : toastAch;
+  useEffect(() => {
+    if (shownAch) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }, [shownAch]);
 
   // ---------- ДАНІ ----------
   function logActivity() {
@@ -297,14 +315,21 @@ export default function App() {
     return true;
   }
 
+  // true — слово збережено; false — відмова, відкрито пейвол.
   function addWord(result) {
     // Стеля словника. Перевіряємо тут, а не в сканері: слово може прийти
     // ще й зі «слова дня», і ліміт має діяти однаково.
     const deny = canSaveWord({ pro: sub.pro, wordCount: words.length });
     if (deny) {
+      pendingWord.current = result;
       setPaywall(deny);
-      return;
+      return false;
     }
+    insertWord(result);
+    return true;
+  }
+
+  function insertWord(result) {
     const item = {
       id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
       ...result,
@@ -370,8 +395,18 @@ export default function App() {
   function saveSetting(patch) {
     // Вчити мову, яка й так рідна, безглуздо: обрали її з іншого боку —
     // міняємо мови місцями, а не лишаємо «English → English».
-    if (patch.targetLang && patch.targetLang === settings.nativeLang) patch = { ...patch, nativeLang: settings.targetLang };
-    if (patch.nativeLang && patch.nativeLang === settings.targetLang) patch = { ...patch, targetLang: settings.nativeLang };
+    if (patch.targetLang && patch.targetLang === settings.nativeLang) {
+      patch = { ...patch, nativeLang: settings.targetLang };
+    } else if (patch.nativeLang && patch.nativeLang === settings.targetLang) {
+      // Обмін робить колишню рідну мовою навчання — це така сама нова мова,
+      // як обрана у списку «вчу», і безкоштовний ліміт діє так само.
+      const deny = canUseLanguage({ pro: sub.pro, words, nextLang: settings.nativeLang });
+      if (deny) {
+        setPaywall(deny);
+        return;
+      }
+      patch = { ...patch, targetLang: settings.nativeLang };
+    }
     const next = { ...settings, ...patch };
     setSettings(next);
     persistSettings(next);
@@ -427,7 +462,13 @@ export default function App() {
   }
 
   // ---------- СЛОВО ДНЯ ----------
-  const todayWord = useMemo(() => todayFrom(wod), [wod]);
+  // Кеш годиться лише для тієї пари мов, з якою його брали. Після зміни мови
+  // старий кеш живе, доки не прийде новий (а офлайн — і довше), і картка
+  // показувала б слово іншої мови.
+  const todayWord = useMemo(
+    () => (wod && wod.lang === settings.targetLang && wod.native === settings.nativeLang ? todayFrom(wod) : null),
+    [wod, settings.targetLang, settings.nativeLang]
+  );
   const wodSaved = useMemo(
     () => !!todayWord && words.some((w) => w.word?.toLowerCase() === todayWord.word?.toLowerCase()),
     [todayWord, words]
@@ -435,15 +476,19 @@ export default function App() {
 
   function saveWordOfDay() {
     if (!todayWord || wodSaved) return;
-    addWord({
+    // Мови — ті, з якими слово прийшло від сервера, а не поточні з налаштувань.
+    const saved = addWord({
       word: todayWord.word,
       ipa: todayWord.ipa || '',
       translation: todayWord.translation || '',
       example: todayWord.example || '',
       exampleTranslation: todayWord.example_translation || '',
-      lang: settings.targetLang,
-      nativeLang: settings.nativeLang,
+      lang: wod.lang,
+      nativeLang: wod.native,
     });
+    // Відмова (стеля словника) — не збережене слово: інакше повторні тапи
+    // накручували б досягнення за слово дня.
+    if (!saved) return;
     bumpStat('wordOfDaySeen');
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }
@@ -452,6 +497,7 @@ export default function App() {
   async function purchasePlan(planId) {
     const res = await pro.purchase(planId);
     if (res.ok) {
+      savePendingWord();
       setPaywall(null);
       refreshMe(true);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -466,8 +512,26 @@ export default function App() {
 
   async function restorePurchases() {
     const next = await pro.restore();
-    if (next?.pro) refreshMe(true);
+    if (next?.pro) {
+      savePendingWord();
+      refreshMe(true);
+    }
     return next;
+  }
+
+  // Pro оформлено — дописуємо слово, на якому спіткнулись. Ліміт уже не
+  // перевіряємо: sub.pro у цьому замиканні ще старий.
+  function savePendingWord() {
+    const w = pendingWord.current;
+    pendingWord.current = null;
+    if (w) insertWord(w);
+  }
+
+  // Пейвол закрили без покупки — відкладене слово більше не чекає, щоб
+  // пізніша покупка з налаштувань не дописала його поза контекстом.
+  function closePaywall() {
+    pendingWord.current = null;
+    setPaywall(null);
   }
 
   // «Стерти мої дані»: запис на сервері + усе на телефоні. Кидає помилку,
@@ -492,11 +556,15 @@ export default function App() {
   }
 
   function finishOnboarding(result) {
+    const replay = onbReplay.current;
+    onbReplay.current = false;
     setOnboarded(true);
     persistOnboarded();
     // Онбординг уже спитав про сповіщення — зберігаємо відповідь, щоб не
     // питати вдруге і щоб перемикач у налаштуваннях показував правду.
-    if (result && typeof result.wodEnabled === 'boolean') {
+    // Під час повтору зважаємо лише на явне «так»: «Пропустити» там означає
+    // «передивився слайди», а не «вимкни сповіщення, які я колись увімкнув».
+    if (result && typeof result.wodEnabled === 'boolean' && (!replay || result.wodEnabled)) {
       const next = { ...settings, wodEnabled: result.wodEnabled };
       setSettings(next);
       persistSettings(next);
@@ -510,6 +578,7 @@ export default function App() {
   }
 
   function replayOnboarding() {
+    onbReplay.current = true;
     setTab('scan');
     setOnboarded(false);
   }
@@ -600,6 +669,7 @@ export default function App() {
                   setPaywall('scans');
                 }}
                 onSessionLost={renewIdentity}
+                onResultVisible={setScanSheetOpen}
                 scansLeft={scansLeft({ pro: sub.pro, usage })}
                 t={t}
               />
@@ -713,7 +783,7 @@ export default function App() {
             <PaywallScreen
               reason={paywall}
               plans={pro.plans}
-              onClose={() => setPaywall(null)}
+              onClose={closePaywall}
               onPurchase={purchasePlan}
               onRestore={restorePurchases}
               onOpen={() => !pro.plans.length && pro.reloadPlans()}
@@ -726,7 +796,7 @@ export default function App() {
         {/* Спливаюче вітання з новим досягненням; тап — поділитись ним */}
         <View style={[StyleSheet.absoluteFill, { top: insets.top }]} pointerEvents="box-none">
           <AchievementToast
-            achievement={toastAch}
+            achievement={shownAch}
             onHide={() => setToastAch(null)}
             onPress={(a) => shareAchievement(a)}
             t={t}

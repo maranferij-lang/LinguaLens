@@ -1,4 +1,4 @@
-import { apiWordOfDay, recognizeImage, setSessionToken } from '../src/api';
+import { apiMe, apiWordOfDay, deviceForgotten, recognizeImage, setSessionToken } from '../src/api';
 import { localDayKey } from '../src/storage';
 
 function respond(status, body) {
@@ -24,12 +24,31 @@ test.each([
   [402, 'SCAN_LIMIT'],
   [422, 'SCAN_EMPTY'],
   [429, 'SCAN_RATE'],
-  [401, 'SCAN_AUTH'],
   [504, 'SCAN_TIMEOUT'],
   [502, 'SCAN_SERVER'],
 ])('HTTP %i becomes %s', async (status, code) => {
   respond(status, { error: 'x', used: 5 });
   await expect(recognizeImage('b64')).rejects.toThrow(code);
+});
+
+// SCAN_AUTH змушує сканер заводити нову ідентичність — лише коли сервер
+// справді забув пристрій. Неправильний токен застосунку — звичайна помилка.
+test.each([
+  [401, 'UNAUTHORIZED', 'SCAN_AUTH'],
+  [403, 'APP_TOKEN', 'SCAN_SERVER'],
+  [401, 'Немає доступу.', 'SCAN_SERVER'],
+])('HTTP %i %s becomes %s', async (status, error, code) => {
+  respond(status, { error });
+  await expect(recognizeImage('b64')).rejects.toThrow(code);
+});
+
+test('only an unknown device token counts as a forgotten device', async () => {
+  respond(401, { error: 'UNAUTHORIZED' });
+  expect(deviceForgotten(await apiMe().catch((e) => e))).toBe(true);
+  respond(403, { error: 'APP_TOKEN' });
+  expect(deviceForgotten(await apiMe().catch((e) => e))).toBe(false);
+  respond(500, {});
+  expect(deviceForgotten(await apiMe().catch((e) => e))).toBe(false);
 });
 
 test('the paywall gets the server counters with a 402', async () => {

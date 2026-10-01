@@ -60,6 +60,7 @@ export default function ScannerScreen({
   onScanned,
   onLimitReached,
   onSessionLost,
+  onResultVisible,
   onShare,
   scansLeft,
   t,
@@ -135,6 +136,16 @@ export default function ScannerScreen({
 
   const alreadySaved =
     result && savedWords.some((w) => w.word.toLowerCase() === result.word.toLowerCase());
+
+  // Аркуш результату — нативний Modal, і все, що App малює в корені (тост
+  // досягнення, пейвол), iOS ховає під ним. Кажемо App, коли аркуш відкритий,
+  // — і що він закрився, зокрема коли сканер зникає разом із ним.
+  const resultOpen = !!result;
+  useEffect(() => {
+    if (!resultOpen || !onResultVisible) return;
+    onResultVisible(true);
+    return () => onResultVisible(false);
+  }, [resultOpen]);
 
   // Стан `loading` оновлюється лише з наступним рендером — два тапи в одному
   // кадрі обидва проходили б перевірку, і другий знімок падав на нативному
@@ -259,7 +270,13 @@ export default function ScannerScreen({
 
   function save() {
     if (!result || alreadySaved) return;
-    onSaveWord(resultWord());
+    // App відмовив (стеля безкоштовного словника) і відкрив пейвол. Під цим
+    // Modal його не видно — закриваємо аркуш; слово App збереже сам, якщо
+    // людина оформить Pro.
+    if (!onSaveWord(resultWord())) {
+      closeResult();
+      return;
+    }
     setJustSaved(true);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }
