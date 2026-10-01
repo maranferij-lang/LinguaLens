@@ -414,7 +414,7 @@ export const STRINGS = {
     // ── віджет «Слово дня» ──
     widgetTitle: 'Слово дня',
     widgetCaption: '{lang} · слово дня',
-    widgetEmpty: 'Відкрий LinguaLens, щоб отримати нові слова',
+    widgetEmpty: 'Відкрий LinguaLens по нові слова',
     widgetEmptyShort: 'Відкрий LinguaLens',
 
     // ── Instagram Stories ──

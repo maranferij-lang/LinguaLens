@@ -3,9 +3,12 @@ import {
   CARD_H,
   CARD_W,
   CONTENT_W,
+  CUTOUT_H,
+  CUTOUT_W,
   EXPORT_H,
   EXPORT_W,
   PALETTES,
+  STORIES_ROW,
   barHeights,
   capsSize,
   clipLines,
@@ -25,6 +28,7 @@ import {
   textEm,
   tierColor,
   toFileUri,
+  exportPixels,
   exportSize,
   weekRangeLabel,
   weekStats,
@@ -75,7 +79,25 @@ describe('card format', () => {
     expect(toFileUri(null)).toBe(null);
   });
 
+  test('the cutout is a transparent sticker at the cards’ scale, not a 9:16 frame', () => {
+    expect(exportPixels('sticker')).toEqual({ w: EXPORT_W, h: EXPORT_H });
+    expect(exportPixels('week')).toEqual({ w: EXPORT_W, h: EXPORT_H });
+    expect(exportPixels('cutout')).toEqual({ w: CUTOUT_W * 3, h: CUTOUT_H * 3 });
+    expect(CUTOUT_W).toBeLessThanOrEqual(CARD_W);
+    expect(CUTOUT_H).toBeLessThanOrEqual(CARD_H);
+    // iOS — у точках, решта — у пікселях, як і для карток
+    expect(exportSize('ios', 3, 900, 1050)).toEqual({ width: 300, height: 350 });
+    expect(exportSize('android', 2.75, 900, 1050)).toEqual({ width: 900, height: 1050 });
+  });
+
   test('templates per payload kind', () => {
+    expect(templatesFor({ kind: 'word', word: { word: 'mug', photo: 'stickers/mug.jpg' } })).toEqual([
+      'sticker',
+      'entry',
+      'minimal',
+      'cutout',
+    ]);
+    // без вирізаного фото «без тла» нема чого показати
     expect(templatesFor({ kind: 'word', word: { word: 'mug' } })).toEqual(['sticker', 'entry', 'minimal']);
     expect(templatesFor({ kind: 'achievement', achievement: { id: 'words_10' } })).toEqual(['achievement']);
     expect(templatesFor({ kind: 'week', stats: {} })).toEqual(['week']);
@@ -97,6 +119,13 @@ describe('preview scale', () => {
     expect(previewScale({ ...screen, multi: false })).toBeGreaterThan(previewScale(screen));
   });
 
+  test('the Instagram Stories button gets its own room under the main one', () => {
+    const screen = { width: 393, height: 852, top: 59, bottom: 34 };
+    const s = previewScale({ ...screen, stories: true });
+    expect(s).toBeLessThan(previewScale(screen));
+    expect(CARD_H * s).toBeLessThan(852 - 59 - 34 - 300 - STORIES_ROW);
+  });
+
   test('small phones still get a usable preview, big screens are capped', () => {
     expect(previewScale({ width: 320, height: 568, top: 20, bottom: 0 })).toBeGreaterThanOrEqual(0.36);
     expect(previewScale({ width: 1600, height: 1400 })).toBeLessThanOrEqual(0.8);
@@ -112,6 +141,8 @@ describe('palettes', () => {
     // акцент — графіка (стовпчики, іконка), їй досить 3:1
     expect(contrast(p.accent, p.bg)).toBeGreaterThanOrEqual(3);
     expect(contrast(p.accent, p.pill)).toBeGreaterThanOrEqual(3);
+    // табличка «без тла» (кольори плитки) має виділятися на тлі Stories
+    expect(contrast(p.tile, p.bg)).toBeGreaterThanOrEqual(3);
   });
 
   test('unknown key falls back to the first palette', () => {

@@ -123,6 +123,19 @@ export function IcShare({ size = 20, color = DIM }) {
   );
 }
 
+// Instagram Stories: камера-«квадратик» з об'єктивом і спалахом. Свій
+// лінійний гліф за правилами набору, а не логотип Meta: впізнається
+// силуетом, а підпис на кнопці каже решту.
+export function IcStories({ size = 20, color = DIM }) {
+  return (
+    <Svg {...box(size)}>
+      <Rect x="3.5" y="3.5" width="17" height="17" rx="5" {...S(color)} />
+      <Circle cx="12" cy="12" r="4" {...S(color)} />
+      <Circle cx="16.9" cy="7.1" r="0.6" {...S(color, 1.5)} />
+    </Svg>
+  );
+}
+
 export function IcSearch({ size = 20, color = DIM }) {
   return (
     <Svg {...box(size)}>
