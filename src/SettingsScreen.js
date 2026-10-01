@@ -5,6 +5,7 @@ import * as Haptics from 'expo-haptics';
 import { checkServer } from './api';
 import { PRIVACY_URL, SERVER_SOURCE, SERVER_URL, SUPPORT_EMAIL, TERMS_URL } from './config';
 import { formatDate } from './locale';
+import { restoreNote } from './purchases';
 import { version as APP_VERSION } from '../package.json';
 import { LANGS, flagFor, nameFor } from './speech';
 import { IcCheck, IcChevron } from './icons';
@@ -139,7 +140,7 @@ export default function SettingsScreen({
   async function restore() {
     Haptics.selectionAsync();
     const next = await onRestore();
-    Alert.alert(next?.pro ? t('restoreDone') : t('restoreNothing'));
+    Alert.alert(t(restoreNote(next)));
   }
 
   function openUrl(url) {

@@ -20,6 +20,7 @@ import { IcClose, IcShare, IcSpeaker } from './icons';
 import { MascotBob } from './Mascot';
 import { StickerLarge } from './Sticker';
 import ShareSheet from './share/ShareSheet';
+import ConsentSheet from './ConsentSheet';
 import { UNDER_TAB } from './Chrome';
 import { FadeIn, GradBtn, Press, SecBtn } from './ui';
 import { EASE } from './motion';
@@ -61,6 +62,8 @@ export default function ScannerScreen({
   onLimitReached,
   onSessionLost,
   onResultVisible,
+  aiConsent,
+  onAiConsent,
   onShare,
   scansLeft,
   t,
@@ -75,6 +78,7 @@ export default function ScannerScreen({
   const [error, setError] = useState('');
   const [justSaved, setJustSaved] = useState(false);
   const [sharing, setSharing] = useState(null);
+  const [askConsent, setAskConsent] = useState(false);
   const [zoom, setZoom] = useState(0);
 
   // Промінь розгортки: рівномірний хід згори вниз. Тут linear доречний —
@@ -154,6 +158,12 @@ export default function ScannerScreen({
 
   async function scan() {
     if (!cameraRef.current || busy.current) return;
+    // Перший знімок: спершу кажемо, куди піде фото, і питаємо дозволу
+    // (див. ConsentSheet). Без згоди кадр навіть не знімаємо.
+    if (!aiConsent) {
+      setAskConsent(true);
+      return;
+    }
     // Ліміт перевіряємо до зйомки: інакше витратимо виклик AI і покажемо
     // відмову вже після нього — це виглядає як обман.
     if (onGuardScan && !onGuardScan()) return;
@@ -172,7 +182,7 @@ export default function ScannerScreen({
         ImageManipulator.manipulate(source).resize({ width: Math.min(1024, photo.width) }),
         { compress: 0.6, format: SaveFormat.JPEG, base64: true }
       );
-      const res = await recognizeImage(small.base64, targetLang, nativeLang);
+      const res = await recognize(small.base64);
       if (onScanned) onScanned(res);
       // Вирізаємо САМ предмет по рамці від моделі, а не весь кадр.
       // Скріншот екрана з обрізаними краями виглядає випадковим і губить стиль;
@@ -183,11 +193,9 @@ export default function ScannerScreen({
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      // Ліміт вичерпано — це не помилка, а пейвол (сервер навіть не кликав AI).
-      if (e.message === 'SCAN_LIMIT' && onLimitReached) {
-        onLimitReached(e.data);
-        return;
-      }
+      // Ліміт вичерпано — це не помилка, а пейвол (сервер навіть не кликав
+      // AI). Його вже відкрив App, коли recognize спитав, що робити.
+      if (e.message === 'SCAN_LIMIT' && onLimitReached) return;
       // Сервер не впізнав пристрій — тихо беремо нову ідентичність.
       if (e.message === 'SCAN_AUTH' && onSessionLost) onSessionLost();
       // Коди з api.js перетворюємо на людські фрази. Кожна каже, ЩО робити,
@@ -206,6 +214,23 @@ export default function ScannerScreen({
       busy.current = false;
       setLoading(false);
     }
+  }
+
+  // Сервер відмовив за лімітом (402). App або відкриває пейвол (false), або —
+  // Pro щойно куплено, сервер перепитав RevenueCat і зняв стелю (true) —
+  // тоді той самий кадр іде ще раз, і людині не треба знімати вдруге.
+  async function recognize(base64) {
+    try {
+      return await recognizeImage(base64, targetLang, nativeLang);
+    } catch (e) {
+      if (e.message !== 'SCAN_LIMIT' || !onLimitReached || !(await onLimitReached(e.data))) throw e;
+    }
+    return recognizeImage(base64, targetLang, nativeLang);
+  }
+
+  function allowUpload() {
+    setAskConsent(false);
+    if (onAiConsent) onAiConsent();
   }
 
   // Ріже кадр по рамці 0–1000 (y1,x1,y2,x2) і повертає квадратну мініатюру.
@@ -380,7 +405,7 @@ export default function ScannerScreen({
 
       {/* Затвор як в Apple Camera: біле кільце + біле коло */}
       <View style={s.shutterWrap}>
-        <Press onPress={scan} disabled={loading}>
+        <Press onPress={scan} disabled={loading} testID="shutter">
           <View style={s.shutterRing}>
             <View style={s.shutter}>
               {loading ? <ActivityIndicator color="#000" /> : null}
@@ -456,6 +481,10 @@ export default function ScannerScreen({
             другий нативний Modal поверх уже відкритого. */}
         <ShareSheet visible={!!sharing} payload={sharing} onClose={() => setSharing(null)} t={t} />
       </Modal>
+
+      {/* Після «Дозволити» людина сама тисне затвор ще раз: поки вона
+          читала, камера могла дивитись уже не туди. */}
+      <ConsentSheet visible={askConsent} onAllow={allowUpload} onClose={() => setAskConsent(false)} t={t} />
     </View>
   );
 }

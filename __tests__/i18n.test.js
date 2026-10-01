@@ -59,6 +59,7 @@ function usedKeys() {
   }
   for (const p of PLANS) {
     add(p.labelKey, 'src/subscription.js PLANS');
+    add(p.legalKey, 'src/subscription.js PLANS');
     if (p.saveKey) add(p.saveKey, 'src/subscription.js PLANS');
   }
   for (const a of ACHIEVEMENTS) add('ach_' + a.id, 'src/achievements.js');

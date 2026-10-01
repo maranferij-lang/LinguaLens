@@ -67,7 +67,7 @@ import { usePro } from './src/purchases';
 import { FadeIn } from './src/ui';
 import { F, THEMES, ThemeProvider, resolveThemeKey, type } from './src/theme';
 import { SPRING } from './src/motion';
-import { canSaveWord, canScan, canUseLanguage, loadUsage, saveUsage, scansLeft } from './src/subscription';
+import { canSaveWord, canScan, canUseLanguage, freeScansPerDay, loadUsage, saveUsage, scansLeft } from './src/subscription';
 
 // Порядок вкладок зафіксований і не обговорюється:
 // сканер — по центру, бо це головна дія застосунку і найзручніша точка для
@@ -114,6 +114,9 @@ function defaultSettings() {
     // Профіль локальний: у v1 немає акаунтів, ім'я й аватар живуть на телефоні.
     profileName: '',
     avatar: 'wave',
+    // Згода надсилати кадр на сервер і AI-сервісу (App Review 5.1.2(i)).
+    // Питає сканер перед першим знімком — див. ConsentSheet.
+    aiConsent: false,
   };
 }
 
@@ -214,12 +217,18 @@ export default function App() {
   // Серверний лічильник сканів і статус пристрою. 401 UNAUTHORIZED — сервер
   // нас забув (стерли дані, змінили секрет): тихо беремо нову ідентичність.
   // Решта помилок (офлайн, 403 APP_TOKEN) ідентичності не стосується.
+  // Повертає відповідь /me або null.
   async function refreshMe(refresh = false) {
     try {
       const me = await apiMe(refresh);
       if (me?.usage) updateUsage(me.usage);
+      // Після перевстановлення офлайн id ще не відомий (див. ensureSession) —
+      // беремо його звідси, щоб покупка прив'язалась до нашого id.
+      if (me?.user?.id) setDeviceId((id) => id || me.user.id);
+      return me;
     } catch (e) {
       if (deviceForgotten(e)) renewIdentity();
+      return null;
     }
   }
 
@@ -235,10 +244,28 @@ export default function App() {
     } catch (_) {}
   }
 
+  // limit — денна стеля з сервера (null — Pro). Відповідь без неї (старий
+  // сервер) не стирає вже відому.
   function updateUsage(next) {
-    const u = { day: next.day, scans: next.scans || 0 };
-    setUsage(u);
-    saveUsage(u);
+    setUsage((prev) => {
+      const u = { day: next.day, scans: next.scans || 0, limit: next.limit !== undefined ? next.limit : prev.limit };
+      saveUsage(u);
+      return u;
+    });
+  }
+
+  // Сервер відмовив за лімітом (402). Повертає true, якщо той самий кадр
+  // можна надіслати ще раз. Pro уже куплено, а сервер ще не знає (вебхук не
+  // дійшов) — просимо його перепитати RevenueCat; стелі вже немає — пейвол
+  // не потрібен.
+  async function scanLimitReached(data) {
+    if (data?.used != null) updateUsage({ day: localDayKey(), scans: data.used, limit: data.limit });
+    if (sub.pro) {
+      const me = await refreshMe(true);
+      if (me?.usage && me.usage.limit === null) return true;
+    }
+    setPaywall('scans');
+    return false;
   }
 
   const themeKey = resolveThemeKey(settings.theme, systemScheme);
@@ -546,7 +573,8 @@ export default function App() {
     setStats({});
     setSeenAch([]);
     setWod(null);
-    setUsage({ scans: 0 });
+    // стеля — налаштування сервера, а не дані людини: її лишаємо
+    setUsage((u) => ({ scans: 0, limit: u.limit }));
     if (session) setDeviceId(session.userId);
   }
 
@@ -664,12 +692,11 @@ export default function App() {
                 onSaveWord={addWord}
                 onGuardScan={guardScan}
                 onScanned={(res) => res.usage && updateUsage(res.usage)}
-                onLimitReached={(data) => {
-                  if (data?.used != null) updateUsage({ day: localDayKey(), scans: data.used });
-                  setPaywall('scans');
-                }}
+                onLimitReached={scanLimitReached}
                 onSessionLost={renewIdentity}
                 onResultVisible={setScanSheetOpen}
+                aiConsent={!!settings.aiConsent}
+                onAiConsent={() => saveSetting({ aiConsent: true })}
                 scansLeft={scansLeft({ pro: sub.pro, usage })}
                 t={t}
               />
@@ -783,6 +810,8 @@ export default function App() {
             <PaywallScreen
               reason={paywall}
               plans={pro.plans}
+              freeScans={freeScansPerDay(usage)}
+              unavailable={pro.mode === 'unavailable'}
               onClose={closePaywall}
               onPurchase={purchasePlan}
               onRestore={restorePurchases}

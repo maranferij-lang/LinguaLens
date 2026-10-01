@@ -1,4 +1,5 @@
-import { plansFromOffering } from '../src/purchases';
+import { plansFromOffering, purchaseNote, restoreNote } from '../src/purchases';
+import { STRINGS } from '../src/i18n';
 
 const product = (price, priceString, extra = {}) => ({ price, priceString, pricePerMonthString: null, introPrice: null, ...extra });
 
@@ -50,4 +51,36 @@ test('free trial is only promised to users Apple will actually give it to', () =
   expect(year({ p3: 2 }).trialDays).toBe(7);
   expect(year({ p3: 1 }).trialDays).toBe(0);
   expect(year({}).trialDays).toBe(0);
+});
+
+describe('what the paywall says after a purchase or a restore', () => {
+  test('“you haven’t been charged” only when the purchase stopped before payment', () => {
+    expect(purchaseNote({ ok: false, error: 'LOGIN_FAILED', uncharged: true })).toBe('purchaseFailed');
+    expect(purchaseNote({ ok: false, error: 'NOT_ENTITLED' })).toBe('purchaseUnclear');
+    expect(purchaseNote({ ok: false, error: '10', uncharged: false })).toBe('purchaseUnclear');
+    expect(purchaseNote({ ok: false, error: 'UNAVAILABLE', uncharged: true })).toBe('purchasesUnavailable');
+    expect(purchaseNote({ ok: false, pending: true })).toBe('purchasePending');
+    expect(purchaseNote({ ok: false, cancelled: true })).toBeNull();
+    expect(purchaseNote({ ok: true })).toBeNull();
+  });
+
+  test('a failed restore is not “nothing to restore”', () => {
+    expect(restoreNote({ error: '10' })).toBe('restoreFailed');
+    expect(restoreNote({ error: 'UNAVAILABLE' })).toBe('purchasesUnavailable');
+    expect(restoreNote({ pro: false })).toBe('restoreNothing');
+    expect(restoreNote({ pro: true })).toBe('restoreDone');
+  });
+
+  test('every note is a real string', () => {
+    const keys = [
+      purchaseNote({ error: 'x', uncharged: true }),
+      purchaseNote({ error: 'x' }),
+      purchaseNote({ error: 'UNAVAILABLE' }),
+      purchaseNote({ pending: true }),
+      restoreNote({ error: 'x' }),
+      restoreNote({ pro: true }),
+      restoreNote({}),
+    ];
+    for (const k of keys) expect(STRINGS.en[k]).toEqual(expect.any(String));
+  });
 });

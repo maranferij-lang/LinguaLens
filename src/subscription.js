@@ -34,6 +34,8 @@
 // продати підписку, — найдорожча помилка.
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+// legalKey — рядок «безкоштовно до…, потім ціна за період»: пробний період
+// може бути на будь-якому тарифі, і період у ньому мусить бути саме цей.
 export const PLANS = [
   {
     id: 'week',
@@ -42,6 +44,7 @@ export const PLANS = [
     price: '$4.99',
     perMonth: '$21.6',
     labelKey: 'planWeek',
+    legalKey: 'trialLegalWeek',
   },
   {
     id: 'month',
@@ -50,6 +53,7 @@ export const PLANS = [
     price: '$6.99',
     perMonth: '$6.99',
     labelKey: 'planMonth',
+    legalKey: 'trialLegalMonth',
   },
   {
     id: 'quarter',
@@ -58,6 +62,7 @@ export const PLANS = [
     price: '$16.99',
     perMonth: '$5.66',
     labelKey: 'planQuarter',
+    legalKey: 'trialLegalQuarter',
     saveKey: 'save19',
   },
   {
@@ -67,6 +72,7 @@ export const PLANS = [
     price: '$34.99',
     perMonth: '$2.92',
     labelKey: 'planYear',
+    legalKey: 'trialLegalYear',
     saveKey: 'save58',
     trialDays: 7,
     best: true,
@@ -95,8 +101,8 @@ export async function loadUsage() {
   try {
     const raw = await AsyncStorage.getItem(K_USAGE);
     const u = raw ? JSON.parse(raw) : null;
-    // новий день — лічильник з нуля
-    if (!u || u.day !== today()) return { day: today(), scans: 0 };
+    // новий день — лічильник з нуля; стеля — та сама, що казав сервер
+    if (!u || u.day !== today()) return { day: today(), scans: 0, limit: u?.limit };
     return u;
   } catch (_) {
     return { day: today(), scans: 0 };
@@ -122,15 +128,29 @@ function usedToday(usage) {
   return usage && usage.day === today() ? usage.scans || 0 : 0;
 }
 
+// Денну стелю задає сервер (FREE_SCANS_PER_DAY) і віддає разом із лічильником:
+// для тестів її піднімають до тисячі, і клієнт не має різати на п'яти.
+// null — сервер бачить Pro, стелі немає. Старий кеш без поля — FREE.
+function dailyLimit(usage) {
+  return usage && usage.limit !== undefined ? usage.limit : FREE.scansPerDay;
+}
+
+// Скільки безкоштовних сканів на день показувати в пейволі й таблиці.
+export function freeScansPerDay(usage) {
+  return usage?.limit ?? FREE.scansPerDay;
+}
+
 export function canScan({ pro, usage }) {
   if (pro) return null;
-  if (usedToday(usage) >= FREE.scansPerDay) return 'scans';
+  const limit = dailyLimit(usage);
+  if (limit !== null && usedToday(usage) >= limit) return 'scans';
   return null;
 }
 
 export function scansLeft({ pro, usage }) {
-  if (pro) return Infinity;
-  return Math.max(0, FREE.scansPerDay - usedToday(usage));
+  const limit = dailyLimit(usage);
+  if (pro || limit === null) return Infinity;
+  return Math.max(0, limit - usedToday(usage));
 }
 
 export function canSaveWord({ pro, wordCount }) {

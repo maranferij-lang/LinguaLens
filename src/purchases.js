@@ -37,6 +37,41 @@ const DAYS_IN = { DAY: 1, WEEK: 7, MONTH: 30, YEAR: 365 };
 // INTRO_ELIGIBILITY_STATUS.INTRO_ELIGIBILITY_STATUS_ELIGIBLE
 const ELIGIBLE = 2;
 
+// Відмови, після яких гроші точно не списано: StoreKit чи RevenueCat
+// зупинили покупку ДО оплати. Решта (мережа, чек, бекенд RevenueCat,
+// NOT_ENTITLED, невідома) буває й ПІСЛЯ списання — там «гроші не списано»
+// було б неправдою.
+const BEFORE_PAYMENT = [
+  'PURCHASE_NOT_ALLOWED_ERROR',
+  'PURCHASE_INVALID_ERROR',
+  'PRODUCT_NOT_AVAILABLE_FOR_PURCHASE_ERROR',
+  'INELIGIBLE_ERROR',
+  'INVALID_PROMOTIONAL_OFFER_ERROR',
+  'PRODUCT_REQUEST_TIMED_OUT_ERROR',
+  'CONFIGURATION_ERROR',
+];
+
+function beforePayment(code) {
+  const codes = Purchases?.PURCHASES_ERROR_CODE || {};
+  return code != null && BEFORE_PAYMENT.some((name) => codes[name] === code);
+}
+
+// Пояснення під кнопкою після невдалої покупки — ключ рядка в i18n, або
+// null: успіх чи людина сама скасувала у системному вікні.
+export function purchaseNote(res) {
+  if (!res || res.ok || res.cancelled) return null;
+  if (res.pending) return 'purchasePending';
+  if (res.error === 'UNAVAILABLE') return 'purchasesUnavailable';
+  return res.uncharged ? 'purchaseFailed' : 'purchaseUnclear';
+}
+
+// Що сказати після «Відновити покупки». Збій зв'язку — не «покупок немає»:
+// інакше людина з підпискою вирішила б, що її загубили.
+export function restoreNote(res) {
+  if (res?.error) return res.error === 'UNAVAILABLE' ? 'purchasesUnavailable' : 'restoreFailed';
+  return res?.pro ? 'restoreDone' : 'restoreNothing';
+}
+
 // ── Стан Pro з CustomerInfo ─────────────────────────────────────────────────
 function stateFromInfo(info) {
   const ent = info?.entitlements?.active?.[PRO_ENTITLEMENT];
@@ -121,10 +156,14 @@ async function activateSimulated(planId) {
 
 // ── Хук для App.js ──────────────────────────────────────────────────────────
 // Повертає { state, plans, ready, purchase(planId), restore(), manage() }.
-// purchase → { ok, cancelled?, error?, state }.
+// purchase → { ok, cancelled?, pending?, error?, uncharged?, state }, де
+// uncharged — відмова ще до оплати (див. BEFORE_PAYMENT).
 export function usePro(appUserID) {
   const [state, setState] = useState({ pro: false });
-  const [plans, setPlans] = useState(MODE === 'revenuecat' ? [] : PLANS);
+  // Статичні USD-ціни — лише для імітації в розробці. Без магазину (релізна
+  // збірка без ключа) тарифів немає: вигадані ціни й «7 днів безкоштовно»,
+  // які не можна купити, — неправда.
+  const [plans, setPlans] = useState(MODE === 'simulated' ? PLANS : []);
   const [ready, setReady] = useState(MODE === 'simulated');
   const configured = useRef(false);
 
@@ -188,15 +227,31 @@ export function usePro(appUserID) {
       .catch(() => {});
   }, [appUserID]);
 
+  // logIn при старті міг не вдатись (офлайн), і тоді покупка лягла б на
+  // анонімний $RCAnonymousID, якого сервер не перевіряє: Pro куплено, а ліміт
+  // сканів лишився. Тож перед покупкою й відновленням перевіряємо ще раз.
+  // Id пристрою ще немає (сервер не відповідав) — купуємо анонімно: logIn
+  // пізніше перенесе покупку на наш id.
+  async function identify() {
+    if (!appUserID) return true;
+    try {
+      if ((await Purchases.getAppUserID()) !== appUserID) await Purchases.logIn(appUserID);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   async function purchase(planId) {
     if (MODE === 'simulated') {
       const next = await activateSimulated(planId);
       setState(next);
       return { ok: true, state: next };
     }
-    if (MODE !== 'revenuecat') return { ok: false, error: 'UNAVAILABLE' };
+    if (MODE !== 'revenuecat') return { ok: false, error: 'UNAVAILABLE', uncharged: true };
     const plan = plans.find((p) => p.id === planId);
-    if (!plan?.pkg) return { ok: false, error: 'UNAVAILABLE' };
+    if (!plan?.pkg) return { ok: false, error: 'UNAVAILABLE', uncharged: true };
+    if (!(await identify())) return { ok: false, error: 'LOGIN_FAILED', uncharged: true };
     try {
       const { customerInfo } = await Purchases.purchasePackage(plan.pkg);
       const next = stateFromInfo(customerInfo);
@@ -210,23 +265,26 @@ export function usePro(appUserID) {
       if (e?.code === codes.PURCHASE_CANCELLED_ERROR) return { ok: false, cancelled: true };
       // «Попросити купити» (сімейний доступ): чекаємо схвалення батьків.
       if (e?.code === codes.PAYMENT_PENDING_ERROR) return { ok: false, pending: true };
-      return { ok: false, error: e?.code || 'FAILED' };
+      return { ok: false, error: e?.code || 'FAILED', uncharged: beforePayment(e?.code) };
     }
   }
 
   // «Відновити покупки» — обов'язкова кнопка за правилами App Store.
+  // Повертає стан Pro або { error }, якщо до магазину не достукались.
   async function restore() {
-    if (MODE !== 'revenuecat') {
-      const next = MODE === 'simulated' ? await loadSimulated() : state;
+    if (MODE === 'simulated') {
+      const next = await loadSimulated();
       setState(next);
       return next;
     }
+    if (MODE !== 'revenuecat') return { error: 'UNAVAILABLE' };
+    if (!(await identify())) return { error: 'LOGIN_FAILED' };
     try {
       const next = stateFromInfo(await Purchases.restorePurchases());
       setState(next);
       return next;
-    } catch (_) {
-      return state;
+    } catch (e) {
+      return { error: e?.code || 'FAILED' };
     }
   }
 

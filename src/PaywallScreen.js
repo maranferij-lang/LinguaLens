@@ -15,6 +15,7 @@ import { ActivityIndicator, Alert, Linking, Pressable, ScrollView, StyleSheet, T
 import * as Haptics from 'expo-haptics';
 import { PRO_BENEFITS, COMPARISON, FREE } from './subscription';
 import { PRIVACY_URL, TERMS_URL } from './config';
+import { purchaseNote, restoreNote } from './purchases';
 import { formatDate } from './locale';
 import { ProIcon, PCrown } from './ProIcons';
 import { IcCheck, IcClose } from './icons';
@@ -22,7 +23,20 @@ import { MascotBob } from './Mascot';
 import { FadeIn, GradBtn, Press } from './ui';
 import { CAPS, F, R, type, useTheme } from './theme';
 
-export default function PaywallScreen({ reason, plans, onClose, onPurchase, onRestore, onOpen, lang, t }) {
+// freeScans — денна стеля з сервера (див. freeScansPerDay у subscription.js).
+// unavailable — збірка без магазину: тарифів немає, купити не можна.
+export default function PaywallScreen({
+  reason,
+  plans,
+  freeScans = FREE.scansPerDay,
+  unavailable,
+  onClose,
+  onPurchase,
+  onRestore,
+  onOpen,
+  lang,
+  t,
+}) {
   const { C, SHADOW, SHADOW_LG } = useTheme();
   const s = useMemo(() => makeStyles(C), [C]);
   const [picked, setPicked] = useState('year');
@@ -36,7 +50,7 @@ export default function PaywallScreen({ reason, plans, onClose, onPurchase, onRe
 
   // Заголовок під причину: кожна стіна має свій аргумент.
   const HEAD = {
-    scans: { title: t('pwScansTitle'), text: t('pwScansText', { n: FREE.scansPerDay }) },
+    scans: { title: t('pwScansTitle'), text: t('pwScansText', { n: freeScans }) },
     words: { title: t('pwWordsTitle'), text: t('pwWordsText', { n: FREE.maxWords }) },
     langs: { title: t('pwLangsTitle'), text: t('pwLangsText') },
   };
@@ -60,21 +74,17 @@ export default function PaywallScreen({ reason, plans, onClose, onPurchase, onRe
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const res = await onPurchase(plan.id);
     setBusy(false);
-    // Скасування в системному вікні — не помилка, мовчимо.
-    if (!res || res.ok || res.cancelled) return;
-    if (res.pending) setNote(t('purchasePending'));
-    else setNote(res.error === 'UNAVAILABLE' ? t('purchasesUnavailable') : t('purchaseFailed'));
+    // Скасування в системному вікні — не помилка, мовчимо. «Гроші не
+    // списано» — лише коли це точно так (див. purchaseNote).
+    const key = purchaseNote(res);
+    if (key) setNote(t(key));
   }
 
   async function restore() {
     Haptics.selectionAsync();
     const next = await onRestore();
-    if (next?.pro) {
-      Alert.alert(t('restoreDone'));
-      onClose();
-    } else {
-      Alert.alert(t('restoreNothing'));
-    }
+    Alert.alert(t(restoreNote(next)));
+    if (next?.pro && !next.error) onClose();
   }
 
   function open(url) {
@@ -114,27 +124,30 @@ export default function PaywallScreen({ reason, plans, onClose, onPurchase, onRe
             </View>
           </View>
 
-          {COMPARISON.map((row, i) => (
-            <View key={row.id} style={[s.tableRow, i > 0 && s.tableRowLine]}>
-              <Text style={s.rowLabel}>{t('cmp_' + row.id)}</Text>
+          {COMPARISON.map((row, i) => {
+            const free = row.id === 'scans' ? String(freeScans) : row.free;
+            return (
+              <View key={row.id} style={[s.tableRow, i > 0 && s.tableRowLine]}>
+                <Text style={s.rowLabel}>{t('cmp_' + row.id)}</Text>
 
-              <View style={s.cellFree}>
-                {row.free === true ? (
-                  <IcCheck size={16} color={C.faint} />
-                ) : (
-                  <Text style={s.cellFreeText}>{row.free}</Text>
-                )}
-              </View>
+                <View style={s.cellFree}>
+                  {free === true ? (
+                    <IcCheck size={16} color={C.faint} />
+                  ) : (
+                    <Text style={s.cellFreeText}>{free}</Text>
+                  )}
+                </View>
 
-              <View style={s.cellPro}>
-                {row.pro === true ? (
-                  <IcCheck size={16} color={C.accent} />
-                ) : (
-                  <Text style={s.cellProText}>{row.pro}</Text>
-                )}
+                <View style={s.cellPro}>
+                  {row.pro === true ? (
+                    <IcCheck size={16} color={C.accent} />
+                  ) : (
+                    <Text style={s.cellProText}>{row.pro}</Text>
+                  )}
+                </View>
               </View>
-            </View>
-          ))}
+            );
+          })}
         </FadeIn>
 
         {/* Те, чого немає в таблиці. Лише правда: наліпки й колекція
@@ -152,7 +165,7 @@ export default function PaywallScreen({ reason, plans, onClose, onPurchase, onRe
 
         {/* Тарифи */}
         <FadeIn delay={90} style={{ gap: 10, marginTop: 26 }}>
-          {!list.length ? <ActivityIndicator color={C.accent} style={{ marginVertical: 30 }} /> : null}
+          {!list.length && !unavailable ? <ActivityIndicator color={C.accent} style={{ marginVertical: 30 }} /> : null}
           {list.map((p) => {
             const active = plan?.id === p.id;
             return (
@@ -201,12 +214,13 @@ export default function PaywallScreen({ reason, plans, onClose, onPurchase, onRe
         <GradBtn
           title={plan?.trialDays ? t('startTrial') : t('subscribe')}
           onPress={buy}
-          disabled={busy || !plan}
+          disabled={busy || !plan || unavailable}
         />
-        {note ? <Text style={s.note}>{note}</Text> : null}
+        {/* Без магазину кажемо це одразу, а не після марного тапу */}
+        {unavailable || note ? <Text style={s.note}>{unavailable ? t('purchasesUnavailable') : note}</Text> : null}
         <Text style={s.legal}>
           {plan?.trialDays
-            ? t('trialLegal', { p: plan.price, d: chargeDate(plan.trialDays) })
+            ? t(plan.legalKey, { p: plan.price, d: chargeDate(plan.trialDays) })
             : t('renewLegal')}
         </Text>
         <View style={s.legalRow}>
