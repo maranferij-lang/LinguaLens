@@ -107,8 +107,8 @@ export function templatesFor(payload) {
 
 // ─── Кегль слова ───────────────────────────────────────────────────────────
 // Ширини гліфів Nunito ExtraBold у частках кегля — заміряні з самого TTF
-// (hmtx), а не на око. Довге слово має зменшитись ДО рендера: adjustsFontSizeToFit
-// працює лише на iOS і лише стискає, а на вебі (прев'ю) його немає взагалі.
+// (hmtx), а не на око. Довге слово має зменшитись ДО рендера:
+// adjustsFontSizeToFit — лише страховка, на вебі (прев'ю) його немає взагалі.
 const NARROW = new Set("iíìïījlIı'.,:;!|іїј");
 const SEMI = new Set('frt-гт');
 const WIDE = new Set('mwжфшщюы');
@@ -117,9 +117,12 @@ const WIDE_UP = new Set('MWЖФШЩЮЫ');
 function glyphEm(ch) {
   const code = ch.codePointAt(0);
   // CJK, кана, хангиль — у Nunito їх немає, система підставляє квадратні гліфи
-  if (code >= 0x1100 && (code <= 0x11ff || (code >= 0x2e80 && code <= 0xd7af) || (code >= 0xf900 && code <= 0xfaff) || (code >= 0xff00 && code <= 0xffef))) {
-    return 1;
-  }
+  const square =
+    (code >= 0x1100 && code <= 0x11ff) ||
+    (code >= 0x2e80 && code <= 0xd7af) ||
+    (code >= 0xf900 && code <= 0xfaff) ||
+    (code >= 0xff00 && code <= 0xffef);
+  if (square) return 1;
   if (ch === ' ') return 0.28;
   if (NARROW.has(ch)) return 0.3;
   if (SEMI.has(ch)) return 0.42;

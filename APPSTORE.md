@@ -88,7 +88,7 @@ REMEMBER WHAT YOU SCAN
 • Streaks, levels and 27 achievements
 
 SHARE THE BEST FINDS
-Turn a word, an achievement or your week into a clean 9:16 card and share it to Instagram Stories, TikTok or any messenger.
+Turn a word, an achievement or your week into a clean 9:16 card and share it to Instagram Stories or any messenger.
 
 29 LANGUAGES
 English, Spanish, German, French, Italian, Portuguese, Polish, Ukrainian, Japanese, Korean, Chinese and more. Nouns come with their article where it matters (die Tasse, la taza).
@@ -136,7 +136,7 @@ LinguaLens перетворює світ навколо тебе на словн
 • Серія днів, рівні й 27 досягнень
 
 ДІЛИСЯ НАЙКРАЩИМ
-Слово, досягнення чи підсумок тижня — гарна картка 9:16 для Instagram Stories, TikTok або месенджера.
+Слово, досягнення чи підсумок тижня — гарна картка 9:16 для Instagram Stories або месенджера.
 
 29 МОВ
 Англійська, іспанська, німецька, французька, італійська, португальська, польська, японська, корейська, китайська та інші. Іменники — з артиклем там, де він важливий (die Tasse, la taza).
@@ -258,7 +258,7 @@ How to test:
 3. Tap Share on a scan result or a word card: the app renders an image and opens the standard iOS share sheet.
 
 Subscriptions (auto-renewable, via StoreKit / RevenueCat):
-- The free tier allows 5 scans per day, 100 saved words and one learning language. After the 5th scan of the day the paywall opens; it can also be opened from Settings → Get Pro.
+- The free tier allows 5 scans per day, 100 saved words and one learning language. The 6th scan attempt of the day opens the paywall; it can also be opened from Settings → Get Pro.
 - Purchases work with a Sandbox Apple Account. Restore Purchases is available on the paywall and in Settings.
 - The paywall shows prices from the App Store, the Terms of Use (Apple standard EULA) and the Privacy Policy.
 
