@@ -113,7 +113,7 @@ const makeStyles = (C) =>
     skipText: { color: C.faint, fontSize: 14, fontFamily: F.semi },
     img: { width: 250, height: 250, borderRadius: 32, marginBottom: 28 },
     title: { color: C.text, fontSize: 26, letterSpacing: -0.36, fontFamily: F.bold, textAlign: 'center' },
-    desc: { color: C.dim, fontSize: 15, textAlign: 'center', marginTop: 10, lineHeight: 23, maxWidth: 300 },
+    desc: { color: C.dim, fontSize: 15, textAlign: 'center', marginTop: 10, lineHeight: 23, maxWidth: 300, fontFamily: F.reg },
     dots: { flexDirection: 'row', justifyContent: 'center', gap: 8 },
     dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: C.card3 },
     dotActive: { backgroundColor: C.accent, width: 22 },

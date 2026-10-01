@@ -451,7 +451,7 @@ const makeStyles = (C) =>
     root: { flex: 1, backgroundColor: '#000' },
     center: { flex: 1, backgroundColor: C.bg, alignItems: 'center', justifyContent: 'center', padding: 30 },
     permTitle: { color: C.text, fontSize: 22, letterSpacing: -0.31, fontFamily: F.bold, marginTop: 14, marginBottom: 8, textAlign: 'center' },
-    permText: { color: C.dim, fontSize: 15, textAlign: 'center', marginBottom: 24, lineHeight: 21 },
+    permText: { color: C.dim, fontSize: 15, textAlign: 'center', marginBottom: 24, lineHeight: 21, fontFamily: F.reg },
 
     frameWrap: { position: 'absolute', top: '27%', alignSelf: 'center', width: FRAME, height: FRAME },
     corner: { position: 'absolute', width: 26, height: 26, borderColor: 'rgba(255,255,255,0.95)' },
@@ -545,7 +545,7 @@ const makeStyles = (C) =>
       maxWidth: '86%',
       alignItems: 'center',
     },
-    errorText: { color: '#fff', fontSize: 14, textAlign: 'center', lineHeight: 20 },
+    errorText: { color: '#fff', fontSize: 14, textAlign: 'center', lineHeight: 20, fontFamily: F.reg },
     errorClose: { position: 'absolute', top: 8, right: 10, padding: 4 },
 
     modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
@@ -587,11 +587,11 @@ const makeStyles = (C) =>
       borderRadius: R.pill,
       overflow: 'hidden',
     },
-    translation: { color: C.text, fontSize: 20, letterSpacing: -0.12, textAlign: 'center', marginTop: 8, opacity: 0.85 },
+    translation: { color: C.text, fontSize: 20, letterSpacing: -0.12, textAlign: 'center', marginTop: 8, opacity: 0.85, fontFamily: F.semi },
     exampleBox: { backgroundColor: C.card2, borderRadius: R.md, padding: 14, marginTop: 20 },
     exampleSpeaker: { position: 'absolute', top: 10, right: 10 },
-    example: { color: C.text, fontSize: 15, lineHeight: 22, paddingRight: 20 },
-    exampleTr: { color: C.dim, fontSize: 13, marginTop: 6, lineHeight: 19 },
+    example: { color: C.text, fontSize: 15, lineHeight: 22, paddingRight: 20, fontFamily: F.reg },
+    exampleTr: { color: C.dim, fontSize: 13, marginTop: 6, lineHeight: 19, fontFamily: F.reg },
     sheetBtns: { marginTop: 22, gap: 10 },
     btnRow: { flexDirection: 'row', gap: 10, alignItems: 'stretch' },
     shareBtn: {

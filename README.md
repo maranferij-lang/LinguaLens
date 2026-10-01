@@ -87,7 +87,7 @@ npm run start:go     # i → Expo Go у симуляторі, або QR → Expo
 впиши в `server/.env` `PROVIDER=gemini` і `GEMINI_API_KEY=…`
 ([безкоштовний ключ](https://aistudio.google.com/apikey)) і запусти `npm start`.
 
-Для справжніх покупок, сповіщень і сплешу потрібна development build:
+Для справжніх покупок, матового таб-бара, сплешу й своєї іконки потрібна development build:
 `npx expo run:ios` (симулятор) або `npx expo run:ios --device` (iPhone на кабелі).
 Після неї `npx expo start` → `i` відкриває вже її, а не Expo Go.
 
@@ -103,7 +103,7 @@ npm run start:go     # i → Expo Go у симуляторі, або QR → Expo
 |---|---|
 | `npm start` | Metro для development build (`expo start`) |
 | `npm run start:go` | Metro для Expo Go |
-| `npm run ios` | Metro + одразу відкрити симулятор |
+| `npm run ios` | Metro + одразу відкрити development build у симуляторі |
 | `npx expo run:ios` | локальна нативна збірка в симуляторі (`--device` — на iPhone) |
 | `npm test` | тести застосунку (jest-expo) |
 | `npm run test:server` | тести сервера (`node:test`) |
@@ -122,7 +122,7 @@ CI (`.github/workflows/ci.yml`) на кожен push у `main` і на коже�
 ## Структура
 
 ```
-App.js                    — увесь стан, 5 вкладок, сесія пристрою, досягнення, «поділитись»
+App.js                    — увесь стан, 5 вкладок, сесія пристрою, досягнення, «поділитися»
 index.js                  — точка входу: SafeAreaProvider + ErrorBoundary
 
 src/config.js             — змінні EXPO_PUBLIC_*, адреса сервера (у розробці визначається сама)
@@ -145,7 +145,7 @@ src/WordOfDayCard.js      — картка «слово дня»
 src/wordOfDay.js          — кеш слів, локальні пуші, нагадування про пробний період
 src/ProfileScreen.js      — профіль, статистика, досягнення
 src/achievements.js       — 27 досягнень і рівні
-src/AchievementToast.js   — сповіщення про нове досягнення (тап → поділитись)
+src/AchievementToast.js   — сповіщення про нове досягнення (тап → поділитися)
 src/PaywallScreen.js      — пейвол
 src/SettingsScreen.js     — налаштування
 src/OnboardingScreen.js   — три екрани знайомства
@@ -232,7 +232,7 @@ figma/                    — стан макетів (STATE.md)
 5. Застосунок тягне 7 днів наперед, кешує їх і планує 7 локальних сповіщень на
    вибрану годину. Переплановуються лише ці сповіщення, нагадування про
    пробний період лишається.
-6. Переклади кешуються на сервері, тож та сама пара мов не запитується в AI двічі.
+6. Переклади кешуються на сервері: те саме слово для тієї самої пари мов не запитується в AI двічі.
 
 ---
 
