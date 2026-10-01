@@ -54,6 +54,10 @@
     "jest-expo": "~57.0.5"
   },
   "jest": {
-    "preset": "jest-expo"
+    "preset": "jest-expo",
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "<rootDir>/server/"
+    ]
   }
 }
