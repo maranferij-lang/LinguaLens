@@ -100,10 +100,13 @@ export function tierColor(palette, tier) {
 // підписами або вставкою з пронумерованим списком (див. SceneCards.js).
 export const SCENE_TEMPLATES = ['sceneStickers', 'sceneLabels', 'sceneFrame'];
 
-// Які шаблони має сенс гортати для цього payload. Слово — три вигляди,
-// досягнення й тиждень — по одному: там композиція одна-єдина правильна.
+// Які шаблони має сенс гортати для цього payload. Слово — три вигляди (і
+// четвертий, «без тла», коли є вирізана наліпка), досягнення й тиждень — по
+// одному: там композиція одна-єдина правильна.
 export function templatesFor(payload) {
-  if (payload?.kind === 'word' && payload.word) return ['sticker', 'entry', 'minimal'];
+  if (payload?.kind === 'word' && payload.word) {
+    return payload.word.photo ? ['sticker', 'entry', 'minimal', 'cutout'] : ['sticker', 'entry', 'minimal'];
+  }
   if (payload?.kind === 'scene' && payload.scene) return SCENE_TEMPLATES;
   if (payload?.kind === 'achievement' && payload.achievement) return ['achievement'];
   if (payload?.kind === 'week' && payload.stats) return ['week'];
@@ -383,12 +386,25 @@ export function pickCollage(stickers, n = 6, box = { w: CONTENT_W, h: COLLAGE_H 
 
 // ─── Експорт і прев'ю ──────────────────────────────────────────────────────
 
+// «Без тла» знімає не всю картку 9:16, а лише наліпку з табличкою — блок
+// CUTOUT_W×CUTOUT_H у центрі картки. Прозорий PNG у тому ж масштабі, що й
+// картки (×3): у Stories це рухома наліпка, в iMessage й Telegram — стікер.
+export const CUTOUT_W = 300;
+export const CUTOUT_H = 350;
+
+// Пікселі PNG для шаблону.
+export function exportPixels(template) {
+  if (template !== 'cutout') return { w: EXPORT_W, h: EXPORT_H };
+  const k = EXPORT_W / CARD_W;
+  return { w: CUTOUT_W * k, h: CUTOUT_H * k };
+}
+
 // Розмір знімка для captureRef. На iOS view-shot міряє width/height у
 // ТОЧКАХ і сам множить на PixelRatio, на Android і вебі — у пікселях.
 // Без цієї поправки на iPhone 3x вийшла б картинка 3240×5760.
-export function exportSize(os, ratio) {
-  if (os === 'ios') return { width: EXPORT_W / ratio, height: EXPORT_H / ratio };
-  return { width: EXPORT_W, height: EXPORT_H };
+export function exportSize(os, ratio, w = EXPORT_W, h = EXPORT_H) {
+  if (os === 'ios') return { width: w / ratio, height: h / ratio };
+  return { width: w, height: h };
 }
 
 // iOS view-shot інколи повертає голий шлях без схеми, а expo-sharing
@@ -403,10 +419,12 @@ export function toFileUri(uri) {
 // chrome — висота всього, що в панелі не є самою карткою (≈300), плюс
 // рядок помилки й зазор під статус-баром: поява помилки не має виштовхнути
 // панель під виріз. Один шаблон — без підказки й крапок, мінус ~40 пт.
+// stories — ще й кнопка «Instagram Stories» під головною, плюс STORIES_ROW.
 export const SHEET_MAX_W = 520;
+export const STORIES_ROW = 60;
 
-export function previewScale({ width, height, top = 0, bottom = 0, multi = true }) {
-  const chrome = multi ? 340 : 300;
+export function previewScale({ width, height, top = 0, bottom = 0, multi = true, stories = false }) {
+  const chrome = (multi ? 340 : 300) + (stories ? STORIES_ROW : 0);
   const byH = (height - top - bottom - chrome) / CARD_H;
   const byW = (Math.min(width, SHEET_MAX_W) - 96) / CARD_W;
   const s = Math.min(byH, byW, 0.8);

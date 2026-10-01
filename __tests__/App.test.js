@@ -198,6 +198,57 @@ describe('word of the day', () => {
     await act(async () => tree.unmount());
   });
 
+  // Віджет: заглушка expo-widgets із jest.setup.js; таймлайн — останній виклик.
+  const lastTimeline = () => {
+    const { createWidget } = require('expo-widgets');
+    const calls = createWidget.mock.results.at(-1).value.updateTimeline.mock.calls;
+    return calls.at(-1)[0];
+  };
+
+  test('the home-screen widget gets the cached word and follows the interface language', async () => {
+    await returning({ wod: wodFor('es', 'en'), seen: ALL_ACH });
+    const tree = await renderApp();
+    expect(lastTimeline()[0].props).toMatchObject({ state: 'word', word: 'la manzana', caption: 'Español · word of the day' });
+    // тепер інтерфейс німецькою, а вчимо далі іспанську — кеш тієї ж пари не годиться
+    await openTab(tree, 'settings');
+    await run(() => one(tree, SettingsScreen).props.onSetNative('de'));
+    expect(lastTimeline()[0].props).toMatchObject({ state: 'empty', message: 'Öffne LinguaLens für neue Wörter' });
+    await act(async () => tree.unmount());
+  });
+
+  test('a widget tap opens the Learn tab, on a cold start and while running', async () => {
+    const { Linking } = require('react-native');
+    await returning({ wod: wodFor('es', 'en') });
+    Linking.getInitialURL.mockResolvedValueOnce('lingualens://word-of-day');
+    const cold = await renderApp();
+    expect(one(cold, FlashcardsScreen)).not.toBeNull();
+    await act(async () => cold.unmount());
+
+    const warm = await renderApp();
+    expect(one(warm, FlashcardsScreen)).toBeNull();
+    const onUrl = Linking.addEventListener.mock.calls.filter(([type]) => type === 'url').at(-1)[1];
+    await run(() => onUrl({ url: 'lingualens://word-of-day' }));
+    expect(one(warm, FlashcardsScreen)).not.toBeNull();
+    await act(async () => warm.unmount());
+  });
+
+  test('a widget tap with a session fetches fresh words if the cache ran dry while asleep', async () => {
+    const { Linking } = require('react-native');
+    await returning();
+    serve((u, method) => {
+      if (method === 'POST' && u.pathname === '/auth/device') return reply(200, { token: 't', user: { id: 'u', createdAt: 1 } });
+      if (u.pathname === '/me') return reply(200, { user: { id: 'u' }, usage: { day: localDayKey(), scans: 0, limit: 5 } });
+      if (u.pathname === '/word-of-day') return reply(503, { error: 'busy' });
+    });
+    const tree = await renderApp();
+    const wodCalls = () => global.fetch.mock.calls.filter(([url]) => new URL(url).pathname === '/word-of-day').length;
+    expect(wodCalls()).toBe(1);
+    const onUrl = Linking.addEventListener.mock.calls.filter(([type]) => type === 'url').at(-1)[1];
+    await run(() => onUrl({ url: 'lingualens://word-of-day' }));
+    expect(wodCalls()).toBe(2);
+    await act(async () => tree.unmount());
+  });
+
   test('a save denied by the free cap does not count', async () => {
     await returning({ words: words100(), wod: wodFor('es', 'en'), seen: ALL_ACH });
     const tree = await renderApp();

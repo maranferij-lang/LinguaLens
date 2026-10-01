@@ -113,14 +113,47 @@ npm run submit:ios     # відправить у App Store Connect → TestFligh
 - Age rating 4+, категорія Education.
 - Submit for Review.
 
+## 10. Instagram Stories: App ID від Meta (10 хвилин, безкоштовно)
+Кнопка «Поділитися в Instagram Stories» в аркуші «Поділитися» відкриває
+Instagram одразу з карткою (або з рухомою наліпкою — вигляд «Без тла»).
+З 2023 року Instagram приймає таке лише разом з **App ID** застосунку Meta.
+Без нього кнопки просто немає, а картки йдуть через системне меню.
+1. https://developers.facebook.com → увійди своїм Facebook → **My Apps** →
+   **Create app**.
+2. Майстер спитає про сценарій (use case) — обери **Other**, тип застосунку —
+   **Business**. Назва `LinguaLens`, пошта — та, що з кроку 6. Жодних
+   продуктів (Facebook Login тощо) додавати не треба.
+3. 🔑 **App ID** — число вгорі панелі застосунку (вигляд `1234567890123456`).
+   Це **не секрет**: він однаково видний у кожному посиланні на Stories.
+   Перевірка Meta (App Review) для цього не потрібна, а **App Secret** нікуди
+   не вписуй.
+4. Додай у збірку (як у кроці 7; або EAS → Project → **Environment variables**):
+   ```bash
+   eas env:set production --name EXPO_PUBLIC_FACEBOOK_APP_ID --value <App ID> --visibility plaintext
+   eas env:set preview --name EXPO_PUBLIC_FACEBOOK_APP_ID --value <App ID> --visibility plaintext
+   ```
+   (у старих версіях EAS CLI ця команда звалась `eas env:create`.) Для
+   локального запуску — той самий рядок у `.env`.
+5. Перезбери (`npm run build:ios`): App ID вшивається в бандл під час збірки.
+
+## 11. Віджет «Слово дня» — нічого реєструвати не треба
+- Віджет — окреме розширення застосунку (`com.marik.lingualens.ExpoWidgetsTarget`)
+  зі спільною App Group `group.com.marik.lingualens`. Їх створить і
+  підпише **EAS під час наступної збірки** (`npm run build:ios`): на питання
+  про App Group і новий bundle ID відповідай «так».
+- Працює лише в **development build** або **TestFlight** — в Expo Go віджетів немає.
+- Додати на iPhone: довгий тап по порожньому місцю головного екрана →
+  **Редагувати** → **Додати віджет** → знайди **LinguaLens** → обери розмір
+  (малий або середній) → **Додати віджет**. На екран блокування: довгий тап
+  по екрану блокування → **Налаштувати** → **Екран блокування** → поле під
+  годинником → LinguaLens.
+- Перед тим застосунок треба **один раз відкрити**: саме він передає віджету
+  розмітку й слова на тиждень наперед.
+
 ---
 
 ## Необов'язково, але варто
 
-- **Instagram Stories напряму** (наліпка поверх історії, а не просто картинка):
-  потрібен Facebook App ID (https://developers.facebook.com → Create App).
-  Без нього картка шариться через системне меню — Instagram там теж є.
-  Коли буде ID — скажи, додам пряму інтеграцію.
 - **Sentry** (звіти про падіння): https://sentry.io → проєкт React Native → DSN.
   Скажи, коли буде, — підключу.
 - **Домен** (напр. lingualens.app) — для гарнішої адреси політики й пошти.

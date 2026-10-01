@@ -274,6 +274,17 @@ export const STRINGS = {
     clearMsgSyncedScenes: '{n} {n|word|words} will be permanently deleted on all your iPhones, and your scenes on this one.',
     ach_scene_first: 'First scene',
     ach_scenes_10: '10 scenes',
+
+    // ── віджет «Слово дня» ──
+    widgetTitle: 'Word of the day',
+    widgetCaption: '{lang} · word of the day',
+    widgetEmpty: 'Open LinguaLens for new words',
+    widgetEmptyShort: 'Open LinguaLens',
+
+    // ── Instagram Stories ──
+    shareStories: 'Share to Instagram Stories',
+    shareStoriesError: 'Couldn’t open Instagram. Try again.',
+    shareTplCutout: 'Cutout',
   },
 
   uk: {
@@ -527,6 +538,17 @@ export const STRINGS = {
     clearMsgSyncedScenes: '{n} {n|слово|слова|слів} буде видалено назавжди на всіх твоїх iPhone, а сцени — на цьому.',
     ach_scene_first: 'Перша сцена',
     ach_scenes_10: 'Десять сцен',
+
+    // ── віджет «Слово дня» ──
+    widgetTitle: 'Слово дня',
+    widgetCaption: '{lang} · слово дня',
+    widgetEmpty: 'Відкрий LinguaLens по нові слова',
+    widgetEmptyShort: 'Відкрий LinguaLens',
+
+    // ── Instagram Stories ──
+    shareStories: 'Поділитися в Instagram Stories',
+    shareStoriesError: 'Не вдалося відкрити Instagram. Спробуй ще раз.',
+    shareTplCutout: 'Без тла',
   },
 
   de: {
@@ -778,6 +800,17 @@ export const STRINGS = {
     clearMsgSyncedScenes: '{n} {n|Wort wird|Wörter werden} endgültig gelöscht – auf all deinen iPhones, die Szenen auf diesem.',
     ach_scene_first: 'Erste Szene',
     ach_scenes_10: '10 Szenen',
+
+    // ── віджет «Слово дня» ──
+    widgetTitle: 'Wort des Tages',
+    widgetCaption: '{lang} · Wort des Tages',
+    widgetEmpty: 'Öffne LinguaLens für neue Wörter',
+    widgetEmptyShort: 'LinguaLens öffnen',
+
+    // ── Instagram Stories ──
+    shareStories: 'In Instagram Stories teilen',
+    shareStoriesError: 'Instagram ließ sich nicht öffnen. Versuch es noch einmal.',
+    shareTplCutout: 'Freigestellt',
   },
 
   es: {
@@ -1029,6 +1062,17 @@ export const STRINGS = {
     clearMsgSyncedScenes: '{n} {n|palabra se borrará|palabras se borrarán} para siempre en todos tus iPhone, y tus escenas en este.',
     ach_scene_first: 'Primera escena',
     ach_scenes_10: '10 escenas',
+
+    // ── віджет «Слово дня» ──
+    widgetTitle: 'Palabra del día',
+    widgetCaption: '{lang} · palabra del día',
+    widgetEmpty: 'Abre LinguaLens para ver palabras nuevas',
+    widgetEmptyShort: 'Abre LinguaLens',
+
+    // ── Instagram Stories ──
+    shareStories: 'Compartir en Instagram Stories',
+    shareStoriesError: 'No se pudo abrir Instagram. Inténtalo de nuevo.',
+    shareTplCutout: 'Recorte',
   },
 };
 

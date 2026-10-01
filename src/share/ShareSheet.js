@@ -21,17 +21,20 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import { IcStories } from '../icons';
 import { DUR, EASE, useReducedMotion } from '../motion';
 import { useSafeAreaInsets } from '../SafeArea';
 import { CAPS, F, R, type, useTheme } from '../theme';
 import { FadeIn, Press } from '../ui';
-import { shareCard } from './capture';
+import { captureCard, shareCard } from './capture';
+import { shareToStories, storiesAvailable, storiesSupported } from './instagram';
 import { ShareCard } from './ShareCards';
 import {
   CARD_H,
   CARD_W,
   PALETTES,
   SHEET_MAX_W,
+  exportPixels,
   paletteByKey,
   previewScale,
   safeLocale,
@@ -43,11 +46,14 @@ const TEMPLATE_NAMES = {
   sticker: 'shareTplSticker',
   entry: 'shareTplEntry',
   minimal: 'shareTplMinimal',
+  cutout: 'shareTplCutout',
   sceneStickers: 'shareTplSceneStickers',
   sceneLabels: 'shareTplSceneLabels',
   sceneFrame: 'shareTplSceneFrame',
 };
 const PREVIEW_RADIUS = 18;
+// Коди помилок, яким потрібен свій текст; решта — загальне «не вдалося».
+const ERRORS = { SHARE_UNAVAILABLE: 'shareUnavailable', STORIES_FAILED: 'shareStoriesError' };
 
 // Обраний колір живе до кінця сесії: хто раз обрав «Графіт», не мусить
 // перемикати його на кожній наступній картці.
@@ -72,8 +78,14 @@ function Sheet({ payload, onClose, t }) {
   const multi = templates.length > 1;
   const [page, setPage] = useState(0);
   const [paletteKey, setPaletteKey] = useState(lastPalette);
-  const [busy, setBusy] = useState(false);
+  // null | 'share' | 'stories' — яка з кнопок зараз крутить індикатор
+  const [busy, setBusy] = useState(null);
   const [error, setError] = useState(null);
+  // Кнопка Instagram — лише коли він справді відкриється (див. instagram.js).
+  // Місце під неї резервуємо одразу, якщо збірка це вміє: інакше прев'ю
+  // зменшилося б уже на очах, щойно прийде відповідь.
+  const [stories, setStories] = useState(false);
+  const storiesRoom = storiesSupported();
 
   const a = useRef(new Animated.Value(0)).current;
   const closing = useRef(false);
@@ -87,11 +99,19 @@ function Sheet({ payload, onClose, t }) {
   const pal = paletteByKey(paletteKey);
   const locale = safeLocale(t('shareLocale'));
   const pageW = Math.min(width, SHEET_MAX_W);
-  const scale = previewScale({ width, height, top: insets.top, bottom: insets.bottom, multi });
+  const scale = previewScale({ width, height, top: insets.top, bottom: insets.bottom, multi, stories: storiesRoom });
   const title = t(TITLES[payload.kind]);
 
   useEffect(() => {
     Animated.timing(a, { toValue: 1, duration: DUR.sheet, easing: EASE.drawer, useNativeDriver: true }).start();
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    storiesAvailable().then((ok) => alive && setStories(ok));
+    return () => {
+      alive = false;
+    };
   }, []);
 
   // Вихід швидший за вхід: людина вже вирішила піти.
@@ -139,25 +159,48 @@ function Sheet({ payload, onClose, t }) {
     setError(null);
   }
 
-  async function share() {
+  // Спільна обгортка обох кнопок: одна дія за раз, відгук, текст помилки.
+  async function run(kind, action) {
     if (busyRef.current || closing.current) return;
     busyRef.current = true;
-    setBusy(true);
+    setBusy(kind);
     setError(null);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     try {
-      await shareCard(cards.current[page], {
-        dialogTitle: title,
-        fileName: `lingualens-${templates[page]}.png`,
-        cancelled: () => closing.current,
-      });
+      await action();
     } catch (e) {
-      setError(t(e?.code === 'SHARE_UNAVAILABLE' ? 'shareUnavailable' : 'shareError'));
+      setError(t(ERRORS[e?.code] || 'shareError'));
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
     } finally {
       busyRef.current = false;
-      setBusy(false);
+      setBusy(null);
     }
+  }
+
+  const tpl = templates[page];
+
+  function share() {
+    return run('share', () =>
+      shareCard(cards.current[page], {
+        dialogTitle: title,
+        fileName: `lingualens-${tpl}.png`,
+        size: exportPixels(tpl),
+        cancelled: () => closing.current,
+      })
+    );
+  }
+
+  // Картки йдуть у Stories тлом на весь екран. «Без тла» — рухомою наліпкою
+  // на тлі кольору палітри: так само, як у прев'ю.
+  function shareStories() {
+    return run('stories', async () => {
+      const uri = await captureCard(cards.current[page], { size: exportPixels(tpl) });
+      if (closing.current) return;
+      const ok = await shareToStories(
+        tpl === 'cutout' ? { stickerImage: uri, topColor: pal.bg, bottomColor: pal.bg } : { backgroundImage: uri }
+      );
+      if (!ok) throw Object.assign(new Error('Instagram did not open'), { code: 'STORIES_FAILED' });
+    });
   }
 
   const lift = reduced ? 0 : 48;
@@ -267,15 +310,49 @@ function Sheet({ payload, onClose, t }) {
             })}
           </View>
 
-          <Press onPress={share} style={{ marginTop: 18 }}>
+          <Press
+            onPress={share}
+            style={{ marginTop: 18 }}
+            // під час знімка напис змінює індикатор — VoiceOver читає це
+            accessibilityLabel={t('shareCta')}
+            accessibilityState={{ busy: busy === 'share' }}
+          >
             <View style={[s.cta, { backgroundColor: C.accent }, SHADOW]}>
-              {busy ? (
+              {busy === 'share' ? (
                 <ActivityIndicator color={C.onAccent} />
               ) : (
                 <Text style={{ color: C.onAccent, ...type(17, F.extra, { noLead: true }) }}>{t('shareCta')}</Text>
               )}
             </View>
           </Press>
+
+          {stories ? (
+            <Press
+              onPress={shareStories}
+              style={{ marginTop: 10 }}
+              accessibilityLabel={t('shareStories')}
+              accessibilityState={{ busy: busy === 'stories' }}
+            >
+              <View style={[s.stories, { backgroundColor: C.card2 }]}>
+                {busy === 'stories' ? (
+                  <ActivityIndicator color={C.text} />
+                ) : (
+                  <>
+                    <IcStories size={20} color={C.text} />
+                    {/* висота кнопки фіксована: довгий напис стискається, а не переноситься */}
+                    <Text
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.8}
+                      style={{ color: C.text, flexShrink: 1, ...type(16, F.bold, { noLead: true }) }}
+                    >
+                      {t('shareStories')}
+                    </Text>
+                  </>
+                )}
+              </View>
+            </Press>
+          ) : null}
 
           {error ? <Text style={[T.footnote, s.center, { color: C.red, marginTop: 10 }]}>{error}</Text> : null}
 
@@ -312,5 +389,15 @@ const s = StyleSheet.create({
   },
   swatchDot: { width: 8, height: 8, borderRadius: 4 },
   cta: { height: 55, borderRadius: R.lg, alignItems: 'center', justifyContent: 'center' },
+  // висота + відступ = STORIES_ROW у layout.js (запас під неї в previewScale)
+  stories: {
+    height: 50,
+    borderRadius: R.lg,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 9,
+  },
   close: { ...type(16, F.bold, { noLead: true }), textAlign: 'center', paddingVertical: 12 },
 });
