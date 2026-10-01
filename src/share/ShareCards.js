@@ -29,6 +29,7 @@ import {
   PAD_X,
   barHeights,
   capsSize,
+  clipLines,
   dateLabel,
   dayLetter,
   fontSizeForWord,
@@ -306,12 +307,12 @@ function WordEntry({ word, pal, t, locale }) {
         ) : null}
         {word.example ? (
           <Txt numberOfLines={exampleLines} style={{ color: pal.text, fontFamily: F.semi, fontSize: 18, lineHeight: 26, marginTop: 18 }}>
-            {quote(word.example, word.lang)}
+            {quote(clipLines(word.example, exampleLines, 18), word.lang)}
           </Txt>
         ) : null}
         {word.example && exampleTr ? (
           <Txt numberOfLines={2} style={{ color: pal.muted, fontFamily: F.reg, fontSize: 15, lineHeight: 21, marginTop: 8 }}>
-            {exampleTr}
+            {clipLines(exampleTr, 2, 15)}
           </Txt>
         ) : null}
       </View>

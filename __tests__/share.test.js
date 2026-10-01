@@ -8,6 +8,7 @@ import {
   PALETTES,
   barHeights,
   capsSize,
+  clipLines,
   dateLabel,
   dayFromKey,
   dayLetter,
@@ -183,6 +184,19 @@ describe('text helpers', () => {
     expect(ipaLabel('[ˈtasə]')).toBe('[ˈtasə]');
     expect(ipaLabel('')).toBe('');
     expect(ipaLabel(undefined)).toBe('');
+  });
+
+  test('long examples are cut at a word boundary with an ellipsis', () => {
+    const short = 'I drink tea from my mug.';
+    expect(clipLines(short, 3, 18)).toBe(short);
+    const long = 'Ich habe eine neue Schreibtischlampe gekauft, weil die alte zu dunkel war und ständig flackerte, wenn ich abends lesen wollte.';
+    const cut = clipLines(long, 2, 18);
+    expect(cut.endsWith('…')).toBe(true);
+    expect(cut.length).toBeLessThan(long.length);
+    expect(long.startsWith(cut.slice(0, -1))).toBe(true);
+    expect(cut).not.toMatch(/[\s,]…$/);
+    expect(clipLines(long, 3, 18).length).toBeGreaterThan(cut.length);
+    expect(clipLines('', 2, 18)).toBe('');
   });
 
   test('quotes follow the language of the example', () => {
