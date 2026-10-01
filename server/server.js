@@ -25,6 +25,8 @@ const auth = require('./auth');
 const ai = require('./ai');
 const billing = require('./billing');
 const words = require('./words');
+const wordplan = require('./wordplan');
+const profile = require('./profile');
 const apple = require('./apple');
 const sync = require('./sync');
 
@@ -87,6 +89,13 @@ function limiter(max, windowMs) {
 }
 const scanLimited = limiter(RATE_PER_MIN, 60000);
 const wodLimited = limiter(RATE_PER_MIN, 60000);
+// Персональне слово дня (POST) ще й на пристрій: кожен запит — до 14
+// перекладів, а профіль і «Знаю» обирає сам клієнт. Застосунок питає його на
+// старті, після зміни профілю і після «Знаю» — двадцять на хвилину з запасом.
+const wodUserLimited = limiter(RATE_PER_MIN, 60000);
+// Профіль з онбордингу: людина зберігає його раз, потім зрідка в Параметрах.
+const profileLimited = limiter(20, 60000);
+const profileUserLimited = limiter(10, 60000);
 // /me: застосунок питає його при запуску й після покупки — кілька разів на день
 const meLimited = limiter(RATE_PER_MIN, 60000);
 // Нові пристрої: справжня людина створює один за все життя установки.
@@ -116,6 +125,13 @@ function clientIp(req) {
     if (ip) return ip;
   }
   return req.socket.remoteAddress || 'unknown';
+}
+
+// Мова з запиту, лише якщо ми її знаємо. Object.hasOwn, а не LANG_NAMES[x]:
+// «constructor» чи «toString» знайшлися б у прототипі й пішли б у підказку
+// моделі та в ключ кешу.
+function langOr(code, fallback) {
+  return typeof code === 'string' && Object.hasOwn(ai.LANG_NAMES, code) ? code : fallback;
 }
 
 // ---------- HTTP-утиліти ----------
@@ -238,18 +254,21 @@ async function scanWithSlot(req, user, day, slot, t0) {
   if (!body.image || typeof body.image !== 'string') {
     return [400, { error: 'Поле "image" (base64 JPEG) обовʼязкове' }];
   }
-  const lang = ai.LANG_NAMES[body.lang] ? body.lang : 'en';
-  const nativeLang = ai.LANG_NAMES[body.nativeLang] ? body.nativeLang : 'uk';
+  const lang = langOr(body.lang, 'en');
+  const nativeLang = langOr(body.nativeLang, 'uk');
   // Сцена (кілька предметів з одного кадру) коштує так само один скан.
   // Відсутній чи невідомий mode — звичайний скан: старі версії застосунку
   // цього поля не знають.
   const scene = body.mode === 'scene';
+  // Рівень зі слайдера (1–10) робить приклад простішим чи багатшим, а від 7
+  // додає вирази. Немає рівня — відповідь рівно така, як до персоналізації.
+  const level = profile.level(body.level);
 
   let parsed;
   try {
     parsed = scene
-      ? await ai.recognizeScene(body.image, lang, nativeLang)
-      : await ai.recognize(body.image, lang, nativeLang);
+      ? await ai.recognizeScene(body.image, lang, nativeLang, level)
+      : await ai.recognize(body.image, lang, nativeLang, level);
   } catch (e) {
     if (e.name === 'TimeoutError' || e.name === 'AbortError') {
       console.error(new Date().toISOString(), 'AI TIMEOUT');
@@ -273,6 +292,10 @@ async function scanWithSlot(req, user, day, slot, t0) {
     if (!parsed || !parsed.word) return UNREADABLE;
     if (String(parsed.word).toLowerCase() === 'unknown') return NOTHING_SEEN;
     result = { ...ai.cleanWord(parsed), box: ai.cleanBox(parsed.box), outline: ai.cleanOutline(parsed.outline) };
+    if (ai.wantsExtras(level)) {
+      const extras = ai.cleanExtras(parsed.extras, result.word);
+      if (extras.length) result.extras = extras;
+    }
   }
   // Застосунок уже перестав чекати (таймаут, закрив екран) — відповідь
   // ніхто не побачить, тож і скан не рахуємо.
@@ -283,7 +306,7 @@ async function scanWithSlot(req, user, day, slot, t0) {
   console.log(
     new Date().toISOString(),
     ai.PROVIDER,
-    lang + '→' + nativeLang,
+    lang + '→' + nativeLang + (level ? ' L' + level : ''),
     Math.round((Date.now() - t0) / 100) / 10 + 's',
     '→',
     scene ? 'сцена: ' + result.objects.map((o) => o.word).join(', ') : result.word
@@ -353,12 +376,14 @@ async function handleSync(req, res, user) {
   return jsonCompressed(req, res, out.status, out.body);
 }
 
+// GET — для версій застосунку до персоналізації: той самий список v1 і той
+// самий порядок, тож після оновлення сервера в людей нічого не змінилось.
 async function handleWordOfDay(req, res, user) {
   if (wodLimited(clientIp(req))) return json(res, 429, { error: 'Забагато запитів.' });
   const url = new URL(req.url, 'http://x');
   const days = Math.min(Math.max(Number(url.searchParams.get('days') || 7), 1), 14);
-  const lang = ai.LANG_NAMES[url.searchParams.get('lang')] ? url.searchParams.get('lang') : 'en';
-  const native = ai.LANG_NAMES[url.searchParams.get('native')] ? url.searchParams.get('native') : 'uk';
+  const lang = langOr(url.searchParams.get('lang'), 'en');
+  const native = langOr(url.searchParams.get('native'), 'uk');
   // Дати рахуємо від ЛОКАЛЬНОГО «сьогодні» клієнта: інакше ввечері в США
   // сервер (UTC) уже жив би завтрашнім днем і картка була б порожня.
   const today = billing.localDay(url.searchParams.get('today'));
@@ -381,6 +406,69 @@ async function handleWordOfDay(req, res, user) {
   );
   console.log(new Date().toISOString(), 'word-of-day', lang + '→' + native, out.length + 'д');
   return json(res, 200, { words: out });
+}
+
+// Скільки днів віддати: 1–14, без числа — 7, як у GET.
+function wodDays(v) {
+  const n = typeof v === 'number' || (typeof v === 'string' && v.trim()) ? Math.floor(Number(v)) : NaN;
+  return Number.isFinite(n) ? Math.min(Math.max(n, 1), 14) : 7;
+}
+
+// POST — персональне слово дня: теми й рівень з профілю, без слів, на які
+// людина натиснула «Знаю». Профіль приходить у кожному запиті, а не з бази:
+// так він працює і без збереження на сервері, і одразу після зміни в
+// Параметрах.
+async function handleWordOfDayPost(req, res, user) {
+  if (wodLimited(clientIp(req)) || wodUserLimited(user.id)) return json(res, 429, { error: 'Забагато запитів.' });
+  // 500 «Знаю» по ≤ 60 символів — до ~35 КБ; 64 КБ із запасом.
+  const body = await readJson(req, 64 * 1024);
+  if (!profile.isPlainObject(body)) return json(res, 400, { error: 'BAD_JSON' });
+  const days = wodDays(body.days);
+  const lang = langOr(body.lang, 'en');
+  const native = langOr(body.native, 'uk');
+  // Дати — від локального «сьогодні» клієнта, як у GET.
+  const today = billing.localDay(body.today);
+  const plan = wordplan.schedule({
+    seed: user.seed || user.id,
+    profile: profile.forSchedule(body.profile, today),
+    known: profile.known(body.known),
+    today,
+    days,
+  });
+
+  // Дні перекладаються паралельно, як у GET; невдалий переклад не валить
+  // решту — день лишається хоча б з англійським словом.
+  const out = await Promise.all(
+    plan.map(async ({ date, en, topic, hint }) => {
+      try {
+        return { date, ...(await ai.translateWord(en, lang, native, { topic, hint })), source: en, topic };
+      } catch (_) {
+        return { date, word: en, ipa: '', translation: '', example: '', example_translation: '', source: en, topic };
+      }
+    })
+  );
+  const topics = {};
+  for (const w of out) topics[w.topic] = (topics[w.topic] || 0) + 1;
+  const mix = Object.entries(topics).map(([k, n]) => k + '×' + n).join(' ');
+  console.log(new Date().toISOString(), 'word-of-day', lang + '→' + native, out.length + 'д', mix);
+  return json(res, 200, { words: out });
+}
+
+// Відповіді онбордингу — у запис пристрою (users/<id>.profile), щоб
+// власник міг порахувати, хто ці люди й звідки прийшли. Лише варіанти з
+// готових списків, без особистих даних; стираються разом із записом
+// («Стерти всі мої дані»).
+async function handleProfile(req, res, user) {
+  if (profileLimited(clientIp(req)) || profileUserLimited(user.id)) {
+    return json(res, 429, { error: 'TOO_MANY_REQUESTS' });
+  }
+  const body = await readJson(req, 4 * 1024);
+  if (!profile.isPlainObject(body)) return json(res, 400, { error: 'BAD_JSON' });
+  const r = await store.update('users', user.id, { profile: profile.forStorage(body, user.profile) });
+  // Запис стерли паралельним DELETE /me — пристрою більше немає.
+  if (!r.ok) return json(res, 401, { error: 'UNAUTHORIZED' });
+  console.log(new Date().toISOString(), '/me/profile → ok');
+  return json(res, 200, { ok: true });
 }
 
 async function handle(req, res) {
@@ -430,7 +518,8 @@ async function handle(req, res) {
   // Усе далі — лише з токеном пристрою.
   const known =
     (route === '/me' && (req.method === 'GET' || req.method === 'DELETE')) ||
-    (req.method === 'POST' && ['/scan', '/sync', '/auth/apple', '/auth/apple/nonce'].includes(route)) ||
+    (req.method === 'POST' &&
+      ['/scan', '/sync', '/auth/apple', '/auth/apple/nonce', '/me/profile', '/word-of-day'].includes(route)) ||
     (route === '/word-of-day' && req.method === 'GET');
   if (!known) return json(res, 404, { error: 'Not found' });
 
@@ -475,7 +564,9 @@ async function handle(req, res) {
     console.log(new Date().toISOString(), 'DELETE /me → ok');
     return json(res, 200, { ok: true });
   }
+  if (route === '/me/profile') return handleProfile(req, res, user);
   if (route === '/scan') return handleScan(req, res, user);
+  if (req.method === 'POST') return handleWordOfDayPost(req, res, user);
   return handleWordOfDay(req, res, user);
 }
 

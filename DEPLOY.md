@@ -107,6 +107,24 @@ gcloud projects add-iam-policy-binding $PROJECT --member="serviceAccount:$SA" --
 gcloud firestore indexes fields update data --collection-group=dicts --disable-indexes
 ```
 
+**Відповіді онбордингу** (цілі, сфера, рівень, звідки дізнались) лежать у
+записі пристрою: `users/<id>.profile`. Особистих даних там немає, лише
+варіанти зі списків. Порахувати, скільки людей прийшло, наприклад, з TikTok
+(замість `profile.heardFrom` і `tiktok` можна підставити `profile.field` і
+`finance` чи `profile.level` і число без лапок, тоді `integerValue`):
+
+```bash
+curl -s -X POST "https://firestore.googleapis.com/v1/projects/$PROJECT/databases/(default)/documents:runAggregationQuery" \
+  -H "authorization: Bearer $(gcloud auth print-access-token)" -H 'content-type: application/json' \
+  -d '{"structuredAggregationQuery":{"structuredQuery":{"from":[{"collectionId":"users"}],
+       "where":{"fieldFilter":{"field":{"fieldPath":"profile.heardFrom"},"op":"EQUAL","value":{"stringValue":"tiktok"}}}},
+       "aggregations":[{"alias":"n","count":{}}]}}'
+# → [{"result":{"aggregateFields":{"n":{"integerValue":"…"}}}, …}]
+```
+
+Цілей може бути кілька, тож для них фільтр інший:
+`"op":"ARRAY_CONTAINS"` на `profile.goals` зі значенням `"work"`.
+
 ## 4. Ключі в Secret Manager (рекомендовано)
 
 Простими словами: змінні середовища видно кожному, хто відкриє сервіс у

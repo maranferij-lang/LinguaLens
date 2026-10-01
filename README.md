@@ -38,8 +38,11 @@ iPhone (Expo SDK 57 · React Native 0.86 · React 19.2)
 ├─ HTTPS ─► сервер (Node, без npm-залежностей, Google Cloud Run)
 │            POST /auth/device          новий пристрій → випадковий id + токен
 │            POST /scan                 кадр → AI → слово, рамка, силует
-│                                       (5 безкоштовних сканів на день, далі 402)
-│            GET  /word-of-day          7 днів слів під seed пристрою
+│                                       (5 безкоштовних сканів на день, далі 402;
+│                                       level 1–10 — приклад під рівень, від 7 ще вирази)
+│            POST /word-of-day          до 14 днів слів під профіль: теми, рівень, «Знаю»
+│            GET  /word-of-day          старі версії: 7 днів зі списку v1 під seed пристрою
+│            POST /me/profile           відповіді онбордингу (цілі, сфера, рівень, звідки)
 │            GET  /me · DELETE /me      Pro-статус і лічильник · стерти дані
 │            GET  /privacy · /support · /health
 │            POST /webhooks/revenuecat  зміни підписки
@@ -168,10 +171,14 @@ server/ai.js              — провайдери gemini | anthropic | mock, п
 server/auth.js            — анонімні пристрої, HMAC-токени
 server/billing.js         — денний ліміт сканів, Pro через RevenueCat
 server/store.js           — Firestore (REST) або data.json
-server/words.js           — 320 слів для «слова дня»
+server/words.js           — 320 слів «слова дня» v1 (GET для старих версій)
+server/topics/            — 16 тематичних списків слова дня з рівнями 1–3
+server/lexicon.js         — завантаження й перевірка тематичних списків
+server/wordplan.js        — персональний розклад: ваги тем, рівні, «Знаю»
+server/profile.js         — чистка профілю онбордингу
 server/public/privacy.html— політика приватності (/privacy)
 server/public/support.html— сторінка підтримки (/support)
-server/test/api.test.js   — тести API
+server/test/              — тести API, розкладу й даних тематичних списків
 server/.env.example       — усі змінні сервера (.env — НЕ комітити)
 
 __tests__/                — тести логіки застосунку

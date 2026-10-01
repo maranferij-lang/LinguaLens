@@ -103,3 +103,119 @@ test('box and outline cleaning matches the single scan rules', () => {
   assert.equal(ai.cleanOutline([[1, 1], [2, 2], [3], 'x', [4, 4], [5, 5], [6, 6]]), null);
   assert.deepEqual(ai.cleanOutline(Array.from({ length: 6 }, (_, i) => [i, -i])), Array.from({ length: 6 }, (_, i) => [i, 0]));
 });
+
+// ---------- персоналізація: рівень у скані, тема в перекладі ----------
+const crypto = require('crypto');
+const store = require('../store');
+
+test('scan prompt by level: none and 4–6 exactly as before, up to 3 short and simple, 7+ richer with phrases', async () => {
+  const base = ai.buildScanPrompt('en', 'uk');
+  assert.ok(base.includes('"example":"<one short natural English sentence using the word>"'));
+  assert.ok(!base.includes('extras') && !base.includes('learner is'));
+  for (const level of [null, undefined, 4, 5, 6, 0, 11, 7.5, '8']) assert.equal(ai.buildScanPrompt('en', 'uk', level), base, String(level));
+
+  for (const level of [1, 2, 3]) {
+    const easy = ai.buildScanPrompt('en', 'uk', level);
+    assert.ok(easy.includes('"example":"<one very short, simple English sentence using the word: at most 8 words, present tense>"'));
+    assert.ok(easy.includes('The learner is a beginner'));
+    assert.ok(!easy.includes('extras'));
+  }
+  for (const level of [7, 8, 9, 10]) {
+    const rich = ai.buildScanPrompt('de', 'uk', level);
+    assert.ok(rich.includes('"example":"<one natural, richer German sentence using the word, the way a fluent speaker would say it>"'));
+    assert.ok(rich.includes('"extras":[{"phrase":"<German phrase with the word>","translation":"<its translation into Ukrainian>"}],"box"'));
+    assert.ok(rich.includes('"extras" are 2-3 useful German collocations, idioms or phrasal verbs'));
+    assert.ok(rich.includes('Include the definite article, e.g. "die Tasse"'));
+  }
+
+  reply = '{"word":"mug"}';
+  await ai.recognize('BASE64', 'en', 'uk', 8);
+  assert.equal(requests.at(-1).body.max_tokens, 800);
+  assert.equal(requests.at(-1).body.messages[0].content[1].text, ai.buildScanPrompt('en', 'uk', 8));
+  await ai.recognize('BASE64', 'en', 'uk', 6);
+  assert.equal(requests.at(-1).body.max_tokens, 600);
+  assert.equal(requests.at(-1).body.messages[0].content[1].text, base);
+  await ai.recognize('BASE64', 'en', 'uk', 2);
+  assert.equal(requests.at(-1).body.max_tokens, 600);
+  assert.equal(requests.at(-1).body.messages[0].content[1].text, ai.buildScanPrompt('en', 'uk', 2));
+});
+
+test('scene prompt by level changes only the example and never asks for phrases', async () => {
+  const base = ai.buildScenePrompt('de', 'uk');
+  for (const level of [null, 4, 5, 6]) assert.equal(ai.buildScenePrompt('de', 'uk', level), base);
+  for (let level = 1; level <= 10; level++) assert.ok(!ai.buildScenePrompt('de', 'uk', level).includes('extras'));
+  assert.ok(ai.buildScenePrompt('de', 'uk', 3).includes('at most 8 words, present tense'));
+  assert.ok(ai.buildScenePrompt('de', 'uk', 9).includes('natural, richer German sentence'));
+
+  reply = '{"objects":[]}';
+  await ai.recognizeScene('BASE64', 'de', 'uk', 9);
+  assert.equal(requests.at(-1).body.max_tokens, 3500);
+  assert.equal(requests.at(-1).body.messages[0].content[1].text, ai.buildScenePrompt('de', 'uk', 9));
+});
+
+test('a topic word is translated with its topic, sense and a topic example, and cached under its own key', async () => {
+  // свій термін на кожен прогін: емулятор Firestore пам'ятає кеш між запусками
+  const term = 'ledger-' + crypto.randomUUID().slice(0, 8);
+  const hint = 'accounting: book recording all financial accounts';
+  reply = JSON.stringify({
+    word: 'das Hauptbuch',
+    ipa: '/ˈhaʊ̯ptˌbuːx/',
+    translation: 'головна книга',
+    example: 'Die Buchhalterin prüft das Hauptbuch.',
+    example_translation: 'Бухгалтерка перевіряє головну книгу.',
+  });
+  const n = requests.length;
+  const out = await ai.translateWord(term, 'de', 'uk', { topic: 'finance', hint });
+  assert.equal(requests.length, n + 1);
+  const prompt = requests.at(-1).body.messages[0].content[0].text;
+  assert.equal(prompt, ai.buildTranslatePrompt(term, 'de', 'uk', { topic: 'finance', hint }));
+  for (const part of [
+    'Translate "' + term + '", an English term from finance and accounting, for a language learner.',
+    'Meaning in this context: ' + hint + '.',
+    'not word-for-word calques',
+    'in a realistic situation from finance and accounting',
+    'Include the definite article, e.g. "die Tasse"',
+  ]) {
+    assert.ok(prompt.includes(part), part);
+  }
+  assert.deepEqual(out, { ...JSON.parse(reply), source: term });
+  const key = 'v3|finance|' + term + '|de|uk';
+  assert.equal(ai.wordCacheKey(term, 'de', 'uk', 'finance'), key);
+  assert.deepEqual({ ...(await store.get('wordCache', key)) }, out);
+
+  // повтор — з кешу, без моделі
+  assert.deepEqual({ ...(await ai.translateWord(term, 'de', 'uk', { topic: 'finance', hint })) }, out);
+  assert.equal(requests.length, n + 1);
+
+  // той самий термін без теми — інший запис, ключ і підказка як до персоналізації
+  reply = JSON.stringify({ word: 'die Liste', ipa: '', translation: 'список', example: 'x', example_translation: 'y' });
+  const general = await ai.translateWord(term, 'de', 'uk');
+  assert.equal(requests.length, n + 2);
+  assert.equal(general.word, 'die Liste');
+  assert.equal(requests.at(-1).body.messages[0].content[0].text, ai.buildTranslatePrompt(term, 'de', 'uk'));
+  assert.equal((await store.get('wordCache', 'v2|' + term + '|de|uk')).word, 'die Liste');
+});
+
+test('general words keep the old prompt and cache key; every topic has its own name in the prompt', () => {
+  assert.equal(ai.wordCacheKey('mug', 'en', 'uk'), 'v2|mug|en|uk');
+  assert.equal(ai.wordCacheKey('mug', 'en', 'uk', 'general'), 'v2|mug|en|uk');
+  // невідома тема (чи ключ із прототипу) — як загальне слово
+  for (const t of ['astronaut', '__proto__', 'constructor', 42, null]) assert.equal(ai.wordCacheKey('mug', 'en', 'uk', t), 'v2|mug|en|uk');
+  assert.equal(ai.wordCacheKey('P/E ratio', 'en', 'uk', 'finance'), 'v3|finance|P_E_ratio|en|uk');
+  assert.equal(ai.wordCacheKey('résumé', 'de', 'uk', 'workplace'), 'v3|workplace|r_sum_|de|uk');
+
+  const plain = ai.buildTranslatePrompt('mug', 'de', 'uk');
+  assert.ok(plain.startsWith('Translate the English concept "mug" for a language learner.\nTarget language: German.'));
+  assert.ok(plain.includes('"example":"<one short natural German sentence using it>"'));
+  assert.equal(ai.buildTranslatePrompt('mug', 'de', 'uk', { topic: 'general' }), plain);
+  assert.equal(ai.buildTranslatePrompt('mug', 'de', 'uk', { topic: 'astronaut', hint: '' }), plain);
+  // значення загального слова — один рядок, крапка не подвоюється
+  const sense = ai.buildTranslatePrompt('drawer', 'en', 'uk', { hint: 'sliding box in a piece of furniture. ' });
+  assert.ok(sense.includes('for a language learner.\nMeaning: sliding box in a piece of furniture.\nTarget language: English.'));
+
+  for (const [topic, name] of Object.entries(ai.TOPIC_NAMES)) {
+    const p = ai.buildTranslatePrompt('term', 'en', 'uk', { topic });
+    assert.ok(p.includes('an English term from ' + name + ',') && p.includes('realistic situation from ' + name + '>'), topic);
+    assert.ok(!p.includes('Meaning'));
+  }
+});
