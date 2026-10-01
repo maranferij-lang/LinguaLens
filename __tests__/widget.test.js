@@ -3,7 +3,7 @@
 import { Linking } from 'react-native';
 import { makeT } from '../src/i18n';
 import { localDayKey } from '../src/storage';
-import { buildWordTimeline, isWidgetLink, subscribeToWidgetTaps, updateWordWidget } from '../src/widgets';
+import { buildWordTimeline, isWidgetLink, subscribeToWidgetTaps } from '../src/widgets';
 
 const en = makeT('en');
 const uk = makeT('uk');
