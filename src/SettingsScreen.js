@@ -286,7 +286,7 @@ export default function SettingsScreen({
                   style={[s.themeName, active && { color: C.text, fontFamily: F.bold }]}
                   numberOfLines={1}
                 >
-                  {th.name}
+                  {isAuto ? th.name : t(th.key === 'dark' ? 'themeDark' : 'themeLight')}
                 </Text>
               </Pressable>
             );

@@ -7,7 +7,13 @@ import { StatusBar } from 'expo-status-bar';
 import * as Haptics from 'expo-haptics';
 import * as SplashScreen from 'expo-splash-screen';
 import { getLocales } from 'expo-localization';
-import { useFonts, Nunito_500Medium, Nunito_600SemiBold, Nunito_700Bold, Nunito_800ExtraBold } from '@expo-google-fonts/nunito';
+// Шрифти поштучно: імпорт із кореня пакета тягне в бандл усі 18 файлів
+// Nunito (~2 МБ), а ми використовуємо чотири накреслення.
+import { useFonts } from '@expo-google-fonts/nunito/useFonts';
+import { Nunito_500Medium } from '@expo-google-fonts/nunito/500Medium';
+import { Nunito_600SemiBold } from '@expo-google-fonts/nunito/600SemiBold';
+import { Nunito_700Bold } from '@expo-google-fonts/nunito/700Bold';
+import { Nunito_800ExtraBold } from '@expo-google-fonts/nunito/800ExtraBold';
 
 import ScannerScreen from './src/ScannerScreen';
 import DictionaryScreen from './src/DictionaryScreen';
@@ -772,6 +778,8 @@ function TabButton({ tb, active, badge, onPress, C, s, t }) {
         ) : null}
       </Animated.View>
       <Animated.Text
+        // великий системний шрифт не має обрізати підписи вкладок
+        maxFontSizeMultiplier={1.2}
         style={[
           s.tabLabel,
           active && { color: C.accent },

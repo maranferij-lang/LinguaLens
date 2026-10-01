@@ -270,6 +270,8 @@ function WordSticker({ word, pal, t, locale }) {
 // переклад, приклад у лапках мови. Наліпка — маленька, в кутку, як марка.
 function WordEntry({ word, pal, t, locale }) {
   const uri = resolvePhoto(word.photo);
+  // слово дня приходить у серверному вигляді (example_translation)
+  const exampleTr = word.exampleTranslation || word.example_translation;
   return (
     <>
       {uri ? (
@@ -298,20 +300,22 @@ function WordEntry({ word, pal, t, locale }) {
             {quote(word.example, word.lang)}
           </Txt>
         ) : null}
-        {word.example && word.exampleTranslation ? (
+        {word.example && exampleTr ? (
           <Txt numberOfLines={3} style={{ color: pal.muted, fontFamily: F.reg, fontSize: 15, lineHeight: 21, marginTop: 8 }}>
-            {word.exampleTranslation}
+            {exampleTr}
           </Txt>
         ) : null}
       </View>
       <View style={{ flex: 1 }} />
       <View style={{ flexDirection: 'row', borderTopWidth: 1, borderTopColor: pal.line, paddingTop: 14, gap: 32 }}>
-        <View>
-          <Txt style={capsStyle(pal.muted, 10)}>{t('shareLang')}</Txt>
-          <Txt style={{ color: pal.text, fontFamily: F.extra, fontSize: 17, lineHeight: 22, marginTop: 2 }}>
-            {nameFor(word.lang || 'en')}
-          </Txt>
-        </View>
+        {word.lang ? (
+          <View>
+            <Txt style={capsStyle(pal.muted, 10)}>{t('shareLang')}</Txt>
+            <Txt style={{ color: pal.text, fontFamily: F.extra, fontSize: 17, lineHeight: 22, marginTop: 2 }}>
+              {nameFor(word.lang)}
+            </Txt>
+          </View>
+        ) : null}
         <View>
           <Txt style={capsStyle(pal.muted, 10)}>{t('shareDate')}</Txt>
           <Txt style={{ color: pal.text, fontFamily: F.extra, fontSize: 17, lineHeight: 22, marginTop: 2 }}>

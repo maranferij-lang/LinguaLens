@@ -165,7 +165,7 @@ export const PRO_BENEFITS = [
 // Порівняння «без підписки / з підпискою». Головний елемент пейволу:
 // людина має бачити не список благ, а СВОЮ ситуацію і те, як вона зміниться.
 export const COMPARISON = [
-  { id: 'scans', free: '5 / день', pro: '∞' },
+  { id: 'scans', free: String(FREE.scansPerDay), pro: '∞' },
   { id: 'words', free: '100', pro: '∞' },
   { id: 'langs', free: '1', pro: '29' },
   { id: 'wod', free: true, pro: true },
