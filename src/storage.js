@@ -1,5 +1,6 @@
 // Збереження слів і налаштувань (AsyncStorage)
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { clearScenes } from './scene/scenes';
 
 const WORDS_KEY = 'll_words_v1';
 const SETTINGS_KEY = 'll_settings_v1';
@@ -140,13 +141,15 @@ export async function persistSettings(settings) {
   } catch (_) {}
 }
 
-// «Стерти все»: слова, статистика, досягнення, кеш слова дня і лічильник.
-// Налаштування (мова, тема) й позначку онбордингу лишаємо — людина не
-// просила знову проходити знайомство з застосунком.
+// «Стерти все»: слова, статистика, досягнення, кеш слова дня, лічильник
+// і сцени разом із їхніми фото. Налаштування (мова, тема) й позначку
+// онбордингу лишаємо — людина не просила знову проходити знайомство з
+// застосунком.
 export async function clearLocalData() {
   try {
     await AsyncStorage.multiRemove([WORDS_KEY, ACTIVITY_KEY, STATS_KEY, SEEN_ACH_KEY, WOD_KEY, 'll_usage_v1']);
   } catch (_) {}
+  await clearScenes();
 }
 
 // Вихід з акаунта Apple: слова й прогрес лишаються в акаунті, а з телефона

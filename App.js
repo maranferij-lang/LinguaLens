@@ -50,6 +50,7 @@ import { clearPersonalData, signInWithApple, signOut as leaveAccount, useAccount
 import { useSync, useWordStore } from './src/useSync';
 import { touch } from './src/sync';
 import { deletePhoto, persistPhoto } from './src/photos';
+import { addScene, clearScenes, hasWord, loadScenes, persistScenes, removeScene, updateScene } from './src/scene/scenes';
 import { apiMe, deviceForgotten } from './src/api';
 import { computeMetrics, evaluate, newlyUnlocked } from './src/achievements';
 import { maybeAskForReview } from './src/review';
@@ -121,6 +122,9 @@ function defaultSettings() {
     // Згода надсилати кадр на сервер і AI-сервісу (App Review 5.1.2(i)).
     // Питає сканер перед першим знімком — див. ConsentSheet.
     aiConsent: false,
+    // Режим сканера: один предмет або вся сцена. Запам'ятовуємо, як Камера
+    // iOS: хто знімає кімнати, не мусить щоразу перемикати.
+    scanMode: 'object',
   };
 }
 
@@ -149,6 +153,10 @@ export default function App() {
   const [stats, setStats] = useState({});
   const [seenAch, setSeenAch] = useState([]);
   const [wod, setWod] = useState(null);
+  // Історія сцен (див. src/scene/scenes.js), найновіші першими
+  const [scenes, setScenes] = useState([]);
+  const scenesRef = useRef(scenes);
+  scenesRef.current = scenes;
   const [toastAch, setToastAch] = useState(null);
   // Відкритий аркуш результату скану — це нативний Modal, і все з кореня App
   // (тост, пейвол) iOS малює ПІД ним.
@@ -158,9 +166,10 @@ export default function App() {
   const [usage, setUsage] = useState({ scans: 0 });
   const [paywall, setPaywall] = useState(null); // null | 'scans' | 'words' | 'langs' | 'info'
   const [share, setShare] = useState(null); // payload для картки «поділитись»
-  // Слово, яке не влізло в безкоштовний словник. Якщо людина тут же оформить
-  // Pro, зберігаємо його самі — інакше відсканований предмет просто пропав би.
-  const pendingWord = useRef(null);
+  // Слова, які не влізли в безкоштовний словник (одне зі сканера або решта
+  // сцени). Якщо людина тут же оформить Pro, зберігаємо їх самі — інакше
+  // відскановані предмети просто пропали б.
+  const pendingWords = useRef(null);
   // Онбординг відкрили повторно з налаштувань (див. finishOnboarding).
   const onbReplay = useRef(false);
 
@@ -190,7 +199,7 @@ export default function App() {
   useEffect(() => {
     initAudio();
     (async () => {
-      const [w, st, a, ob, stt, seen, wodCache, u] = await Promise.all([
+      const [w, st, a, ob, stt, seen, wodCache, u, sc] = await Promise.all([
         loadWords(),
         loadSettings(),
         loadActivity(),
@@ -199,6 +208,7 @@ export default function App() {
         loadSeenAchievements(),
         loadWod(),
         loadUsage(),
+        loadScenes(),
       ]);
       // Збережене перебиває типове лише там, де справді щось збережено:
       // на свіжому встановленні мови вирішує defaultLanguages().
@@ -210,6 +220,7 @@ export default function App() {
       setSeenAch(seen);
       setWod(wodCache);
       setUsage(u);
+      setScenes(sc);
       setOnboarded(ob);
       setReady(true);
 
@@ -348,10 +359,12 @@ export default function App() {
   }, [shownAch]);
 
   // ---------- ДАНІ ----------
-  function logActivity() {
+  // n — скільки дій за раз: сім слів зі сцени — це сім збережень, інакше
+  // картка «Мій тиждень» рахувала б їх як одне й з'їдала б повторення.
+  function logActivity(n = 1) {
     const k = localDayKey();
     setActivity((prev) => {
-      const next = { ...prev, [k]: (prev[k] || 0) + 1 };
+      const next = { ...prev, [k]: (prev[k] || 0) + n };
       persistActivity(next);
       return next;
     });
@@ -374,17 +387,37 @@ export default function App() {
     // ще й зі «слова дня», і ліміт має діяти однаково.
     const deny = canSaveWord({ pro: sub.pro, wordCount: words.length });
     if (deny) {
-      pendingWord.current = result;
+      pendingWords.current = [result];
       setPaywall(deny);
       return false;
     }
-    insertWord(result);
+    insertWords([result]);
     return true;
   }
 
-  function insertWord(result) {
+  // Слова зі сцени разом. Ті, що вже є в словнику, пропускаємо; зберігаємо
+  // стільки, скільки вміщає безкоштовний словник, а решту відкладаємо до
+  // покупки й відкриваємо пейвол. Повертає, скільки збережено зараз.
+  // Словник беремо з ref: сцена зберігає з довгого замикання, а синхронізація
+  // могла тим часом додати слова з іншого iPhone.
+  function addWords(list) {
+    const have = wordsRef.current;
+    const fresh = [];
+    for (const w of list) if (!hasWord(have, w) && !hasWord(fresh, w)) fresh.push(w);
+    let fits = 0;
+    while (fits < fresh.length && !canSaveWord({ pro: sub.pro, wordCount: have.length + fits })) fits++;
+    if (fits) insertWords(fresh.slice(0, fits));
+    if (fits < fresh.length) {
+      pendingWords.current = fresh.slice(fits);
+      setPaywall(canSaveWord({ pro: sub.pro, wordCount: have.length + fits }));
+    }
+    return fits;
+  }
+
+  function insertWords(list) {
     const now = Date.now();
-    const item = {
+    const before = wordsRef.current.length;
+    const items = list.map((result) => ({
       id: now.toString(36) + Math.random().toString(36).slice(2, 7),
       ...result,
       // кадр зі сканера лежить у кеші — переносимо в Documents (див. photos.js)
@@ -394,9 +427,9 @@ export default function App() {
       // чия версія новіша (див. sync.js)
       updatedAt: now,
       srs: newSrs(),
-    };
-    const next = setWords((prev) => [...prev, item]);
-    logActivity();
+    }));
+    const next = setWords((prev) => [...prev, ...items]);
+    logActivity(items.length);
     // «Нічна сова» і «Ранній птах» — досягнення не про кількість, а про звичку.
     // Позначаємо одноразово, коли слово збережено в характерний час.
     const h = new Date().getHours();
@@ -404,7 +437,8 @@ export default function App() {
     else if (h >= 5 && h < 8) bumpStatOnce('morningScan');
     // Десяте слово — момент, коли застосунок уже приніс користь: саме тоді
     // доречно спитати про оцінку (не частіше, ніж дозволяє review.js).
-    if (next.length === 10) maybeAskForReview();
+    // Сцена може перескочити через десяте одразу кількома словами.
+    if (before < 10 && next.length >= 10) maybeAskForReview();
   }
 
   // Ставить прапорець один раз — повторні виклики нічого не міняють.
@@ -413,6 +447,36 @@ export default function App() {
       if (prev[key]) return prev;
       const next = { ...prev, [key]: 1 };
       persistStats(next);
+      return next;
+    });
+  }
+
+  // ---------- СЦЕНИ ----------
+  // Свіжа сцена зі сканера: в історію (фото — у Documents) і в лічильник
+  // досягнень. Повертає збережений запис — його й показує сканер.
+  // Сканер кличе це наприкінці довгого запиту зі свого замикання, тож
+  // список беремо з ref — найсвіжіший, а не той, що був у момент тапу.
+  function sceneScanned(scene) {
+    const { list, scene: stored } = addScene(scenesRef.current, scene);
+    scenesRef.current = list;
+    setScenes(list);
+    persistScenes(list);
+    bumpStat('scenes');
+    return stored;
+  }
+
+  function changeScene(id, patch) {
+    setScenes((prev) => {
+      const next = updateScene(prev, id, patch);
+      persistScenes(next);
+      return next;
+    });
+  }
+
+  function deleteScene(id) {
+    setScenes((prev) => {
+      const next = removeScene(prev, id);
+      persistScenes(next);
       return next;
     });
   }
@@ -435,11 +499,15 @@ export default function App() {
     logActivity();
   }
 
+  // «Очистити словник» прибирає й сцени: діалог про це попереджає (див.
+  // SettingsScreen), а фото сцен без слів лише займали б пам'ять телефону.
   function clearAll() {
     const all = wordsRef.current;
     all.forEach((w) => deletePhoto(w.photo));
     sync.noteDeleted(all);
     setWords([]);
+    setScenes([]);
+    clearScenes();
   }
 
   function bumpStat(key, by = 1) {
@@ -555,7 +623,7 @@ export default function App() {
   async function purchasePlan(planId) {
     const res = await pro.purchase(planId);
     if (res.ok) {
-      savePendingWord();
+      savePendingWords();
       setPaywall(null);
       refreshMe(true);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -571,24 +639,24 @@ export default function App() {
   async function restorePurchases() {
     const next = await pro.restore();
     if (next?.pro) {
-      savePendingWord();
+      savePendingWords();
       refreshMe(true);
     }
     return next;
   }
 
-  // Pro оформлено — дописуємо слово, на якому спіткнулись. Ліміт уже не
+  // Pro оформлено — дописуємо слова, на яких спіткнулись. Ліміт уже не
   // перевіряємо: sub.pro у цьому замиканні ще старий.
-  function savePendingWord() {
-    const w = pendingWord.current;
-    pendingWord.current = null;
-    if (w) insertWord(w);
+  function savePendingWords() {
+    const list = pendingWords.current;
+    pendingWords.current = null;
+    if (list?.length) insertWords(list);
   }
 
-  // Пейвол закрили без покупки — відкладене слово більше не чекає, щоб
-  // пізніша покупка з налаштувань не дописала його поза контекстом.
+  // Пейвол закрили без покупки — відкладені слова більше не чекають, щоб
+  // пізніша покупка з налаштувань не дописала їх поза контекстом.
   function closePaywall() {
-    pendingWord.current = null;
+    pendingWords.current = null;
     setPaywall(null);
   }
 
@@ -604,6 +672,7 @@ export default function App() {
     await cancelAll();
     // сховище вже порожнє — лише екран
     setWords([], { persist: false });
+    setScenes([]);
     setActivity({});
     setStats({});
     setSeenAch([]);
@@ -658,6 +727,8 @@ export default function App() {
     sync.stop();
     wordsRef.current.forEach((w) => deletePhoto(w.photo));
     setWords([], { persist: false }); // сховище чистить leaveAccount нижче
+    // сцени не синхронізуються, але це теж особисте: телефон стає чистим
+    setScenes([]);
     setActivity({});
     setStats({});
     setSeenAch([]);
@@ -766,8 +837,13 @@ export default function App() {
                 nativeLang={settings.nativeLang}
                 savedWords={words}
                 onSaveWord={addWord}
+                onSaveWords={addWords}
                 onGuardScan={guardScan}
                 onScanned={(res) => res.usage && updateUsage(res.usage)}
+                onSceneScanned={sceneScanned}
+                onUpdateScene={changeScene}
+                scanMode={settings.scanMode}
+                onScanModeChange={(m) => saveSetting({ scanMode: m })}
                 onLimitReached={scanLimitReached}
                 onSessionLost={renewIdentity}
                 onResultVisible={setScanSheetOpen}
@@ -789,6 +865,11 @@ export default function App() {
                   nudge={account.loaded && account.available && !account.signedIn && !account.nudgeOff && words.length >= 10}
                   onNudge={() => switchTab('settings')}
                   onDismissNudge={account.dismissNudge}
+                  scenes={scenes}
+                  onSaveWords={addWords}
+                  onUpdateScene={changeScene}
+                  onDeleteScene={deleteScene}
+                  onSceneVisible={setScanSheetOpen}
                   t={t}
                 />
               </FadeIn>
@@ -848,6 +929,7 @@ export default function App() {
                   themeMode={settings.theme}
                   onSetTheme={(m) => saveSetting({ theme: m })}
                   wordsCount={words.length}
+                  scenesCount={scenes.length}
                   onClearAll={clearAll}
                   onEraseEverything={eraseEverything}
                   onReplayOnb={replayOnboarding}

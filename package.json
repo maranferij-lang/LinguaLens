@@ -60,10 +60,14 @@
     "preset": "jest-expo",
     "testPathIgnorePatterns": [
       "/node_modules/",
-      "<rootDir>/server/"
+      "<rootDir>/server/",
+      "<rootDir>/.claude/"
     ],
     "setupFiles": [
       "<rootDir>/jest.setup.js"
+    ],
+    "modulePathIgnorePatterns": [
+      "<rootDir>/.claude/"
     ]
   }
 }

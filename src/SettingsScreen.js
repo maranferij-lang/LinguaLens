@@ -260,6 +260,7 @@ export default function SettingsScreen({
   themeMode,
   onSetTheme,
   wordsCount,
+  scenesCount = 0,
   onClearAll,
   onEraseEverything,
   onReplayOnb,
@@ -300,7 +301,9 @@ export default function SettingsScreen({
 
   // В акаунті видалення розійдеться на всі iPhone — кажемо про це прямо.
   function confirmClear() {
-    Alert.alert(t('clearTitle'), t(synced ? 'clearMsgSynced' : 'clearMsg', { n: wordsCount }), [
+    // Сцени йдуть разом зі словами — кажемо про це, лише коли вони є
+    const msg = synced ? (scenesCount ? 'clearMsgSyncedScenes' : 'clearMsgSynced') : scenesCount ? 'clearMsgScenes' : 'clearMsg';
+    Alert.alert(t('clearTitle'), t(msg, { n: wordsCount }), [
       { text: t('cancel'), style: 'cancel' },
       { text: t('clear'), style: 'destructive', onPress: onClearAll },
     ]);

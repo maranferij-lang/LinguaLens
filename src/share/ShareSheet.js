@@ -38,8 +38,15 @@ import {
   templatesFor,
 } from './layout';
 
-const TITLES = { word: 'shareTitleWord', achievement: 'shareTitleAch', week: 'shareTitleWeek' };
-const TEMPLATE_NAMES = { sticker: 'shareTplSticker', entry: 'shareTplEntry', minimal: 'shareTplMinimal' };
+const TITLES = { word: 'shareTitleWord', achievement: 'shareTitleAch', week: 'shareTitleWeek', scene: 'shareTitleScene' };
+const TEMPLATE_NAMES = {
+  sticker: 'shareTplSticker',
+  entry: 'shareTplEntry',
+  minimal: 'shareTplMinimal',
+  sceneStickers: 'shareTplSceneStickers',
+  sceneLabels: 'shareTplSceneLabels',
+  sceneFrame: 'shareTplSceneFrame',
+};
 const PREVIEW_RADIUS = 18;
 
 // Обраний колір живе до кінця сесії: хто раз обрав «Графіт», не мусить

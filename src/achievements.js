@@ -38,6 +38,9 @@ export const ACHIEVEMENTS = [
   { id: 'photo_10', tier: 1, goal: 10, metric: 'photos' },
   { id: 'night_owl', tier: 2, goal: 1, metric: 'nightScan' },
   { id: 'early_bird', tier: 2, goal: 1, metric: 'morningScan' },
+  // Сцени — уся кімната одним кадром
+  { id: 'scene_first', tier: 1, goal: 1, metric: 'scenes' },
+  { id: 'scenes_10', tier: 2, goal: 10, metric: 'scenes' },
 ];
 
 // Обчислює поточні значення всіх метрик
@@ -56,6 +59,8 @@ export function computeMetrics({ words = [], activity = {}, stats = {} , streak 
     photos: words.filter((w) => w.photo).length,
     nightScan: stats.nightScan || 0,
     morningScan: stats.morningScan || 0,
+    // вдалі сцени, а не збережені з них слова: досягнення — за саму зйомку
+    scenes: stats.scenes || 0,
   };
 }
 

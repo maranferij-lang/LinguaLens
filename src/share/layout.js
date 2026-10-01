@@ -96,10 +96,15 @@ export function tierColor(palette, tier) {
   return palette.tiers[i];
 }
 
+// Шаблони сцени: фото на весь кадр — з наліпками, з редакційними
+// підписами або вставкою з пронумерованим списком (див. SceneCards.js).
+export const SCENE_TEMPLATES = ['sceneStickers', 'sceneLabels', 'sceneFrame'];
+
 // Які шаблони має сенс гортати для цього payload. Слово — три вигляди,
 // досягнення й тиждень — по одному: там композиція одна-єдина правильна.
 export function templatesFor(payload) {
   if (payload?.kind === 'word' && payload.word) return ['sticker', 'entry', 'minimal'];
+  if (payload?.kind === 'scene' && payload.scene) return SCENE_TEMPLATES;
   if (payload?.kind === 'achievement' && payload.achievement) return ['achievement'];
   if (payload?.kind === 'week' && payload.stats) return ['week'];
   return [];
