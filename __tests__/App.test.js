@@ -226,3 +226,58 @@ test.each([
   expect(created).toHaveLength(creations);
   await act(async () => tree.unmount());
 });
+
+// ---------- ліміт сканів із сервера ----------
+const reply = (code, body) => ({ ok: code < 300, status: code, json: async () => body });
+function serve(route) {
+  global.fetch = jest.fn(async (url, init) => {
+    const r = route(new URL(url), init?.method || 'GET');
+    if (!r) throw new TypeError('Network request failed');
+    return r;
+  });
+}
+
+test('the scan ceiling comes from the server, not the hard-coded five', async () => {
+  await returning();
+  serve((u, method) => {
+    if (method === 'POST' && u.pathname === '/auth/device') return reply(200, { token: 't', user: { id: 'u', createdAt: 1 } });
+    if (u.pathname === '/me') return reply(200, { user: { id: 'u' }, pro: { active: false }, usage: { day: localDayKey(), scans: 7, limit: 1000 } });
+  });
+  const tree = await renderApp();
+  expect(one(tree, ScannerScreen).props.scansLeft).toBe(993);
+  expect(one(tree, ScannerScreen).props.onGuardScan()).toBe(true);
+  expect(await stored('ll_usage_v1')).toMatchObject({ scans: 7, limit: 1000 });
+  await act(async () => tree.unmount());
+});
+
+test('without Pro a 402 opens the paywall with the server’s limit', async () => {
+  await returning();
+  const tree = await renderApp();
+  const retry = await run(() => one(tree, ScannerScreen).props.onLimitReached({ error: 'SCAN_LIMIT', used: 3, limit: 3 }));
+  expect(retry).toBe(false);
+  expect(one(tree, PaywallScreen).props).toMatchObject({ reason: 'scans', freeScans: 3 });
+  await act(async () => tree.unmount());
+});
+
+test('a 402 right after buying Pro makes the server re-check instead of showing the paywall', async () => {
+  await returning();
+  let webhookLanded = false;
+  serve((u) => {
+    if (u.pathname !== '/me') return null;
+    const limit = webhookLanded ? null : 5;
+    return reply(200, { user: { id: 'u' }, pro: { active: limit === null }, usage: { day: localDayKey(), scans: 5, limit } });
+  });
+  const tree = await renderApp();
+  await openTab(tree, 'settings');
+  await run(() => one(tree, SettingsScreen).props.onOpenPaywall());
+  await run(() => one(tree, PaywallScreen).props.onPurchase('year'));
+  await openTab(tree, 'scan');
+
+  webhookLanded = true; // сервер дізнається, щойно перепитає RevenueCat
+  global.fetch.mockClear();
+  const retry = await run(() => one(tree, ScannerScreen).props.onLimitReached({ error: 'SCAN_LIMIT', used: 5, limit: 5 }));
+  expect(retry).toBe(true);
+  expect(one(tree, PaywallScreen)).toBeNull();
+  expect(global.fetch.mock.calls.map(([url]) => new URL(url).search)).toContain('?refresh=1');
+  await act(async () => tree.unmount());
+});
