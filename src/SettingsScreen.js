@@ -217,16 +217,20 @@ function AccountCard({ account, sync, pro, onSignIn, onSignOut, onSyncNow, lang,
           <View style={s.acctIcon}>
             <IcCloud size={22} color={C.accent} done />
           </View>
+          {/* Фонова синхронізація, що не вдалась, — не аварія: наступна
+              спроба буде сама. Тому рядок тихий, а не червоний. */}
           <View style={{ flex: 1 }} accessible>
             <Text style={s.switchTitle}>{t('accountSignedIn')}</Text>
             <Text style={s.dimText}>{syncing ? t('syncing') : syncedLabel(sync?.at, now, t, lang)}</Text>
+            {syncError && !syncing ? <Text style={s.syncNote}>{t(syncError)}</Text> : null}
           </View>
         </View>
-        {syncError ? <Text style={s.acctError}>{t(syncError)}</Text> : null}
+        {/* Під час синхронізації кнопка не тьмяніє (спінер має бути видно),
+            а просто нічого не робить. */}
         <Press
           style={s.syncBtn}
-          onPress={onSyncNow}
-          disabled={syncing || leaving}
+          onPress={syncing ? undefined : onSyncNow}
+          disabled={leaving}
           accessibilityLabel={t('syncNow')}
           accessibilityState={{ busy: syncing, disabled: syncing || leaving }}
         >
@@ -750,6 +754,7 @@ const makeStyles = (C) =>
     appleBtn: { width: '100%', height: 50, marginTop: 16 },
     appleBusy: { alignItems: 'center', justifyContent: 'center' },
     acctError: { color: C.red, ...type(13, F.semi), marginTop: 10 },
+    syncNote: { color: C.dim, ...type(13, F.bold), marginTop: 3 },
     syncBtn: {
       backgroundColor: C.card2,
       borderRadius: R.md,

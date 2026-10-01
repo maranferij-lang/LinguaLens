@@ -209,6 +209,9 @@ export function applyRemote(words, remote, { sent = new Map(), tombstones = [] }
     }
     if (gone.has(i)) continue;
     const local = next[i];
+    // Саме ця версія тут уже є (повна відповідь після reset): сервер не
+    // міняє запис без нового часу, тож і міняти нічого.
+    if (!e.deleted && local.syncedAt === e.updatedAt && stampOf(local) === e.updatedAt) continue;
     const untouched = sent.get(e.id) === stampOf(local);
     if (!untouched && e.updatedAt < stampOf(local)) continue;
     if (e.deleted) {
@@ -282,20 +285,28 @@ export async function loadSyncState(userId) {
   return { since: 0, at: 0 };
 }
 
-async function saveSyncState(userId, since, at) {
-  try {
-    await AsyncStorage.setItem(SYNC_KEY, JSON.stringify({ id: userId, since, at }));
-  } catch (_) {}
-}
-
-// Надгробки читають і пишуть і синхронізація, і видалення слів, що можуть
-// статися посеред неї. Усе через одну чергу — інакше «прочитав → дописав»
-// двох викликів загубив би один із надгробків.
-let tombQueue = Promise.resolve();
+// Стан синхронізації й надгробки пишуть і синхронізація, і видалення слів,
+// і вихід з акаунта — часом одночасно. Усе через одну чергу: інакше
+// «прочитав → дописав» двох викликів загубив би надгробок, а запис
+// синхронізації, що завершувалась саме під час виходу, ліг би ПІСЛЯ
+// очищення. Тоді наступний вхід у той самий акаунт почався б не з нуля, і
+// порожній телефон не отримав би словника. guard перевіряється вже в черзі,
+// тобто після будь-якого очищення, що стало перед ним.
+let queue = Promise.resolve();
 function serial(fn) {
-  const run = tombQueue.then(fn, fn);
-  tombQueue = run.catch(() => {});
+  const run = queue.then(fn, fn);
+  queue = run.catch(() => {});
   return run;
+}
+const always = () => true;
+
+function saveSyncState(userId, since, at, guard = always) {
+  return serial(async () => {
+    if (!guard()) return;
+    try {
+      await AsyncStorage.setItem(SYNC_KEY, JSON.stringify({ id: userId, since, at }));
+    } catch (_) {}
+  });
 }
 
 async function readTombs() {
@@ -319,8 +330,9 @@ export function loadTombstones() {
 }
 
 // Той самий id — лишається пізніший надгробок.
-export function addTombstones(list) {
+export function addTombstones(list, guard = always) {
   return serial(async () => {
+    if (!guard()) return null;
     const byId = new Map((await readTombs()).map((x) => [x.id, x]));
     for (const x of list) {
       const cur = byId.get(x.id);
@@ -334,10 +346,11 @@ export function addTombstones(list) {
 
 // Забуваємо лише те, що сервер прийняв: надгробок, переписаний пізнішим
 // видаленням, поки летів запит, лишається до наступного разу.
-function dropTombstones(sent) {
+function dropTombstones(sent, guard = always) {
   if (!sent.length) return Promise.resolve();
   const at = new Map(sent.map((x) => [x.id, x.updatedAt]));
   return serial(async () => {
+    if (!guard()) return;
     const list = await readTombs();
     const keep = list.filter((x) => !(at.has(x.id) && x.updatedAt <= at.get(x.id)));
     if (keep.length !== list.length) await writeTombs(keep);
@@ -403,13 +416,13 @@ export async function runSync(io, now = () => Date.now()) {
       if (out) {
         out.removedPhotos.forEach((p) => io.removePhoto(p));
         if (out.tombstones.length) {
-          await addTombstones(out.tombstones);
+          await addTombstones(out.tombstones, io.alive);
           deduped = true;
         }
       }
-      await dropTombstones(part.filter((e) => e.deleted));
+      await dropTombstones(part.filter((e) => e.deleted), io.alive);
       since = Number.isFinite(res?.rev) ? res.rev : since;
-      await saveSyncState(io.userId, since, now());
+      await saveSyncState(io.userId, since, now(), io.alive);
     }
     if (lost && !restarted) {
       restarted = true;
@@ -420,7 +433,8 @@ export async function runSync(io, now = () => Date.now()) {
     if (!deduped) break;
     all = false;
   }
+  if (!io.alive()) return null;
   const at = now();
-  await saveSyncState(io.userId, since, at);
+  await saveSyncState(io.userId, since, at, io.alive);
   return { at, since, tombstones: (await loadTombstones()).length };
 }

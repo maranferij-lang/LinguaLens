@@ -9,6 +9,7 @@ import {
   addTombstones,
   applyRemote,
   chunks,
+  clearSyncData,
   dedupe,
   isDirty,
   loadSyncState,
@@ -287,6 +288,8 @@ describe('applyRemote', () => {
   test('nothing changed — the very same array comes back', () => {
     const local = [w('a', { syncedAt: 1000 })];
     expect(applyRemote(local, []).words).toBe(local);
+    // повна відповідь (reset) з тим, що вже є, теж нічого не міняє
+    expect(applyRemote(local, [toWire(local[0])]).words).toBe(local);
   });
 });
 
@@ -471,6 +474,25 @@ describe('runSync', () => {
     };
     expect(await p.sync()).toBeNull();
     expect(p.words).toEqual([]);
+  });
+
+  test('signing out while a response is being applied leaves no sync state behind', async () => {
+    const server = fakeServer();
+    const p = phone(server, { words: [w('a')] });
+    await p.sync();
+    await p.delete('a');
+    const apply = p.io.apply;
+    p.io.apply = (res) => {
+      apply(res);
+      // вихід з акаунта саме зараз: синхронізацію скасовано, сховище чиститься
+      p.alive = false;
+      clearSyncData();
+    };
+    const out = await p.use(async () => {
+      const r = await runSync(p.io);
+      return { r, state: await AsyncStorage.getItem('ll_sync_v1'), tombs: await AsyncStorage.getItem('ll_tombstones_v1') };
+    });
+    expect(out).toEqual({ r: null, state: null, tombs: null });
   });
 
   test('counters and achievements travel both ways', async () => {

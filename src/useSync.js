@@ -71,23 +71,20 @@ export function useSync({
   // Застосувати відповідь: слова, лічильники й показані досягнення — разом,
   // в одному оновленні екрана. Інакше підтягнуті слова на мить опинились би
   // без «уже показаних» досягнень, і посипались би вітання за чужі успіхи.
+  // Лічильники зливаються функцією-оновленням (щоб не загубити дію, ще не
+  // намальовану на екрані), а вона спрацьовує вже під час рендера. Якщо
+  // людина встигла вийти з акаунта до нього, зберігати злите не можна —
+  // інакше старі лічильники лягли б у вже очищене сховище.
   function apply(res) {
+    const epoch = run.current.epoch;
+    const keep = (persist) => (prev, next) => {
+      if (next !== prev && run.current.epoch === epoch) persist(next);
+      return next;
+    };
     setWords(res.words);
-    setActivity((prev) => {
-      const next = mergeCounts(prev, res.activity);
-      if (next !== prev) persistActivity(next);
-      return next;
-    });
-    setStats((prev) => {
-      const next = mergeCounts(prev, res.stats);
-      if (next !== prev) persistStats(next);
-      return next;
-    });
-    setSeen((prev) => {
-      const next = mergeSeen(prev, res.seen);
-      if (next !== prev) persistSeenAchievements(next);
-      return next;
-    });
+    setActivity((prev) => keep(persistActivity)(prev, mergeCounts(prev, res.activity)));
+    setStats((prev) => keep(persistStats)(prev, mergeCounts(prev, res.stats)));
+    setSeen((prev) => keep(persistSeenAchievements)(prev, mergeSeen(prev, res.seen)));
     run.current.server = { activity: res.activity || {}, stats: res.stats || {}, seen: res.seen || [] };
   }
 
@@ -172,7 +169,12 @@ export function useSync({
   const noteDeleted = useCallback((list) => {
     if (!latest.current.enabled || !list.length) return;
     run.current.tombs = true;
-    addTombstones(list.map((w) => tombstoneFor(w)));
+    // Вихід з акаунта, що стане в черзі раніше, ці надгробки не пропустить.
+    const epoch = run.current.epoch;
+    addTombstones(
+      list.map((w) => tombstoneFor(w)),
+      () => run.current.epoch === epoch
+    );
   }, []);
 
   // Скасувати все: таймер і запит у польоті (його відповідь проігнорується).
