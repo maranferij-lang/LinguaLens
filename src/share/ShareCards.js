@@ -278,7 +278,9 @@ function WordEntry({ word, pal, t, locale }) {
         </View>
       ) : null}
       <LangLabel lang={word.lang} pal={pal} />
-      <View style={{ marginTop: 108 }}>
+      {/* з фото заголовок опускаємо нижче наліпки в кутку, без фото — менше
+          порожнечі згори */}
+      <View style={{ marginTop: uri ? 108 : 76 }}>
         <BigWord word={word.word} pal={pal} max={54} align="left" />
         {word.ipa ? (
           <Txt numberOfLines={1} style={{ color: pal.muted, fontFamily: F.reg, fontSize: 17, lineHeight: 22, marginTop: 4 }}>
