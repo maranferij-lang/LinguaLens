@@ -245,8 +245,9 @@ describe('tapping the widget', () => {
 // глобальні імена плюс jsx-рантайм. Відтворюємо саме це середовище: будь-яке
 // посилання на щось із області модуля впаде тут з ReferenceError.
 describe('widget layout in the isolated widget runtime', () => {
-  const swiftUI = require('@expo/ui/swift-ui');
-  const modifiers = require('@expo/ui/swift-ui/modifiers');
+  // справжній @expo/ui: jest.setup.js підміняє його для решти тестів
+  const swiftUI = jest.requireActual('@expo/ui/swift-ui');
+  const modifiers = jest.requireActual('@expo/ui/swift-ui/modifiers');
   const layout = (() => {
     const { createWidget } = require('expo-widgets');
     createWidget.mockClear();

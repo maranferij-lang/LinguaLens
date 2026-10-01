@@ -14,6 +14,12 @@ import SettingsScreen from '../src/SettingsScreen';
 import { ACHIEVEMENTS } from '../src/achievements';
 import { localDayKey } from '../src/storage';
 
+// Тут рендериться весь застосунок. Перший рендер на холодному кеші CI
+// (2 ядра, кілька наборів паралельно) займає секунди, і стандартних 5 с
+// не вистачало: тест, що вилетів за ліміт, лишав дерево змонтованим, і
+// падали всі наступні. Логіка тестів від ліміту не залежить.
+jest.setTimeout(20000);
+
 jest.mock('expo-secure-store', () => {
   const keychain = new Map();
   return {

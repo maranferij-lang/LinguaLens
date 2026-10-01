@@ -35,3 +35,13 @@ jest.mock('expo-widgets', () => ({
   addUserInteractionListener: jest.fn(() => ({ remove() {} })),
   widgetsDirectory: null,
 }));
+
+// @expo/ui — нативні SwiftUI-компоненти, і в застосунку їх імпортує лише
+// розмітка віджета, яку babel-плагін expo-widgets однаково перетворює на
+// рядок. Справжній пакет у jest — це ~4 с трансформації на холодному кеші,
+// і платив би їх перший тест, що рендерить App (лінивий require віджета):
+// на CI він вилітав за 5-секундний ліміт і тягнув за собою решту набору.
+// Перевірка, що віджет використовує лише наявні компоненти, бере справжній
+// пакет через jest.requireActual (__tests__/widget.test.js).
+jest.mock('@expo/ui/swift-ui', () => ({}));
+jest.mock('@expo/ui/swift-ui/modifiers', () => ({}));
