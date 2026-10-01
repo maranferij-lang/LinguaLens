@@ -21,6 +21,20 @@
    xcodebuild -runFirstLaunch
    ```
 
+> **App Store пише «Xcode не можна інсталювати… потрібна macOS 26.6 або новіша»?**
+> Свіжий Xcode завжди вимагає свіжу macOS. Варіанти, від найкращого:
+> 1. Параметри системи → Загальні → **Оновлення ПЗ** → постав останню macOS,
+>    потім Xcode ще раз.
+> 2. Оновлення не пропонується (старий Mac) — Xcode поки можна не ставити:
+>    скан і все інше перевіряєш на iPhone в **Expo Go** (розділ 4, варіант Б),
+>    а повні збірки (віджет, Instagram, вхід через Apple, TestFlight) робить
+>    хмара EAS: `eas build --profile development --platform ios`.
+>    Command Line Tools, потрібні для Homebrew і git, ставляться окремо й на
+>    старіші macOS (Homebrew запропонує це сам).
+> 3. Старіша версія Xcode з https://developer.apple.com/download/all (вхід
+>    Apple ID): біля кожної вказано мінімальну macOS. Для Expo SDK 57 годиться
+>    лише 26.4 або новіша — якщо твоя macOS не тягне й її, лишається варіант 2.
+
 ### 1.2. Homebrew — менеджер пакетів
 ```bash
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
