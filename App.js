@@ -41,12 +41,14 @@ import {
   persistSeenAchievements,
   persistSettings,
   persistStats,
-  persistWords,
 } from './src/storage';
 import { applyPractice, applyReview, dueWords, newSrs } from './src/srs';
 import { LANGS, initAudio } from './src/speech';
 import { makeT } from './src/i18n';
 import { ensureSession, eraseServerData, renewSession } from './src/auth';
+import { clearPersonalData, signInWithApple, signOut as leaveAccount, useAccount } from './src/account';
+import { useSync, useWordStore } from './src/useSync';
+import { touch } from './src/sync';
 import { deletePhoto, persistPhoto } from './src/photos';
 import { apiMe, deviceForgotten } from './src/api';
 import { computeMetrics, evaluate, newlyUnlocked } from './src/achievements';
@@ -112,7 +114,8 @@ function defaultSettings() {
     theme: 'system',
     wodEnabled: true,
     wodHour: DEFAULT_HOUR,
-    // Профіль локальний: у v1 немає акаунтів, ім'я й аватар живуть на телефоні.
+    // Профіль локальний: ім'я й аватар живуть на телефоні й не синхронізуються
+    // навіть в акаунті Apple — на сервер іде лише словник.
     profileName: '',
     avatar: 'wave',
     // Згода надсилати кадр на сервер і AI-сервісу (App Review 5.1.2(i)).
@@ -138,7 +141,9 @@ export default function App() {
   const [deviceId, setDeviceId] = useState(null);
 
   const [tab, setTab] = useState('scan');
-  const [words, setWords] = useState([]);
+  // Слова — у сховищі з синхронним ref (див. useWordStore): зміни з сервера
+  // зливаються з тим, що є саме зараз, і кожна зміна сама себе зберігає.
+  const [words, setWords, wordsRef] = useWordStore();
   const [settings, setSettings] = useState(defaultSettings);
   const [activity, setActivity] = useState({});
   const [stats, setStats] = useState({});
@@ -164,6 +169,23 @@ export default function App() {
   const pro = usePro(deviceId);
   const sub = pro.state;
 
+  // Необов'язковий вхід через Apple і синхронізація словника між iPhone
+  // (src/account.js, src/sync.js). Гостьовий режим працює й без цього.
+  const account = useAccount(deviceId);
+  const sync = useSync({
+    userId: deviceId,
+    enabled: ready && account.signedIn,
+    words: [words, setWords, wordsRef],
+    activity: [activity, setActivity],
+    stats: [stats, setStats],
+    seen: [seenAch, setSeenAch],
+    onSignedOut: account.forget,
+    onForgotten: renewIdentity,
+  });
+  // Акаунт, у який щойно перейшли з Pro на руках: щойно RevenueCat увійде
+  // в нього, відновлюємо покупки — підписка переїде за людиною.
+  const restoreFor = useRef(null);
+
   // ---------- СТАРТ ----------
   useEffect(() => {
     initAudio();
@@ -181,7 +203,7 @@ export default function App() {
       // Збережене перебиває типове лише там, де справді щось збережено:
       // на свіжому встановленні мови вирішує defaultLanguages().
       const merged = mergeSettings(defaultSettings(), st);
-      setWords(w);
+      setWords(w, { persist: false });
       setSettings(merged);
       setActivity(a);
       setStats(stt);
@@ -220,9 +242,13 @@ export default function App() {
   // Решта помилок (офлайн, 403 APP_TOKEN) ідентичності не стосується.
   // Повертає відповідь /me або null.
   async function refreshMe(refresh = false) {
+    const startedAt = Date.now();
     try {
       const me = await apiMe(refresh);
       if (me?.usage) updateUsage(me.usage);
+      // user.apple — чи цей id увійшов через Apple. Після перевстановлення
+      // (Keychain зберіг токен акаунта) вхід і синхронізація повертаються самі.
+      account.noteMe(me, startedAt);
       // Після перевстановлення офлайн id ще не відомий (див. ensureSession) —
       // беремо його звідси, щоб покупка прив'язалась до нашого id.
       if (me?.user?.id) setDeviceId((id) => id || me.user.id);
@@ -235,9 +261,11 @@ export default function App() {
 
   // Нова ідентичність має свій лічильник — підтягуємо його одразу, інакше
   // старе локальне «5 з 5» блокувало б скани до наступного запуску.
+  // Акаунт Apple, якщо він був, лишився на сервері — але не за цим токеном.
   async function renewIdentity() {
     const s = await renewSession();
     if (!s) return;
+    account.forget();
     setDeviceId(s.userId);
     try {
       const me = await apiMe();
@@ -327,11 +355,6 @@ export default function App() {
     });
   }
 
-  function updateWords(next) {
-    setWords(next);
-    persistWords(next);
-  }
-
   // Воротар сканера. Викликається ДО зйомки: краще сказати «ні» одразу,
   // ніж витратити виклик AI і показати відмову після нього.
   function guardScan() {
@@ -358,16 +381,19 @@ export default function App() {
   }
 
   function insertWord(result) {
+    const now = Date.now();
     const item = {
-      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+      id: now.toString(36) + Math.random().toString(36).slice(2, 7),
       ...result,
       // кадр зі сканера лежить у кеші — переносимо в Documents (див. photos.js)
       photo: persistPhoto(result.photo),
-      addedAt: Date.now(),
+      addedAt: now,
+      // кожна зміна слова ставить свій час — за ним синхронізація вирішує,
+      // чия версія новіша (див. sync.js)
+      updatedAt: now,
       srs: newSrs(),
     };
-    const next = [...words, item];
-    updateWords(next);
+    const next = setWords((prev) => [...prev, item]);
     logActivity();
     // «Нічна сова» і «Ранній птах» — досягнення не про кількість, а про звичку.
     // Позначаємо одноразово, коли слово збережено в характерний час.
@@ -389,27 +415,29 @@ export default function App() {
     });
   }
 
+  // В акаунті видалення лишає надгробок — інакше слово повернулося б з
+  // іншого iPhone при наступній синхронізації.
   function deleteWord(id) {
-    const gone = words.find((w) => w.id === id);
-    if (gone) deletePhoto(gone.photo);
-    updateWords(words.filter((w) => w.id !== id));
+    const gone = wordsRef.current.find((w) => w.id === id);
+    if (!gone) return;
+    deletePhoto(gone.photo);
+    sync.noteDeleted([gone]);
+    setWords((prev) => prev.filter((w) => w.id !== id));
   }
 
   // practice — сесія зі слів, яким ще не час: «знаю» там не відсуває
   // наступне повторення, інакше зубріння ламало б розклад (див. srs.js).
   function reviewWord(id, known, practice) {
     const apply = practice ? applyPractice : applyReview;
-    setWords((prev) => {
-      const next = prev.map((w) => (w.id === id ? apply(w, known) : w));
-      persistWords(next);
-      return next;
-    });
+    setWords((prev) => prev.map((w) => (w.id === id ? touch(apply(w, known)) : w)));
     logActivity();
   }
 
   function clearAll() {
-    words.forEach((w) => deletePhoto(w.photo));
-    updateWords([]);
+    const all = wordsRef.current;
+    all.forEach((w) => deletePhoto(w.photo));
+    sync.noteDeleted(all);
+    setWords([]);
   }
 
   function bumpStat(key, by = 1) {
@@ -564,19 +592,79 @@ export default function App() {
 
   // «Стерти мої дані»: запис на сервері + усе на телефоні. Кидає помилку,
   // якщо сервер недоступний, — екран налаштувань покаже її людині.
+  // В акаунті Apple сервер стирає й сам акаунт зі словником та відкликає вхід.
   async function eraseEverything() {
     const session = await eraseServerData();
-    words.forEach((w) => deletePhoto(w.photo));
+    sync.stop();
+    wordsRef.current.forEach((w) => deletePhoto(w.photo));
     await clearLocalData();
+    await clearPersonalData();
     await cancelAll();
-    setWords([]);
+    // сховище вже порожнє — лише екран
+    setWords([], { persist: false });
     setActivity({});
     setStats({});
     setSeenAch([]);
     setWod(null);
     // стеля — налаштування сервера, а не дані людини: її лишаємо
     setUsage((u) => ({ scans: 0, limit: u.limit }));
+    account.forget();
     if (session) setDeviceId(session.userId);
+  }
+
+  // ---------- АКАУНТ APPLE ----------
+  // → { userId, switched } або null (людина закрила вікно Apple). Помилки —
+  // з кодом, їх показує екран налаштувань. switched — цей Apple ID уже мав
+  // акаунт з іншого iPhone: телефон переходить у нього, і його гостьові
+  // слова зіллються з тамтешніми (синхронізація запускається сама, щойно
+  // зміниться id). RevenueCat іде за id сам (usePro).
+  async function signIn() {
+    const hadPro = sub.pro;
+    let res;
+    try {
+      res = await signInWithApple();
+    } catch (e) {
+      if (e?.code === 'SESSION') renewIdentity();
+      throw e;
+    }
+    if (!res) return null;
+    if (res.switched && hadPro) restoreFor.current = res.userId;
+    account.linked(res.userId);
+    setDeviceId(res.userId);
+    refreshMe();
+    return res;
+  }
+
+  // Pro куплено на анонімний id цього телефона, а тепер телефон в акаунті:
+  // «відновити покупки» переносить підписку на акаунт, і вона діятиме на
+  // всіх iPhone людини. Чекаємо нового id в usePro — інакше restore()
+  // відновив би на старий.
+  useEffect(() => {
+    if (!deviceId || restoreFor.current !== deviceId) return;
+    restoreFor.current = null;
+    pro.restore().finally(() => refreshMe(true));
+  }, [deviceId]);
+
+  // Вихід: слова лишаються в акаунті, телефон стає чистим гостем. Спершу
+  // пробуємо віддати несинхронізоване; не вийшло — кидаємо UNSYNCED, і
+  // екран перепитає людину (force — «однаково вийти»).
+  async function signOut({ force = false } = {}) {
+    if (!force && sync.pending()) {
+      const ok = await sync.syncNow();
+      if (!ok || sync.pending()) throw Object.assign(new Error('UNSYNCED'), { code: 'UNSYNCED' });
+    }
+    sync.stop();
+    wordsRef.current.forEach((w) => deletePhoto(w.photo));
+    setWords([], { persist: false }); // сховище чистить leaveAccount нижче
+    setActivity({});
+    setStats({});
+    setSeenAch([]);
+    setToastAch(null);
+    account.forget();
+    const session = await leaveAccount();
+    setDeviceId(session ? session.userId : null);
+    // у нової ідентичності свій денний лічильник сканів
+    if (session) refreshMe();
   }
 
   function switchTab(key) {
@@ -695,6 +783,10 @@ export default function App() {
                   onDelete={deleteWord}
                   onScan={() => switchTab('scan')}
                   onShare={setShare}
+                  // Від десяти слів є що втрачати — тоді й пропонуємо вхід.
+                  nudge={account.loaded && account.available && !account.signedIn && !account.nudgeOff && words.length >= 10}
+                  onNudge={() => switchTab('settings')}
+                  onDismissNudge={account.dismissNudge}
                   t={t}
                 />
               </FadeIn>
@@ -765,6 +857,11 @@ export default function App() {
                   onOpenPaywall={() => setPaywall('info')}
                   onManageSub={pro.manage}
                   onRestore={restorePurchases}
+                  account={{ available: account.available, signedIn: account.signedIn }}
+                  sync={{ status: sync.status, at: sync.at, error: sync.error }}
+                  onSignIn={signIn}
+                  onSignOut={signOut}
+                  onSyncNow={sync.syncNow}
                   t={t}
                 />
               </FadeIn>

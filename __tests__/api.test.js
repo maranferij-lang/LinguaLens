@@ -51,6 +51,21 @@ test('only an unknown device token counts as a forgotten device', async () => {
   expect(deviceForgotten(await apiMe().catch((e) => e))).toBe(false);
 });
 
+// Вхід через Apple змінив токен, поки старий запит ще летів: сервер уже стер
+// анонімний запис, але це не привід викидати людину з нового акаунта.
+test('a 401 for a token replaced mid-flight does not count as a forgotten device', async () => {
+  let answer;
+  global.fetch = jest.fn(() => new Promise((r) => (answer = r)));
+  setSessionToken('guest');
+  const pending = apiMe().catch((e) => e);
+  setSessionToken('account');
+  answer({ ok: false, status: 401, json: async () => ({ error: 'UNAUTHORIZED' }) });
+  const e = await pending;
+  expect(global.fetch.mock.calls[0][1].headers.authorization).toBe('Bearer guest');
+  expect(e.code).toBe('UNAUTHORIZED');
+  expect(deviceForgotten(e)).toBe(false);
+});
+
 test('the paywall gets the server counters with a 402', async () => {
   respond(402, { error: 'SCAN_LIMIT', used: 5, limit: 5 });
   const e = await recognizeImage('b64').catch((x) => x);
