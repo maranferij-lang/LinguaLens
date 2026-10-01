@@ -1,6 +1,7 @@
 {
   "ios": {
     "NSCameraUsageDescription": "LinguaLens uses the camera to recognize an object and show what it’s called in the language you’re learning.",
+    "NSPhotoLibraryAddUsageDescription": "LinguaLens saves your share cards and stickers to Photos when you choose “Save Image”.",
     "CFBundleDisplayName": "LinguaLens"
   }
 }

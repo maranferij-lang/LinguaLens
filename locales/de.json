@@ -1,6 +1,7 @@
 {
   "ios": {
     "NSCameraUsageDescription": "LinguaLens nutzt die Kamera, um einen Gegenstand zu erkennen und zu zeigen, wie er in der Sprache heißt, die du lernst.",
+    "NSPhotoLibraryAddUsageDescription": "LinguaLens sichert deine Karten und Sticker in Fotos, wenn du „Bild sichern“ wählst.",
     "CFBundleDisplayName": "LinguaLens"
   }
 }

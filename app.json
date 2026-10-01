@@ -15,7 +15,8 @@
       "buildNumber": "1",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "CFBundleAllowMixedLocalizations": true
+        "CFBundleAllowMixedLocalizations": true,
+        "NSPhotoLibraryAddUsageDescription": "LinguaLens saves your share cards and stickers to Photos when you choose “Save Image”."
       }
     },
     "android": {
