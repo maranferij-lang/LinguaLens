@@ -60,6 +60,7 @@ import {
   scheduleTrialReminder,
   DEFAULT_HOUR,
 } from './src/wordOfDay';
+import { subscribeToWidgetTaps, updateWordWidget } from './src/widgets';
 import { IcBook, IcCards, IcGear, IcScan, IcUser } from './src/icons';
 import { MascotBob } from './src/Mascot';
 import { Material, MaterialEdge } from './src/Chrome';
@@ -214,6 +215,22 @@ export default function App() {
       }),
     []
   );
+
+  // Тап по віджету «Слово дня» — туди ж, у навчання. Віджет міг просити
+  // «відкрий по нові слова», поки застосунок спав у фоні зі старим кешем, —
+  // тоді й підтягуємо свіжі. Холодний старт (сесії ще немає) це робить сам.
+  const widgetTap = useRef(null);
+  widgetTap.current = () => {
+    setTab('cards');
+    if (!deviceId) return;
+    syncWordOfDay({
+      lang: settings.targetLang,
+      native: settings.nativeLang,
+      enabled: settings.wodEnabled,
+      hour: settings.wodHour,
+    }).then((c) => c && setWod(c));
+  };
+  useEffect(() => subscribeToWidgetTaps(() => widgetTap.current()), []);
 
   // Серверний лічильник сканів і статус пристрою. 401 UNAUTHORIZED — сервер
   // нас забув (стерли дані, змінили секрет): тихо беремо нову ідентичність.
@@ -501,6 +518,14 @@ export default function App() {
     () => !!todayWord && words.some((w) => w.word?.toLowerCase() === todayWord.word?.toLowerCase()),
     [todayWord, words]
   );
+
+  // Віджет іде за тим самим кешем: кожен новий кеш (старт, зміна мов,
+  // сповіщень чи години, онбординг, стирання даних) і зміна мови
+  // інтерфейсу переписують його таймлайн. До завантаження даних — ні:
+  // інакше віджет на мить показав би «відкрий застосунок».
+  useEffect(() => {
+    if (ready) updateWordWidget(wod, { t, targetLang: settings.targetLang, nativeLang: settings.nativeLang });
+  }, [ready, wod, t, settings.targetLang, settings.nativeLang]);
 
   function saveWordOfDay() {
     if (!todayWord || wodSaved) return;
