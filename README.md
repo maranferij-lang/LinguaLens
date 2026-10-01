@@ -123,12 +123,14 @@ src/ProfileScreen.js       — профіль, статистика, досяг�
 src/SettingsScreen.js      — налаштування
 src/WordOfDayCard.js       — картка «слово дня»
 src/wordOfDay.js           — кеш слів + планування локальних пушів
+src/photos.js              — фото-наліпки: копія з кешу в Documents, відносні шляхи
+src/subscription.js        — тарифи, ліміти безкоштовного рівня
 src/achievements.js        — 17 досягнень і рівні
 src/theme.js               — 8 тем, шрифти, тіні
 src/icons.js  src/Mascot.js  src/Logo.js  src/ui.js
 src/i18n.js                — en / uk
 
-server/server.js           — /health /scan /auth/* /me /word-of-day
+server/server.js           — /health /scan /auth/* /me (GET/PATCH/DELETE) /word-of-day
 server/auth.js             — scrypt-хеш паролів, HMAC-токени
 server/store.js            — сховище: файл або Firestore
 server/words.js            — 320 курованих слів + перемішування під seed юзера
@@ -136,6 +138,8 @@ server/.env                — ключі (НЕ комітити в git!)
 ```
 
 ## 5. Наступні кроки до релізу
+
+Повний розбір архітектури, знайдених багів і план до App Store — у **`ROADMAP.md`**.
 
 1. `DEPLOY.md` — задеплоїти сервер у Google Cloud Run + увімкнути Firestore.
 2. `eas build` + `eas submit` — публікація в App Store без Mac (Apple Developer $99/рік).

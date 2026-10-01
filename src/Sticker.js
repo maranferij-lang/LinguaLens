@@ -16,10 +16,14 @@ import { Image, View } from 'react-native';
 import Svg, { ClipPath, Defs, Image as SvgImage, Path, Polygon } from 'react-native-svg';
 import { useTheme } from './theme';
 
-// Полігон у координатах 0–1000 (y,x) → шлях у координатах наліпки.
-// Точки приходять для ЦІЛОГО кадру, а наліпка вже обрізана по рамці предмета,
-// тож перераховуємо їх у локальні координати вирізаного квадрата.
-function outlineToPath(outline, box, size) {
+// Силует → SVG-шлях у координатах наліпки.
+//
+// `shape` — точки [x, y] 0–1 уже в координатах вирізаного квадрата; їх рахує
+// сканер у момент кропу, коли відомі розміри кадру й зсув квадрата.
+// `outline` + `box` — старий формат (0–1000 на весь кадр) для слів, збережених
+// до цього: перерахунок наближений, бо розмірів кадру тут уже немає.
+function outlineToPath(outline, box, size, shape) {
+  if (Array.isArray(shape) && shape.length >= 6) return pointsToPath(shape.map(([x, y]) => [x * size, y * size]), size);
   if (!outline || !box) return null;
   const [y1, x1, y2, x2] = box;
   // рамка з тим самим запасом, що й у кропі сканера
@@ -30,21 +34,23 @@ function outlineToPath(outline, box, size) {
   const ox = (x1 / 1000 - pad) + bw / 2 - side / 2;
   const oy = (y1 / 1000 - pad) + bh / 2 - side / 2;
 
-  const pts = outline
-    .map(([y, x]) => {
-      const lx = ((x / 1000) - ox) / side;
-      const ly = ((y / 1000) - oy) / side;
-      return [lx * size, ly * size];
-    })
-    // точки, що вилетіли далеко за межі, — ознака галюцинації
-    .filter(([px, py]) => px > -size && px < size * 2 && py > -size && py < size * 2);
+  const pts = outline.map(([y, x]) => {
+    const lx = ((x / 1000) - ox) / side;
+    const ly = ((y / 1000) - oy) / side;
+    return [lx * size, ly * size];
+  });
+  return pointsToPath(pts, size);
+}
 
+function pointsToPath(points, size) {
+  // точки, що вилетіли далеко за межі, — ознака галюцинації
+  const pts = points.filter(([px, py]) => px > -size && px < size * 2 && py > -size && py < size * 2);
   if (pts.length < 6) return null;
   return pts.map(([px, py], i) => `${i ? 'L' : 'M'}${px.toFixed(1)} ${py.toFixed(1)}`).join(' ') + ' Z';
 }
 
-function Cut({ uri, outline, box, size, ringColor, ringWidth }) {
-  const path = useMemo(() => outlineToPath(outline, box, size), [outline, box, size]);
+function Cut({ uri, shape, outline, box, size, ringColor, ringWidth }) {
+  const path = useMemo(() => outlineToPath(outline, box, size, shape), [outline, box, size, shape]);
   const id = useMemo(() => 'cut' + Math.random().toString(36).slice(2, 8), []);
 
   // немає контуру — круг
@@ -79,12 +85,12 @@ function Cut({ uri, outline, box, size, ringColor, ringWidth }) {
 }
 
 // Дрібна наліпка для рядка словника.
-export function Sticker({ uri, outline, box, size = 48, style }) {
+export function Sticker({ uri, shape, outline, box, size = 48, style }) {
   const { C } = useTheme();
   if (!uri) return null;
   return (
     <View style={[{ width: size, height: size }, style]}>
-      <Cut uri={uri} outline={outline} box={box} size={size} ringColor={C.accent} ringWidth={1.6} />
+      <Cut uri={uri} shape={shape} outline={outline} box={box} size={size} ringColor={C.accent} ringWidth={1.6} />
     </View>
   );
 }
@@ -92,7 +98,7 @@ export function Sticker({ uri, outline, box, size = 48, style }) {
 // Велика наліпка для картки результату і зворотної сторони флешкартки.
 // Під нею м'яка акцентна пляма — вона дає предмету «землю» й тримає
 // композицію, коли силует вузький.
-export function StickerLarge({ uri, outline, box, size = 132, style }) {
+export function StickerLarge({ uri, shape, outline, box, size = 132, style }) {
   const { C } = useTheme();
   if (!uri) return null;
   return (
@@ -106,7 +112,7 @@ export function StickerLarge({ uri, outline, box, size = 132, style }) {
           backgroundColor: C.accentSoft,
         }}
       />
-      <Cut uri={uri} outline={outline} box={box} size={size} ringColor={C.accent} ringWidth={2.2} />
+      <Cut uri={uri} shape={shape} outline={outline} box={box} size={size} ringColor={C.accent} ringWidth={2.2} />
     </View>
   );
 }

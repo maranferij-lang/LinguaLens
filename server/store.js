@@ -5,7 +5,8 @@
 //      Жодних npm-залежностей.
 //   2) file — інакше (локальна розробка): звичайний JSON-файл поруч із сервером.
 //
-// Інтерфейс: get(collection, id), put(collection, id, obj), findBy(collection, field, value)
+// Інтерфейс: get(collection, id), put(collection, id, obj), del(collection, id),
+//            findBy(collection, field, value)
 
 const fs = require('fs');
 const path = require('path');
@@ -104,6 +105,17 @@ async function fsPut(coll, id, obj) {
   return true;
 }
 
+async function fsDel(coll, id) {
+  const t = await accessToken();
+  const res = await fetch(`${FS_BASE()}/${coll}/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    headers: { authorization: 'Bearer ' + t },
+  });
+  // 404 — документа вже немає, для видалення це теж успіх
+  if (!res.ok && res.status !== 404) throw new Error('firestore delete ' + res.status);
+  return true;
+}
+
 async function fsFindBy(coll, field, value) {
   const t = await accessToken();
   const body = {
@@ -142,6 +154,16 @@ async function put(coll, id, obj) {
   return true;
 }
 
+async function del(coll, id) {
+  if (MODE === 'firestore') return fsDel(coll, id);
+  const db = readFile();
+  if (db[coll] && db[coll][id]) {
+    delete db[coll][id];
+    writeFile();
+  }
+  return true;
+}
+
 async function findBy(coll, field, value) {
   if (MODE === 'firestore') return fsFindBy(coll, field, value);
   const db = readFile();
@@ -149,4 +171,4 @@ async function findBy(coll, field, value) {
   return items.find((x) => x && x[field] === value) || null;
 }
 
-module.exports = { get, put, findBy, MODE };
+module.exports = { get, put, del, findBy, MODE };

@@ -132,4 +132,10 @@ async function updateProfile(user, patch) {
   return publicUser(next);
 }
 
-module.exports = { register, login, userFromRequest, updateProfile, publicUser, makeToken };
+// Повне видалення акаунта: запис користувача зникає зі сховища.
+// Слова живуть лише на пристрої, тож на сервері більше нічого особистого немає.
+async function deleteUser(user) {
+  await store.del('users', user.id);
+}
+
+module.exports = { register, login, userFromRequest, updateProfile, deleteUser, publicUser, makeToken };

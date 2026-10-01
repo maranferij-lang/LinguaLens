@@ -27,7 +27,7 @@ function computeStreak(activeDays) {
   return streak;
 }
 
-export default function ProfileScreen({ words, activity, stats, user, onUpdateUser, t }) {
+export default function ProfileScreen({ words, activity, stats, user, onUpdateUser, onSignIn, t }) {
   const { C, SHADOW } = useTheme();
   const s = useMemo(() => makeStyles(C), [C]);
 
@@ -80,6 +80,16 @@ export default function ProfileScreen({ words, activity, stats, user, onUpdateUs
     onUpdateUser({ avatar: pose });
   }
 
+  // Гостю нічого редагувати — профіль живе на сервері. Тап по шапці веде на вхід.
+  function openEditor() {
+    if (!user) {
+      if (onSignIn) onSignIn();
+      return;
+    }
+    setDraftName(user.name || '');
+    setEditing(true);
+  }
+
   function saveName() {
     setEditing(false);
     const n = draftName.trim();
@@ -96,10 +106,10 @@ export default function ProfileScreen({ words, activity, stats, user, onUpdateUs
       {/* Шапка профілю */}
       <FadeIn>
         <View style={[s.hero, SHADOW]}>
-          <Pressable onPress={() => setEditing(true)} style={s.avatarWrap}>
+          <Pressable onPress={openEditor} style={s.avatarWrap}>
             <MascotBob pose={user?.avatar || 'wave'} size={92} />
           </Pressable>
-          <Pressable onPress={() => { setDraftName(user?.name || ''); setEditing(true); }}>
+          <Pressable onPress={openEditor}>
             <Text style={s.name}>{user?.name || t('guest')}</Text>
           </Pressable>
           <Text style={s.email}>{user?.email || t('guestHint')}</Text>

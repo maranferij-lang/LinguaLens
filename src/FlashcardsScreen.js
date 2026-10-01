@@ -9,6 +9,7 @@ import { IcCards, IcChevron, IcMedal, IcSpeaker } from './icons';
 import { Mascot, MascotBob } from './Mascot';
 import { PCrown } from './ProIcons';
 import { StickerLarge } from './Sticker';
+import { photoUri } from './photos';
 import WordOfDayCard from './WordOfDayCard';
 import { FadeIn, GradBtn, Press } from './ui';
 import { UNDER_TAB } from './Chrome';
@@ -236,7 +237,7 @@ export default function FlashcardsScreen({
         >
           <Press style={s.cardInner} onPress={() => doFlip(false)}>
             {current.photo ? (
-              <StickerLarge uri={current.photo} outline={current.outline} box={current.box} size={136} style={{ marginBottom: 16 }} />
+              <StickerLarge uri={photoUri(current.photo)} shape={current.shape} outline={current.outline} box={current.box} size={136} style={{ marginBottom: 16 }} />
             ) : null}
             <Text style={s.cardTranslation}>{current.translation}</Text>
             {current.example ? (

@@ -86,6 +86,7 @@ export default function SettingsScreen({
   onSetWodHour,
   user,
   onLogout,
+  onDeleteAccount,
   onOpenAuth,
   sub,
   onOpenPaywall,
@@ -111,6 +112,24 @@ export default function SettingsScreen({
     Alert.alert(t('clearTitle'), t('clearMsg', { n: wordsCount }), [
       { text: t('cancel'), style: 'cancel' },
       { text: t('clear'), style: 'destructive', onPress: onClearAll },
+    ]);
+  }
+
+  // Видалення акаунта — незворотне, тож два кроки: діалог і лише потім запит.
+  function confirmDeleteAccount() {
+    Alert.alert(t('deleteAccountTitle'), t('deleteAccountMsg'), [
+      { text: t('cancel'), style: 'cancel' },
+      {
+        text: t('deleteAccount'),
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await onDeleteAccount();
+          } catch (_) {
+            Alert.alert(t('deleteAccountFail'));
+          }
+        },
+      },
     ]);
   }
 
@@ -178,6 +197,14 @@ export default function SettingsScreen({
               <Pressable style={s.linkRow} onPress={confirmLogout}>
                 <Text style={[s.linkText, { color: C.red }]}>{t('logout')}</Text>
               </Pressable>
+              {onDeleteAccount ? (
+                <>
+                  <View style={s.sep} />
+                  <Pressable style={s.linkRow} onPress={confirmDeleteAccount}>
+                    <Text style={[s.linkText, { color: C.faint }]}>{t('deleteAccount')}</Text>
+                  </Pressable>
+                </>
+              ) : null}
             </>
           ) : (
             <Pressable style={s.accountRow} onPress={onOpenAuth}>

@@ -63,9 +63,19 @@ function rateLimited(ip) {
   }
   return arr.length > RATE_PER_MIN;
 }
+// IP клієнта для лімітів. Перший запис у X-Forwarded-For пише сам клієнт —
+// його можна підробити й обійти і ліміт сканів, і захист від перебору пароля.
+// Довіряємо лише запису, який додав наш проксі: Cloud Run (GFE) дописує
+// справжню адресу в кінець. Якщо попереду ще й балансувальник — TRUST_PROXY_HOPS=2.
+const TRUST_PROXY_HOPS = Math.max(1, Number(process.env.TRUST_PROXY_HOPS || 1));
 function clientIp(req) {
   const xff = req.headers['x-forwarded-for'];
-  return (xff ? String(xff).split(',')[0].trim() : req.socket.remoteAddress) || 'unknown';
+  if (xff) {
+    const hops = String(xff).split(',').map((s) => s.trim()).filter(Boolean);
+    const ip = hops[Math.max(0, hops.length - TRUST_PROXY_HOPS)];
+    if (ip) return ip;
+  }
+  return req.socket.remoteAddress || 'unknown';
 }
 
 const LANG_NAMES = {
@@ -183,16 +193,16 @@ async function callAnthropic(base64, prompt) {
   return parseModelJson(data?.content?.[0]?.text);
 }
 
+// Ключ іде заголовком, а не в ?key= — URL з ключем осідає в логах проксі.
+const GEMINI_URL = () =>
+  'https://generativelanguage.googleapis.com/v1beta/models/' + GEMINI_MODEL + ':generateContent';
+const GEMINI_HEADERS = () => ({ 'content-type': 'application/json', 'x-goog-api-key': GEMINI_API_KEY });
+
 async function callGemini(base64, prompt) {
   if (!GEMINI_API_KEY) throw new Error('GEMINI_API_KEY не заданий у .env');
-  const url =
-    'https://generativelanguage.googleapis.com/v1beta/models/' +
-    GEMINI_MODEL +
-    ':generateContent?key=' +
-    GEMINI_API_KEY;
-  const res = await fetchAI(url, {
+  const res = await fetchAI(GEMINI_URL(), {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: GEMINI_HEADERS(),
     body: JSON.stringify({
       contents: [
         {
@@ -238,14 +248,9 @@ async function callTextAI(prompt) {
     const d = await res.json();
     return parseModelJson(d?.content?.[0]?.text);
   }
-  const url =
-    'https://generativelanguage.googleapis.com/v1beta/models/' +
-    GEMINI_MODEL +
-    ':generateContent?key=' +
-    GEMINI_API_KEY;
-  const res = await fetchAI(url, {
+  const res = await fetchAI(GEMINI_URL(), {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: GEMINI_HEADERS(),
     body: JSON.stringify({
       contents: [{ parts: [{ text: prompt }] }],
       generationConfig: {
@@ -307,6 +312,15 @@ function readBody(req, limit) {
   });
 }
 
+// Заголовки безпеки на кожній відповіді (див. SECURITY.md).
+const SECURITY_HEADERS = {
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'DENY',
+  'Referrer-Policy': 'no-referrer',
+  'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
+  'Cache-Control': 'no-store',
+};
+
 function json(res, status, obj) {
   res.writeHead(status, {
     'content-type': 'application/json; charset=utf-8',
@@ -319,12 +333,26 @@ function json(res, status, obj) {
   res.end(JSON.stringify(obj));
 }
 
-const server = http.createServer(async (req, res) => {
+// Будь-який виняток усередині обробника без цієї обгортки стає
+// unhandledRejection, а з Node 15 це валить увесь процес — разом із запитами
+// інших користувачів. Тут він перетворюється на звичайну відповідь 500.
+const server = http.createServer((req, res) => {
+  handle(req, res).catch((e) => {
+    console.error(new Date().toISOString(), 'UNHANDLED:', e && e.stack ? e.stack : e);
+    if (!res.headersSent) {
+      try {
+        json(res, 500, { error: 'SERVER_ERROR' });
+      } catch (_) {}
+    }
+  });
+});
+
+async function handle(req, res) {
   // CORS + Private Network Access preflight (дозволяє запити з браузера до localhost)
   if (req.method === 'OPTIONS') {
     res.writeHead(204, {
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
       'Access-Control-Allow-Headers': 'content-type, authorization, x-app-token',
       'Access-Control-Allow-Private-Network': 'true',
       'Access-Control-Max-Age': '600',
@@ -358,10 +386,23 @@ const server = http.createServer(async (req, res) => {
   }
 
   // ---------- ПРОФІЛЬ ----------
-  if (req.url === '/me' && (req.method === 'GET' || req.method === 'PATCH')) {
+  if (req.url === '/me' && (req.method === 'GET' || req.method === 'PATCH' || req.method === 'DELETE')) {
     const user = await auth.userFromRequest(req).catch(() => null);
     if (!user) return json(res, 401, { error: 'UNAUTHORIZED' });
     if (req.method === 'GET') return json(res, 200, { user: auth.publicUser(user) });
+    // Видалення акаунта — вимога Apple (Guideline 5.1.1(v)) для будь-якого
+    // застосунку з реєстрацією. Видаляємо запис повністю, а не ставимо прапорець:
+    // старі токени після цього самі стають недійсними (userFromRequest не знайде юзера).
+    if (req.method === 'DELETE') {
+      try {
+        await auth.deleteUser(user);
+        console.log(new Date().toISOString(), 'DELETE /me → ok');
+        return json(res, 200, { ok: true });
+      } catch (e) {
+        console.error('delete error:', e.message);
+        return json(res, 500, { error: 'SERVER_ERROR' });
+      }
+    }
     try {
       const patch = JSON.parse((await readBody(req, 16 * 1024)) || '{}');
       const updated = await auth.updateProfile(user, patch);
@@ -387,17 +428,20 @@ const server = http.createServer(async (req, res) => {
         ? url.searchParams.get('native')
         : 'uk';
 
-      const out = [];
-      for (let i = 0; i < days; i++) {
-        const en = words.wordForDay(user.seed || user.id, i);
-        try {
-          const w = await translateWord(en, lang, native);
-          out.push({ date: words.dateKey(i), ...w });
-        } catch (_) {
-          // якщо AI недоступний — віддаємо принаймні англійське слово
-          out.push({ date: words.dateKey(i), word: en, ipa: '', translation: '', example: '', example_translation: '', source: en });
-        }
-      }
+      // Дні перекладаються паралельно: на холодному кеші це 7 викликів AI,
+      // і послідовно людина чекала б 10+ секунд.
+      const out = await Promise.all(
+        Array.from({ length: days }, async (_, i) => {
+          const en = words.wordForDay(user.seed || user.id, i);
+          try {
+            const w = await translateWord(en, lang, native);
+            return { date: words.dateKey(i), ...w };
+          } catch (_) {
+            // якщо AI недоступний — віддаємо принаймні англійське слово
+            return { date: words.dateKey(i), word: en, ipa: '', translation: '', example: '', example_translation: '', source: en };
+          }
+        })
+      );
       console.log(new Date().toISOString(), 'word-of-day', lang + '→' + native, out.length + 'д');
       return json(res, 200, { words: out });
     } catch (e) {
@@ -421,7 +465,12 @@ const server = http.createServer(async (req, res) => {
       // Апка надсилає кадр 1024px/JPEG ≈ 150–400 КБ у base64. Ліміт у 15 МБ
       // дозволяв закидати сервер важкими тілами — 4 МБ із запасом достатньо.
       const raw = await readBody(req, 4 * 1024 * 1024);
-      const body = JSON.parse(raw || '{}');
+      let body;
+      try {
+        body = JSON.parse(raw || '{}');
+      } catch (_) {
+        return json(res, 400, { error: 'Некоректний JSON' });
+      }
       const image = body.image;
       if (!image || typeof image !== 'string') {
         return json(res, 400, { error: 'Поле "image" (base64 JPEG) обовʼязкове' });
@@ -488,13 +537,15 @@ const server = http.createServer(async (req, res) => {
         return json(res, 504, { error: 'AI відповідає надто довго. Спробуй ще раз.' });
       }
       if (e.message === 'TOO_LARGE') return json(res, 413, { error: 'Фото завелике' });
+      // Деталі помилки провайдера — лише в лог. Клієнту вони нічого не дають,
+      // а назовні відкривають, яким AI і з якими параметрами ми користуємось.
       console.error(new Date().toISOString(), 'ERROR:', e.message);
-      return json(res, 502, { error: e.message });
+      return json(res, 502, { error: 'AI тимчасово недоступний. Спробуй ще раз.' });
     }
   }
 
   json(res, 404, { error: 'Not found' });
-});
+}
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log('LinguaLens server запущено. Провайдер: ' + PROVIDER);

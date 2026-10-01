@@ -4,6 +4,7 @@ import { flagFor, speak } from './speech';
 import { IcSearch, IcSpeaker } from './icons';
 import { MascotBob } from './Mascot';
 import { Sticker } from './Sticker';
+import { photoUri } from './photos';
 import { FadeIn, GradBtn, Press } from './ui';
 import { UNDER_TAB } from './Chrome';
 import { layoutNext } from './motion';
@@ -104,7 +105,7 @@ export default function DictionaryScreen({ words, onDelete, onScan, t }) {
           return (
             <Pressable style={s.card} onPress={() => toggle(item.id)}>
               <View style={s.rowTop}>
-                <Sticker uri={item.photo} outline={item.outline} box={item.box} size={48} />
+                <Sticker uri={photoUri(item.photo)} shape={item.shape} outline={item.outline} box={item.box} size={48} />
                 <View style={{ flex: 1 }}>
                   <Text style={s.word}>
                     {item.word} <Text style={{ fontSize: 13 }}>{flagFor(item.lang || 'en')}</Text>

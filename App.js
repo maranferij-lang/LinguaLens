@@ -20,7 +20,8 @@ import { loadActivity, loadOnboarded, loadSeenAchievements, loadSettings, loadSt
 import { applyReview, dueWords, newSrs } from './src/srs';
 import { initAudio } from './src/speech';
 import { makeT } from './src/i18n';
-import { loadSession, logout as doLogout, refreshUser, updateProfile } from './src/auth';
+import { deleteAccount, loadSession, logout as doLogout, refreshUser, updateProfile } from './src/auth';
+import { deletePhoto, persistPhoto } from './src/photos';
 import { setSessionToken } from './src/api';
 import { computeMetrics, evaluate, newlyUnlocked } from './src/achievements';
 import { syncWordOfDay, todayFrom, requestPermission, cancelAll, DEFAULT_HOUR } from './src/wordOfDay';
@@ -33,7 +34,7 @@ import { F, THEMES, ThemeProvider, resolveThemeKey, type } from './src/theme';
 import { SPRING } from './src/motion';
 import {
   loadSubscription, activatePlan, loadUsage, bumpScan,
-  canScan, canSaveWord, scansLeft,
+  canScan, canSaveWord, canUseLanguage, scansLeft,
 } from './src/subscription';
 
 // Порядок вкладок зафіксований і не обговорюється:
@@ -217,6 +218,8 @@ export default function App() {
     const item = {
       id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
       ...result,
+      // кадр зі сканера лежить у кеші — переносимо в Documents (див. photos.js)
+      photo: persistPhoto(result.photo),
       addedAt: Date.now(),
       srs: newSrs(),
     };
@@ -240,6 +243,8 @@ export default function App() {
   }
 
   function deleteWord(id) {
+    const gone = words.find((w) => w.id === id);
+    if (gone) deletePhoto(gone.photo);
     updateWords(words.filter((w) => w.id !== id));
   }
 
@@ -249,6 +254,7 @@ export default function App() {
   }
 
   function clearAll() {
+    words.forEach((w) => deletePhoto(w.photo));
     updateWords([]);
   }
 
@@ -258,6 +264,17 @@ export default function App() {
       persistStats(next);
       return next;
     });
+  }
+
+  // Безкоштовно — одна мова навчання. Ліміт описаний у MONETIZATION.md і
+  // показаний у пейволі, тож має реально діяти, а не лише рекламуватись.
+  function setTargetLang(code) {
+    const deny = canUseLanguage({ pro: sub.pro, words, nextLang: code });
+    if (deny) {
+      setPaywall(deny);
+      return;
+    }
+    saveSetting({ targetLang: code });
   }
 
   function saveSetting(patch) {
@@ -360,7 +377,22 @@ export default function App() {
     setSessionToken('');
   }
 
+  // Видалення акаунта (вимога Apple 5.1.1(v)). Кидає помилку, якщо сервер
+  // недоступний — екран налаштувань покаже її людині.
+  async function handleDeleteAccount() {
+    await deleteAccount();
+    await cancelAll();
+    setUser(null);
+  }
+
   async function handleUpdateUser(patch) {
+    // Гість не має профілю на сервері. Без цієї перевірки «оптимістичне»
+    // оновлення створювало б фальшивого юзера лише з іменем, і застосунок
+    // вважав би гостя залогіненим.
+    if (!user) {
+      setShowAuth(true);
+      return;
+    }
     const u = await updateProfile(patch, user);
     setUser(u);
   }
@@ -476,6 +508,7 @@ export default function App() {
                 stats={stats}
                 user={user}
                 onUpdateUser={handleUpdateUser}
+                onSignIn={() => setShowAuth(true)}
                 t={t}
               />
             </FadeIn>
@@ -485,7 +518,7 @@ export default function App() {
             <FadeIn style={{ flex: 1 }} dy={10}>
               <SettingsScreen
                 targetLang={settings.targetLang}
-                onSetLang={(code) => saveSetting({ targetLang: code })}
+                onSetLang={setTargetLang}
                 nativeLang={settings.nativeLang}
                 onSetNative={(code) => saveSetting({ nativeLang: code })}
                 themeKey={themeKey}
@@ -500,6 +533,7 @@ export default function App() {
                 onSetWodHour={setWodHour}
                 user={user}
                 onLogout={handleLogout}
+                onDeleteAccount={handleDeleteAccount}
                 onOpenAuth={() => setShowAuth(true)}
                 sub={sub}
                 onOpenPaywall={() => setPaywall('info')}

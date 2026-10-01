@@ -44,6 +44,9 @@ export default function QuizScreen({ words, t, onExit, onQuizDone }) {
 
   const timer = useRef(new Animated.Value(1)).current;
   const timeout = useRef(null);
+  // Стан `picked` оновлюється лише з наступним рендером, тож два швидкі тапи
+  // обидва проходили перевірку й зараховували відповідь двічі. Ref — миттєвий.
+  const answered = useRef(false);
 
   const q = questions[idx];
 
@@ -58,13 +61,15 @@ export default function QuizScreen({ words, t, onExit, onQuizDone }) {
       easing: EASE.linear,
       useNativeDriver: true,
     }).start();
+    answered.current = false;
     clearTimeout(timeout.current);
     timeout.current = setTimeout(() => pick(-1), Q_TIME);
     return () => clearTimeout(timeout.current);
   }, [idx, finished]);
 
   function pick(i) {
-    if (picked !== null) return;
+    if (picked !== null || answered.current) return;
+    answered.current = true;
     clearTimeout(timeout.current);
     timer.stopAnimation();
     setPicked(i);

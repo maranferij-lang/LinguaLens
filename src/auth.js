@@ -1,7 +1,7 @@
 // Клієнтська авторизація: зберігання сесії, вхід/реєстрація/вихід.
 // Токен лежить у SecureStore (захищене сховище iOS), профіль — в AsyncStorage.
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { apiLogin, apiMe, apiRegister, apiUpdateProfile, setSessionToken } from './api';
+import { apiDeleteAccount, apiLogin, apiMe, apiRegister, apiUpdateProfile, setSessionToken } from './api';
 
 // SecureStore = Keychain на iOS. Якщо пакет ще не встановлено (`npx expo install
 // expo-secure-store`) — не падаємо, а тимчасово тримаємо токен в AsyncStorage.
@@ -74,6 +74,13 @@ export async function login(email, password) {
 }
 
 export async function logout() {
+  await saveSession('', null);
+}
+
+// Видаляє акаунт на сервері, потім локальну сесію. Якщо сервер недоступний —
+// кидає помилку і НЕ розлогінює: інакше людина думала б, що акаунт видалено.
+export async function deleteAccount() {
+  await apiDeleteAccount();
   await saveSession('', null);
 }
 

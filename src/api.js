@@ -112,6 +112,10 @@ export async function recognizeImage(base64Jpeg, lang = 'en', nativeLang = 'uk')
 
   if (res.status === 429) throw new Error('SCAN_RATE');
   if (res.status === 401) throw new Error('SCAN_AUTH');
+  // 422 — сервер дійшов до AI, але чіткого предмета в кадрі немає.
+  // Це порада «підійди ближче», а не «сервер зламався».
+  if (res.status === 422) throw new Error('SCAN_EMPTY');
+  if (res.status === 504) throw new Error('SCAN_TIMEOUT');
   if (!res.ok) throw new Error('SCAN_SERVER');
   if (!data || !data.word) throw new Error('SCAN_EMPTY');
 
@@ -138,6 +142,9 @@ export function apiMe() {
 }
 export function apiUpdateProfile(patch) {
   return request('/me', { method: 'PATCH', body: patch });
+}
+export function apiDeleteAccount() {
+  return request('/me', { method: 'DELETE' });
 }
 
 // ---------- СЛОВО ДНЯ ----------

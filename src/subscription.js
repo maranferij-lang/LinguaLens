@@ -148,16 +148,23 @@ export async function bumpScan(usage) {
 // Причина — це рядок, за яким пейвол розуміє, ЯКИЙ саме аргумент показати:
 // людині, що вичерпала скани, і людині, що набила словник, треба різне.
 
+// Скільки сканів витрачено СЬОГОДНІ. Стан `usage` вантажиться при старті і
+// живе, поки застосунок відкритий, — якщо його не закривали з учорашнього
+// вечора, там лежить учорашній лічильник, і без цієї перевірки людина
+// вранці впиралась би у вчорашній ліміт.
+function usedToday(usage) {
+  return usage && usage.day === today() ? usage.scans || 0 : 0;
+}
+
 export function canScan({ pro, usage }) {
   if (pro) return null;
-  const used = usage?.scans || 0;
-  if (used >= FREE.scansPerDay) return 'scans';
+  if (usedToday(usage) >= FREE.scansPerDay) return 'scans';
   return null;
 }
 
 export function scansLeft({ pro, usage }) {
   if (pro) return Infinity;
-  return Math.max(0, FREE.scansPerDay - (usage?.scans || 0));
+  return Math.max(0, FREE.scansPerDay - usedToday(usage));
 }
 
 export function canSaveWord({ pro, wordCount }) {
@@ -166,11 +173,13 @@ export function canSaveWord({ pro, wordCount }) {
   return null;
 }
 
+// Перемикатися на мову, у якій уже є слова, можна завжди — інакше людина, що
+// колись зібрала слова у двох мовах, не змогла б повернутись до жодної з них.
 export function canUseLanguage({ pro, words, nextLang }) {
   if (pro) return null;
   const used = new Set(words.map((w) => w.lang || 'en'));
-  used.add(nextLang);
-  if (used.size > FREE.languagePairs) return 'langs';
+  if (used.has(nextLang)) return null;
+  if (used.size >= FREE.languagePairs) return 'langs';
   return null;
 }
 

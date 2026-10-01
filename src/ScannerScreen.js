@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
+  Linking,
   Modal,
   PanResponder,
   Pressable,
@@ -120,8 +121,8 @@ export default function ScannerScreen({ targetLang, nativeLang, onSaveWord, save
       // Вирізаємо САМ предмет по рамці від моделі, а не весь кадр.
       // Скріншот екрана з обрізаними краями виглядає випадковим і губить стиль;
       // вирізаний предмет читається як наліпка, яку ти зловив.
-      const cut = await cropToObject(photo, res.box);
-      setResult({ ...res, photo: cut });
+      const cut = await cropToObject(photo, res.box, res.outline);
+      setResult({ ...res, photo: cut.uri, shape: cut.shape });
       setJustSaved(false);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) {
@@ -144,14 +145,19 @@ export default function ScannerScreen({ targetLang, nativeLang, onSaveWord, save
 
   // Ріже кадр по рамці 0–1000 (y1,x1,y2,x2) і повертає квадратну мініатюру.
   // Квадрат — щоб предмет однаково добре сидів і в словнику, і на картці.
-  async function cropToObject(photo, box) {
+  //
+  // Разом із кадром перераховуємо силует у координати САМЕ ЦЬОГО квадрата
+  // (0–1). Рахувати це пізніше, в наліпці, не можна: кадр не квадратний
+  // (3:4), а квадрат ще й притискається до країв фото — без знання W, H і
+  // зсуву силует їде вбік від предмета.
+  async function cropToObject(photo, box, outline) {
     try {
       if (!box) {
         const c = await ImageManipulator.manipulateAsync(photo.uri, [{ resize: { width: 300 } }], {
           compress: 0.6,
           format: ImageManipulator.SaveFormat.JPEG,
         });
-        return c.uri;
+        return { uri: c.uri, shape: null };
       }
       const [y1, x1, y2, x2] = box;
       const W = photo.width;
@@ -177,9 +183,15 @@ export default function ScannerScreen({ targetLang, nativeLang, onSaveWord, save
         ],
         { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
       );
-      return c.uri;
+      const shape = Array.isArray(outline)
+        ? outline.map(([y, x]) => [
+            Math.round((((x / 1000) * W - left) / side) * 1000) / 1000,
+            Math.round((((y / 1000) * H - top) / side) * 1000) / 1000,
+          ])
+        : null;
+      return { uri: c.uri, shape };
     } catch (_) {
-      return null;
+      return { uri: null, shape: null };
     }
   }
 
@@ -193,6 +205,10 @@ export default function ScannerScreen({ targetLang, nativeLang, onSaveWord, save
   if (!permission) return <View style={s.center} />;
 
   if (!permission.granted) {
+    // Після першої відмови iOS більше не показує системний діалог: запит
+    // одразу повертає «ні», і кнопка виглядала б мертвою. Тоді ведемо в
+    // Параметри — це єдиний спосіб увімкнути камеру.
+    const denied = !permission.canAskAgain;
     return (
       <View style={s.center}>
         <FadeIn>
@@ -200,8 +216,11 @@ export default function ScannerScreen({ targetLang, nativeLang, onSaveWord, save
             <MascotBob pose="wave" size={150} />
           </View>
           <Text style={s.permTitle}>{t('permTitle')}</Text>
-          <Text style={s.permText}>{t('permText')}</Text>
-          <GradBtn title={t('allowCam')} onPress={requestPermission} />
+          <Text style={s.permText}>{denied ? t('permDeniedText') : t('permText')}</Text>
+          <GradBtn
+            title={denied ? t('openSettings') : t('allowCam')}
+            onPress={denied ? () => Linking.openSettings() : requestPermission}
+          />
         </FadeIn>
       </View>
     );
@@ -293,7 +312,7 @@ export default function ScannerScreen({ targetLang, nativeLang, onSaveWord, save
             <>
               {result.photo ? (
                 <FadeIn style={{ alignItems: 'center', marginBottom: 16 }}>
-                  <StickerLarge uri={result.photo} outline={result.outline} box={result.box} size={124} />
+                  <StickerLarge uri={result.photo} shape={result.shape} outline={result.outline} box={result.box} size={124} />
                 </FadeIn>
               ) : null}
               <FadeIn dy={14}>
