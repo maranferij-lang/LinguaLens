@@ -133,7 +133,7 @@ function Sheet({ payload, onClose, t }) {
   }
 
   async function share() {
-    if (busyRef.current) return;
+    if (busyRef.current || closing.current) return;
     busyRef.current = true;
     setBusy(true);
     setError(null);
@@ -142,6 +142,7 @@ function Sheet({ payload, onClose, t }) {
       await shareCard(cards.current[page], {
         dialogTitle: title,
         fileName: `lingualens-${templates[page]}.png`,
+        cancelled: () => closing.current,
       });
     } catch (e) {
       setError(t(e?.code === 'SHARE_UNAVAILABLE' ? 'shareUnavailable' : 'shareError'));
@@ -157,7 +158,12 @@ function Sheet({ payload, onClose, t }) {
   const previewH = CARD_H * scale;
 
   return (
-    <View style={[StyleSheet.absoluteFill, s.root]}>
+    <View
+      style={[StyleSheet.absoluteFill, s.root]}
+      // VoiceOver: фокус не виходить за аркуш, жест «Z» двома пальцями закриває
+      accessibilityViewIsModal
+      onAccessibilityEscape={close}
+    >
       <Animated.View style={[StyleSheet.absoluteFill, s.backdrop, { opacity: a }]}>
         <Pressable style={StyleSheet.absoluteFill} onPress={close} accessibilityRole="button" accessibilityLabel={t('shareClose')} />
       </Animated.View>

@@ -48,8 +48,11 @@ function download(dataUri, fileName) {
 
 // Кидає помилку з code: 'SHARE_UNAVAILABLE', якщо системного меню немає
 // (буває на симуляторах і в обмежених профілях) — аркуш покаже окремий текст.
-export async function shareCard(view, { dialogTitle, fileName = 'lingualens.png' } = {}) {
+// cancelled() — людина закрила аркуш, поки картка рендерилась: меню тоді не
+// відкриваємо, інакше воно вискочило б над екраном, з якого вже пішли.
+export async function shareCard(view, { dialogTitle, fileName = 'lingualens.png', cancelled } = {}) {
   const uri = await capture(view);
+  if (cancelled?.()) return;
   if (Platform.OS === 'web') {
     download(uri, fileName);
     return;
