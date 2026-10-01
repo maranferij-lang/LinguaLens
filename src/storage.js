@@ -123,3 +123,12 @@ export async function persistSettings(settings) {
     await AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
   } catch (_) {}
 }
+
+// «Стерти все»: слова, статистика, досягнення, кеш слова дня і лічильник.
+// Налаштування (мова, тема) й позначку онбордингу лишаємо — людина не
+// просила знову проходити знайомство з застосунком.
+export async function clearLocalData() {
+  try {
+    await AsyncStorage.multiRemove([WORDS_KEY, ACTIVITY_KEY, STATS_KEY, SEEN_ACH_KEY, WOD_KEY, 'll_usage_v1']);
+  } catch (_) {}
+}

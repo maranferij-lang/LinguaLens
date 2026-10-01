@@ -14,12 +14,16 @@ import { CAPS, F, R, type, useTheme } from './theme';
 // показувалась порожнім прямокутником.
 const APressable = Animated.createAnimatedComponent(Pressable);
 
-export function Press({ children, style, onPress, onLongPress, disabled, scaleTo = 0.97, hitSlop = 6 }) {
+// Решта пропсів (accessibilityLabel, accessibilityRole, testID…) іде прямо
+// в Pressable: кнопки-іконки без підпису VoiceOver читає як «кнопка».
+export function Press({ children, style, onPress, onLongPress, disabled, scaleTo = 0.97, hitSlop = 6, ...rest }) {
   const scale = useRef(new Animated.Value(1)).current;
   const press = (to, cfg) => Animated.spring(scale, { toValue: to, ...cfg }).start();
 
   return (
     <APressable
+      accessibilityRole="button"
+      {...rest}
       onPress={onPress}
       onLongPress={onLongPress}
       disabled={disabled}

@@ -112,6 +112,17 @@ export function IcClose({ size = 20, color = DIM }) {
   );
 }
 
+// «Поділитись» у мові iOS: стрілка вгору з коробки. Користувач iPhone
+// впізнає її миттєво — свій варіант тут лише заважав би.
+export function IcShare({ size = 20, color = DIM }) {
+  return (
+    <Svg {...box(size)}>
+      <Path d="M12 3.5v11M8 7.5l4-4 4 4" {...S(color)} />
+      <Path d="M8.5 10.5H7a2 2 0 0 0-2 2V19a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6.5a2 2 0 0 0-2-2h-1.5" {...S(color)} />
+    </Svg>
+  );
+}
+
 export function IcSearch({ size = 20, color = DIM }) {
   return (
     <Svg {...box(size)}>

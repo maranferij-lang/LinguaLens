@@ -123,6 +123,23 @@ test('RevenueCat webhook grants Pro and lifts the limit', async () => {
   assert.equal(after.data.pro.active, false);
 });
 
+test('webhook revokes Pro from the previous owner on TRANSFER and on a refund', async () => {
+  const a = await newDevice('198.51.100.7');
+  const b = await newDevice('198.51.100.8');
+  const hook = (event) =>
+    call('POST', '/webhooks/revenuecat', { body: { event }, headers: { authorization: 'Bearer hook-secret' } });
+  const until = Date.now() + 30 * 86400000;
+  await hook({ type: 'INITIAL_PURCHASE', app_user_id: a.user.id, expiration_at_ms: until, entitlement_ids: ['pro'] });
+  assert.equal((await call('GET', '/me', { token: a.token })).data.pro.active, true);
+  await hook({ type: 'TRANSFER', transferred_from: [a.user.id], transferred_to: [b.user.id] });
+  assert.equal((await call('GET', '/me', { token: a.token })).data.pro.active, false);
+
+  await hook({ type: 'RENEWAL', app_user_id: b.user.id, expiration_at_ms: until, entitlement_ids: ['pro'] });
+  assert.equal((await call('GET', '/me', { token: b.token })).data.pro.active, true);
+  await hook({ type: 'CANCELLATION', cancel_reason: 'CUSTOMER_SUPPORT', app_user_id: b.user.id, entitlement_ids: ['pro'] });
+  assert.equal((await call('GET', '/me', { token: b.token })).data.pro.active, false);
+});
+
 test('word of day is built from the client local date and is stable per device', async () => {
   const { token } = await newDevice();
   const today = billing.utcDay();
@@ -156,6 +173,13 @@ test('bad JSON and oversize bodies do not crash the server', async () => {
   const big = await call('POST', '/scan', { token, body: JSON.stringify({ image: 'x'.repeat(5 * 1024 * 1024) }) }).catch(() => ({ status: 413 }));
   assert.equal(big.status, 413);
   assert.equal((await call('GET', '/health')).status, 200);
+});
+
+test('privacy policy is served as a public page', async () => {
+  const res = await fetch(base + '/privacy');
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('content-type'), /text\/html/);
+  assert.match(await res.text(), /Privacy Policy/);
 });
 
 test('removed email endpoints answer 404', async () => {

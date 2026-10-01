@@ -26,6 +26,21 @@ const words = require('./words');
 
 const PORT = Number(process.env.PORT || 3000);
 
+// Політика приватності — обов'язкове посилання для App Store. Сервер віддає
+// її сам: GitHub Pages для приватного репозиторію на безкоштовному тарифі
+// недоступні, а Cloud Run у нас однаково є. Пошту підставляємо з оточення.
+const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || '';
+const PRIVACY_HTML = (() => {
+  try {
+    const html = fs.readFileSync(path.join(__dirname, 'public', 'privacy.html'), 'utf8');
+    if (!SUPPORT_EMAIL) return html;
+    const link = `<a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a>`;
+    return html.replace(/<span class="contact">[^<]*<\/span>/g, link);
+  } catch (_) {
+    return null;
+  }
+})();
+
 // APP_TOKEN — секрет, який знає лише апка (шле в заголовку x-app-token).
 // Якщо не заданий — перевірка вимкнена (зручно для локальної розробки).
 // Це захист «від випадкових»: токен лежить у бінарнику. Основний захист —
@@ -259,6 +274,10 @@ async function handle(req, res) {
   if (req.method === 'GET' && route === '/health') {
     return json(res, 200, { ok: true, provider: ai.PROVIDER, store: store.MODE });
   }
+  if (req.method === 'GET' && route === '/privacy' && PRIVACY_HTML) {
+    res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', ...SECURITY_HEADERS, 'Cache-Control': 'public, max-age=3600' });
+    return res.end(PRIVACY_HTML);
+  }
 
   // Вебхук RevenueCat має власний секрет у заголовку Authorization.
   if (req.method === 'POST' && route === '/webhooks/revenuecat') {
@@ -292,7 +311,9 @@ async function handle(req, res) {
 
   if (route === '/me' && req.method === 'GET') {
     const day = billing.localDay(req.headers['x-local-date']);
-    const pro = await billing.proStatus(user);
+    // ?refresh=1 — одразу після покупки: перепитати RevenueCat без кешу
+    const refresh = new URL(req.url, 'http://x').searchParams.get('refresh') === '1';
+    const pro = await billing.proStatus(user, { refresh });
     return json(res, 200, {
       user: auth.publicUser(user),
       pro,

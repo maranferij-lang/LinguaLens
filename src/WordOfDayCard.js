@@ -9,38 +9,14 @@ import { FadeIn, Press } from './ui';
 import { layoutNext } from './motion';
 import { F, R, useTheme } from './theme';
 
-export default function WordOfDayCard({ word, lang, saved, onSave, onSignIn, t }) {
+export default function WordOfDayCard({ word, lang, saved, onSave, t }) {
   const { C, SHADOW } = useTheme();
   const s = useMemo(() => makeStyles(C), [C]);
   const [open, setOpen] = useState(false);
 
-  // гість ще не має акаунта — показуємо запрошення, а не порожнечу
-  if (!word) {
-    if (!onSignIn) return null;
-    return (
-      <FadeIn>
-        <Press onPress={onSignIn} style={{ marginBottom: 12 }}>
-          <View style={[s.card, SHADOW]}>
-            <View style={s.head}>
-              <View style={s.badge}>
-                <Text style={s.badgeText}>{t('wordOfDay')}</Text>
-              </View>
-            </View>
-            <View style={s.row}>
-              <View style={{ flex: 1 }}>
-                <Text style={s.lockedTitle}>{t('wodLockedTitle')}</Text>
-                <Text style={s.lockedText}>{t('wodLockedText')}</Text>
-                <View style={s.lockedBtn}>
-                  <Text style={s.lockedBtnText}>{t('signIn')}</Text>
-                </View>
-              </View>
-              <Mascot pose="encourage" size={70} />
-            </View>
-          </View>
-        </Press>
-      </FadeIn>
-    );
-  }
+  // Слова ще немає: перший запуск офлайн або сервер не відповів. Порожня
+  // картка-заглушка лише заважала б — з'явиться, щойно прийде слово.
+  if (!word) return null;
 
   function toggle() {
     Haptics.selectionAsync();
@@ -141,15 +117,4 @@ const makeStyles = (C) =>
     },
     saveBtn: { backgroundColor: C.accent },
     actionText: { color: C.text, fontSize: 15, fontFamily: F.bold },
-    lockedTitle: { color: C.text, fontSize: 18, letterSpacing: -0.11, fontFamily: F.bold, marginTop: 2 },
-    lockedText: { color: C.dim, fontSize: 13, lineHeight: 19, marginTop: 4, fontFamily: F.reg },
-    lockedBtn: {
-      alignSelf: 'flex-start',
-      backgroundColor: C.accent,
-      borderRadius: R.pill,
-      paddingHorizontal: 18,
-      paddingVertical: 9,
-      marginTop: 12,
-    },
-    lockedBtnText: { color: C.onAccent, fontSize: 14, fontFamily: F.bold },
   });

@@ -1,0 +1,53 @@
+// Усі налаштування, які відрізняються між розробкою і релізом, — в одному місці.
+//
+// Значення беруться зі змінних оточення EXPO_PUBLIC_* (файл .env у корені або
+// «Environment variables» у EAS). Так релізна збірка не залежить від того,
+// чи не забули поправити рядок у коді перед `eas build`.
+import Constants from 'expo-constants';
+
+const env = (name) => (process.env[name] || '').trim();
+const isDev = typeof __DEV__ !== 'undefined' && __DEV__;
+
+// РОЗРОБКА: адресу НЕ треба вписувати руками. Metro вже знає IP компа —
+// беремо його з hostUri (там 192.168.x.x:8081) і міняємо порт на серверний.
+// Це прибирає найчастішу причину «скан не працює»: IP змінився після
+// перепідключення до Wi-Fi, а в коді лишився старий.
+const DEV_PORT = 3000;
+function devServerUrl() {
+  const host =
+    Constants.expoConfig?.hostUri ||
+    Constants.expoGoConfig?.debuggerHost ||
+    Constants.manifest2?.extra?.expoGo?.debuggerHost ||
+    '';
+  const ip = String(host).split(':')[0];
+  // тунель (exp.direct) не дає доступу до локального сервера — там потрібен
+  // або справжній LAN, або вже задеплоєний хмарний сервер
+  if (!ip || ip.includes('exp.direct')) return null;
+  return `http://${ip}:${DEV_PORT}`;
+}
+
+const DEV_URL = isDev ? devServerUrl() : null;
+
+// Порядок: явна адреса з оточення → локальний сервер у розробці → заглушка.
+// Заглушка навмисно непрацююча: краще помилка «офлайн» у першому ж тесті
+// TestFlight, ніж реліз, що стукає на чужу адресу.
+export const SERVER_URL = env('EXPO_PUBLIC_SERVER_URL') || DEV_URL || 'https://set-EXPO_PUBLIC_SERVER_URL.invalid';
+export const SERVER_SOURCE = env('EXPO_PUBLIC_SERVER_URL') ? 'env' : DEV_URL ? 'auto' : 'missing';
+
+// Спільний токен застосунку (той самий, що APP_TOKEN на сервері). Захист
+// «від випадкових»: він лежить у бінарнику. Можна лишити порожнім.
+export const APP_TOKEN = env('EXPO_PUBLIC_APP_TOKEN');
+
+// Публічний iOS-ключ RevenueCat (appl_…). Без нього покупки вимкнені:
+// у розробці пейвол імітує покупку, у релізі кнопка чесно каже, що недоступно.
+export const REVENUECAT_IOS_KEY = env('EXPO_PUBLIC_REVENUECAT_IOS_KEY');
+export const PRO_ENTITLEMENT = 'pro';
+
+// Юридичні посилання — обов'язкові в пейволі (App Store Guideline 3.1.2).
+// Terms: стандартна ліцензія Apple (EULA) — її можна використовувати як є.
+export const TERMS_URL =
+  env('EXPO_PUBLIC_TERMS_URL') || 'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/';
+export const PRIVACY_URL = env('EXPO_PUBLIC_PRIVACY_URL');
+export const SUPPORT_EMAIL = env('EXPO_PUBLIC_SUPPORT_EMAIL');
+
+export const IS_DEV = isDev;

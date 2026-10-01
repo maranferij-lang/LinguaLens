@@ -20,7 +20,8 @@
 // коштів. Але сам по собі тріал не є обманом; обманом його робить
 // замовчування. Тому:
 //   1. У пейволі прямим текстом написано, коли і скільки спишеться.
-//   2. За 2 дні до кінця застосунок сам надсилає нагадування (scheduleTrialReminder).
+//   2. За 2 дні до кінця застосунок сам надсилає нагадування (scheduleTrialReminder,
+//      ставить App.js після покупки з пробним періодом).
 //      Apple теж надсилає своє, але ми не покладаємось на це.
 //   3. Скасувати можна в один дотик, і посилання на це є в налаштуваннях.
 // Якщо після тесту відчуття все одно неприємне — вимкни тріал одним рядком:
@@ -79,46 +80,14 @@ export const FREE = {
   languagePairs: 1,
 };
 
-// Ключі сховища
-const K_STATE = 'll_sub_v1';
+// Кеш денного лічильника сканів. Рахує сервер (за id пристрою), тут лише
+// його остання відповідь — щоб показати пейвол ще ДО зйомки. Стан підписки
+// живе в src/purchases.js (RevenueCat).
 const K_USAGE = 'll_usage_v1';
 
 function today() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
-// ── Стан підписки ───────────────────────────────────────────────────────────
-// Поки еквайринг не підключений, стан тримаємо локально. Коли підключиться —
-// джерелом правди стане чек від App Store, а форма даних не зміниться.
-export async function loadSubscription() {
-  try {
-    const raw = await AsyncStorage.getItem(K_STATE);
-    const st = raw ? JSON.parse(raw) : null;
-    if (!st || !st.planId || !st.until) return { pro: false };
-    if (Date.now() > st.until) return { pro: false, expired: true, planId: st.planId };
-    return { pro: true, planId: st.planId, until: st.until, trial: !!st.trial };
-  } catch (_) {
-    return { pro: false };
-  }
-}
-
-export async function activatePlan(planId) {
-  const plan = PLANS.find((p) => p.id === planId);
-  if (!plan) return { pro: false };
-  const days = plan.trialDays || plan.days;
-  const state = {
-    planId,
-    until: Date.now() + days * 86400000,
-    trial: !!plan.trialDays,
-  };
-  await AsyncStorage.setItem(K_STATE, JSON.stringify(state));
-  return { pro: true, ...state };
-}
-
-export async function cancelSubscription() {
-  await AsyncStorage.removeItem(K_STATE);
-  return { pro: false };
 }
 
 // ── Облік сканів ────────────────────────────────────────────────────────────
@@ -134,13 +103,10 @@ export async function loadUsage() {
   }
 }
 
-export async function bumpScan(usage) {
-  const next =
-    usage && usage.day === today()
-      ? { day: usage.day, scans: (usage.scans || 0) + 1 }
-      : { day: today(), scans: 1 };
-  await AsyncStorage.setItem(K_USAGE, JSON.stringify(next));
-  return next;
+export async function saveUsage(usage) {
+  try {
+    await AsyncStorage.setItem(K_USAGE, JSON.stringify(usage));
+  } catch (_) {}
 }
 
 // ── Воротар ─────────────────────────────────────────────────────────────────

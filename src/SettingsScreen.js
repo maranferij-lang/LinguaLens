@@ -1,8 +1,10 @@
 // Налаштування: акаунт, мови, слово дня, тема, сервер, дані.
 import { useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Linking, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { checkServer, SERVER_URL } from './api';
+import { checkServer } from './api';
+import { PRIVACY_URL, SERVER_SOURCE, SERVER_URL, SUPPORT_EMAIL, TERMS_URL } from './config';
+import { formatDate } from './locale';
 import { version as APP_VERSION } from '../package.json';
 import { LANGS, flagFor, nameFor } from './speech';
 import { IcCheck, IcChevron } from './icons';
@@ -12,7 +14,7 @@ import { Mascot } from './Mascot';
 import { FadeIn, Glass, Press } from './ui';
 import { UNDER_TAB } from './Chrome';
 import { layoutNext } from './motion';
-import { CAPS, F, R, THEME_DEFS, type, useTheme } from './theme';
+import { F, R, THEME_DEFS, type, useTheme } from './theme';
 
 // Тогл-лист вибору мови: розгортається на ~4 рядки, далі скрол
 function LangPicker({ label, hint, value, onChange, C, s }) {
@@ -79,17 +81,16 @@ export default function SettingsScreen({
   onSetTheme,
   wordsCount,
   onClearAll,
+  onEraseEverything,
   onReplayOnb,
   wodEnabled,
   onToggleWod,
   wodHour,
   onSetWodHour,
-  user,
-  onLogout,
-  onDeleteAccount,
-  onOpenAuth,
   sub,
   onOpenPaywall,
+  onManageSub,
+  onRestore,
   t,
 }) {
   const { C } = useTheme();
@@ -115,29 +116,34 @@ export default function SettingsScreen({
     ]);
   }
 
-  // Видалення акаунта — незворотне, тож два кроки: діалог і лише потім запит.
-  function confirmDeleteAccount() {
-    Alert.alert(t('deleteAccountTitle'), t('deleteAccountMsg'), [
+  // Стерти все — незворотне, тож два кроки: діалог і лише потім запит.
+  // Сервер має бути досяжний: інакше людина думала б, що її дані стерто.
+  function confirmErase() {
+    Alert.alert(t('eraseTitle'), t('eraseMsg'), [
       { text: t('cancel'), style: 'cancel' },
       {
-        text: t('deleteAccount'),
+        text: t('eraseConfirm'),
         style: 'destructive',
         onPress: async () => {
           try {
-            await onDeleteAccount();
+            await onEraseEverything();
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           } catch (_) {
-            Alert.alert(t('deleteAccountFail'));
+            Alert.alert(t('eraseFail'));
           }
         },
       },
     ]);
   }
 
-  function confirmLogout() {
-    Alert.alert(t('logoutTitle'), t('logoutMsg'), [
-      { text: t('cancel'), style: 'cancel' },
-      { text: t('logout'), style: 'destructive', onPress: onLogout },
-    ]);
+  async function restore() {
+    Haptics.selectionAsync();
+    const next = await onRestore();
+    Alert.alert(next?.pro ? t('restoreDone') : t('restoreNothing'));
+  }
+
+  function openUrl(url) {
+    if (url) Linking.openURL(url).catch(() => {});
   }
 
   const HOURS = [8, 10, 12, 18, 20];
@@ -154,14 +160,15 @@ export default function SettingsScreen({
         {/* Pro — перший блок. Не тому, що ми жадібні, а тому що це єдине
             місце, де людина може дізнатись про межі й керувати підпискою. */}
         {sub?.pro ? (
-          <Press style={s.proCard} onPress={onOpenPaywall}>
+          <Press style={s.proCard} onPress={onManageSub}>
             <View style={s.proIconWrap}>
               <PCrown size={22} color={C.onAccent} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={s.proTitle}>{sub.trial ? t('proTrial') : t('proActive')}</Text>
               <Text style={s.proHint}>
-                {t('proUntil', { d: new Date(sub.until).toLocaleDateString() })}
+                {sub.until ? t('proUntil', { d: formatDate(sub.until, nativeLang, { day: 'numeric', month: 'long', year: 'numeric' }) }) + ' · ' : ''}
+                {t('managePro')}
               </Text>
             </View>
             <IcChevron color={C.faint} />
@@ -180,45 +187,6 @@ export default function SettingsScreen({
             </View>
           </Press>
         )}
-
-        {/* Акаунт */}
-        <Text style={s.sectionLabel}>{t('account')}</Text>
-        <Glass style={{ padding: 0, overflow: 'hidden' }}>
-          {user ? (
-            <>
-              <View style={s.accountRow}>
-                <Mascot pose={user.avatar || 'wave'} size={44} />
-                <View style={{ flex: 1 }}>
-                  <Text style={s.accountName}>{user.name}</Text>
-                  <Text style={s.accountEmail}>{user.email}</Text>
-                </View>
-              </View>
-              <View style={s.sep} />
-              <Pressable style={s.linkRow} onPress={confirmLogout}>
-                <Text style={[s.linkText, { color: C.red }]}>{t('logout')}</Text>
-              </Pressable>
-              {onDeleteAccount ? (
-                <>
-                  <View style={s.sep} />
-                  <Pressable style={s.linkRow} onPress={confirmDeleteAccount}>
-                    <Text style={[s.linkText, { color: C.faint }]}>{t('deleteAccount')}</Text>
-                  </Pressable>
-                </>
-              ) : null}
-            </>
-          ) : (
-            <Pressable style={s.accountRow} onPress={onOpenAuth}>
-              <Mascot pose="wave" size={44} />
-              <View style={{ flex: 1 }}>
-                <Text style={s.accountName}>{t('signIn')}</Text>
-                <Text style={s.accountEmail}>{t('signInHint')}</Text>
-              </View>
-              <View style={{ transform: [{ rotate: '-90deg' }] }}>
-                <IcChevron color={C.faint} />
-              </View>
-            </Pressable>
-          )}
-        </Glass>
 
         {/* Мови */}
         <LangPicker
@@ -335,6 +303,30 @@ export default function SettingsScreen({
               <IcChevron color={C.faint} />
             </View>
           </Pressable>
+          <View style={s.sep} />
+          <Pressable style={s.linkRow} onPress={restore}>
+            <Text style={[s.linkText, { flex: 1 }]}>{t('restore')}</Text>
+          </Pressable>
+          {PRIVACY_URL ? (
+            <>
+              <View style={s.sep} />
+              <Pressable style={s.linkRow} onPress={() => openUrl(PRIVACY_URL)}>
+                <Text style={[s.linkText, { flex: 1 }]}>{t('privacy')}</Text>
+              </Pressable>
+            </>
+          ) : null}
+          <View style={s.sep} />
+          <Pressable style={s.linkRow} onPress={() => openUrl(TERMS_URL)}>
+            <Text style={[s.linkText, { flex: 1 }]}>{t('terms')}</Text>
+          </Pressable>
+          {SUPPORT_EMAIL ? (
+            <>
+              <View style={s.sep} />
+              <Pressable style={s.linkRow} onPress={() => openUrl('mailto:' + SUPPORT_EMAIL)}>
+                <Text style={[s.linkText, { flex: 1 }]}>{t('support')}</Text>
+              </Pressable>
+            </>
+          ) : null}
         </Glass>
 
         {/* Дані */}
@@ -348,6 +340,11 @@ export default function SettingsScreen({
           >
             <Text style={s.dangerText}>{t('clearDict')}</Text>
           </Press>
+          <View style={s.sepInner} />
+          <Text style={s.dimText}>{t('eraseHint')}</Text>
+          <Press style={s.dangerBtn} onPress={confirmErase}>
+            <Text style={[s.dangerText, { color: C.faint }]}>{t('eraseAll')}</Text>
+          </Press>
         </Glass>
 
         {/* Технічна панель. Звичайний користувач її не бачить і не має бачити:
@@ -357,7 +354,9 @@ export default function SettingsScreen({
           <>
             <Text style={s.sectionLabel}>Діагностика</Text>
             <Glass>
-              <Text style={s.serverUrl}>{SERVER_URL}</Text>
+              <Text style={s.serverUrl}>
+                {SERVER_URL} · {SERVER_SOURCE}
+              </Text>
               <Press style={s.checkBtn} onPress={check} disabled={checking}>
                 {checking ? (
                   <ActivityIndicator color={C.onAccent} size="small" />
@@ -441,9 +440,6 @@ const makeStyles = (C) =>
     },
     proTitle: { color: C.text, ...type(16, F.bold, { noLead: true }) },
     proHint: { color: C.dim, ...type(13, F.reg, { noLead: true }), marginTop: 2 },
-    accountRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
-    accountName: { color: C.text, fontSize: 16, letterSpacing: -0.1, fontFamily: F.bold },
-    accountEmail: { color: C.dim, fontSize: 13, fontFamily: F.reg, marginTop: 2 },
     sep: { height: StyleSheet.hairlineWidth, backgroundColor: C.sep, marginLeft: 14 },
     sepInner: { height: StyleSheet.hairlineWidth, backgroundColor: C.sep, marginVertical: 14 },
     linkRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 14 },
@@ -476,16 +472,19 @@ const makeStyles = (C) =>
 
     themeRow: { flexDirection: 'row', gap: 10 },
     themeCell: { flex: 1, alignItems: 'center', gap: 8 },
+    // Тонка рамка завжди: світла плитка (і світла половина «Авто») інакше
+    // зливається з крейдяним тлом, і плитка виглядає обрізаною.
     swatch: {
       width: '100%',
       aspectRatio: 1.35,
       borderRadius: R.lg,
+      borderWidth: 1,
+      borderColor: C.sep,
       alignItems: 'center',
       justifyContent: 'center',
       overflow: 'hidden',
     },
     swatchDot: { width: 26, height: 26, borderRadius: 13 },
-    swatchLine: { height: 3, width: 30, borderRadius: 2, alignSelf: 'center' },
     // права половина «авто»-свотча темна — світло/темрява в одній плитці
     swatchHalf: {
       position: 'absolute',

@@ -47,7 +47,7 @@ export async function initAudio() {
 }
 
 export function speak(text, lang = 'en') {
-  Speech.stop();
+  Speech.stop().catch(() => {});
   Speech.speak(text, { language: langOf(lang).tts, rate: 0.92 });
 }
 

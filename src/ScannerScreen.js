@@ -5,31 +5,65 @@ import {
   Linking,
   Modal,
   PanResponder,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import * as ImageManipulator from 'expo-image-manipulator';
+import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import * as Haptics from 'expo-haptics';
 import { recognizeImage } from './api';
 import { speak } from './speech';
-import { IcClose, IcSpeaker } from './icons';
+import { IcClose, IcShare, IcSpeaker } from './icons';
 import { MascotBob } from './Mascot';
 import { StickerLarge } from './Sticker';
+import ShareSheet from './share/ShareSheet';
+import { UNDER_TAB } from './Chrome';
 import { FadeIn, GradBtn, Press, SecBtn } from './ui';
 import { EASE } from './motion';
 import { F, R, useTheme } from './theme';
 
+// Пресети зуму. Точної кратності тут не буде: iOS рахує зум як
+// maxZoom^value, а maxZoom залежить від моделі телефону. Тому показуємо лише
+// мітки пресетів, без «1.4×», яке нічого не означає.
 const ZOOM_PRESETS = [
   { label: '1×', value: 0 },
   { label: '2×', value: 0.12 },
 ];
 const MAX_ZOOM = 0.6;
-const zoomLabel = (z) => (1 + z / 0.12).toFixed(1) + '×';
 
-export default function ScannerScreen({ targetLang, nativeLang, onSaveWord, savedWords, onGuardScan, onCountScan, scansLeft, t }) {
+// Наліпка зберігається 600 px: на картці «поділитись» (1080×1920) вона
+// займає близько половини ширини і має лишатись чіткою.
+const STICKER_PX = 600;
+
+// Рендерить ланцюжок ImageManipulator і зберігає файл. Нативні об'єкти
+// звільняємо завжди — повнорозмірний кадр у пам'яті займає десятки МБ.
+async function renderAndSave(context, saveOptions) {
+  let image = null;
+  try {
+    image = await context.renderAsync();
+    return await image.saveAsync(saveOptions);
+  } finally {
+    image?.release();
+    context.release();
+  }
+}
+
+export default function ScannerScreen({
+  targetLang,
+  nativeLang,
+  onSaveWord,
+  savedWords,
+  onGuardScan,
+  onScanned,
+  onLimitReached,
+  onSessionLost,
+  onShare,
+  scansLeft,
+  t,
+}) {
   const { C } = useTheme();
   const s = useMemo(() => makeStyles(C), [C]);
 
@@ -39,6 +73,7 @@ export default function ScannerScreen({ targetLang, nativeLang, onSaveWord, save
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
   const [justSaved, setJustSaved] = useState(false);
+  const [sharing, setSharing] = useState(null);
   const [zoom, setZoom] = useState(0);
 
   // Промінь розгортки: рівномірний хід згори вниз. Тут linear доречний —
@@ -101,31 +136,49 @@ export default function ScannerScreen({ targetLang, nativeLang, onSaveWord, save
   const alreadySaved =
     result && savedWords.some((w) => w.word.toLowerCase() === result.word.toLowerCase());
 
+  // Стан `loading` оновлюється лише з наступним рендером — два тапи в одному
+  // кадрі обидва проходили б перевірку, і другий знімок падав на нативному
+  // боці. Ref спрацьовує миттєво.
+  const busy = useRef(false);
+
   async function scan() {
-    if (!cameraRef.current || loading) return;
+    if (!cameraRef.current || busy.current) return;
     // Ліміт перевіряємо до зйомки: інакше витратимо виклик AI і покажемо
     // відмову вже після нього — це виглядає як обман.
     if (onGuardScan && !onGuardScan()) return;
+    busy.current = true;
     setError('');
+    let photo = null;
     try {
       setLoading(true);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      const photo = await cameraRef.current.takePictureAsync({ quality: 0.7 });
-      const small = await ImageManipulator.manipulateAsync(
-        photo.uri,
-        [{ resize: { width: 1024 } }],
-        { compress: 0.6, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+      // На телефоні кадр лишається в пам'яті (pictureRef) і не пишеться на
+      // диск, щоб потім двічі читатись назад. Веб так не вміє — там файл.
+      const native = Platform.OS !== 'web';
+      photo = await cameraRef.current.takePictureAsync({ quality: 0.7, ...(native ? { pictureRef: true } : null) });
+      const source = native ? photo : photo.uri;
+      const small = await renderAndSave(
+        ImageManipulator.manipulate(source).resize({ width: Math.min(1024, photo.width) }),
+        { compress: 0.6, format: SaveFormat.JPEG, base64: true }
       );
       const res = await recognizeImage(small.base64, targetLang, nativeLang);
-      if (onCountScan) await onCountScan();
+      if (onScanned) onScanned(res);
       // Вирізаємо САМ предмет по рамці від моделі, а не весь кадр.
       // Скріншот екрана з обрізаними краями виглядає випадковим і губить стиль;
       // вирізаний предмет читається як наліпка, яку ти зловив.
-      const cut = await cropToObject(photo, res.box, res.outline);
+      const cut = await cropToObject(source, photo.width, photo.height, res.box, res.outline);
       setResult({ ...res, photo: cut.uri, shape: cut.shape });
       setJustSaved(false);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      // Ліміт вичерпано — це не помилка, а пейвол (сервер навіть не кликав AI).
+      if (e.message === 'SCAN_LIMIT' && onLimitReached) {
+        onLimitReached(e.data);
+        return;
+      }
+      // Сервер не впізнав пристрій — тихо беремо нову ідентичність.
+      if (e.message === 'SCAN_AUTH' && onSessionLost) onSessionLost();
       // Коди з api.js перетворюємо на людські фрази. Кожна каже, ЩО робити,
       // а не просто констатує поломку.
       const MAP = {
@@ -137,8 +190,9 @@ export default function ScannerScreen({ targetLang, nativeLang, onSaveWord, save
         SCAN_EMPTY: 'scanErrEmpty',
       };
       setError(t(MAP[e.message] || 'scanErrServer'));
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
+      if (photo && typeof photo.release === 'function') photo.release();
+      busy.current = false;
       setLoading(false);
     }
   }
@@ -150,18 +204,16 @@ export default function ScannerScreen({ targetLang, nativeLang, onSaveWord, save
   // (0–1). Рахувати це пізніше, в наліпці, не можна: кадр не квадратний
   // (3:4), а квадрат ще й притискається до країв фото — без знання W, H і
   // зсуву силует їде вбік від предмета.
-  async function cropToObject(photo, box, outline) {
+  async function cropToObject(source, W, H, box, outline) {
     try {
       if (!box) {
-        const c = await ImageManipulator.manipulateAsync(photo.uri, [{ resize: { width: 300 } }], {
-          compress: 0.6,
-          format: ImageManipulator.SaveFormat.JPEG,
+        const c = await renderAndSave(ImageManipulator.manipulate(source).resize({ width: STICKER_PX }), {
+          compress: 0.7,
+          format: SaveFormat.JPEG,
         });
         return { uri: c.uri, shape: null };
       }
       const [y1, x1, y2, x2] = box;
-      const W = photo.width;
-      const H = photo.height;
       // Трохи повітря навколо предмета, щоб маска не зрізала контур.
       const pad = 0.06;
       let left = (x1 / 1000 - pad) * W;
@@ -175,18 +227,21 @@ export default function ScannerScreen({ targetLang, nativeLang, onSaveWord, save
       left = Math.max(0, Math.min(W - side, cx - side / 2));
       top = Math.max(0, Math.min(H - side, cy - side / 2));
 
-      const c = await ImageManipulator.manipulateAsync(
-        photo.uri,
-        [
-          { crop: { originX: Math.round(left), originY: Math.round(top), width: Math.round(side), height: Math.round(side) } },
-          { resize: { width: 300 } },
-        ],
-        { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
+      // Цілі пікселі з округленням ВНИЗ: originX + width ніколи не вийде за W
+      // (на Android вихід навіть на 1 px — виняток і скан без наліпки).
+      const S = Math.floor(side);
+      const L = Math.floor(left);
+      const T = Math.floor(top);
+      const c = await renderAndSave(
+        ImageManipulator.manipulate(source)
+          .crop({ originX: L, originY: T, width: S, height: S })
+          .resize({ width: Math.min(STICKER_PX, S) }),
+        { compress: 0.8, format: SaveFormat.JPEG }
       );
       const shape = Array.isArray(outline)
         ? outline.map(([y, x]) => [
-            Math.round((((x / 1000) * W - left) / side) * 1000) / 1000,
-            Math.round((((y / 1000) * H - top) / side) * 1000) / 1000,
+            Math.round((((x / 1000) * W - L) / S) * 1000) / 1000,
+            Math.round((((y / 1000) * H - T) / S) * 1000) / 1000,
           ])
         : null;
       return { uri: c.uri, shape };
@@ -195,11 +250,28 @@ export default function ScannerScreen({ targetLang, nativeLang, onSaveWord, save
     }
   }
 
+  // Слово з результату скану в тому вигляді, в якому його зберігає словник.
+  // usage — службове поле відповіді сервера, у словник воно не йде.
+  function resultWord() {
+    const { usage, ...word } = result;
+    return { ...word, lang: targetLang, nativeLang };
+  }
+
   function save() {
     if (!result || alreadySaved) return;
-    onSaveWord({ ...result, lang: targetLang, nativeLang });
+    onSaveWord(resultWord());
     setJustSaved(true);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }
+
+  function share() {
+    Haptics.selectionAsync();
+    setSharing({ kind: 'word', word: resultWord() });
+  }
+
+  function closeResult() {
+    setSharing(null);
+    setResult(null);
   }
 
   if (!permission) return <View style={s.center} />;
@@ -230,7 +302,13 @@ export default function ScannerScreen({ targetLang, nativeLang, onSaveWord, save
 
   return (
     <View style={s.root}>
-      <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing="back" zoom={zoom} />
+      <CameraView
+        ref={cameraRef}
+        style={StyleSheet.absoluteFill}
+        facing="back"
+        zoom={zoom}
+        onMountError={() => setError(t('scanErrCamera'))}
+      />
 
       <View style={StyleSheet.absoluteFill} {...pan.panHandlers} />
 
@@ -281,7 +359,6 @@ export default function ScannerScreen({ targetLang, nativeLang, onSaveWord, save
             </Pressable>
           );
         })}
-        <Text style={s.zoomValueText}>{zoomLabel(zoom)}</Text>
       </View>
 
       {/* Затвор як в Apple Camera: біле кільце + біле коло */}
@@ -304,16 +381,16 @@ export default function ScannerScreen({ targetLang, nativeLang, onSaveWord, save
         </FadeIn>
       ) : null}
 
-      <Modal visible={!!result} transparent animationType="slide" onRequestClose={() => setResult(null)}>
-        <Pressable style={s.modalBackdrop} onPress={() => setResult(null)} />
+      <Modal visible={!!result} transparent animationType="slide" onRequestClose={closeResult}>
+        <Pressable style={s.modalBackdrop} onPress={closeResult} />
         <View style={s.sheet}>
           <View style={s.sheetHandle} />
           {result ? (
             <>
               {result.photo ? (
-                <FadeIn style={{ alignItems: 'center', marginBottom: 16 }}>
-                  <StickerLarge uri={result.photo} shape={result.shape} outline={result.outline} box={result.box} size={124} />
-                </FadeIn>
+                <View style={{ alignItems: 'center', marginBottom: 14 }}>
+                  <StickerLarge uri={result.photo} shape={result.shape} outline={result.outline} box={result.box} size={150} pop />
+                </View>
               ) : null}
               <FadeIn dy={14}>
                 <View style={s.wordRow}>
@@ -339,24 +416,35 @@ export default function ScannerScreen({ targetLang, nativeLang, onSaveWord, save
               ) : null}
 
               <FadeIn delay={90} style={s.sheetBtns}>
-                {alreadySaved || justSaved ? (
-                  <View style={s.savedBadge}>
-                    <Text style={s.savedBadgeText}>{t('saved')}</Text>
+                <View style={s.btnRow}>
+                  <View style={{ flex: 1 }}>
+                    {alreadySaved || justSaved ? (
+                      <View style={s.savedBadge}>
+                        <Text style={s.savedBadgeText}>{t('saved')}</Text>
+                      </View>
+                    ) : (
+                      <GradBtn title={t('save')} onPress={save} />
+                    )}
                   </View>
-                ) : (
-                  <GradBtn title={t('save')} onPress={save} />
-                )}
-                <SecBtn title={t('scanAgain')} onPress={() => setResult(null)} />
+                  <Press style={s.shareBtn} onPress={share} accessibilityLabel={t('share')}>
+                    <IcShare size={22} color={C.accent} />
+                  </Press>
+                </View>
+                <SecBtn title={t('scanAgain')} onPress={closeResult} />
               </FadeIn>
             </>
           ) : null}
         </View>
+        {/* Картка «поділитись» живе всередині цього ж Modal: iOS не покаже
+            другий нативний Modal поверх уже відкритого. */}
+        <ShareSheet visible={!!sharing} payload={sharing} onClose={() => setSharing(null)} t={t} />
       </Modal>
     </View>
   );
 }
 
 const FRAME = 240;
+const SHUTTER_BOTTOM = UNDER_TAB + 12;
 
 const makeStyles = (C) =>
   StyleSheet.create({
@@ -412,7 +500,7 @@ const makeStyles = (C) =>
 
     zoomRow: {
       position: 'absolute',
-      bottom: 152,
+      bottom: SHUTTER_BOTTOM + 78 + 16,
       alignSelf: 'center',
       flexDirection: 'row',
       alignItems: 'center',
@@ -425,9 +513,9 @@ const makeStyles = (C) =>
     zoomChipActive: { backgroundColor: 'rgba(255,255,255,0.22)' },
     zoomChipText: { color: 'rgba(255,255,255,0.65)', fontSize: 13, fontFamily: F.semi },
     zoomChipTextActive: { color: '#FFD60A' },
-    zoomValueText: { color: '#fff', fontSize: 13, fontFamily: F.semi, paddingHorizontal: 10, minWidth: 52, textAlign: 'center' },
 
-    shutterWrap: { position: 'absolute', bottom: 40, width: '100%', alignItems: 'center' },
+    // Таб-бар лежить поверх камери, тож затвор стоїть над ним, а не під ним.
+    shutterWrap: { position: 'absolute', bottom: SHUTTER_BOTTOM, width: '100%', alignItems: 'center' },
     shutterRing: {
       width: 78,
       height: 78,
@@ -448,7 +536,7 @@ const makeStyles = (C) =>
 
     errorWrap: {
       position: 'absolute',
-      bottom: 205,
+      bottom: SHUTTER_BOTTOM + 78 + 16 + 40 + 14,
       alignSelf: 'center',
       backgroundColor: 'rgba(28,28,30,0.97)',
       borderRadius: R.md,
@@ -505,6 +593,14 @@ const makeStyles = (C) =>
     example: { color: C.text, fontSize: 15, lineHeight: 22, paddingRight: 20 },
     exampleTr: { color: C.dim, fontSize: 13, marginTop: 6, lineHeight: 19 },
     sheetBtns: { marginTop: 22, gap: 10 },
+    btnRow: { flexDirection: 'row', gap: 10, alignItems: 'stretch' },
+    shareBtn: {
+      width: 56,
+      borderRadius: R.lg,
+      backgroundColor: C.accentSoft,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
     savedBadge: { borderRadius: R.md, paddingVertical: 15, alignItems: 'center', backgroundColor: C.greenSoft },
     savedBadgeText: { color: C.green, fontSize: 17, fontFamily: F.semi },
   });

@@ -47,7 +47,7 @@ export function MaterialEdge() {
     <View
       pointerEvents="none"
       style={[
-        StyleSheet.absoluteFillObject,
+        StyleSheet.absoluteFill,
         {
           borderTopWidth: StyleSheet.hairlineWidth,
           borderTopColor: isDark ? 'rgba(255,255,255,0.10)' : 'rgba(255,255,255,0.65)',

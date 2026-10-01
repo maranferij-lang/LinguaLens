@@ -1,113 +1,94 @@
-// Клієнтська авторизація: зберігання сесії, вхід/реєстрація/вихід.
-// Токен лежить у SecureStore (захищене сховище iOS), профіль — в AsyncStorage.
+// Анонімна ідентичність пристрою.
+//
+// У v1 немає реєстрації: при першому запуску застосунок тихо отримує від
+// сервера id і токен. Цього досить для слова дня (свій порядок слів),
+// серверного ліміту сканів і прив'язки підписки RevenueCat.
+//
+// Токен лежить у Keychain (SecureStore). На iOS Keychain переживає
+// видалення застосунку — тож перевстановлення не обнуляє ні ліміт сканів,
+// ні зв'язок із покупкою.
+import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { apiDeleteAccount, apiLogin, apiMe, apiRegister, apiUpdateProfile, setSessionToken } from './api';
+import { apiCreateDevice, apiDeleteMe, setSessionToken } from './api';
 
-// SecureStore = Keychain на iOS. Якщо пакет ще не встановлено (`npx expo install
-// expo-secure-store`) — не падаємо, а тимчасово тримаємо токен в AsyncStorage.
-let SecureStore;
-try {
-  SecureStore = require('expo-secure-store');
-  if (typeof SecureStore.getItemAsync !== 'function') throw new Error('no api');
-} catch (_) {
-  SecureStore = {
-    getItemAsync: (k) => AsyncStorage.getItem('sec_' + k),
-    setItemAsync: (k, v) => AsyncStorage.setItem('sec_' + k, v),
-    deleteItemAsync: (k) => AsyncStorage.removeItem('sec_' + k),
-  };
+// SecureStore = Keychain на iOS. На вебі (лише для перегляду верстки) модуль
+// є, але порожній — тоді тримаємо токен в AsyncStorage.
+let SecureStore = null;
+if (Platform.OS !== 'web') {
+  try {
+    SecureStore = require('expo-secure-store');
+    if (typeof SecureStore.getItemAsync !== 'function') SecureStore = null;
+  } catch (_) {}
 }
 
 const TOKEN_KEY = 'll_token';
-const USER_KEY = 'll_user_v1';
+const USER_KEY = 'll_device_v1';
+// Після першого розблокування після перезавантаження — щоб токен був
+// доступний і для фонових задач, але не до того, як людина ввела код.
+const KEYCHAIN = SecureStore ? { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK } : undefined;
 
-export async function loadSession() {
-  let token = '';
+async function readToken() {
   try {
-    token = (await SecureStore.getItemAsync(TOKEN_KEY)) || '';
-  } catch (_) {}
-  let user = null;
-  try {
-    const raw = await AsyncStorage.getItem(USER_KEY);
-    user = raw ? JSON.parse(raw) : null;
-  } catch (_) {}
-  setSessionToken(token);
-  return { token, user };
-}
-
-async function saveSession(token, user) {
-  setSessionToken(token);
-  try {
-    if (token) await SecureStore.setItemAsync(TOKEN_KEY, token);
-    else await SecureStore.deleteItemAsync(TOKEN_KEY);
+    if (SecureStore) return (await SecureStore.getItemAsync(TOKEN_KEY, KEYCHAIN)) || '';
   } catch (_) {}
   try {
-    if (user) await AsyncStorage.setItem(USER_KEY, JSON.stringify(user));
-    else await AsyncStorage.removeItem(USER_KEY);
-  } catch (_) {}
-}
-
-// Перетворює технічні коди помилок на зрозумілі повідомлення
-export function authErrorText(err, t) {
-  const code = err?.code || err?.message || '';
-  const map = {
-    INVALID_EMAIL: 'errInvalidEmail',
-    WEAK_PASSWORD: 'errWeakPassword',
-    EMAIL_TAKEN: 'errEmailTaken',
-    BAD_CREDENTIALS: 'errBadCredentials',
-    TOO_MANY_ATTEMPTS: 'errTooMany',
-    OFFLINE: 'errOffline',
-    TIMEOUT: 'errTimeout',
-  };
-  return t(map[code] || 'errGeneric');
-}
-
-export async function register(email, password, name) {
-  const d = await apiRegister(email, password, name);
-  await saveSession(d.token, d.user);
-  return d.user;
-}
-
-export async function login(email, password) {
-  const d = await apiLogin(email, password);
-  await saveSession(d.token, d.user);
-  return d.user;
-}
-
-export async function logout() {
-  await saveSession('', null);
-}
-
-// Видаляє акаунт на сервері, потім локальну сесію. Якщо сервер недоступний —
-// кидає помилку і НЕ розлогінює: інакше людина думала б, що акаунт видалено.
-export async function deleteAccount() {
-  await apiDeleteAccount();
-  await saveSession('', null);
-}
-
-// Оновити профіль (ім'я / аватар) — і локально, і на сервері
-export async function updateProfile(patch, currentUser) {
-  const optimistic = { ...currentUser, ...patch };
-  await AsyncStorage.setItem(USER_KEY, JSON.stringify(optimistic)).catch(() => {});
-  try {
-    const d = await apiUpdateProfile(patch);
-    await AsyncStorage.setItem(USER_KEY, JSON.stringify(d.user)).catch(() => {});
-    return d.user;
+    return (await AsyncStorage.getItem('sec_' + TOKEN_KEY)) || '';
   } catch (_) {
-    return optimistic; // офлайн — лишаємо локальну зміну
+    return '';
   }
 }
 
-// Перевірити, чи сесія ще жива (тихо, без помилок для юзера)
-export async function refreshUser() {
+async function writeToken(token) {
   try {
-    const d = await apiMe();
-    await AsyncStorage.setItem(USER_KEY, JSON.stringify(d.user)).catch(() => {});
-    return d.user;
-  } catch (e) {
-    if (e?.status === 401) {
-      await saveSession('', null);
-      return null;
+    if (SecureStore) {
+      if (token) await SecureStore.setItemAsync(TOKEN_KEY, token, KEYCHAIN);
+      else await SecureStore.deleteItemAsync(TOKEN_KEY, KEYCHAIN);
+      return;
     }
-    return undefined; // офлайн — лишаємо як було
+  } catch (_) {}
+  try {
+    if (token) await AsyncStorage.setItem('sec_' + TOKEN_KEY, token);
+    else await AsyncStorage.removeItem('sec_' + TOKEN_KEY);
+  } catch (_) {}
+}
+
+// Повертає { token, userId } або null, якщо сервер зараз недоступний
+// (тоді спробуємо знову при наступному старті чи скані).
+export async function ensureSession() {
+  const token = await readToken();
+  let userId = null;
+  try {
+    userId = (await AsyncStorage.getItem(USER_KEY)) || null;
+  } catch (_) {}
+  if (token && userId) {
+    setSessionToken(token);
+    return { token, userId };
   }
+  try {
+    const d = await apiCreateDevice();
+    await writeToken(d.token);
+    await AsyncStorage.setItem(USER_KEY, d.user.id).catch(() => {});
+    setSessionToken(d.token);
+    return { token: d.token, userId: d.user.id };
+  } catch (_) {
+    if (token) setSessionToken(token);
+    return null;
+  }
+}
+
+// Сервер забув пристрій (стерли дані або змінили AUTH_SECRET) — тихо
+// отримуємо нову ідентичність.
+export async function renewSession() {
+  await writeToken('');
+  await AsyncStorage.removeItem(USER_KEY).catch(() => {});
+  setSessionToken('');
+  return ensureSession();
+}
+
+// «Стерти мої дані»: прибираємо запис на сервері й починаємо з чистого
+// аркуша. Кидає помилку, якщо сервер недоступний, — інакше людина думала б,
+// що дані стерто.
+export async function eraseServerData() {
+  await apiDeleteMe();
+  return renewSession();
 }

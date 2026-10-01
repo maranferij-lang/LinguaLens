@@ -8,6 +8,7 @@
 //   1) вебхук RevenueCat → user.proUntil (миттєво після покупки/продовження);
 //   2) REST-запит до RevenueCat, коли безкоштовний ліміт вичерпано, — на
 //      випадок, якщо вебхук ще не налаштований або загубився. Кеш 10 хв.
+const crypto = require('crypto');
 const store = require('./store');
 
 const FREE_SCANS_PER_DAY = Number(process.env.FREE_SCANS_PER_DAY || 5);
@@ -66,10 +67,12 @@ async function fetchRevenueCatUntil(userId) {
 }
 
 // Повертає { active, until }. Може оновити й зберегти user (кеш перевірки).
+// refresh — одразу після покупки: клієнт просить перепитати RevenueCat, а не
+// чекати вебхука чи кінця 10-хвилинного кешу.
 async function proStatus(user, { refresh = false } = {}) {
   const now = Date.now();
   let until = user.proUntil || null;
-  if (until && until > now) return { active: true, until };
+  if (until && until > now && !refresh) return { active: true, until };
 
   const stale = !user.proCheckedAt || now - user.proCheckedAt > RC_CACHE_MS;
   if (RC_SECRET && (refresh || stale)) {
@@ -123,10 +126,31 @@ const EXTENDS = new Set([
   'NON_RENEWING_PURCHASE',
   'SUBSCRIPTION_EXTENDED',
   'TEMPORARY_ENTITLEMENT_GRANT',
+  'REFUND_REVERSED',
 ]);
 
+// Порівняння за сталий час: інакше секрет можна було б підбирати за тим,
+// наскільки швидко сервер каже «ні».
 function webhookAuthorized(req) {
-  return !!RC_WEBHOOK_AUTH && req.headers.authorization === RC_WEBHOOK_AUTH;
+  if (!RC_WEBHOOK_AUTH) return false;
+  const got = Buffer.from(String(req.headers.authorization || ''));
+  const want = Buffer.from(RC_WEBHOOK_AUTH);
+  return got.length === want.length && crypto.timingSafeEqual(got, want);
+}
+
+// Що подія означає для конкретного користувача, якщо RevenueCat REST
+// недоступний (немає секретного ключа). Повертає новий proUntil або undefined.
+function untilFromEvent(ev, id, current) {
+  if (ev.type === 'TRANSFER') {
+    // покупку перенесли на інший id (відновлення на іншому пристрої):
+    // старий власник її втрачає, новий отримає при наступній перевірці
+    return (ev.transferred_from || []).includes(id) ? null : undefined;
+  }
+  if (EXTENDS.has(ev.type)) return ev.expiration_at_ms || FOREVER;
+  if (ev.type === 'EXPIRATION') return Math.min(current || Infinity, ev.expiration_at_ms || Date.now());
+  // Повернення коштів через підтримку Apple — доступ припиняється одразу.
+  if (ev.type === 'CANCELLATION' && ev.cancel_reason === 'CUSTOMER_SUPPORT') return Date.now();
+  return undefined;
 }
 
 async function handleWebhook(body) {
@@ -141,14 +165,22 @@ async function handleWebhook(body) {
   for (const id of ids) {
     const user = await store.get('users', id);
     if (!user) continue;
-    if (forPro && EXTENDS.has(ev.type)) {
-      user.proUntil = ev.expiration_at_ms || FOREVER;
-    } else if (forPro && ev.type === 'EXPIRATION') {
-      user.proUntil = Math.min(user.proUntil || Infinity, ev.expiration_at_ms || Date.now());
+    // Найнадійніше — сприйняти подію як сигнал і перечитати стан у
+    // RevenueCat (так радить і сам RevenueCat): не треба відтворювати всю
+    // машину станів підписки.
+    let fresh = false;
+    if (RC_SECRET) {
+      try {
+        user.proUntil = await fetchRevenueCatUntil(id);
+        user.proCheckedAt = Date.now();
+        fresh = true;
+      } catch (_) {}
     }
-    // будь-яка інша подія (TRANSFER, CANCELLATION, BILLING_ISSUE…) —
-    // просто змушуємо наступну перевірку сходити в RevenueCat
-    user.proCheckedAt = 0;
+    if (!fresh) {
+      const until = forPro || ev.type === 'TRANSFER' ? untilFromEvent(ev, id, user.proUntil) : undefined;
+      if (until !== undefined) user.proUntil = until;
+      user.proCheckedAt = 0;
+    }
     await store.put('users', id, user);
     touched++;
   }

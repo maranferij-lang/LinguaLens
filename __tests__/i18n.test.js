@@ -1,0 +1,210 @@
+// Контракт локалізації. Забутий переклад нічим не видає себе в коді: makeT
+// тихо падає на англійську (або показує сам ключ), і посеред українського
+// екрана вилазить «Due today» чи «scanErrCamera». Тому стережемо тут:
+// однакові ключі й підстановки в усіх мовах, кожен t('…') з коду існує,
+// множина й типографіка — за правилами з шапки src/i18n.js.
+import fs from 'fs';
+import path from 'path';
+
+import { STRINGS, makeT, pluralIndex } from '../src/i18n';
+import { ACHIEVEMENTS } from '../src/achievements';
+import { COMPARISON, PLANS, PRO_BENEFITS } from '../src/subscription';
+
+const ROOT = path.join(__dirname, '..');
+const LANGS = ['en', 'uk', 'de', 'es'];
+// Скільки форм множини в {n|…}: українська — три (1 слово, 2 слова, 5 слів)
+const FORMS = { en: 2, uk: 3, de: 2, es: 2 };
+// Ці рядки капсом свідомо: бейдж слова дня малюється без textTransform,
+// а літери днів тижня — це не текст, а сім підписів під стовпчиками.
+const CAPS_OK = ['wordOfDay', 'dowLetters'];
+
+const PLACEHOLDER = /\{(\w+)(?:\|[^{}]*)?\}/g;
+const PLURAL = /\{(\w+)\|([^{}]*)\}/g;
+
+function placeholders(s) {
+  return [...new Set([...s.matchAll(PLACEHOLDER)].map((m) => m[1]))].sort();
+}
+
+// App.js + усе src/**/*.js
+function sourceFiles() {
+  const out = [path.join(ROOT, 'App.js')];
+  const walk = (dir) => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, e.name);
+      if (e.isDirectory()) walk(p);
+      else if (e.name.endsWith('.js')) out.push(p);
+    }
+  };
+  walk(path.join(ROOT, 'src'));
+  return out;
+}
+
+// Ключі, які код просить у t(): буквальні t('key') плюс ті, що збираються
+// з даних (тарифи, досягнення, переваги, вкладки, слайди, коди помилок).
+function usedKeys() {
+  const used = new Map(); // ключ → файли
+  const add = (key, where) => {
+    if (!used.has(key)) used.set(key, new Set());
+    used.get(key).add(where);
+  };
+  for (const file of sourceFiles()) {
+    const rel = path.relative(ROOT, file);
+    const src = fs.readFileSync(file, 'utf8');
+    for (const m of src.matchAll(/\bt\(\s*(['"])([A-Za-z_]\w*)\1\s*[,)]/g)) add(m[2], rel);
+    // { label: 'tabScan' } у TABS, { title: 'ob1t', desc: 'ob1d' } у слайдах,
+    // { SCAN_RATE: 'scanErrRate' } у мапі помилок сканера
+    for (const m of src.matchAll(/\blabel:\s*'(tab\w+)'/g)) add(m[1], rel);
+    for (const m of src.matchAll(/\b(?:title|desc):\s*'(ob\d\w*)'/g)) add(m[1], rel);
+    for (const m of src.matchAll(/\bSCAN_[A-Z_]+:\s*'(\w+)'/g)) add(m[1], rel);
+  }
+  for (const p of PLANS) {
+    add(p.labelKey, 'src/subscription.js PLANS');
+    if (p.saveKey) add(p.saveKey, 'src/subscription.js PLANS');
+  }
+  for (const a of ACHIEVEMENTS) add('ach_' + a.id, 'src/achievements.js');
+  for (const b of PRO_BENEFITS) add('pro_' + b.id, 'src/subscription.js PRO_BENEFITS');
+  for (const r of COMPARISON) add('cmp_' + r.id, 'src/subscription.js COMPARISON');
+  return used;
+}
+
+describe('key sets', () => {
+  test.each(LANGS.filter((l) => l !== 'en'))('%s has exactly the same keys as en', (lang) => {
+    const en = Object.keys(STRINGS.en);
+    const other = Object.keys(STRINGS[lang]);
+    expect({
+      missing: en.filter((k) => !(k in STRINGS[lang])),
+      extra: other.filter((k) => !(k in STRINGS.en)),
+    }).toEqual({ missing: [], extra: [] });
+  });
+
+  // У літералі об'єкта дубль ключа не помилка — останній мовчки перемагає.
+  // Так колись «Save word» тихо перетворилось на «Save» лише в двох мовах.
+  test('no key is defined twice inside one language block', () => {
+    const src = fs.readFileSync(path.join(ROOT, 'src/i18n.js'), 'utf8');
+    const dupes = {};
+    for (const lang of LANGS) {
+      const head = `\n  ${lang}: {`;
+      const start = src.indexOf(head);
+      expect(start).toBeGreaterThan(-1);
+      const body = src
+        .slice(start + head.length, src.indexOf('\n  },', start))
+        .replace(/'(?:[^'\\\n]|\\.)*'/g, "''")
+        .replace(/"(?:[^"\\\n]|\\.)*"/g, '""')
+        .replace(/\/\/.*$/gm, '');
+      const seen = new Set();
+      for (const m of body.matchAll(/([A-Za-z_]\w*)\s*:/g)) {
+        if (seen.has(m[1])) (dupes[lang] ||= []).push(m[1]);
+        seen.add(m[1]);
+      }
+    }
+    expect(dupes).toEqual({});
+  });
+
+  test('every key used in code exists in en', () => {
+    const missing = [];
+    for (const [key, files] of usedKeys()) {
+      if (!(key in STRINGS.en)) missing.push(`${key} (${[...files].join(', ')})`);
+    }
+    expect(missing).toEqual([]);
+  });
+});
+
+describe('placeholders and plurals', () => {
+  test('every key has the same placeholders in all languages', () => {
+    const diff = [];
+    for (const key of Object.keys(STRINGS.en)) {
+      const want = placeholders(STRINGS.en[key]);
+      for (const lang of LANGS) {
+        const s = STRINGS[lang][key];
+        if (s === undefined) continue; // відсутні ключі ловить тест вище
+        const got = placeholders(s);
+        if (got.join() !== want.join()) diff.push(`${lang}.${key}: {${got}} ≠ en {${want}}`);
+      }
+    }
+    expect(diff).toEqual([]);
+  });
+
+  test('plural blocks have the right number of forms for the language', () => {
+    const bad = [];
+    for (const lang of LANGS) {
+      for (const [key, s] of Object.entries(STRINGS[lang])) {
+        for (const m of s.matchAll(PLURAL)) {
+          const n = m[2].split('|').length;
+          if (n !== FORMS[lang]) bad.push(`${lang}.${key}: ${n} forms, want ${FORMS[lang]}`);
+        }
+      }
+    }
+    expect(bad).toEqual([]);
+  });
+
+  test('Ukrainian plural rule', () => {
+    const idx = (n) => pluralIndex('uk', n);
+    expect([1, 21, 101, 1001].map(idx)).toEqual([0, 0, 0, 0]); // слово
+    expect([2, 3, 4, 22, 34, 102].map(idx)).toEqual([1, 1, 1, 1, 1, 1]); // слова
+    expect([0, 5, 9, 11, 12, 13, 14, 25, 111, 112].map(idx)).toEqual([2, 2, 2, 2, 2, 2, 2, 2, 2, 2]); // слів
+    expect(idx(1.5)).toBe(1); // 1,5 години
+  });
+
+  test('two-form plural rule for en/de/es', () => {
+    for (const lang of ['en', 'de', 'es']) {
+      expect([0, 1, 2, 21].map((n) => pluralIndex(lang, n))).toEqual([1, 0, 1, 1]);
+    }
+  });
+});
+
+describe('makeT', () => {
+  test('substitutes variables and picks plural forms', () => {
+    const uk = makeT('uk');
+    expect(uk('dueToday', { n: 1 })).toBe('На сьогодні: 1 слово');
+    expect(uk('dueToday', { n: 3 })).toBe('На сьогодні: 3 слова');
+    expect(uk('dueToday', { n: 11 })).toBe('На сьогодні: 11 слів');
+    expect(uk('dueToday', { n: 21 })).toBe('На сьогодні: 21 слово');
+    expect(makeT('en')('dueToday', { n: 1 })).toBe('Due today: 1 word');
+    expect(makeT('en')('dueToday', { n: 4 })).toBe('Due today: 4 words');
+    expect(makeT('de')('inDays', { n: 2 })).toBe('in 2 Tagen');
+  });
+
+  test('unknown language falls back to English, unknown key to the key itself', () => {
+    expect(makeT('fr')('cancel')).toBe(STRINGS.en.cancel);
+    expect(makeT('fr')('dueToday', { n: 2 })).toBe('Due today: 2 words');
+    expect(makeT('uk')('__nope__')).toBe('__nope__');
+  });
+
+  test('without vars the string is returned untouched', () => {
+    expect(makeT('en')('cancel')).toBe('Cancel');
+  });
+
+  test('a plural block whose variable is not passed is left as is', () => {
+    expect(makeT('en')('dueToday', { x: 1 })).toBe(STRINGS.en.dueToday);
+  });
+});
+
+describe('copy style', () => {
+  const all = () => LANGS.flatMap((lang) => Object.entries(STRINGS[lang]).map(([k, s]) => [lang, k, s]));
+
+  test('no emoji or check marks in UI copy', () => {
+    const bad = all().filter(([, , s]) => /\p{Extended_Pictographic}|[✓✔✗✘]/u.test(s));
+    expect(bad).toEqual([]);
+  });
+
+  test('typographic quotes, apostrophes and ellipsis only', () => {
+    const bad = all()
+      .filter(([, , s]) => /['"]|\.\.\./.test(s))
+      .map(([lang, k, s]) => `${lang}.${k}: ${s}`);
+    expect(bad).toEqual([]);
+  });
+
+  // Підписи секцій і кепс-лейбли переводить у верхній регістр стиль
+  // (CAPS, sectionLabel). Капс у самому рядку VoiceOver читає по літерах.
+  test('strings are not written in ALL CAPS', () => {
+    const bad = all()
+      .filter(([, k, s]) => !CAPS_OK.includes(k))
+      .filter(([, , s]) => (s.match(/\p{L}/gu) || []).length > 1 && s === s.toUpperCase() && s !== s.toLowerCase())
+      .map(([lang, k, s]) => `${lang}.${k}: ${s}`);
+    expect(bad).toEqual([]);
+  });
+
+  test('dowLetters has one letter per weekday', () => {
+    for (const lang of LANGS) expect([...STRINGS[lang].dowLetters]).toHaveLength(7);
+  });
+});

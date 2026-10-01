@@ -1,0 +1,6 @@
+{
+  "ios": {
+    "NSCameraUsageDescription": "LinguaLens usa la cámara para reconocer un objeto y mostrar cómo se llama en el idioma que estás aprendiendo.",
+    "CFBundleDisplayName": "LinguaLens"
+  }
+}

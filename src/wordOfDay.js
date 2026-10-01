@@ -31,6 +31,31 @@ if (Notifications) {
   });
 }
 
+// Тап по сповіщенню → колбек із data сповіщення.
+// Холодний старт: подія приходить ще до підписки JS — її бачить лише
+// getLastNotificationResponse(). Запущений застосунок — слухач.
+// Обидва шляхи можуть повідомити той самий тап, тож відсіюємо за id.
+export function subscribeToNotificationTaps(onTap) {
+  if (!Notifications) return () => {};
+  let lastId = null;
+  const handle = (response) => {
+    if (!response || response.actionIdentifier !== Notifications.DEFAULT_ACTION_IDENTIFIER) return;
+    const req = response.notification && response.notification.request;
+    if (!req || req.identifier === lastId) return;
+    lastId = req.identifier;
+    // щоб при наступному запуску не перекинуло на вкладку вдруге
+    try {
+      Notifications.clearLastNotificationResponse();
+    } catch (_) {}
+    onTap((req.content && req.content.data) || {});
+  };
+  try {
+    handle(Notifications.getLastNotificationResponse());
+  } catch (_) {}
+  const sub = Notifications.addNotificationResponseReceivedListener(handle);
+  return () => sub?.remove?.();
+}
+
 export async function requestPermission() {
   if (!Notifications) return false;
   try {
@@ -90,12 +115,23 @@ export async function syncWordOfDay({ lang, native, enabled, hour = DEFAULT_HOUR
   return cache;
 }
 
+// Скасовує лише сповіщення «слово дня». cancelAll тут не годиться: він
+// стер би й нагадування про кінець пробного періоду.
+async function cancelWordOfDay() {
+  try {
+    const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+    await Promise.all(
+      scheduled
+        .filter((r) => r.content && r.content.data && r.content.data.type === 'word-of-day')
+        .map((r) => Notifications.cancelScheduledNotificationAsync(r.identifier))
+    );
+  } catch (_) {}
+}
+
 // Плануємо по одному сповіщенню на кожен майбутній день із кешу
 export async function rescheduleNotifications(cache, enabled, hour = DEFAULT_HOUR) {
   if (!Notifications) return;
-  try {
-    await Notifications.cancelAllScheduledNotificationsAsync();
-  } catch (_) {}
+  await cancelWordOfDay();
 
   if (!enabled || !cache || !Array.isArray(cache.words)) return;
   if (!(await hasPermission())) return;
@@ -118,8 +154,9 @@ export async function rescheduleNotifications(cache, enabled, hour = DEFAULT_HOU
 
     try {
       await Notifications.scheduleNotificationAsync({
+        identifier: 'wod-' + w.date,
         content: {
-          title: '📖 ' + w.word,
+          title: w.word,
           body: w.translation
             ? w.translation + (w.example ? ' · ' + w.example : '')
             : w.example || '',
@@ -145,6 +182,7 @@ export async function scheduleTrialReminder(untilMs, title, body) {
     if (when.getTime() <= Date.now() + 60000) return false;
     if (!(await hasPermission())) return false;
     await Notifications.scheduleNotificationAsync({
+      identifier: 'trial-end',
       content: { title, body, data: { type: 'trial-end' } },
       trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: when },
     });

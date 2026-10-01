@@ -10,21 +10,29 @@
 //     передвибраних дорогих варіантів — це нечесно і повертається відписками.
 //   • Закрити можна завжди, хрестик великий і на своєму місці. Пейвол, з
 //     якого важко вийти, псує оцінку в App Store сильніше, ніж дає виторгу.
-import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { PLANS, PRO_BENEFITS, COMPARISON, FREE } from './subscription';
+import { PRO_BENEFITS, COMPARISON, FREE } from './subscription';
+import { PRIVACY_URL, TERMS_URL } from './config';
+import { formatDate } from './locale';
 import { ProIcon, PCrown } from './ProIcons';
 import { IcCheck, IcClose } from './icons';
 import { MascotBob } from './Mascot';
 import { FadeIn, GradBtn, Press } from './ui';
 import { CAPS, F, R, type, useTheme } from './theme';
 
-export default function PaywallScreen({ reason, onClose, onPurchase, t }) {
+export default function PaywallScreen({ reason, plans, onClose, onPurchase, onRestore, onOpen, lang, t }) {
   const { C, SHADOW, SHADOW_LG } = useTheme();
   const s = useMemo(() => makeStyles(C), [C]);
   const [picked, setPicked] = useState('year');
   const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState('');
+
+  // Ціни могли не завантажитись при старті (офлайн) — перепитуємо магазин.
+  useEffect(() => {
+    if (onOpen) onOpen();
+  }, []);
 
   // Заголовок під причину: кожна стіна має свій аргумент.
   const HEAD = {
@@ -34,20 +42,43 @@ export default function PaywallScreen({ reason, onClose, onPurchase, t }) {
   };
   const head = HEAD[reason] || { title: t('pwTitle'), text: t('pwText') };
 
-  const plan = PLANS.find((p) => p.id === picked);
+  // Ціни приходять з App Store (RevenueCat) у валюті людини. Поки вони
+  // вантажаться, список порожній — показуємо індикатор, а не вигадані ціни.
+  const list = plans || [];
+  const plan = list.find((p) => p.id === picked) || list.find((p) => p.best) || list[0];
 
   // Пряма дата, коли спишуться гроші. «Через 7 днів» — розмито;
   // конкретне число прибирає відчуття, що щось приховали.
   function chargeDate(days) {
-    const d = new Date(Date.now() + days * 86400000);
-    return d.toLocaleDateString(undefined, { day: 'numeric', month: 'long' });
+    return formatDate(Date.now() + days * 86400000, lang);
   }
 
   async function buy() {
+    if (!plan) return;
     setBusy(true);
+    setNote('');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    await onPurchase(picked);
+    const res = await onPurchase(plan.id);
     setBusy(false);
+    // Скасування в системному вікні — не помилка, мовчимо.
+    if (!res || res.ok || res.cancelled) return;
+    if (res.pending) setNote(t('purchasePending'));
+    else setNote(res.error === 'UNAVAILABLE' ? t('purchasesUnavailable') : t('purchaseFailed'));
+  }
+
+  async function restore() {
+    Haptics.selectionAsync();
+    const next = await onRestore();
+    if (next?.pro) {
+      Alert.alert(t('restoreDone'));
+      onClose();
+    } else {
+      Alert.alert(t('restoreNothing'));
+    }
+  }
+
+  function open(url) {
+    if (url) Linking.openURL(url).catch(() => {});
   }
 
   return (
@@ -120,8 +151,9 @@ export default function PaywallScreen({ reason, onClose, onPurchase, t }) {
 
         {/* Тарифи */}
         <FadeIn delay={90} style={{ gap: 10, marginTop: 26 }}>
-          {PLANS.map((p) => {
-            const active = picked === p.id;
+          {!list.length ? <ActivityIndicator color={C.accent} style={{ marginVertical: 30 }} /> : null}
+          {list.map((p) => {
+            const active = plan?.id === p.id;
             return (
               <Press
                 key={p.id}
@@ -151,7 +183,11 @@ export default function PaywallScreen({ reason, onClose, onPurchase, t }) {
 
                 <View style={{ alignItems: 'flex-end' }}>
                   <Text style={[s.planPrice, active && { color: C.accent }]}>{p.price}</Text>
-                  {p.saveKey ? <Text style={s.saveText}>{t(p.saveKey)}</Text> : null}
+                  {p.save ? (
+                    <Text style={s.saveText}>{t('saveN', { n: p.save })}</Text>
+                  ) : p.saveKey ? (
+                    <Text style={s.saveText}>{t(p.saveKey)}</Text>
+                  ) : null}
                 </View>
               </Press>
             );
@@ -164,21 +200,30 @@ export default function PaywallScreen({ reason, onClose, onPurchase, t }) {
         <GradBtn
           title={plan?.trialDays ? t('startTrial') : t('subscribe')}
           onPress={buy}
-          disabled={busy}
+          disabled={busy || !plan}
         />
+        {note ? <Text style={s.note}>{note}</Text> : null}
         <Text style={s.legal}>
           {plan?.trialDays
             ? t('trialLegal', { p: plan.price, d: chargeDate(plan.trialDays) })
             : t('renewLegal')}
         </Text>
         <View style={s.legalRow}>
-          <Pressable hitSlop={8}>
+          <Pressable hitSlop={8} onPress={restore}>
             <Text style={s.legalLink}>{t('restore')}</Text>
           </Pressable>
           <Text style={s.legalDot}>·</Text>
-          <Pressable hitSlop={8}>
+          <Pressable hitSlop={8} onPress={() => open(TERMS_URL)}>
             <Text style={s.legalLink}>{t('terms')}</Text>
           </Pressable>
+          {PRIVACY_URL ? (
+            <>
+              <Text style={s.legalDot}>·</Text>
+              <Pressable hitSlop={8} onPress={() => open(PRIVACY_URL)}>
+                <Text style={s.legalLink}>{t('privacy')}</Text>
+              </Pressable>
+            </>
+          ) : null}
         </View>
       </View>
     </View>
@@ -310,7 +355,7 @@ const makeStyles = (C) =>
       textAlign: 'center',
       marginTop: 10,
     },
-    legalStrong: { color: C.dim, ...type(12, F.semi), textAlign: 'center', marginTop: 4 },
+    note: { color: C.red, ...type(13, F.semi), textAlign: 'center', marginTop: 10 },
     legalRow: { flexDirection: 'row', justifyContent: 'center', gap: 8, marginTop: 6 },
     legalLink: { color: C.dim, ...type(12, F.semi, { noLead: true }) },
     legalDot: { color: C.faint },

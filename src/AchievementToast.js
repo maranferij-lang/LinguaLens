@@ -14,7 +14,7 @@ import { CAPS, F, R, type, useTheme } from './theme';
 
 const OFF = 150; // на скільки тост ховається за верхній край
 
-export default function AchievementToast({ achievement, onHide, t }) {
+export default function AchievementToast({ achievement, onHide, onPress, t }) {
   const { C, SHADOW_LG } = useTheme();
   const a = useRef(new Animated.Value(0)).current; // 0 — сховано, 1 — на місці
   const timer = useRef(null);
@@ -52,7 +52,14 @@ export default function AchievementToast({ achievement, onHide, t }) {
 
   return (
     <Animated.View style={[styles.wrap, { opacity: a, transform }]} pointerEvents="box-none">
-      <Pressable onPress={hide} accessibilityRole="button">
+      {/* Тап по тосту — поділитись досягненням: саме тепер його найприємніше показати. */}
+      <Pressable
+        onPress={() => {
+          if (onPress) onPress(achievement);
+          hide();
+        }}
+        accessibilityRole="button"
+      >
         <View style={[styles.card, { backgroundColor: C.card }, SHADOW_LG]}>
           <View style={[styles.iconWrap, { backgroundColor: C.accentSoft }]}>
             <AchIcon id={achievement.id} size={30} color={C.accent} />

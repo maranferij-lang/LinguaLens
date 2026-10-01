@@ -30,7 +30,8 @@ export function persistPhoto(tempUri) {
     const dir = new Directory(Paths.document, DIR);
     dir.create({ idempotent: true });
     const name = Date.now().toString(36) + Math.random().toString(36).slice(2, 7) + '.jpg';
-    new File(tempUri).copy(new File(dir, name));
+    // copySync: з SDK 56 copy() асинхронний, а шлях ми повертаємо одразу
+    new File(tempUri).copySync(new File(dir, name));
     return DIR + '/' + name;
   } catch (_) {
     return tempUri;

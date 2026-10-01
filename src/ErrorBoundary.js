@@ -6,9 +6,21 @@
 // саме він потрібен, щоб знайти справжню поломку.
 import { Component } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { getLocales } from 'expo-localization';
 import { MascotBob } from './Mascot';
 import { GradBtn } from './ui';
+import { makeT } from './i18n';
 import { F, R, THEMES, type } from './theme';
+
+// Межа стоїть над App і не бачить налаштувань (вони могли й не прочитатись),
+// тож мову беремо з телефону.
+function deviceT() {
+  let lang = 'en';
+  try {
+    lang = (getLocales()[0]?.languageCode || 'en').toLowerCase();
+  } catch (_) {}
+  return makeT(lang);
+}
 
 export default class ErrorBoundary extends Component {
   state = { error: null };
@@ -32,15 +44,14 @@ export default class ErrorBoundary extends Component {
     // Тему не беремо з контексту: він міг упасти разом із деревом.
     const C = THEMES.light.C;
     const s = makeStyles(C);
+    const t = deviceT();
     const isDev = typeof __DEV__ !== 'undefined' && __DEV__;
 
     return (
       <View style={s.root}>
         <MascotBob pose="encourage" size={150} />
-        <Text style={s.title}>Щось пішло не так</Text>
-        <Text style={s.text}>
-          Застосунок спіткнувся. Твої слова на місці — вони збережені на пристрої.
-        </Text>
+        <Text style={s.title}>{t('crashTitle')}</Text>
+        <Text style={s.text}>{t('crashText')}</Text>
 
         {isDev ? (
           <ScrollView style={s.devBox} contentContainerStyle={{ padding: 12 }}>
@@ -48,7 +59,7 @@ export default class ErrorBoundary extends Component {
           </ScrollView>
         ) : null}
 
-        <GradBtn title="Спробувати знову" onPress={this.reset} style={s.btn} />
+        <GradBtn title={t('crashRetry')} onPress={this.reset} style={s.btn} />
       </View>
     );
   }

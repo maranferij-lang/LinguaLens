@@ -9,15 +9,11 @@
     "userInterfaceStyle": "automatic",
     "backgroundColor": "#FAF8F4",
     "primaryColor": "#5B4FD6",
-    "assetBundlePatterns": [
-      "**/*"
-    ],
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.marik.lingualens",
       "buildNumber": "1",
       "infoPlist": {
-        "NSCameraUsageDescription": "LinguaLens використовує камеру, щоб розпізнати предмет і показати, як він називається мовою, яку ви вчите.",
         "ITSAppUsesNonExemptEncryption": false,
         "CFBundleAllowMixedLocalizations": true
       }
@@ -30,8 +26,7 @@
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
-      },
-      "edgeToEdgeEnabled": true
+      }
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -40,7 +35,10 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "LinguaLens використовує камеру, щоб розпізнати предмет і показати, як він називається мовою, яку ви вчите."
+          "cameraPermission": "LinguaLens uses the camera to recognize an object and show what it’s called in the language you’re learning.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false,
+          "barcodeScannerEnabled": false
         }
       ],
       [
@@ -61,13 +59,41 @@
           }
         }
       ],
-      "expo-secure-store",
+      [
+        "expo-secure-store",
+        {
+          "faceIDPermission": false
+        }
+      ],
       "expo-font",
-      "expo-audio",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": false,
+          "recordAudioAndroid": false,
+          "enableBackgroundPlayback": false
+        }
+      ],
       "expo-asset",
       "expo-status-bar",
       "expo-sharing",
-      "expo-localization"
-    ]
+      [
+        "expo-localization",
+        {
+          "supportedLocales": [
+            "en",
+            "uk",
+            "de",
+            "es"
+          ]
+        }
+      ]
+    ],
+    "locales": {
+      "en": "./locales/en.json",
+      "uk": "./locales/uk.json",
+      "de": "./locales/de.json",
+      "es": "./locales/es.json"
+    }
   }
 }

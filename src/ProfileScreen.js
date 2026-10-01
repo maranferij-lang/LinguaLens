@@ -5,10 +5,10 @@ import * as Haptics from 'expo-haptics';
 import { localDayKey } from './storage';
 import { flagFor, nameFor } from './speech';
 import { evaluate, computeMetrics, levelFromWords, unlockedCount } from './achievements';
-import { IcCheck, IcFlame } from './icons';
+import { IcCheck, IcFlame, IcShare } from './icons';
 import { Mascot, MascotBob } from './Mascot';
 import { AchIcon } from './AchIcons';
-import { Bar, FadeIn, Glass, GradBtn } from './ui';
+import { Bar, FadeIn, Glass, GradBtn, Press } from './ui';
 import { UNDER_TAB } from './Chrome';
 import { layoutNext } from './motion';
 import { F, R, useTheme } from './theme';
@@ -27,13 +27,13 @@ function computeStreak(activeDays) {
   return streak;
 }
 
-export default function ProfileScreen({ words, activity, stats, user, onUpdateUser, onSignIn, t }) {
+export default function ProfileScreen({ words, activity, stats, profile, onUpdateProfile, onShareWeek, onShareAchievement, t }) {
   const { C, SHADOW } = useTheme();
   const s = useMemo(() => makeStyles(C), [C]);
 
   const [tab, setTab] = useState('stats'); // stats | achievements
   const [editing, setEditing] = useState(false);
-  const [draftName, setDraftName] = useState(user?.name || '');
+  const [draftName, setDraftName] = useState(profile.name || '');
 
   const activeDays = new Set([
     ...Object.keys(activity),
@@ -77,23 +77,19 @@ export default function ProfileScreen({ words, activity, stats, user, onUpdateUs
 
   function pickAvatar(pose) {
     Haptics.selectionAsync();
-    onUpdateUser({ avatar: pose });
+    onUpdateProfile({ avatar: pose });
   }
 
-  // Гостю нічого редагувати — профіль живе на сервері. Тап по шапці веде на вхід.
+  // Профіль живе на телефоні (у v1 немає акаунтів) — редагувати можна завжди.
   function openEditor() {
-    if (!user) {
-      if (onSignIn) onSignIn();
-      return;
-    }
-    setDraftName(user.name || '');
+    setDraftName(profile.name || '');
     setEditing(true);
   }
 
   function saveName() {
     setEditing(false);
-    const n = draftName.trim();
-    if (n && n !== user?.name) onUpdateUser({ name: n });
+    const n = draftName.trim().slice(0, 40);
+    if (n !== (profile.name || '')) onUpdateProfile({ name: n });
   }
 
   return (
@@ -107,12 +103,12 @@ export default function ProfileScreen({ words, activity, stats, user, onUpdateUs
       <FadeIn>
         <View style={[s.hero, SHADOW]}>
           <Pressable onPress={openEditor} style={s.avatarWrap}>
-            <MascotBob pose={user?.avatar || 'wave'} size={92} />
+            <MascotBob pose={profile.avatar || 'wave'} size={92} />
           </Pressable>
           <Pressable onPress={openEditor}>
-            <Text style={s.name}>{user?.name || t('guest')}</Text>
+            <Text style={s.name}>{profile.name || t('profileNoName')}</Text>
           </Pressable>
-          <Text style={s.email}>{user?.email || t('guestHint')}</Text>
+          <Text style={s.email}>{t('profileHint')}</Text>
 
           <View style={s.levelRow}>
             <Text style={s.levelText}>{t('level', { n: lvl.level })}</Text>
@@ -193,6 +189,14 @@ export default function ProfileScreen({ words, activity, stats, user, onUpdateUs
                   </View>
                 ))}
               </View>
+              {/* Підсумок тижня як картка для сторіс — головний привід
+                  поділитись, коли тиждень вдався. */}
+              {onShareWeek && words.length ? (
+                <Press style={s.shareWeek} onPress={onShareWeek}>
+                  <IcShare size={17} color={C.accent} />
+                  <Text style={s.shareWeekText}>{t('shareWeek')}</Text>
+                </Press>
+              ) : null}
             </Glass>
           </FadeIn>
 
@@ -219,8 +223,13 @@ export default function ProfileScreen({ words, activity, stats, user, onUpdateUs
       ) : (
         <FadeIn delay={80}>
           <View style={s.achGrid}>
-            {achievements.map((a, i) => (
-              <View key={a.id} style={[s.achCard, a.unlocked ? s.achUnlocked : s.achLocked]}>
+            {achievements.map((a) => (
+              <Pressable
+                key={a.id}
+                disabled={!a.unlocked || !onShareAchievement}
+                onPress={() => onShareAchievement(a)}
+                style={[s.achCard, a.unlocked ? s.achUnlocked : s.achLocked]}
+              >
                 <View style={!a.unlocked && { opacity: 0.32 }}>
                   <AchIcon id={a.id} size={34} color={a.unlocked ? C.accent : C.faint} />
                 </View>
@@ -240,7 +249,7 @@ export default function ProfileScreen({ words, activity, stats, user, onUpdateUs
                     </Text>
                   </>
                 )}
-              </View>
+              </Pressable>
             ))}
           </View>
         </FadeIn>
@@ -268,7 +277,7 @@ export default function ProfileScreen({ words, activity, stats, user, onUpdateUs
             <Text style={s.label}>{t('chooseAvatar')}</Text>
             <View style={s.avatarRow}>
               {AVATARS.map((p) => {
-                const active = (user?.avatar || 'wave') === p;
+                const active = (profile.avatar || 'wave') === p;
                 return (
                   <Pressable
                     key={p}
@@ -291,6 +300,17 @@ export default function ProfileScreen({ words, activity, stats, user, onUpdateUs
 
 const makeStyles = (C) =>
   StyleSheet.create({
+    shareWeek: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      marginTop: 14,
+      paddingVertical: 11,
+      borderRadius: R.md,
+      backgroundColor: C.accentSoft,
+    },
+    shareWeekText: { color: C.accent, fontSize: 15, fontFamily: F.bold },
     root: { flex: 1, backgroundColor: C.bg, padding: 20 },
     hero: {
       backgroundColor: C.card,

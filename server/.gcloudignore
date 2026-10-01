@@ -1,4 +1,6 @@
 # Не завантажувати в Cloud Run:
 .env
+data.json
 node_modules
+test/
 *.log

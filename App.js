@@ -2,9 +2,11 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
 // SafeAreaView з react-native застарів. Наша обгортка бере контекстну версію,
 // якщо пакет встановлений, і падає на ручні відступи, якщо ні.
-import { SafeAreaView } from './src/SafeArea';
+import { SafeAreaView, useSafeAreaInsets } from './src/SafeArea';
 import { StatusBar } from 'expo-status-bar';
 import * as Haptics from 'expo-haptics';
+import * as SplashScreen from 'expo-splash-screen';
+import { getLocales } from 'expo-localization';
 import { useFonts, Nunito_500Medium, Nunito_600SemiBold, Nunito_700Bold, Nunito_800ExtraBold } from '@expo-google-fonts/nunito';
 
 import ScannerScreen from './src/ScannerScreen';
@@ -13,29 +15,52 @@ import FlashcardsScreen from './src/FlashcardsScreen';
 import ProfileScreen from './src/ProfileScreen';
 import SettingsScreen from './src/SettingsScreen';
 import OnboardingScreen from './src/OnboardingScreen';
-import AuthScreen from './src/AuthScreen';
 import AchievementToast from './src/AchievementToast';
 import PaywallScreen from './src/PaywallScreen';
-import { loadActivity, loadOnboarded, loadSeenAchievements, loadSettings, loadStats, loadWords, loadWod, localDayKey, persistActivity, persistOnboarded, persistSeenAchievements, persistSettings, persistStats, persistWords } from './src/storage';
-import { applyReview, dueWords, newSrs } from './src/srs';
-import { initAudio } from './src/speech';
+import ShareSheet from './src/share/ShareSheet';
+import {
+  clearLocalData,
+  loadActivity,
+  loadOnboarded,
+  loadSeenAchievements,
+  loadSettings,
+  loadStats,
+  loadWords,
+  loadWod,
+  localDayKey,
+  persistActivity,
+  persistOnboarded,
+  persistSeenAchievements,
+  persistSettings,
+  persistStats,
+  persistWords,
+} from './src/storage';
+import { applyPractice, applyReview, dueWords, newSrs } from './src/srs';
+import { LANGS, initAudio } from './src/speech';
 import { makeT } from './src/i18n';
-import { deleteAccount, loadSession, logout as doLogout, refreshUser, updateProfile } from './src/auth';
+import { ensureSession, eraseServerData, renewSession } from './src/auth';
 import { deletePhoto, persistPhoto } from './src/photos';
-import { setSessionToken } from './src/api';
+import { apiMe } from './src/api';
 import { computeMetrics, evaluate, newlyUnlocked } from './src/achievements';
-import { syncWordOfDay, todayFrom, requestPermission, cancelAll, DEFAULT_HOUR } from './src/wordOfDay';
+import { maybeAskForReview } from './src/review';
+import {
+  syncWordOfDay,
+  todayFrom,
+  requestPermission,
+  cancelAll,
+  subscribeToNotificationTaps,
+  scheduleTrialReminder,
+  DEFAULT_HOUR,
+} from './src/wordOfDay';
 import { IcBook, IcCards, IcGear, IcScan, IcUser } from './src/icons';
 import { MascotBob } from './src/Mascot';
 import { Material, MaterialEdge } from './src/Chrome';
+import { usePro } from './src/purchases';
 
 import { FadeIn } from './src/ui';
 import { F, THEMES, ThemeProvider, resolveThemeKey, type } from './src/theme';
 import { SPRING } from './src/motion';
-import {
-  loadSubscription, activatePlan, loadUsage, bumpScan,
-  canScan, canSaveWord, canUseLanguage, scansLeft,
-} from './src/subscription';
+import { canSaveWord, canScan, canUseLanguage, loadUsage, saveUsage, scansLeft } from './src/subscription';
 
 // Порядок вкладок зафіксований і не обговорюється:
 // сканер — по центру, бо це головна дія застосунку і найзручніша точка для
@@ -48,9 +73,47 @@ const TABS = [
   { key: 'settings', Icon: IcGear, label: 'tabSettings' },
 ];
 
+// Системний сплеш тримаємо, поки не прочитані дані й шрифти, — інакше
+// людина бачила б два завантажувальні екрани поспіль.
+SplashScreen.preventAutoHideAsync().catch(() => {});
+SplashScreen.setOptions({ duration: 250, fade: true });
+
+// Старі й альтернативні коди мов, які віддають iOS/Android.
+const LANG_ALIAS = { nb: 'no', nn: 'no', iw: 'he', in: 'id' };
+
+// Мова інтерфейсу й перекладів за замовчуванням — перша з бажаних мов
+// телефону, яку ми підтримуємо. Вчити — англійську; англомовним — іспанську.
+function defaultLanguages() {
+  let nativeLang = 'en';
+  try {
+    for (const l of getLocales()) {
+      const raw = (l.languageCode || (l.languageTag || '').split('-')[0] || '').toLowerCase();
+      const code = LANG_ALIAS[raw] || raw;
+      if (LANGS.some((x) => x.code === code)) {
+        nativeLang = code;
+        break;
+      }
+    }
+  } catch (_) {}
+  return { nativeLang, targetLang: nativeLang === 'en' ? 'es' : 'en' };
+}
+
+function defaultSettings() {
+  return {
+    ...defaultLanguages(),
+    theme: 'system',
+    wodEnabled: true,
+    wodHour: DEFAULT_HOUR,
+    // Профіль локальний: у v1 немає акаунтів, ім'я й аватар живуть на телефоні.
+    profileName: '',
+    avatar: 'wave',
+  };
+}
+
 export default function App() {
   const systemScheme = useColorScheme();
-  const [fontsLoaded] = useFonts({
+  const insets = useSafeAreaInsets();
+  const [fontsLoaded, fontError] = useFonts({
     Nunito_500Medium,
     Nunito_600SemiBold,
     Nunito_700Bold,
@@ -59,80 +122,97 @@ export default function App() {
 
   const [ready, setReady] = useState(false);
   const [onboarded, setOnboarded] = useState(true);
-  const [showAuth, setShowAuth] = useState(false);
-  const [user, setUser] = useState(null);
+  // id анонімної ідентичності пристрою (див. src/auth.js). null — сервер
+  // ще не відповів; застосунок працює й без нього, крім сканування.
+  const [deviceId, setDeviceId] = useState(null);
 
   const [tab, setTab] = useState('scan');
   const [words, setWords] = useState([]);
-  const [settings, setSettings] = useState({
-    targetLang: 'en',
-    nativeLang: 'uk',
-    theme: 'system',
-    wodEnabled: true,
-    wodHour: DEFAULT_HOUR,
-  });
+  const [settings, setSettings] = useState(defaultSettings);
   const [activity, setActivity] = useState({});
   const [stats, setStats] = useState({});
   const [seenAch, setSeenAch] = useState([]);
   const [wod, setWod] = useState(null);
   const [toastAch, setToastAch] = useState(null);
-  // Підписка й денний облік сканів. Поки еквайринг не підключений, стан
-  // локальний; форма даних уже така, як буде з чеком App Store.
-  const [sub, setSub] = useState({ pro: false });
+  // Денний облік сканів. Джерело правди — сервер; тут лише кеш, щоб
+  // показати пейвол ще ДО зйомки і не гнати кадр, який сервер однаково відхилить.
   const [usage, setUsage] = useState({ scans: 0 });
-  const [paywall, setPaywall] = useState(null); // null | 'scans' | 'words' | 'langs'
+  const [paywall, setPaywall] = useState(null); // null | 'scans' | 'words' | 'langs' | 'info'
+  const [share, setShare] = useState(null); // payload для картки «поділитись»
+
+  // Підписка: RevenueCat (або імітація в розробці без ключа). id пристрою —
+  // це appUserID, тож сервер бачить ту саму покупку.
+  const pro = usePro(deviceId);
+  const sub = pro.state;
 
   // ---------- СТАРТ ----------
   useEffect(() => {
     initAudio();
     (async () => {
-      const [w, st, a, ob, stt, seen, session, wodCache] = await Promise.all([
+      const [w, st, a, ob, stt, seen, wodCache, u] = await Promise.all([
         loadWords(),
         loadSettings(),
         loadActivity(),
         loadOnboarded(),
         loadStats(),
         loadSeenAchievements(),
-        loadSession(),
         loadWod(),
+        loadUsage(),
       ]);
-      setSub(await loadSubscription());
-      setUsage(await loadUsage());
+      const merged = { ...defaultSettings(), ...st };
       setWords(w);
-      const merged = {
-        targetLang: 'en',
-        nativeLang: 'uk',
-        theme: 'system',
-        wodEnabled: true,
-        wodHour: DEFAULT_HOUR,
-        ...st,
-      };
       setSettings(merged);
       setActivity(a);
       setStats(stt);
       setSeenAch(seen);
       setWod(wodCache);
-      setUser(session.user);
+      setUsage(u);
       setOnboarded(ob);
-      // якщо ще не онбордився і не має акаунта — спершу онбординг, потім вхід
-      if (ob && !session.user) setShowAuth(false);
       setReady(true);
 
-      // тихо оновлюємо профіль і слово дня у фоні
-      if (session.token) {
-        refreshUser().then((u) => {
-          if (u === null) setUser(null);
-          else if (u) setUser(u);
-        });
-        syncWordOfDay({
-          lang: merged.targetLang,
-          native: merged.nativeLang,
-          enabled: merged.wodEnabled,
-          hour: merged.wodHour,
-        }).then((c) => c && setWod(c));
-      }
+      // Мережа — у фоні: перший екран не чекає на сервер.
+      const session = await ensureSession();
+      if (!session) return;
+      setDeviceId(session.userId);
+      refreshMe();
+      syncWordOfDay({
+        lang: merged.targetLang,
+        native: merged.nativeLang,
+        enabled: merged.wodEnabled,
+        hour: merged.wodHour,
+      }).then((c) => c && setWod(c));
     })();
   }, []);
+
+  // Тап по сповіщенню «слово дня» відкриває вкладку навчання, де воно чекає.
+  useEffect(
+    () =>
+      subscribeToNotificationTaps((data) => {
+        if (data.type === 'word-of-day') setTab('cards');
+        if (data.type === 'trial-end') setTab('settings');
+      }),
+    []
+  );
+
+  // Серверний лічильник сканів і статус пристрою. 401 — сервер нас забув
+  // (стерли дані, змінили секрет): тихо беремо нову ідентичність.
+  async function refreshMe(refresh = false) {
+    try {
+      const me = await apiMe(refresh);
+      if (me?.usage) updateUsage(me.usage);
+    } catch (e) {
+      if (e?.status === 401) {
+        const s = await renewSession();
+        if (s) setDeviceId(s.userId);
+      }
+    }
+  }
+
+  function updateUsage(next) {
+    const u = { day: next.day, scans: next.scans || 0 };
+    setUsage(u);
+    saveUsage(u);
+  }
 
   const themeKey = resolveThemeKey(settings.theme, systemScheme);
   const theme = THEMES[themeKey];
@@ -202,11 +282,6 @@ export default function App() {
     return true;
   }
 
-  async function countScan() {
-    if (sub.pro) return;
-    setUsage(await bumpScan(usage));
-  }
-
   function addWord(result) {
     // Стеля словника. Перевіряємо тут, а не в сканері: слово може прийти
     // ще й зі «слова дня», і ліміт має діяти однаково.
@@ -223,13 +298,17 @@ export default function App() {
       addedAt: Date.now(),
       srs: newSrs(),
     };
-    updateWords([...words, item]);
+    const next = [...words, item];
+    updateWords(next);
     logActivity();
     // «Нічна сова» і «Ранній птах» — досягнення не про кількість, а про звичку.
     // Позначаємо одноразово, коли слово збережено в характерний час.
     const h = new Date().getHours();
     if (h >= 23 || h < 5) bumpStatOnce('nightScan');
     else if (h >= 5 && h < 8) bumpStatOnce('morningScan');
+    // Десяте слово — момент, коли застосунок уже приніс користь: саме тоді
+    // доречно спитати про оцінку (не частіше, ніж дозволяє review.js).
+    if (next.length === 10) maybeAskForReview();
   }
 
   // Ставить прапорець один раз — повторні виклики нічого не міняють.
@@ -248,8 +327,15 @@ export default function App() {
     updateWords(words.filter((w) => w.id !== id));
   }
 
-  function reviewWord(id, known) {
-    updateWords(words.map((w) => (w.id === id ? applyReview(w, known) : w)));
+  // practice — сесія зі слів, яким ще не час: «знаю» там не відсуває
+  // наступне повторення, інакше зубріння ламало б розклад (див. srs.js).
+  function reviewWord(id, known, practice) {
+    const apply = practice ? applyPractice : applyReview;
+    setWords((prev) => {
+      const next = prev.map((w) => (w.id === id ? apply(w, known) : w));
+      persistWords(next);
+      return next;
+    });
     logActivity();
   }
 
@@ -264,17 +350,6 @@ export default function App() {
       persistStats(next);
       return next;
     });
-  }
-
-  // Безкоштовно — одна мова навчання. Ліміт описаний у MONETIZATION.md і
-  // показаний у пейволі, тож має реально діяти, а не лише рекламуватись.
-  function setTargetLang(code) {
-    const deny = canUseLanguage({ pro: sub.pro, words, nextLang: code });
-    if (deny) {
-      setPaywall(deny);
-      return;
-    }
-    saveSetting({ targetLang: code });
   }
 
   function saveSetting(patch) {
@@ -293,12 +368,21 @@ export default function App() {
     }
   }
 
+  // Безкоштовно — одна мова навчання. Ліміт описаний у MONETIZATION.md і
+  // показаний у пейволі, тож має реально діяти, а не лише рекламуватись.
+  function setTargetLang(code) {
+    const deny = canUseLanguage({ pro: sub.pro, words, nextLang: code });
+    if (deny) {
+      setPaywall(deny);
+      return;
+    }
+    saveSetting({ targetLang: code });
+  }
+
   async function toggleWod(value) {
     if (value) {
       const granted = await requestPermission();
       if (!granted) return; // користувач відмовив — лишаємо вимкненим
-    } else {
-      await cancelAll();
     }
     const next = { ...settings, wodEnabled: value };
     setSettings(next);
@@ -345,56 +429,42 @@ export default function App() {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }
 
-  // ---------- АКАУНТ ----------
-  async function handleAuthDone(u) {
-    setShowAuth(false);
-    if (u) {
-      setUser(u);
-      const c = await syncWordOfDay({
-        lang: settings.targetLang,
-        native: settings.nativeLang,
-        enabled: settings.wodEnabled,
-        hour: settings.wodHour,
-        force: true,
-      });
-      if (c) setWod(c);
-    }
-  }
-
+  // ---------- ПІДПИСКА ----------
   async function purchasePlan(planId) {
-    // Тут з'явиться виклик StoreKit. Наразі активуємо локально, щоб можна
-    // було проходити всі сценарії й перевіряти ліміти.
-    const next = await activatePlan(planId);
-    setSub(next);
-    setPaywall(null);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }
-
-  async function handleLogout() {
-    await doLogout();
-    await cancelAll();
-    setUser(null);
-    setSessionToken('');
-  }
-
-  // Видалення акаунта (вимога Apple 5.1.1(v)). Кидає помилку, якщо сервер
-  // недоступний — екран налаштувань покаже її людині.
-  async function handleDeleteAccount() {
-    await deleteAccount();
-    await cancelAll();
-    setUser(null);
-  }
-
-  async function handleUpdateUser(patch) {
-    // Гість не має профілю на сервері. Без цієї перевірки «оптимістичне»
-    // оновлення створювало б фальшивого юзера лише з іменем, і застосунок
-    // вважав би гостя залогіненим.
-    if (!user) {
-      setShowAuth(true);
-      return;
+    const res = await pro.purchase(planId);
+    if (res.ok) {
+      setPaywall(null);
+      refreshMe(true);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      // Пробний період: нагадаємо за 2 дні до списання самі, а не покладаємось
+      // лише на Apple (див. коментар у subscription.js).
+      if (res.state?.trial && res.state.until) {
+        scheduleTrialReminder(res.state.until, t('trialEndTitle'), t('trialEndBody'));
+      }
     }
-    const u = await updateProfile(patch, user);
-    setUser(u);
+    return res;
+  }
+
+  async function restorePurchases() {
+    const next = await pro.restore();
+    if (next?.pro) refreshMe(true);
+    return next;
+  }
+
+  // «Стерти мої дані»: запис на сервері + усе на телефоні. Кидає помилку,
+  // якщо сервер недоступний, — екран налаштувань покаже її людині.
+  async function eraseEverything() {
+    const session = await eraseServerData();
+    words.forEach((w) => deletePhoto(w.photo));
+    await clearLocalData();
+    await cancelAll();
+    setWords([]);
+    setActivity({});
+    setStats({});
+    setSeenAch([]);
+    setWod(null);
+    setUsage({ scans: 0 });
+    if (session) setDeviceId(session.userId);
   }
 
   function switchTab(key) {
@@ -411,8 +481,13 @@ export default function App() {
       const next = { ...settings, wodEnabled: result.wodEnabled };
       setSettings(next);
       persistSettings(next);
+      syncWordOfDay({
+        lang: next.targetLang,
+        native: next.nativeLang,
+        enabled: next.wodEnabled,
+        hour: next.wodHour,
+      }).then((c) => c && setWod(c));
     }
-    if (!user) setShowAuth(true); // після онбордингу пропонуємо акаунт
   }
 
   function replayOnboarding() {
@@ -420,10 +495,50 @@ export default function App() {
     setOnboarded(false);
   }
 
+  function shareWeek() {
+    const weekAgo = Date.now() - 7 * 86400000;
+    const days = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const key = localDayKey(d);
+      days.push({ key, dow: d.getDay(), value: activity[key] || 0 });
+    }
+    const recent = words.filter((w) => (w.addedAt || 0) >= weekAgo);
+    setShare({
+      kind: 'week',
+      stats: {
+        words: words.length,
+        weekWords: recent.length,
+        streak,
+        reviews: words.reduce((sum, w) => sum + (w.srs?.reps || 0), 0),
+        days,
+        // найсвіжіші наліпки тижня — для колажу
+        stickers: recent
+          .filter((w) => w.photo)
+          .slice(-6)
+          .reverse(),
+        langs: [...new Set(words.map((w) => w.lang || 'en'))],
+      },
+    });
+  }
+
+  function shareAchievement(achievement) {
+    setShare({ kind: 'achievement', achievement, stats: { words: words.length, streak } });
+  }
+
   const dueCount = useMemo(() => dueWords(words).length, [words, tab]);
+  const profile = { name: settings.profileName, avatar: settings.avatar || 'wave' };
+
+  // Шрифт не завантажився — не застрягаємо на заставці, а йдемо далі із
+  // системним шрифтом.
+  const appReady = ready && (fontsLoaded || !!fontError);
+  useEffect(() => {
+    if (appReady) SplashScreen.hideAsync().catch(() => {});
+  }, [appReady]);
 
   // ---------- РЕНДЕР ----------
-  if (!ready || !fontsLoaded) {
+  if (!appReady) {
     return (
       <View style={s.loader}>
         <MascotBob pose="wave" size={150} />
@@ -444,107 +559,119 @@ export default function App() {
     );
   }
 
-  if (showAuth) {
-    return (
-      <ThemeProvider value={theme}>
-        <SafeAreaView style={s.safe}>
-          <StatusBar style={theme.isDark ? 'light' : 'dark'} />
-          <AuthScreen t={t} onDone={handleAuthDone} />
-        </SafeAreaView>
-      </ThemeProvider>
-    );
-  }
-
   return (
     <ThemeProvider value={theme}>
-      <SafeAreaView style={s.safe}>
+      <View style={s.safe}>
         <StatusBar style={theme.isDark || tab === 'scan' ? 'light' : 'dark'} />
-        <View style={{ flex: 1 }}>
-          {tab === 'scan' ? (
-            <ScannerScreen
-              targetLang={settings.targetLang}
-              nativeLang={settings.nativeLang}
-              savedWords={words}
-              onSaveWord={addWord}
-              onGuardScan={guardScan}
-              onCountScan={countScan}
-              scansLeft={scansLeft({ pro: sub.pro, usage })}
-              t={t}
-            />
-          ) : null}
-
-          {tab === 'dict' ? (
-            <FadeIn style={{ flex: 1 }} dy={10}>
-              <DictionaryScreen words={words} onDelete={deleteWord} onScan={() => switchTab('scan')} t={t} />
-            </FadeIn>
-          ) : null}
-
-          {tab === 'cards' ? (
-            <FadeIn style={{ flex: 1 }} dy={10}>
-              <FlashcardsScreen
-                words={words}
-                onReview={reviewWord}
-                t={t}
-                wordOfDay={todayWord}
-                wodSaved={wodSaved}
-                onSaveWod={saveWordOfDay}
+        {/* Безпечна зона лише згори: таб-бар сам доходить до низу екрана й
+            ховає під собою смугу домашнього індикатора, як у системних
+            застосунках. Контент закінчується над індикатором. */}
+        <SafeAreaView style={{ flex: 1 }} edges={['top', 'left', 'right']}>
+          <View style={{ flex: 1, marginBottom: insets.bottom }}>
+            {tab === 'scan' ? (
+              <ScannerScreen
                 targetLang={settings.targetLang}
-                onQuizDone={(perfect) => {
-                  bumpStat('quizzes');
-                  if (perfect) bumpStat('perfectQuiz');
-                }}
-                onSignIn={user ? null : () => setShowAuth(true)}
-                onOpenPro={() => setPaywall('info')}
-                isPro={sub.pro}
-              />
-            </FadeIn>
-          ) : null}
-
-          {tab === 'profile' ? (
-            <FadeIn style={{ flex: 1 }} dy={10}>
-              <ProfileScreen
-                words={words}
-                activity={activity}
-                stats={stats}
-                user={user}
-                onUpdateUser={handleUpdateUser}
-                onSignIn={() => setShowAuth(true)}
-                t={t}
-              />
-            </FadeIn>
-          ) : null}
-
-          {tab === 'settings' ? (
-            <FadeIn style={{ flex: 1 }} dy={10}>
-              <SettingsScreen
-                targetLang={settings.targetLang}
-                onSetLang={setTargetLang}
                 nativeLang={settings.nativeLang}
-                onSetNative={(code) => saveSetting({ nativeLang: code })}
-                themeKey={themeKey}
-                themeMode={settings.theme}
-                onSetTheme={(m) => saveSetting({ theme: m })}
-                wordsCount={words.length}
-                onClearAll={clearAll}
-                onReplayOnb={replayOnboarding}
-                wodEnabled={settings.wodEnabled}
-                onToggleWod={toggleWod}
-                wodHour={settings.wodHour}
-                onSetWodHour={setWodHour}
-                user={user}
-                onLogout={handleLogout}
-                onDeleteAccount={handleDeleteAccount}
-                onOpenAuth={() => setShowAuth(true)}
-                sub={sub}
-                onOpenPaywall={() => setPaywall('info')}
+                savedWords={words}
+                onSaveWord={addWord}
+                onGuardScan={guardScan}
+                onScanned={(res) => res.usage && updateUsage(res.usage)}
+                onLimitReached={(data) => {
+                  if (data?.used != null) updateUsage({ day: localDayKey(), scans: data.used });
+                  setPaywall('scans');
+                }}
+                onSessionLost={() => renewSession().then((x) => x && setDeviceId(x.userId))}
+                scansLeft={scansLeft({ pro: sub.pro, usage })}
                 t={t}
               />
-            </FadeIn>
-          ) : null}
-        </View>
+            ) : null}
+
+            {tab === 'dict' ? (
+              <FadeIn style={{ flex: 1 }} dy={10}>
+                <DictionaryScreen
+                  words={words}
+                  onDelete={deleteWord}
+                  onScan={() => switchTab('scan')}
+                  onShare={setShare}
+                  t={t}
+                />
+              </FadeIn>
+            ) : null}
+
+            {tab === 'cards' ? (
+              <FadeIn style={{ flex: 1 }} dy={10}>
+                <FlashcardsScreen
+                  words={words}
+                  onReview={reviewWord}
+                  t={t}
+                  wordOfDay={todayWord}
+                  wodSaved={wodSaved}
+                  onSaveWod={saveWordOfDay}
+                  targetLang={settings.targetLang}
+                  onQuizDone={(perfect) => {
+                    bumpStat('quizzes');
+                    if (perfect) {
+                      bumpStat('perfectQuiz');
+                      maybeAskForReview();
+                    }
+                  }}
+                  onOpenPro={() => setPaywall('info')}
+                  isPro={sub.pro}
+                />
+              </FadeIn>
+            ) : null}
+
+            {tab === 'profile' ? (
+              <FadeIn style={{ flex: 1 }} dy={10}>
+                <ProfileScreen
+                  words={words}
+                  activity={activity}
+                  stats={stats}
+                  profile={profile}
+                  onUpdateProfile={(patch) =>
+                    saveSetting({
+                      ...(patch.name !== undefined ? { profileName: patch.name } : null),
+                      ...(patch.avatar ? { avatar: patch.avatar } : null),
+                    })
+                  }
+                  onShareWeek={shareWeek}
+                  onShareAchievement={shareAchievement}
+                  t={t}
+                />
+              </FadeIn>
+            ) : null}
+
+            {tab === 'settings' ? (
+              <FadeIn style={{ flex: 1 }} dy={10}>
+                <SettingsScreen
+                  targetLang={settings.targetLang}
+                  onSetLang={setTargetLang}
+                  nativeLang={settings.nativeLang}
+                  onSetNative={(code) => saveSetting({ nativeLang: code })}
+                  themeKey={themeKey}
+                  themeMode={settings.theme}
+                  onSetTheme={(m) => saveSetting({ theme: m })}
+                  wordsCount={words.length}
+                  onClearAll={clearAll}
+                  onEraseEverything={eraseEverything}
+                  onReplayOnb={replayOnboarding}
+                  wodEnabled={settings.wodEnabled}
+                  onToggleWod={toggleWod}
+                  wodHour={settings.wodHour}
+                  onSetWodHour={setWodHour}
+                  sub={sub}
+                  onOpenPaywall={() => setPaywall('info')}
+                  onManageSub={pro.manage}
+                  onRestore={restorePurchases}
+                  t={t}
+                />
+              </FadeIn>
+            ) : null}
+          </View>
+        </SafeAreaView>
 
         {/* Таб-бар — напівпрозорий матеріал, контент проїжджає під ним */}
-        <Material style={s.tabbar}>
+        <Material style={[s.tabbar, { paddingBottom: insets.bottom + 5 }]}>
           <MaterialEdge />
           {TABS.map((tb) => (
             <TabButton
@@ -563,19 +690,32 @@ export default function App() {
         {/* Пейвол поверх усього. Modal тут не потрібен: власний шар дає
             повний контроль над анімацією і не конфліктує з таб-баром. */}
         {paywall ? (
-          <View style={StyleSheet.absoluteFill}>
+          <View style={[StyleSheet.absoluteFill, { paddingTop: insets.top, paddingBottom: insets.bottom, backgroundColor: C.bg }]}>
             <PaywallScreen
               reason={paywall}
+              plans={pro.plans}
               onClose={() => setPaywall(null)}
               onPurchase={purchasePlan}
+              onRestore={restorePurchases}
+              onOpen={() => !pro.plans.length && pro.reloadPlans()}
+              lang={settings.nativeLang}
               t={t}
             />
           </View>
         ) : null}
 
-        {/* Спливаюче вітання з новим досягненням */}
-        <AchievementToast achievement={toastAch} onHide={() => setToastAch(null)} t={t} />
-      </SafeAreaView>
+        {/* Спливаюче вітання з новим досягненням; тап — поділитись ним */}
+        <View style={[StyleSheet.absoluteFill, { top: insets.top }]} pointerEvents="box-none">
+          <AchievementToast
+            achievement={toastAch}
+            onHide={() => setToastAch(null)}
+            onPress={(a) => shareAchievement(a)}
+            t={t}
+          />
+        </View>
+
+        <ShareSheet visible={!!share} payload={share} onClose={() => setShare(null)} t={t} />
+      </View>
     </ThemeProvider>
   );
 }
@@ -602,6 +742,7 @@ function TabButton({ tb, active, badge, onPress, C, s, t }) {
       style={s.tabBtn}
       onPress={onPress}
       accessibilityRole="tab"
+      accessibilityLabel={t(tb.label)}
       accessibilityState={{ selected: active }}
       // відгук на натиск, а не на відпускання
       onPressIn={() => Animated.spring(press, { toValue: 0.92, ...SPRING.snappy }).start()}
@@ -619,7 +760,11 @@ function TabButton({ tb, active, badge, onPress, C, s, t }) {
             },
           ]}
         />
-        <tb.Icon size={24} color={active ? C.accent : C.faint} />
+        {/* Іконка явно над пігулкою: пігулка має transform, а з ним на
+            деяких рушіях (веб) вона малювалась би поверх іконки. */}
+        <View style={{ zIndex: 1 }}>
+          <tb.Icon size={24} color={active ? C.accent : C.faint} />
+        </View>
         {badge > 0 ? (
           <View style={s.badge}>
             <Text style={s.badgeText}>{badge > 99 ? '99+' : badge}</Text>
@@ -652,17 +797,17 @@ const makeStyles = (C) =>
       bottom: 0,
       flexDirection: 'row',
       paddingTop: 7,
-      paddingBottom: 5,
       overflow: 'hidden',
     },
     tabBtn: { flex: 1, alignItems: 'center', gap: 3, paddingHorizontal: 2 },
     tabIconWrap: { paddingHorizontal: 14, paddingVertical: 5, alignItems: 'center', justifyContent: 'center' },
-    tabPill: { ...StyleSheet.absoluteFillObject, borderRadius: 999 },
-    tabLabel: { color: C.faint, fontSize: 9.5, letterSpacing: 0.19, fontFamily: F.bold },
+    tabPill: { ...StyleSheet.absoluteFill, borderRadius: 999 },
+    tabLabel: { color: C.faint, fontSize: 10, letterSpacing: 0.15, fontFamily: F.bold },
     badge: {
       position: 'absolute',
       top: -4,
       right: 2,
+      zIndex: 2,
       backgroundColor: C.red,
       borderRadius: 9,
       minWidth: 18,
