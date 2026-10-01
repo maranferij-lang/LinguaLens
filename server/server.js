@@ -53,21 +53,36 @@ const RATE_PER_MIN = Number(process.env.RATE_PER_MIN || 20);
 // ---------- ліміти частоти ----------
 // Ковзне вікно в пам'яті. Мапа самоочищується, щоб не стати вектором
 // виснаження пам'яті.
+// Відмовлені запити не записуються: у масиві ніколи не більше max позначок,
+// тож навіть шквал з однієї IP коштує O(max) на запит, а не росте без меж.
+const LIMITER_KEYS = 5000;
 function limiter(max, windowMs) {
   const hits = new Map();
   return function limited(key) {
     const now = Date.now();
     const arr = (hits.get(key) || []).filter((t) => now - t < windowMs);
-    arr.push(now);
-    hits.set(key, arr);
-    if (hits.size > 5000) {
-      for (const [k, v] of hits) if (!v.some((t) => now - t < windowMs)) hits.delete(k);
+    if (arr.length >= max) {
+      hits.set(key, arr);
+      return true;
     }
-    return arr.length > max;
+    arr.push(now);
+    hits.delete(key); // у кінець черги: Map пам'ятає порядок вставки
+    hits.set(key, arr);
+    if (hits.size > LIMITER_KEYS) {
+      for (const [k, v] of hits) if (!v.some((t) => now - t < windowMs)) hits.delete(k);
+      // усі ще «гарячі» (розподілена атака) — забуваємо найдавніших
+      for (const k of hits.keys()) {
+        if (hits.size <= LIMITER_KEYS * 0.9) break;
+        hits.delete(k);
+      }
+    }
+    return false;
   };
 }
 const scanLimited = limiter(RATE_PER_MIN, 60000);
 const wodLimited = limiter(RATE_PER_MIN, 60000);
+// /me: застосунок питає його при запуску й після покупки — кілька разів на день
+const meLimited = limiter(RATE_PER_MIN, 60000);
 // Нові пристрої: справжня людина створює один за все життя установки.
 // Двадцять на годину з IP — запас для гуртожитку чи офісу за одним NAT,
 // але не для скрипта, що фармить безкоштовні скани.
@@ -148,16 +163,34 @@ async function handleScan(req, res, user) {
     return json(res, 429, { error: 'Забагато запитів. Зачекай хвилинку.' });
   }
   const day = billing.localDay(req.headers['x-local-date']);
-  const check = await billing.checkScan(user, day);
-  if (!check.ok) {
-    return json(res, 402, { error: 'SCAN_LIMIT', limit: check.limit, used: check.used });
+  const slot = await billing.reserveScan(user, day);
+  if (slot.gone) return json(res, 401, { error: 'UNAUTHORIZED' });
+  if (slot.busy) return json(res, 429, { error: 'Забагато запитів. Зачекай хвилинку.' });
+  if (!slot.ok) {
+    return json(res, 402, { error: 'SCAN_LIMIT', limit: slot.limit, used: slot.used });
   }
+  // Слот зайнятий. Якщо далі щось піде не так (погане тіло, помилка AI,
+  // «не бачу предмета», людина не дочекалась) — повертаємо його, і саме ДО
+  // відповіді: інакше миттєвий повтор на межі ліміту отримав би 402.
+  const release = () => slot.release().catch((e) => console.error('release failed:', e.message));
+  let out;
+  try {
+    out = await scanWithSlot(req, user, day, slot, t0);
+  } catch (e) {
+    await release();
+    throw e;
+  }
+  if (!out || out[0] !== 200) await release();
+  if (out) return json(res, out[0], out[1]);
+}
 
+// Повертає [статус, тіло] або null, якщо відповідати вже нікому.
+async function scanWithSlot(req, user, day, slot, t0) {
   // Апка надсилає кадр 1024px/JPEG ≈ 150–400 КБ у base64. 4 МБ із запасом.
   const body = await readJson(req, 4 * 1024 * 1024);
-  if (!body) return json(res, 400, { error: 'Некоректний JSON' });
+  if (!body) return [400, { error: 'Некоректний JSON' }];
   if (!body.image || typeof body.image !== 'string') {
-    return json(res, 400, { error: 'Поле "image" (base64 JPEG) обовʼязкове' });
+    return [400, { error: 'Поле "image" (base64 JPEG) обовʼязкове' }];
   }
   const lang = ai.LANG_NAMES[body.lang] ? body.lang : 'en';
   const nativeLang = ai.LANG_NAMES[body.nativeLang] ? body.nativeLang : 'uk';
@@ -167,21 +200,24 @@ async function handleScan(req, res, user) {
     parsed = await ai.recognize(body.image, lang, nativeLang);
   } catch (e) {
     if (e.name === 'TimeoutError' || e.name === 'AbortError') {
-      console.error(new Date().toISOString(), 'TIMEOUT 45s');
-      return json(res, 504, { error: 'AI відповідає надто довго. Спробуй ще раз.' });
+      console.error(new Date().toISOString(), 'AI TIMEOUT');
+      return [504, { error: 'AI відповідає надто довго. Спробуй ще раз.' }];
     }
     // Деталі помилки провайдера — лише в лог. Клієнту вони нічого не дають,
     // а назовні відкривають, яким AI і з якими параметрами ми користуємось.
     console.error(new Date().toISOString(), 'AI ERROR:', e.message);
-    return json(res, 502, { error: 'AI тимчасово недоступний. Спробуй ще раз.' });
+    return [502, { error: 'AI тимчасово недоступний. Спробуй ще раз.' }];
   }
 
   if (!parsed || !parsed.word) {
-    return json(res, 502, { error: 'Модель повернула нерозбірливу відповідь. Спробуй ще раз.' });
+    return [502, { error: 'Модель повернула нерозбірливу відповідь. Спробуй ще раз.' }];
   }
   if (String(parsed.word).toLowerCase() === 'unknown') {
-    return json(res, 422, { error: "Не бачу чіткого об'єкта. Наведи камеру ближче." });
+    return [422, { error: "Не бачу чіткого об'єкта. Наведи камеру ближче." }];
   }
+  // Застосунок уже перестав чекати (таймаут, закрив екран) — відповідь
+  // ніхто не побачить, тож і скан не рахуємо.
+  if (req.socket.destroyed) return null;
 
   // Рамка предмета: 4 цілих 0–1000 у порядку y1,x1,y2,x2 (як у Gemini).
   // Апка ріже по ній кадр, щоб дістати сам предмет без тла.
@@ -205,8 +241,7 @@ async function handleScan(req, res, user) {
       : null;
   const validOutline = outline && outline.length >= 6 ? outline : null;
 
-  await billing.countScan(user, day);
-  const pro = check.pro || (user.proUntil || 0) > Date.now();
+  const pro = slot.pro || (user.proUntil || 0) > Date.now();
 
   const result = {
     word: ai.clean(parsed.word, 60),
@@ -226,7 +261,7 @@ async function handleScan(req, res, user) {
     '→',
     result.word
   );
-  return json(res, 200, result);
+  return [200, result];
 }
 
 async function handleWordOfDay(req, res, user) {
@@ -291,7 +326,9 @@ async function handle(req, res) {
     return json(res, 200, { ok: true });
   }
 
-  if (!appTokenOk(req)) return json(res, 401, { error: 'Немає доступу.' });
+  // 403, а не 401: застосунок на 401 вважає, що сервер забув пристрій, і
+  // бере нову ідентичність. Неправильний APP_TOKEN — це помилка збірки.
+  if (!appTokenOk(req)) return json(res, 403, { error: 'APP_TOKEN' });
 
   // ---------- ІДЕНТИЧНІСТЬ ПРИСТРОЮ ----------
   if (req.method === 'POST' && route === '/auth/device') {
@@ -312,6 +349,7 @@ async function handle(req, res) {
   if (!user) return json(res, 401, { error: 'UNAUTHORIZED' });
 
   if (route === '/me' && req.method === 'GET') {
+    if (meLimited(clientIp(req))) return json(res, 429, { error: 'Забагато запитів.' });
     const day = billing.localDay(req.headers['x-local-date']);
     // ?refresh=1 — одразу після покупки: перепитати RevenueCat без кешу
     const refresh = new URL(req.url, 'http://x').searchParams.get('refresh') === '1';

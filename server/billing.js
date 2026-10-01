@@ -16,6 +16,7 @@ const RC_SECRET = process.env.REVENUECAT_SECRET_KEY || '';
 const RC_WEBHOOK_AUTH = process.env.REVENUECAT_WEBHOOK_AUTH || '';
 const ENTITLEMENT = process.env.REVENUECAT_ENTITLEMENT || 'pro';
 const RC_CACHE_MS = 10 * 60 * 1000;
+const REFRESH_MIN_MS = 30 * 1000;
 // Якщо RevenueCat недоступний, людина, в якої Pro щойно закінчився, ще три
 // дні не впирається в ліміт: краще подарувати кілька сканів, ніж заблокувати
 // того, хто заплатив і просто чекає продовження.
@@ -41,9 +42,11 @@ function addDays(day, n) {
 // Ліміт «на день» має скидатись опівночі ЗА ЧАСОМ ЛЮДИНИ, а не за UTC — інакше
 // в Києві скани «оновлювались» би о третій ночі. Клієнт надсилає свою дату;
 // приймаємо її, якщо вона в межах доби від серверної (часові пояси -12…+14).
+// Лише канонічна дата: «2026-09-31» чи «2026-08-62» Date.UTC мовчки
+// перекотив би в сьогодні, і кожен такий псевдонім мав би свій лічильник.
 function localDay(value) {
   const today = utcDay();
-  if (typeof value === 'string' && DAY_RE.test(value)) {
+  if (typeof value === 'string' && DAY_RE.test(value) && addDays(value, 0) === value) {
     if (Math.abs(dayIndexOf(value) - dayIndexOf(today)) <= 1) return value;
   }
   return today;
@@ -75,12 +78,15 @@ async function proStatus(user, { refresh = false } = {}) {
   if (until && until > now && !refresh) return { active: true, until };
 
   const stale = !user.proCheckedAt || now - user.proCheckedAt > RC_CACHE_MS;
-  if (RC_SECRET && (refresh || stale)) {
+  // refresh не частіше ніж раз на 30 с: інакше будь-хто з токеном пристрою
+  // міг би в циклі вичерпати квоту RevenueCat API для всіх.
+  const canRefresh = refresh && !(user.proCheckedAt && now - user.proCheckedAt < REFRESH_MIN_MS);
+  if (RC_SECRET && (canRefresh || stale)) {
     try {
       until = await fetchRevenueCatUntil(user.id);
       user.proUntil = until;
       user.proCheckedAt = now;
-      await store.put('users', user.id, user);
+      await store.update('users', user.id, { proUntil: until, proCheckedAt: now });
     } catch (e) {
       console.error('revenuecat check failed:', e.message);
       if (user.proUntil && now - user.proUntil < GRACE_MS) return { active: true, until: user.proUntil };
@@ -108,20 +114,46 @@ function usageView(user, day, pro) {
   return { day, scans: usedOn(user, day), limit: pro ? null : FREE_SCANS_PER_DAY };
 }
 
-// Перевірка ДО виклику AI: витратити виклик і потім відмовити — це і гроші
-// на вітер, і відчуття обману.
-async function checkScan(user, day) {
-  const used = usedOn(user, day);
-  if (used < FREE_SCANS_PER_DAY) return { ok: true, pro: false };
-  const pro = await proStatus(user);
-  if (pro.active) return { ok: true, pro: true };
-  return { ok: false, used, limit: FREE_SCANS_PER_DAY };
+// Слот займаємо ДО виклику AI і атомарно. Перевірити ліміт, викликати AI і
+// потім дописати +1 — це гонка: паралельні скани читали б той самий
+// лічильник і проходили б усі. Тут запис умовний (версія документа): якщо
+// хтось устиг раніше — перечитуємо і пробуємо ще раз.
+//
+// { ok: true, pro, release } — release() повертає слот, якщо скан не вдався
+//   («не бачу предмета» людині не коштує спроби);
+// { ok: false, used, limit } — ліміт вичерпано (402, AI не викликаємо);
+// { ok: false, gone: true } — пристрій стерто; { ok: false, busy: true }.
+async function reserveScan(user, day) {
+  let current = user;
+  for (let attempt = 0; attempt < 6; attempt++) {
+    if (attempt > 0) current = await store.get('users', user.id);
+    if (!current) return { ok: false, gone: true };
+    const used = usedOn(current, day);
+    let pro = false;
+    if (used >= FREE_SCANS_PER_DAY) {
+      pro = (await proStatus(current)).active;
+      if (!pro) return { ok: false, used, limit: FREE_SCANS_PER_DAY };
+    }
+    const usage = { day: counterDay(current, day), scans: used + 1 };
+    const r = await store.update('users', user.id, { usage }, { version: current.__version });
+    if (r.ok) {
+      user.usage = usage;
+      if (current.proUntil !== undefined) user.proUntil = current.proUntil;
+      return { ok: true, pro, release: () => releaseScan(user.id, usage.day) };
+    }
+    if (r.reason === 'missing') return { ok: false, gone: true };
+  }
+  return { ok: false, busy: true };
 }
 
-// Рахуємо лише успішні скани: «не бачу предмета» людині не коштує спроби.
-async function countScan(user, day) {
-  user.usage = { day: counterDay(user, day), scans: usedOn(user, day) + 1 };
-  await store.put('users', user.id, user);
+async function releaseScan(id, day) {
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const user = await store.get('users', id);
+    if (!user || !user.usage || user.usage.day !== day || !(user.usage.scans > 0)) return;
+    const usage = { day, scans: user.usage.scans - 1 };
+    const r = await store.update('users', id, { usage }, { version: user.__version });
+    if (r.ok || r.reason === 'missing') return;
+  }
 }
 
 // ---------- вебхук ----------
@@ -191,8 +223,10 @@ async function handleWebhook(body) {
       if (until !== undefined) user.proUntil = until;
       user.proCheckedAt = 0;
     }
-    await store.put('users', id, user);
-    touched++;
+    // лише поля підписки: паралельний скан не має затерти відкликання Pro,
+    // а вебхук — свіжий лічильник сканів
+    const r = await store.update('users', id, { proUntil: user.proUntil ?? null, proCheckedAt: user.proCheckedAt });
+    if (r.ok) touched++;
   }
   return { handled: true, touched };
 }
@@ -205,8 +239,7 @@ module.exports = {
   localDay,
   proStatus,
   usageView,
-  checkScan,
-  countScan,
+  reserveScan,
   webhookAuthorized,
   handleWebhook,
 };

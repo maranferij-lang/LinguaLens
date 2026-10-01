@@ -109,6 +109,83 @@ test('alternating today/tomorrow in x-local-date does not reset the quota', asyn
   assert.equal(me.data.usage.scans, 2);
 });
 
+test('non-canonical date aliases of today fall back to the server day', async () => {
+  const { token } = await newDevice();
+  const today = billing.utcDay();
+  // «2026-09-45» — це 15 жовтня для Date.UTC: останній день минулого місяця + d
+  const d = Number(today.slice(8));
+  const prevEnd = billing.addDays(today, -d);
+  const alias = prevEnd.slice(0, 8) + String(Number(prevEnd.slice(8)) + d).padStart(2, '0');
+  assert.equal(billing.dayIndexOf(alias), billing.dayIndexOf(today));
+  const r = await call('POST', '/scan', {
+    token,
+    body: IMAGE,
+    headers: { 'x-local-date': alias, 'x-forwarded-for': '198.51.100.1' },
+  });
+  assert.equal(r.status, 200);
+  assert.equal(r.data.usage.day, today);
+});
+
+test('parallel scans cannot overrun the quota', async () => {
+  const { token } = await newDevice();
+  const day = billing.utcDay();
+  // справжній AI відповідає секунди — саме тоді запити й перетинаються
+  const ai = require('../ai');
+  const recognize = ai.recognize;
+  ai.recognize = async (...a) => {
+    await new Promise((r) => setTimeout(r, 60));
+    return recognize(...a);
+  };
+  let all;
+  try {
+    all = await Promise.all(
+      Array.from({ length: 6 }, (_, i) =>
+        call('POST', '/scan', {
+          token,
+          body: IMAGE,
+          headers: { 'x-local-date': day, 'x-forwarded-for': '198.51.100.' + (10 + i) },
+        })
+      )
+    );
+  } finally {
+    ai.recognize = recognize;
+  }
+  const statuses = all.map((r) => r.status).sort();
+  assert.deepEqual(statuses, [200, 200, 402, 402, 402, 402]);
+  const me = await call('GET', '/me', { token, headers: { 'x-local-date': day, 'x-forwarded-for': '198.51.100.30' } });
+  assert.equal(me.data.usage.scans, 2);
+});
+
+test('a failed scan gives its slot back', async () => {
+  const { token } = await newDevice();
+  const day = billing.utcDay();
+  const headers = { 'x-local-date': day, 'x-forwarded-for': '198.51.100.40' };
+  const bad = await call('POST', '/scan', { token, body: { lang: 'en' }, headers });
+  assert.equal(bad.status, 400);
+  const me = await call('GET', '/me', { token, headers });
+  assert.equal(me.data.usage.scans, 0);
+});
+
+test('writes after DELETE /me do not resurrect the device', async () => {
+  const { token, user } = await newDevice();
+  const store = require('../store');
+  const stale = await store.get('users', user.id);
+  assert.ok(stale);
+  assert.equal((await call('DELETE', '/me', { token })).status, 200);
+  const slot = await billing.reserveScan(stale, billing.utcDay());
+  assert.equal(slot.gone, true);
+  assert.equal(await store.get('users', user.id), null);
+});
+
+test('GET /me is rate limited per IP', async () => {
+  const { token } = await newDevice();
+  let last;
+  for (let i = 0; i < 25; i++) {
+    last = await call('GET', '/me', { token, headers: { 'x-forwarded-for': '198.51.100.50' } });
+  }
+  assert.equal(last.status, 429);
+});
+
 test('RevenueCat webhook grants Pro and lifts the limit', async () => {
   const { token, user } = await newDevice();
   const day = billing.utcDay();
@@ -154,6 +231,35 @@ test('webhook revokes Pro from the previous owner on TRANSFER and on a refund', 
   assert.equal((await call('GET', '/me', { token: b.token })).data.pro.active, true);
   await hook({ type: 'CANCELLATION', cancel_reason: 'CUSTOMER_SUPPORT', app_user_id: b.user.id, entitlement_ids: ['pro'] });
   assert.equal((await call('GET', '/me', { token: b.token })).data.pro.active, false);
+});
+
+test('a scan in flight does not bring back Pro revoked by a webhook', async () => {
+  const a = await newDevice('198.51.100.60');
+  const b = await newDevice('198.51.100.61');
+  const hook = (event) =>
+    call('POST', '/webhooks/revenuecat', { body: { event }, headers: { authorization: 'Bearer hook-secret' } });
+  const headers = { 'x-forwarded-for': '198.51.100.62' };
+  await hook({ type: 'INITIAL_PURCHASE', app_user_id: a.user.id, expiration_at_ms: Date.now() + 86400000, entitlement_ids: ['pro'] });
+  assert.equal((await call('GET', '/me', { token: a.token, headers })).data.pro.active, true);
+
+  const ai = require('../ai');
+  const recognize = ai.recognize;
+  let release;
+  const gate = new Promise((r) => (release = r));
+  ai.recognize = async (...x) => {
+    await gate;
+    return recognize(...x);
+  };
+  try {
+    const scan = call('POST', '/scan', { token: a.token, body: IMAGE, headers });
+    await new Promise((r) => setTimeout(r, 50)); // скан уже чекає на AI
+    await hook({ type: 'TRANSFER', transferred_from: [a.user.id], transferred_to: [b.user.id] });
+    release();
+    assert.equal((await scan).status, 200);
+  } finally {
+    ai.recognize = recognize;
+  }
+  assert.equal((await call('GET', '/me', { token: a.token, headers })).data.pro.active, false);
 });
 
 test('word of day is built from the client local date and is stable per device', async () => {

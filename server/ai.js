@@ -126,11 +126,20 @@ function parseModelJson(text) {
   return null;
 }
 
-// fetch з таймаутом 45с і одним повтором при 503 (перевантаження AI)
-async function fetchAI(url, options) {
+// Скан має вкластися в таймаут застосунку (25 с, src/api.js): відповідь,
+// що прийшла пізніше, людина вже не побачить. Тому один дедлайн на обидві
+// спроби, із запасом на мережу. Слово дня застосунок чекає 45 с.
+const SCAN_BUDGET_MS = 21000;
+const TEXT_BUDGET_MS = 40000;
+
+// fetch у межах дедлайну і з одним повтором при 503 (перевантаження AI),
+// якщо на повтор ще лишається час
+async function fetchAI(url, options, budgetMs) {
+  const deadline = Date.now() + budgetMs;
   for (let attempt = 1; ; attempt++) {
-    const res = await fetch(url, { ...options, signal: AbortSignal.timeout(45000) });
-    if (res.status === 503 && attempt === 1) {
+    const left = Math.max(1000, deadline - Date.now());
+    const res = await fetch(url, { ...options, signal: AbortSignal.timeout(left) });
+    if (res.status === 503 && attempt === 1 && deadline - Date.now() > 8000) {
       console.log('  503 від AI, повтор через 2с…');
       await new Promise((r) => setTimeout(r, 2000));
       continue;
@@ -139,7 +148,7 @@ async function fetchAI(url, options) {
   }
 }
 
-async function callAnthropic(content) {
+async function callAnthropic(content, budgetMs) {
   if (!ANTHROPIC_API_KEY) throw new Error('ANTHROPIC_API_KEY не заданий у .env');
   const res = await fetchAI('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -153,7 +162,7 @@ async function callAnthropic(content) {
       max_tokens: 600,
       messages: [{ role: 'user', content }],
     }),
-  });
+  }, budgetMs);
   if (!res.ok) {
     const body = await res.text().catch(() => '');
     throw new Error('Anthropic ' + res.status + ': ' + body.slice(0, 300));
@@ -163,7 +172,7 @@ async function callAnthropic(content) {
 }
 
 // Ключ іде заголовком, а не в ?key= — URL з ключем осідає в логах проксі.
-async function callGemini(parts) {
+async function callGemini(parts, budgetMs) {
   if (!GEMINI_API_KEY) throw new Error('GEMINI_API_KEY не заданий у .env');
   const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + GEMINI_MODEL + ':generateContent';
   const res = await fetchAI(url, {
@@ -177,7 +186,7 @@ async function callGemini(parts) {
         thinkingConfig: { thinkingLevel: 'minimal' },
       },
     }),
-  });
+  }, budgetMs);
   if (!res.ok) {
     const body = await res.text().catch(() => '');
     throw new Error('Gemini ' + res.status + ': ' + body.slice(0, 300));
@@ -228,14 +237,14 @@ async function recognize(base64, lang, nativeLang) {
     return callAnthropic([
       { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: base64 } },
       { type: 'text', text: prompt },
-    ]);
+    ], SCAN_BUDGET_MS);
   }
-  return callGemini([{ inline_data: { mime_type: 'image/jpeg', data: base64 } }, { text: prompt }]);
+  return callGemini([{ inline_data: { mime_type: 'image/jpeg', data: base64 } }, { text: prompt }], SCAN_BUDGET_MS);
 }
 
 async function callText(prompt) {
-  if (PROVIDER === 'anthropic') return callAnthropic([{ type: 'text', text: prompt }]);
-  return callGemini([{ text: prompt }]);
+  if (PROVIDER === 'anthropic') return callAnthropic([{ type: 'text', text: prompt }], TEXT_BUDGET_MS);
+  return callGemini([{ text: prompt }], TEXT_BUDGET_MS);
 }
 
 // Переклад слова дня з кешем (щоб не витрачати квоту на однакові пари)
