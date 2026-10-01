@@ -46,7 +46,7 @@
     "doctor": "npx expo-doctor",
     "start:go": "expo start --go",
     "test": "jest",
-    "test:server": "node --test server/test/"
+    "test:server": "node --test 'server/test/*.test.js'"
   },
   "private": true,
   "devDependencies": {

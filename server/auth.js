@@ -1,7 +1,11 @@
-// Авторизація: реєстрація, вхід, токени сесії.
-// Без зовнішніх залежностей — тільки вбудований crypto.
-//   пароль  -> scrypt (сіль + 64 байти)
-//   сесія   -> власний підписаний токен:  base64url(payload).hmacSHA256
+// Анонімна ідентичність пристрою.
+//
+// У v1 немає реєстрації: кожна установка тихо отримує запис-користувача з
+// випадковим id і підписаний токен. Цього досить для слова дня (свій seed),
+// лімітів сканів на сервері й прив'язки підписки RevenueCat. Пароля, пошти
+// й імені сервер не знає взагалі — нічого особистого, що могло б витекти.
+//
+// Токен: base64url(payload).hmacSHA256 — без залежностей, лише crypto.
 const crypto = require('crypto');
 const store = require('./store');
 
@@ -13,40 +17,21 @@ const SECRET =
     return crypto.randomBytes(32).toString('hex');
   })();
 
-const TOKEN_DAYS = 180;
+// Пристрій живе довго; токен лежить у Keychain і переживає перевстановлення.
+const TOKEN_DAYS = 3650;
 
-// ---------- паролі ----------
-function hashPassword(password) {
-  const salt = crypto.randomBytes(16).toString('hex');
-  const hash = crypto.scryptSync(password, salt, 64).toString('hex');
-  return salt + ':' + hash;
-}
-function verifyPassword(password, stored) {
-  try {
-    const [salt, hash] = String(stored).split(':');
-    const test = crypto.scryptSync(password, salt, 64).toString('hex');
-    return crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(test, 'hex'));
-  } catch (_) {
-    return false;
-  }
-}
-
-// ---------- токени ----------
 function sign(payload) {
   const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
   const sig = crypto.createHmac('sha256', SECRET).update(body).digest('base64url');
   return body + '.' + sig;
 }
+
 function verify(token) {
   try {
     const [body, sig] = String(token).split('.');
     if (!body || !sig) return null;
     const expect = crypto.createHmac('sha256', SECRET).update(body).digest('base64url');
-    if (
-      sig.length !== expect.length ||
-      !crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expect))
-    )
-      return null;
+    if (sig.length !== expect.length || !crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expect))) return null;
     const payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf8'));
     if (!payload.exp || Date.now() > payload.exp) return null;
     return payload;
@@ -59,57 +44,19 @@ function makeToken(userId) {
   return sign({ uid: userId, exp: Date.now() + TOKEN_DAYS * 86400000 });
 }
 
-// ---------- користувачі ----------
-const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-
 function publicUser(u) {
-  return {
-    id: u.id,
-    email: u.email,
-    name: u.name || '',
-    avatar: u.avatar || 'wave',
-    createdAt: u.createdAt,
-  };
+  return { id: u.id, createdAt: u.createdAt };
 }
 
-async function register({ email, password, name }) {
-  email = String(email || '').trim().toLowerCase();
-  password = String(password || '');
-  name = String(name || '').trim().slice(0, 40);
-
-  if (!emailRe.test(email)) return { error: 'INVALID_EMAIL', status: 400 };
-  // Вісім символів — мінімум, за яким перебір перестає бути тривіальним.
-  // Шість давало ~2 млрд варіантів; scrypt їх сповільнює, але не робить
-  // неможливими на витоку бази.
-  if (typeof password !== 'string' || password.length < 8) {
-    return { error: 'WEAK_PASSWORD', status: 400 };
-  }
-  if (password.length > 200) return { error: 'WEAK_PASSWORD', status: 400 };
-
-  const exists = await store.findBy('users', 'email', email);
-  if (exists) return { error: 'EMAIL_TAKEN', status: 409 };
-
-  const id = crypto.randomUUID();
+async function createDevice() {
   const user = {
-    id,
-    email,
-    name: name || email.split('@')[0],
-    avatar: 'wave',
-    pass: hashPassword(password),
+    id: crypto.randomUUID(),
+    kind: 'device',
     // seed визначає УНІКАЛЬНИЙ для кожного юзера порядок слів дня
     seed: crypto.randomBytes(8).toString('hex'),
     createdAt: Date.now(),
   };
-  await store.put('users', id, user);
-  return { user: publicUser(user), token: makeToken(id) };
-}
-
-async function login({ email, password }) {
-  email = String(email || '').trim().toLowerCase();
-  const user = await store.findBy('users', 'email', email);
-  if (!user || !verifyPassword(String(password || ''), user.pass)) {
-    return { error: 'BAD_CREDENTIALS', status: 401 };
-  }
+  await store.put('users', user.id, user);
   return { user: publicUser(user), token: makeToken(user.id) };
 }
 
@@ -120,22 +67,13 @@ async function userFromRequest(req) {
   if (!token) return null;
   const payload = verify(token);
   if (!payload) return null;
-  const user = await store.get('users', payload.uid);
-  return user || null;
+  return (await store.get('users', payload.uid)) || null;
 }
 
-async function updateProfile(user, patch) {
-  const next = { ...user };
-  if (typeof patch.name === 'string') next.name = patch.name.trim().slice(0, 40);
-  if (typeof patch.avatar === 'string') next.avatar = patch.avatar.slice(0, 20);
-  await store.put('users', user.id, next);
-  return publicUser(next);
-}
-
-// Повне видалення акаунта: запис користувача зникає зі сховища.
-// Слова живуть лише на пристрої, тож на сервері більше нічого особистого немає.
+// Повне видалення: запис зникає разом із лічильником сканів і статусом Pro.
+// Старі токени після цього самі стають недійсними (користувача не знайдено).
 async function deleteUser(user) {
   await store.del('users', user.id);
 }
 
-module.exports = { register, login, userFromRequest, updateProfile, deleteUser, publicUser, makeToken };
+module.exports = { createDevice, userFromRequest, deleteUser, publicUser, makeToken, verify };

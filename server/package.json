@@ -6,6 +6,8 @@
     "node": ">=20"
   },
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node --test 'test/*.test.js'",
+    "dev": "PROVIDER=mock node server.js"
   }
 }

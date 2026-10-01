@@ -1,0 +1,170 @@
+// Pro-статус і денний ліміт сканів — на сервері, а не в телефоні.
+//
+// Чому тут: лічильник у AsyncStorage обнуляється перевстановленням, а будь-хто
+// зі скриптом міг би безкоштовно витрачати наш AI-ключ. Тепер сервер сам
+// рахує скани за id пристрою і питає RevenueCat, чи людина має Pro.
+//
+// Джерела правди про Pro (обидва необов'язкові, працюють разом):
+//   1) вебхук RevenueCat → user.proUntil (миттєво після покупки/продовження);
+//   2) REST-запит до RevenueCat, коли безкоштовний ліміт вичерпано, — на
+//      випадок, якщо вебхук ще не налаштований або загубився. Кеш 10 хв.
+const store = require('./store');
+
+const FREE_SCANS_PER_DAY = Number(process.env.FREE_SCANS_PER_DAY || 5);
+const RC_SECRET = process.env.REVENUECAT_SECRET_KEY || '';
+const RC_WEBHOOK_AUTH = process.env.REVENUECAT_WEBHOOK_AUTH || '';
+const ENTITLEMENT = process.env.REVENUECAT_ENTITLEMENT || 'pro';
+const RC_CACHE_MS = 10 * 60 * 1000;
+// Якщо RevenueCat недоступний, людина, в якої Pro щойно закінчився, ще три
+// дні не впирається в ліміт: краще подарувати кілька сканів, ніж заблокувати
+// того, хто заплатив і просто чекає продовження.
+const GRACE_MS = 3 * 86400000;
+const FOREVER = 4102444800000; // 2100-01-01 — довічна покупка
+
+// ---------- день ----------
+const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+function utcDay(date = new Date()) {
+  return date.toISOString().slice(0, 10);
+}
+
+function dayIndexOf(day) {
+  const [y, m, d] = day.split('-').map(Number);
+  return Math.floor(Date.UTC(y, m - 1, d) / 86400000);
+}
+
+function addDays(day, n) {
+  return utcDay(new Date((dayIndexOf(day) + n) * 86400000));
+}
+
+// Ліміт «на день» має скидатись опівночі ЗА ЧАСОМ ЛЮДИНИ, а не за UTC — інакше
+// в Києві скани «оновлювались» би о третій ночі. Клієнт надсилає свою дату;
+// приймаємо її, якщо вона в межах доби від серверної (часові пояси -12…+14).
+function localDay(value) {
+  const today = utcDay();
+  if (typeof value === 'string' && DAY_RE.test(value)) {
+    if (Math.abs(dayIndexOf(value) - dayIndexOf(today)) <= 1) return value;
+  }
+  return today;
+}
+
+// ---------- Pro ----------
+async function fetchRevenueCatUntil(userId) {
+  const res = await fetch('https://api.revenuecat.com/v1/subscribers/' + encodeURIComponent(userId), {
+    headers: { authorization: 'Bearer ' + RC_SECRET, 'content-type': 'application/json' },
+    signal: AbortSignal.timeout(8000),
+  });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error('revenuecat ' + res.status);
+  const data = await res.json();
+  const ent = data?.subscriber?.entitlements?.[ENTITLEMENT];
+  if (!ent) return null;
+  // expires_date: null — довічна покупка
+  if (ent.expires_date == null) return FOREVER;
+  const t = Date.parse(ent.expires_date);
+  return Number.isFinite(t) ? t : null;
+}
+
+// Повертає { active, until }. Може оновити й зберегти user (кеш перевірки).
+async function proStatus(user, { refresh = false } = {}) {
+  const now = Date.now();
+  let until = user.proUntil || null;
+  if (until && until > now) return { active: true, until };
+
+  const stale = !user.proCheckedAt || now - user.proCheckedAt > RC_CACHE_MS;
+  if (RC_SECRET && (refresh || stale)) {
+    try {
+      until = await fetchRevenueCatUntil(user.id);
+      user.proUntil = until;
+      user.proCheckedAt = now;
+      await store.put('users', user.id, user);
+    } catch (e) {
+      console.error('revenuecat check failed:', e.message);
+      if (user.proUntil && now - user.proUntil < GRACE_MS) return { active: true, until: user.proUntil };
+    }
+  }
+  return { active: !!(until && until > now), until: until || null };
+}
+
+// ---------- ліміт сканів ----------
+function usedOn(user, day) {
+  return user.usage && user.usage.day === day ? user.usage.scans || 0 : 0;
+}
+
+function usageView(user, day, pro) {
+  return { day, scans: usedOn(user, day), limit: pro ? null : FREE_SCANS_PER_DAY };
+}
+
+// Перевірка ДО виклику AI: витратити виклик і потім відмовити — це і гроші
+// на вітер, і відчуття обману.
+async function checkScan(user, day) {
+  const used = usedOn(user, day);
+  if (used < FREE_SCANS_PER_DAY) return { ok: true, pro: false };
+  const pro = await proStatus(user);
+  if (pro.active) return { ok: true, pro: true };
+  return { ok: false, used, limit: FREE_SCANS_PER_DAY };
+}
+
+// Рахуємо лише успішні скани: «не бачу предмета» людині не коштує спроби.
+async function countScan(user, day) {
+  user.usage = { day, scans: usedOn(user, day) + 1 };
+  await store.put('users', user.id, user);
+}
+
+// ---------- вебхук ----------
+// RevenueCat шле подію на кожну зміну підписки. Ми не намагаємось відтворити
+// всю машину станів: беремо дату закінчення з події, а для переносу покупки
+// між id просто скидаємо кеш — наступний скан перепитає RevenueCat.
+const EXTENDS = new Set([
+  'INITIAL_PURCHASE',
+  'RENEWAL',
+  'PRODUCT_CHANGE',
+  'UNCANCELLATION',
+  'NON_RENEWING_PURCHASE',
+  'SUBSCRIPTION_EXTENDED',
+  'TEMPORARY_ENTITLEMENT_GRANT',
+]);
+
+function webhookAuthorized(req) {
+  return !!RC_WEBHOOK_AUTH && req.headers.authorization === RC_WEBHOOK_AUTH;
+}
+
+async function handleWebhook(body) {
+  const ev = body && body.event;
+  if (!ev || !ev.type) return { handled: false };
+  const ids = new Set(
+    [ev.app_user_id, ev.original_app_user_id, ...(ev.aliases || []), ...(ev.transferred_from || []), ...(ev.transferred_to || [])]
+      .filter((x) => typeof x === 'string' && x && !x.startsWith('$RCAnonymousID'))
+  );
+  const forPro = !Array.isArray(ev.entitlement_ids) || ev.entitlement_ids.includes(ENTITLEMENT);
+  let touched = 0;
+  for (const id of ids) {
+    const user = await store.get('users', id);
+    if (!user) continue;
+    if (forPro && EXTENDS.has(ev.type)) {
+      user.proUntil = ev.expiration_at_ms || FOREVER;
+    } else if (forPro && ev.type === 'EXPIRATION') {
+      user.proUntil = Math.min(user.proUntil || Infinity, ev.expiration_at_ms || Date.now());
+    }
+    // будь-яка інша подія (TRANSFER, CANCELLATION, BILLING_ISSUE…) —
+    // просто змушуємо наступну перевірку сходити в RevenueCat
+    user.proCheckedAt = 0;
+    await store.put('users', id, user);
+    touched++;
+  }
+  return { handled: true, touched };
+}
+
+module.exports = {
+  FREE_SCANS_PER_DAY,
+  utcDay,
+  addDays,
+  dayIndexOf,
+  localDay,
+  proStatus,
+  usageView,
+  checkScan,
+  countScan,
+  webhookAuthorized,
+  handleWebhook,
+};

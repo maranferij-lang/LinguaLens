@@ -15,7 +15,8 @@ const PROJECT = process.env.FIRESTORE_PROJECT || '';
 const MODE = PROJECT ? 'firestore' : 'file';
 
 // ---------- FILE ----------
-const FILE = path.join(__dirname, 'data.json');
+// DATA_FILE — щоб тести працювали з тимчасовим файлом, не чіпаючи справжній.
+const FILE = process.env.DATA_FILE || path.join(__dirname, 'data.json');
 let cache = null;
 
 function readFile() {
