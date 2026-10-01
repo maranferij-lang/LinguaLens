@@ -37,6 +37,7 @@ import {
   ipaLabel,
   pickCollage,
   quote,
+  textEm,
   tierColor,
   weekRangeLabel,
 } from './layout';
@@ -277,6 +278,9 @@ function WordEntry({ word, pal, t, locale }) {
   const uri = resolvePhoto(word.photo);
   // слово дня приходить у серверному вигляді (example_translation)
   const exampleTr = word.exampleTranslation || word.example_translation;
+  // Висота картки фіксована: якщо переклад займе два рядки, приклад
+  // скорочуємо до двох, інакше нижній рядок із мовою й датою виїхав би за край.
+  const exampleLines = textEm(word.translation, 0) * 28 > CONTENT_W ? 2 : 3;
   return (
     <>
       {uri ? (
@@ -287,7 +291,7 @@ function WordEntry({ word, pal, t, locale }) {
       <LangLabel lang={word.lang} pal={pal} />
       {/* з фото заголовок опускаємо нижче наліпки в кутку, без фото — менше
           порожнечі згори */}
-      <View style={{ marginTop: uri ? 108 : 76 }}>
+      <View style={{ marginTop: uri ? 92 : 64 }}>
         <BigWord word={word.word} pal={pal} max={54} align="left" />
         {word.ipa ? (
           <Txt numberOfLines={1} style={{ color: pal.muted, fontFamily: F.reg, fontSize: 17, lineHeight: 22, marginTop: 4 }}>
@@ -301,12 +305,12 @@ function WordEntry({ word, pal, t, locale }) {
           </Txt>
         ) : null}
         {word.example ? (
-          <Txt numberOfLines={4} style={{ color: pal.text, fontFamily: F.semi, fontSize: 18, lineHeight: 26, marginTop: 18 }}>
+          <Txt numberOfLines={exampleLines} style={{ color: pal.text, fontFamily: F.semi, fontSize: 18, lineHeight: 26, marginTop: 18 }}>
             {quote(word.example, word.lang)}
           </Txt>
         ) : null}
         {word.example && exampleTr ? (
-          <Txt numberOfLines={3} style={{ color: pal.muted, fontFamily: F.reg, fontSize: 15, lineHeight: 21, marginTop: 8 }}>
+          <Txt numberOfLines={2} style={{ color: pal.muted, fontFamily: F.reg, fontSize: 15, lineHeight: 21, marginTop: 8 }}>
             {exampleTr}
           </Txt>
         ) : null}

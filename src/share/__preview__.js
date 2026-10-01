@@ -23,9 +23,9 @@ const mugShape = [[0.25,0.36],[0.3,0.33],[0.45,0.33],[0.62,0.33],[0.66,0.37],[0.
 const word = {
   word: params.get('w') || 'mug',
   ipa: 'mʌɡ',
-  translation: 'горнятко',
-  example: 'I drink tea from my favourite mug every morning.',
-  exampleTranslation: 'Я щоранку пʼю чай зі свого улюбленого горнятка.',
+  translation: params.get('tr') || 'горнятко',
+  example: params.get('ex') || 'I drink tea from my favourite mug every morning.',
+  exampleTranslation: params.get('ext') || 'Я щоранку пʼю чай зі свого улюбленого горнятка.',
   lang: 'en',
   photo: NOPHOTO ? null : IMG + 'mug.jpg',
   shape: mugShape,
