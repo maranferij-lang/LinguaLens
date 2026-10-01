@@ -253,7 +253,7 @@ Sign-in required: **No** (поля логіна залиш порожніми). 
 LinguaLens has no user accounts and no sign-in. On first launch the app silently registers a random anonymous ID with our server; no personal data is requested.
 
 How to test:
-1. Allow camera access, point the camera at any everyday object (a cup, a keyboard, a plant) and tap the shutter. The object's name appears in the language being learned (Spanish by default on an English-language device, English otherwise; change it in Settings → I'm learning). Recognition needs an internet connection.
+1. Allow camera access, point the camera at any everyday object (a cup, a keyboard, a plant) and tap the shutter. Before the first scan the app explains that the photo is sent to our server and to a third-party AI service (Google Gemini or Anthropic) only to recognise the object, and asks for permission (Allow / Not now); nothing is uploaded before Allow. The object's name appears in the language being learned (Spanish by default on an English-language device, English otherwise; change it in Settings → I'm learning). Recognition needs an internet connection.
 2. Tap Save. The word appears in the Words tab (List / Collection) and in Learn (flashcards and quiz).
 3. Tap Share on a scan result or a word card: the app renders an image and opens the standard iOS share sheet.
 
