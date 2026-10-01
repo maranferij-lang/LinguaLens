@@ -55,6 +55,7 @@ test('the nonce endpoint needs a device and returns a nonce with its SHA-256', a
 test('a new Apple ID is linked to the calling device', async () => {
   const device = await newDevice();
   assert.equal(device.user.apple, false);
+  assert.equal((await call('GET', '/me', { token: device.token })).data.user.apple, false);
   const s = sub();
   const r = await signIn(device.token, s, { code: apple.authorizationCode(s) });
   assert.equal(r.status, 200);
@@ -174,6 +175,20 @@ test('a device already linked to one Apple ID gets a separate account for anothe
   // перший акаунт цілий і досі прив'язаний
   assert.equal((await store.get('appleAccounts', auth.appleKey(first))).userId, device.user.id);
   assert.equal((await call('GET', '/me', { token: device.token })).data.user.apple, true);
+});
+
+test('a stale Apple mark without a live link does not count as linked elsewhere', async () => {
+  const device = await newDevice();
+  const first = sub();
+  await signIn(device.token, first);
+  // вхід обірвався між позначкою і зв'язком — зв'язку немає
+  await store.del('appleAccounts', auth.appleKey(first));
+  const second = sub();
+  const r = await signIn(device.token, second);
+  assert.equal(r.status, 200);
+  assert.equal(r.data.switched, false);
+  assert.equal(r.data.user.id, device.user.id);
+  assert.equal((await store.get('users', device.user.id)).appleKey, auth.appleKey(second));
 });
 
 test('a link left over from a deleted account is taken over by the next sign-in', async () => {

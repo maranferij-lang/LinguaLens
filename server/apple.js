@@ -46,10 +46,16 @@ const MAX_TOKEN_LENGTH = 8192;
 // старті, а не через місяць, коли хтось видалить акаунт.
 const SIGNING_KEY = (() => {
   const pem = (process.env.APPLE_PRIVATE_KEY || '').replace(/\\n/g, '\n').trim();
-  if (!TEAM_ID || !KEY_ID || !pem) return null;
+  if (!TEAM_ID && !KEY_ID && !pem) return null;
+  if (!TEAM_ID || !KEY_ID || !pem) {
+    console.error('apple: задано не всі APPLE_TEAM_ID, APPLE_KEY_ID, APPLE_PRIVATE_KEY — відкликання вимкнене');
+    return null;
+  }
   try {
     const key = crypto.createPrivateKey(pem);
-    if (key.asymmetricKeyType !== 'ec') throw new Error('очікувався EC-ключ (.p8 від Apple)');
+    if (key.asymmetricKeyType !== 'ec' || key.asymmetricKeyDetails?.namedCurve !== 'prime256v1') {
+      throw new Error('очікувався ключ P-256 (.p8 від Apple)');
+    }
     return key;
   } catch (e) {
     console.error('apple: APPLE_PRIVATE_KEY не розібрався, відкликання вимкнене:', e.message);

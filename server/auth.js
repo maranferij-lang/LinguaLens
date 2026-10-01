@@ -139,8 +139,9 @@ async function dropUser(user) {
 async function linkApple(caller, sub) {
   const key = appleKey(sub);
   // Пристрій уже прив'язаний до ІНШОГО Apple ID — його не переписуємо і не
-  // стираємо: цей вхід веде людину в окремий, новий акаунт.
-  const callerFree = !caller.appleKey || caller.appleKey === key;
+  // стираємо: цей вхід веде людину в окремий, новий акаунт. Стара позначка
+  // без живого зв'язку (вхід обірвався посередині) не рахується.
+  const callerFree = !caller.appleKey || caller.appleKey === key || !(await isLinked(caller));
   let fresh = null;
   for (let attempt = 0; attempt < 6; attempt++) {
     const mapping = await store.get(APPLE, key);
