@@ -6,8 +6,11 @@
 //   2) file — інакше (локальна розробка): звичайний JSON-файл поруч із сервером.
 //
 // Інтерфейс: get(collection, id), put(collection, id, obj), del(collection, id),
-//            update(collection, id, fields, { version }), findBy(collection, field, value)
+//            create(collection, id, obj), update(collection, id, fields, { version }),
+//            findBy(collection, field, value)
 //
+// create — «лише якщо документа ще немає»: так двоє паралельних запитів не
+// можуть обидва вирішити, що саме вони перші (прив'язка Apple ID, словник).
 // put перезаписує документ цілком — лише для створення. Усе інше пише через
 // update: тільки свої поля і лише в документ, що ще існує. Інакше два
 // паралельні запити з різними знімками затирали б один одного (скан
@@ -144,6 +147,30 @@ async function fsUpdate(coll, id, fields, version) {
   throw new Error('firestore update ' + res.status + ' ' + text.slice(0, 200));
 }
 
+// Створення з умовою currentDocument.exists=false. Хто прийшов другим,
+// отримує 409 ALREADY_EXISTS (перевірено на емуляторі; продакшн відповідає
+// так само) — це не помилка, а відповідь «документ уже є, перечитай його».
+async function fsCreate(coll, id, obj) {
+  const t = await accessToken();
+  const write = {
+    update: {
+      name: `projects/${PROJECT}/databases/(default)/documents/${coll}/${id}`,
+      fields: Object.fromEntries(Object.entries(obj).map(([k, v]) => [k, toFs(v)])),
+    },
+    currentDocument: { exists: false },
+  };
+  const res = await fetch(`${FS_BASE()}:commit`, {
+    method: 'POST',
+    headers: { authorization: 'Bearer ' + t, 'content-type': 'application/json' },
+    body: JSON.stringify({ writes: [write] }),
+  });
+  if (res.ok) return { ok: true, version: (await res.json()).writeResults?.[0]?.updateTime };
+  const text = await res.text().catch(() => '');
+  if (/ALREADY_EXISTS/.test(text)) return { ok: false, reason: 'exists' };
+  if (res.status === 409 || /ABORTED/.test(text)) return { ok: false, reason: 'conflict' };
+  throw new Error('firestore create ' + res.status + ' ' + text.slice(0, 200));
+}
+
 async function fsPut(coll, id, obj) {
   const t = await accessToken();
   const fields = Object.fromEntries(Object.entries(obj).map(([k, v]) => [k, toFs(v)]));
@@ -209,6 +236,21 @@ async function put(coll, id, obj) {
   return true;
 }
 
+// Створює документ, лише якщо його ще немає. { ok, version } або
+// { ok: false, reason: 'exists' } (у Firestore ще й 'conflict' — перечитати
+// й повторити, як після update).
+async function create(coll, id, obj) {
+  if (MODE === 'firestore') return fsCreate(coll, id, obj);
+  const db = readFile();
+  db[coll] = db[coll] || {};
+  if (db[coll][id]) return { ok: false, reason: 'exists' };
+  db[coll][id] = structuredClone(obj);
+  const key = coll + '/' + id;
+  versions.set(key, ++versionSeq);
+  writeFile();
+  return { ok: true, version: versions.get(key) };
+}
+
 // Змінює лише передані поля верхнього рівня. { ok, version } або
 // { ok: false, reason: 'missing' | 'conflict' }.
 async function update(coll, id, fields, { version } = {}) {
@@ -242,4 +284,4 @@ async function findBy(coll, field, value) {
   return items.find((x) => x && x[field] === value) || null;
 }
 
-module.exports = { get, put, update, del, findBy, MODE };
+module.exports = { get, put, create, update, del, findBy, MODE };
