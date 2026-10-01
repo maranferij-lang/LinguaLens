@@ -79,14 +79,18 @@ async function proStatus(user, { refresh = false } = {}) {
 
   const stale = !user.proCheckedAt || now - user.proCheckedAt > RC_CACHE_MS;
   // refresh не частіше ніж раз на 30 с: інакше будь-хто з токеном пристрою
-  // міг би в циклі вичерпати квоту RevenueCat API для всіх.
-  const canRefresh = refresh && !(user.proCheckedAt && now - user.proCheckedAt < REFRESH_MIN_MS);
+  // міг би в циклі вичерпати квоту RevenueCat API для всіх. Окрема позначка,
+  // а не proCheckedAt: звичайна перевірка при запуску за мить до покупки не
+  // має з'їсти перепитування після оплати.
+  const canRefresh = refresh && !(user.proRefreshedAt && now - user.proRefreshedAt < REFRESH_MIN_MS);
   if (RC_SECRET && (canRefresh || stale)) {
     try {
       until = await fetchRevenueCatUntil(user.id);
       user.proUntil = until;
       user.proCheckedAt = now;
-      await store.update('users', user.id, { proUntil: until, proCheckedAt: now });
+      const fields = { proUntil: until, proCheckedAt: now };
+      if (canRefresh) fields.proRefreshedAt = user.proRefreshedAt = now;
+      await store.update('users', user.id, fields);
     } catch (e) {
       console.error('revenuecat check failed:', e.message);
       if (user.proUntil && now - user.proUntil < GRACE_MS) return { active: true, until: user.proUntil };
