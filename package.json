@@ -5,8 +5,10 @@
   "dependencies": {
     "@expo-google-fonts/nunito": "^0.4.2",
     "@expo/metro-runtime": "~57.0.16",
+    "@expo/ui": "~57.0.21",
     "@react-native-async-storage/async-storage": "2.2.0",
     "expo": "~57.0.26",
+    "expo-apple-authentication": "~57.0.2",
     "expo-asset": "~57.0.18",
     "expo-audio": "~57.0.5",
     "expo-blur": "~57.0.3",
@@ -26,6 +28,7 @@
     "expo-status-bar": "~57.0.1",
     "expo-store-review": "~57.0.3",
     "expo-system-ui": "~57.0.4",
+    "expo-widgets": "~57.0.22",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "0.86.3",

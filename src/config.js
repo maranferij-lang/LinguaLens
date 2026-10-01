@@ -16,6 +16,7 @@ const ENV = {
   TERMS_URL: clean(process.env.EXPO_PUBLIC_TERMS_URL),
   PRIVACY_URL: clean(process.env.EXPO_PUBLIC_PRIVACY_URL),
   SUPPORT_EMAIL: clean(process.env.EXPO_PUBLIC_SUPPORT_EMAIL),
+  FACEBOOK_APP_ID: clean(process.env.EXPO_PUBLIC_FACEBOOK_APP_ID),
 };
 const isDev = typeof __DEV__ !== 'undefined' && __DEV__;
 
@@ -61,5 +62,10 @@ export const TERMS_URL =
 // Політику віддає наш сервер (/privacy), тож окремо її можна не задавати.
 export const PRIVACY_URL = ENV.PRIVACY_URL || (SERVER_SOURCE === 'missing' ? '' : SERVER_URL + '/privacy');
 export const SUPPORT_EMAIL = ENV.SUPPORT_EMAIL;
+
+// App ID застосунку Meta (developers.facebook.com). Instagram з 2023 року
+// приймає «поділитись у Stories» лише з ним; без нього кнопки Instagram
+// немає, а картки йдуть через звичайне системне меню.
+export const FACEBOOK_APP_ID = ENV.FACEBOOK_APP_ID;
 
 export const IS_DEV = isDev;

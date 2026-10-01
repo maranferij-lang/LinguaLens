@@ -16,8 +16,13 @@
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "CFBundleAllowMixedLocalizations": true,
-        "NSPhotoLibraryAddUsageDescription": "LinguaLens saves your share cards and stickers to Photos when you choose “Save Image”."
-      }
+        "NSPhotoLibraryAddUsageDescription": "LinguaLens saves your share cards and stickers to Photos when you choose “Save Image”.",
+        "LSApplicationQueriesSchemes": [
+          "instagram-stories",
+          "instagram"
+        ]
+      },
+      "usesAppleSignIn": true
     },
     "android": {
       "package": "com.marik.lingualens",
@@ -86,6 +91,27 @@
             "uk",
             "de",
             "es"
+          ]
+        }
+      ],
+      "expo-apple-authentication",
+      [
+        "expo-widgets",
+        {
+          "widgets": [
+            {
+              "name": "WordOfDay",
+              "displayName": "Word of the Day",
+              "description": "A new word in the language you’re learning, every day.",
+              "ios": {
+                "supportedFamilies": [
+                  "systemSmall",
+                  "systemMedium",
+                  "accessoryRectangular",
+                  "accessoryInline"
+                ]
+              }
+            }
           ]
         }
       ]
