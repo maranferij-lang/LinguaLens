@@ -242,6 +242,7 @@ figma/                    — стан макетів (STATE.md)
 | Документ | Про що |
 |---|---|
 | [`SETUP_MAC.md`](SETUP_MAC.md) | встановити все на чистий Mac |
+| [`LAUNCH_PLAN.md`](LAUNCH_PLAN.md) | **план запуску**: що готово, тиждень за тижнем до релізу, ціни, ASO, перші 30 днів |
 | [`USER_TODO.md`](USER_TODO.md) | **що лишилось зробити тобі**: Apple Developer, підписки, RevenueCat, сервер, EAS |
 | [`TESTING.md`](TESTING.md) | як тестувати і чеклист на 15 хвилин |
 | [`DEPLOY.md`](DEPLOY.md) | сервер у Google Cloud Run + Firestore |

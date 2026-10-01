@@ -1,6 +1,8 @@
 # Що зробити тобі (реєстрації та ключі)
 
 Код готовий працювати з усім нижче — бракує лише твоїх акаунтів і ключів.
+Загальний план із датами, цінами й текстами для App Store — у
+[`LAUNCH_PLAN.md`](LAUNCH_PLAN.md).
 Порядок важливий: кожен крок спирається на попередній. Орієнтовно 1–2 вечори
 плюс очікування перевірок Apple.
 
@@ -32,12 +34,16 @@
 1. Створи групу **LinguaLens Pro**.
 2. Створи 4 автоподовжувані підписки з **точно такими** Product ID (вони вже в коді):
 
-   | Product ID | Тривалість | Ціна (як у MONETIZATION.md) |
-   |---|---|---|
-   | `com.marik.lingualens.pro.week` | 1 тиждень | $4.99 |
-   | `com.marik.lingualens.pro.month` | 1 місяць | $6.99 |
-   | `com.marik.lingualens.pro.quarter` | 3 місяці | $16.99 |
-   | `com.marik.lingualens.pro.year` | 1 рік | $34.99 |
+   | Product ID | Тривалість | Ціна (базова, США) | Україна (вручну) |
+   |---|---|---|---|
+   | `com.marik.lingualens.pro.week` | 1 тиждень | $4.99 | $1.99 |
+   | `com.marik.lingualens.pro.month` | 1 місяць | $6.99 | $3.99 |
+   | `com.marik.lingualens.pro.quarter` | 3 місяці | $16.99 | $8.99 |
+   | `com.marik.lingualens.pro.year` | 1 рік | $34.99 | $19.99 |
+
+   Українські ціни задай окремо: підписка → Subscription Prices → Ukraine.
+   Автоматичний перерахунок дає ціни на рівні США — для України задорого
+   (чому — [`LAUNCH_PLAN.md`](LAUNCH_PLAN.md), розділ 4).
 
 3. Для річної: **Subscription Prices → Introductory Offers → Free trial, 1 week**.
 4. Для кожної — назва й опис (англійською + українською) і скріншот пейволу
