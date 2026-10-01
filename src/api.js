@@ -9,26 +9,27 @@ export function setSessionToken(t) {
   sessionToken = t || '';
 }
 
-function headers() {
+function headers(token) {
   return {
     'content-type': 'application/json',
     // День людини, а не сервера: ліміт сканів і слово дня скидаються опівночі
     // за її годинником.
     'x-local-date': localDayKey(),
     ...(APP_TOKEN ? { 'x-app-token': APP_TOKEN } : {}),
-    ...(sessionToken ? { authorization: 'Bearer ' + sessionToken } : {}),
+    ...(token ? { authorization: 'Bearer ' + token } : {}),
   };
 }
 
 async function request(path, { method = 'GET', body, timeout = 20000 } = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeout);
+  const token = sessionToken;
   let res;
   try {
     res = await fetch(SERVER_URL + path, {
       method,
       signal: controller.signal,
-      headers: headers(),
+      headers: headers(token),
       body: body ? JSON.stringify(body) : undefined,
     });
   } catch (e) {
@@ -48,6 +49,9 @@ async function request(path, { method = 'GET', body, timeout = 20000 } = {}) {
     const err = codeError(data?.error || 'HTTP_' + res.status);
     err.status = res.status;
     err.data = data;
+    // Поки запит летів, телефон перейшов на інший токен (вхід через Apple,
+    // вихід): відмова стосується старого, а не нинішнього.
+    if (token !== sessionToken) err.stale = true;
     throw err;
   }
   return data;
@@ -62,9 +66,11 @@ function codeError(code) {
 // Сервер не знає цього токена пристрою (запис стерто) — лише тоді можна
 // заводити нову ідентичність. 403 APP_TOKEN — це збірка з неправильним
 // токеном застосунку або його ротація, а не пристрій: ідентичність не чіпаємо,
-// інакше кожен такий запит знищував би її.
+// інакше кожен такий запит знищував би її. Відмова старому токену (після
+// входу через Apple сервер стирає анонімний запис, а запит із ним міг ще
+// летіти) — теж не привід: інакше вона викинула б людину з акаунта.
 export function deviceForgotten(e) {
-  return e?.status === 401 && e?.code === 'UNAUTHORIZED';
+  return e?.status === 401 && e?.code === 'UNAUTHORIZED' && !e.stale;
 }
 
 // ---------- ІДЕНТИЧНІСТЬ ПРИСТРОЮ ----------
@@ -78,6 +84,23 @@ export function apiMe(refresh = false) {
 }
 export function apiDeleteMe() {
   return request('/me', { method: 'DELETE' });
+}
+
+// ---------- SIGN IN WITH APPLE (див. account.js) ----------
+// { nonce, appleNonce }: appleNonce іде в Apple, nonce — назад на сервер.
+export function apiAppleNonce() {
+  return request('/auth/apple/nonce', { method: 'POST', body: {} });
+}
+// { user: { id, createdAt, apple }, token, switched }
+export function apiAppleSignIn(body) {
+  return request('/auth/apple', { method: 'POST', body });
+}
+
+// ---------- СИНХРОНІЗАЦІЯ СЛОВНИКА (див. sync.js) ----------
+// Пачка до 500 слів туди й зміни звідти. Перша синхронізація великого
+// словника — кілька таких запитів, тож запас більший, ніж у /me.
+export function apiSync(body) {
+  return request('/sync', { method: 'POST', body, timeout: 30000 });
 }
 
 // ---------- РОЗПІЗНАВАННЯ ----------

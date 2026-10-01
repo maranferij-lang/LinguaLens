@@ -1,15 +1,28 @@
 // Налаштування: акаунт, мови, слово дня, тема, сервер, дані.
-import { useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Linking, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  AccessibilityInfo,
+  ActivityIndicator,
+  Alert,
+  Linking,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  View,
+} from 'react-native';
+import * as AppleAuthentication from 'expo-apple-authentication';
 import * as Haptics from 'expo-haptics';
 import { checkServer } from './api';
+import { accountErrorKey, syncErrorKey } from './account';
 import { PRIVACY_URL, SERVER_SOURCE, SERVER_URL, SUPPORT_EMAIL, TERMS_URL } from './config';
 import { formatDate } from './locale';
 import { uiLang } from './i18n';
 import { restoreNote } from './purchases';
 import { version as APP_VERSION } from '../package.json';
 import { LANGS, flagFor, nameFor } from './speech';
-import { IcCheck, IcChevron } from './icons';
+import { IcCheck, IcChevron, IcCloud } from './icons';
 import { LogoRow } from './Logo';
 import { PCrown } from './ProIcons';
 import { Mascot } from './Mascot';
@@ -73,6 +86,171 @@ function LangPicker({ label, hint, value, onChange, C, s }) {
   );
 }
 
+// «Синхронізовано 5 хвилин тому». Хвилини й години — відносно, давніше —
+// датою: «3 дні тому» для резервної копії менш корисне, ніж конкретний день.
+export function syncedLabel(at, now, t, lang) {
+  if (!at) return t('syncedNever');
+  const min = Math.floor(Math.max(0, now - at) / 60000);
+  if (min < 1) return t('syncedJustNow');
+  if (min < 60) return t('syncedMinutes', { n: min });
+  if (min < 24 * 60) return t('syncedHours', { n: Math.floor(min / 60) });
+  return t('syncedOn', { d: formatDate(at, lang) });
+}
+
+// Акаунт Apple. Без входу — що він дає і офіційна кнопка Apple (HIG вимагає
+// саме її: системний вигляд, локалізований текст, доступність з коробки).
+// Після входу — коли востаннє синхронізовано, «Синхронізувати зараз» і вихід.
+function AccountCard({ account, sync, pro, onSignIn, onSignOut, onSyncNow, lang, t, C, isDark, s }) {
+  const [busy, setBusy] = useState(false);
+  const [leaving, setLeaving] = useState(false);
+  const [error, setError] = useState(null);
+  const [now, setNow] = useState(Date.now);
+  const alive = useRef(true);
+  useEffect(
+    () => () => {
+      alive.current = false;
+    },
+    []
+  );
+
+  // «N хвилин тому» має старіти, поки екран відкритий.
+  useEffect(() => {
+    if (!account.signedIn) return;
+    setNow(Date.now());
+    const id = setInterval(() => setNow(Date.now()), 30000);
+    return () => clearInterval(id);
+  }, [account.signedIn, sync?.at]);
+
+  // Помилку кажемо одним рядком під кнопкою, без діалогу. VoiceOver
+  // оголошує її сам: рядок з'являється не там, де зараз фокус.
+  function fail(key) {
+    const msg = key ? t(key) : null;
+    setError(msg);
+    if (msg) AccessibilityInfo.announceForAccessibility?.(msg);
+  }
+
+  async function signIn() {
+    if (busy) return;
+    fail(null);
+    setBusy(true);
+    try {
+      const res = await onSignIn();
+      if (res) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e) {
+      if (alive.current) fail(accountErrorKey(e?.code));
+    } finally {
+      if (alive.current) setBusy(false);
+    }
+  }
+
+  async function signOut(force) {
+    setLeaving(true);
+    try {
+      await onSignOut({ force });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e) {
+      // Сервер недоступний, а дещо ще не синхронізовано: питаємо вдруге,
+      // бо вихід очищає телефон і ці зміни пропали б.
+      if (e?.code === 'UNSYNCED') {
+        Alert.alert(t('signOutUnsyncedTitle'), t('signOutUnsyncedMsg'), [
+          { text: t('cancel'), style: 'cancel' },
+          { text: t('signOutAnyway'), style: 'destructive', onPress: () => signOut(true) },
+        ]);
+      }
+    } finally {
+      if (alive.current) setLeaving(false);
+    }
+  }
+
+  function confirmSignOut() {
+    // Pro прив'язаний до акаунта: на цьому телефоні після виходу його не
+    // буде, доки людина не ввійде знову. Кажемо про це, щоб не лякати.
+    Alert.alert(t('signOutTitle'), t(pro ? 'signOutMsgPro' : 'signOutMsg'), [
+      { text: t('cancel'), style: 'cancel' },
+      { text: t('signOut'), style: 'destructive', onPress: () => signOut(false) },
+    ]);
+  }
+
+  if (!account.signedIn) {
+    return (
+      <>
+        <Text style={s.sectionLabel}>{t('accountLabel')}</Text>
+        <Glass>
+          <View style={s.acctHead}>
+            <View style={s.acctIcon}>
+              <IcCloud size={22} color={C.accent} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={s.switchTitle}>{t('accountTitle')}</Text>
+              <Text style={s.dimText}>{t('accountText')}</Text>
+            </View>
+          </View>
+          {busy ? (
+            // Та сама висота, що в кнопки: картка не підстрибує.
+            <View style={[s.appleBtn, s.appleBusy]} accessible accessibilityLabel={t('accountSigningIn')}>
+              <ActivityIndicator color={C.dim} />
+            </View>
+          ) : (
+            <AppleAuthentication.AppleAuthenticationButton
+              buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+              buttonStyle={
+                isDark ? AppleAuthentication.AppleAuthenticationButtonStyle.WHITE : AppleAuthentication.AppleAuthenticationButtonStyle.BLACK
+              }
+              cornerRadius={R.lg}
+              style={s.appleBtn}
+              onPress={signIn}
+            />
+          )}
+          {error ? <Text style={s.acctError}>{error}</Text> : null}
+        </Glass>
+      </>
+    );
+  }
+
+  const syncing = sync?.status === 'syncing';
+  const syncError = sync?.status === 'error' ? syncErrorKey(sync.error) : null;
+  return (
+    <>
+      <Text style={s.sectionLabel}>{t('accountLabel')}</Text>
+      <Glass>
+        <View style={s.acctHead}>
+          <View style={s.acctIcon}>
+            <IcCloud size={22} color={C.accent} done />
+          </View>
+          {/* Фонова синхронізація, що не вдалась, — не аварія: наступна
+              спроба буде сама. Тому рядок тихий, а не червоний. */}
+          <View style={{ flex: 1 }} accessible>
+            <Text style={s.switchTitle}>{t('accountSignedIn')}</Text>
+            <Text style={s.dimText}>{syncing ? t('syncing') : syncedLabel(sync?.at, now, t, lang)}</Text>
+            {syncError && !syncing ? <Text style={s.syncNote}>{t(syncError)}</Text> : null}
+          </View>
+        </View>
+        {/* Під час синхронізації кнопка не тьмяніє (спінер має бути видно),
+            а просто нічого не робить. */}
+        <Press
+          style={s.syncBtn}
+          onPress={syncing ? undefined : onSyncNow}
+          disabled={leaving}
+          accessibilityLabel={t('syncNow')}
+          accessibilityState={{ busy: syncing, disabled: syncing || leaving }}
+        >
+          {syncing ? <ActivityIndicator color={C.accent} size="small" /> : <Text style={s.syncBtnText}>{t('syncNow')}</Text>}
+        </Press>
+        <View style={s.sepInner} />
+        <Press
+          style={s.signOutBtn}
+          onPress={confirmSignOut}
+          disabled={leaving}
+          accessibilityLabel={t('signOut')}
+          accessibilityState={{ busy: leaving, disabled: leaving }}
+        >
+          {leaving ? <ActivityIndicator color={C.red} size="small" /> : <Text style={s.dangerText}>{t('signOut')}</Text>}
+        </Press>
+      </Glass>
+    </>
+  );
+}
+
 export default function SettingsScreen({
   targetLang,
   onSetLang,
@@ -93,10 +271,19 @@ export default function SettingsScreen({
   onOpenPaywall,
   onManageSub,
   onRestore,
+  account,
+  sync,
+  onSignIn,
+  onSignOut,
+  onSyncNow,
   t,
 }) {
-  const { C } = useTheme();
+  const { C, isDark } = useTheme();
   const s = useMemo(() => makeStyles(C), [C]);
+  // Без кнопки Apple (веб, Android) про акаунт мовчимо; хто вже увійшов —
+  // бачить свій стан будь-де.
+  const showAccount = !!(account?.signedIn || account?.available);
+  const synced = !!account?.signedIn;
 
   const [checking, setChecking] = useState(false);
   const [devOpen, setDevOpen] = useState(false);
@@ -111,8 +298,9 @@ export default function SettingsScreen({
     setChecking(false);
   }
 
+  // В акаунті видалення розійдеться на всі iPhone — кажемо про це прямо.
   function confirmClear() {
-    Alert.alert(t('clearTitle'), t('clearMsg', { n: wordsCount }), [
+    Alert.alert(t('clearTitle'), t(synced ? 'clearMsgSynced' : 'clearMsg', { n: wordsCount }), [
       { text: t('cancel'), style: 'cancel' },
       { text: t('clear'), style: 'destructive', onPress: onClearAll },
     ]);
@@ -121,7 +309,7 @@ export default function SettingsScreen({
   // Стерти все — незворотне, тож два кроки: діалог і лише потім запит.
   // Сервер має бути досяжний: інакше людина думала б, що її дані стерто.
   function confirmErase() {
-    Alert.alert(t('eraseTitle'), t('eraseMsg'), [
+    Alert.alert(t('eraseTitle'), t(synced ? 'eraseMsgAccount' : 'eraseMsg'), [
       { text: t('cancel'), style: 'cancel' },
       {
         text: t('eraseConfirm'),
@@ -162,10 +350,28 @@ export default function SettingsScreen({
       <Text style={s.title}>{t('setTitle')}</Text>
 
       <FadeIn>
-        {/* Pro — перший блок. Не тому, що ми жадібні, а тому що це єдине
+        {/* Акаунт — найперше: від нього залежить, чи переживуть слова втрату
+            телефона. Вхід необов'язковий, тож це одна спокійна картка. */}
+        {showAccount ? (
+          <AccountCard
+            account={account}
+            sync={sync}
+            pro={!!sub?.pro}
+            onSignIn={onSignIn}
+            onSignOut={onSignOut}
+            onSyncNow={onSyncNow}
+            lang={nativeLang}
+            t={t}
+            C={C}
+            isDark={isDark}
+            s={s}
+          />
+        ) : null}
+
+        {/* Pro — одразу далі. Не тому, що ми жадібні, а тому що це єдине
             місце, де людина може дізнатись про межі й керувати підпискою. */}
         {sub?.pro ? (
-          <Press style={s.proCard} onPress={onManageSub}>
+          <Press style={[s.proCard, showAccount && s.afterAccount]} onPress={onManageSub}>
             <View style={s.proIconWrap}>
               <PCrown size={22} color={C.onAccent} />
             </View>
@@ -179,7 +385,7 @@ export default function SettingsScreen({
             <IcChevron color={C.faint} />
           </Press>
         ) : (
-          <Press style={s.proCardOff} onPress={onOpenPaywall}>
+          <Press style={[s.proCardOff, showAccount && s.afterAccount]} onPress={onOpenPaywall}>
             <View style={s.proIconWrap}>
               <PCrown size={22} color={C.onAccent} />
             </View>
@@ -360,7 +566,7 @@ export default function SettingsScreen({
             <Text style={s.dangerText}>{t('clearDict')}</Text>
           </Press>
           <View style={s.sepInner} />
-          <Text style={s.dimText}>{t('eraseHint')}</Text>
+          <Text style={s.dimText}>{t(synced ? 'eraseHintAccount' : 'eraseHint')}</Text>
           <Press style={s.dangerBtn} onPress={confirmErase}>
             <Text style={[s.dangerText, { color: C.faint }]}>{t('eraseAll')}</Text>
           </Press>
@@ -457,6 +663,7 @@ const makeStyles = (C) =>
       alignItems: 'center',
       justifyContent: 'center',
     },
+    afterAccount: { marginTop: 14 },
     proTitle: { color: C.text, ...type(16, F.bold, { noLead: true }) },
     proHint: { color: C.dim, ...type(13, F.reg, { noLead: true }), marginTop: 2 },
     sep: { height: StyleSheet.hairlineWidth, backgroundColor: C.sep, marginLeft: 14 },
@@ -532,6 +739,33 @@ const makeStyles = (C) =>
     badText: { color: C.red, fontSize: 13, marginTop: 10, lineHeight: 19, fontFamily: F.semi },
 
     dangerBtn: { marginTop: 10, paddingVertical: 10, alignItems: 'center' },
+
+    acctHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 13 },
+    acctIcon: {
+      width: 40,
+      height: 40,
+      borderRadius: 13,
+      backgroundColor: C.accentSoft,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    // Офіційна кнопка Apple: на всю ширину, 50 pt — у межах HIG (від 30 pt).
+    // Колір і радіус задаються її власними пропсами, не стилем.
+    appleBtn: { width: '100%', height: 50, marginTop: 16 },
+    appleBusy: { alignItems: 'center', justifyContent: 'center' },
+    acctError: { color: C.red, ...type(13, F.semi), marginTop: 10 },
+    syncNote: { color: C.dim, ...type(13, F.bold), marginTop: 3 },
+    syncBtn: {
+      backgroundColor: C.card2,
+      borderRadius: R.md,
+      minHeight: 46,
+      paddingVertical: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginTop: 14,
+    },
+    syncBtnText: { color: C.text, ...type(15, F.bold, { noLead: true }) },
+    signOutBtn: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
     dangerText: { color: C.red, fontSize: 16, letterSpacing: -0.1, fontFamily: F.semi },
     version: { color: C.faint, fontSize: 11, fontFamily: F.reg, marginTop: 2 },
     footer: { color: C.faint, fontSize: 12, textAlign: 'center', fontFamily: F.semi },

@@ -148,3 +148,12 @@ export async function clearLocalData() {
     await AsyncStorage.multiRemove([WORDS_KEY, ACTIVITY_KEY, STATS_KEY, SEEN_ACH_KEY, WOD_KEY, 'll_usage_v1']);
   } catch (_) {}
 }
+
+// Вихід з акаунта Apple: слова й прогрес лишаються в акаунті, а з телефона
+// йдуть. Кеш слова дня й денний лічильник сканів — не особисті дані, їх
+// не чіпаємо (див. account.js).
+export async function clearProgress() {
+  try {
+    await AsyncStorage.multiRemove([WORDS_KEY, ACTIVITY_KEY, STATS_KEY, SEEN_ACH_KEY]);
+  } catch (_) {}
+}

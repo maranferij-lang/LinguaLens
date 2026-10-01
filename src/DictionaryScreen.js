@@ -8,7 +8,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, FlatList, Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { flagFor, speak } from './speech';
-import { IcSearch, IcShare, IcSpeaker } from './icons';
+import { IcClose, IcCloud, IcSearch, IcShare, IcSpeaker } from './icons';
 import { MascotBob } from './Mascot';
 import { Sticker } from './Sticker';
 import WordSheet, { confirmDelete, LetterTile, splitArticle } from './WordSheet';
@@ -60,7 +60,10 @@ export function gridMetrics(width) {
 // щоразу), але не перезапуск застосунку.
 let lastView = 'list';
 
-export default function DictionaryScreen({ words, onDelete, onScan, onShare, t }) {
+// nudge — показати картку «увійди через Apple, щоб не загубити слова»
+// (умови вирішує App); onNudge відкриває Параметри, onDismissNudge ховає її
+// назавжди.
+export default function DictionaryScreen({ words, onDelete, onScan, onShare, nudge, onNudge, onDismissNudge, t }) {
   const { C, SHADOW_SM } = useTheme();
   const s = useMemo(() => makeStyles(C, SHADOW_SM), [C, SHADOW_SM]);
   const { width } = useWindowDimensions();
@@ -176,6 +179,8 @@ export default function DictionaryScreen({ words, onDelete, onScan, onShare, t }
           мовою без правил множини. */}
       <Text style={s.subtitle}>{t('dictCount', { n: words.length })}</Text>
 
+      {nudge ? <SyncNudge n={words.length} onOpen={onNudge} onHide={onDismissNudge} s={s} C={C} t={t} /> : null}
+
       <Segment
         value={view}
         onChange={switchView}
@@ -269,6 +274,37 @@ export default function DictionaryScreen({ words, onDelete, onScan, onShare, t }
 }
 
 const keyOf = (item) => item.id;
+
+// ─── Підказка про резервну копію ───────────────────────────────────────────
+// Тиха картка, а не діалог: вхід необов'язковий, і людина, яка не хоче
+// акаунта, має прибрати підказку одним дотиком і більше її не бачити.
+function SyncNudge({ n, onOpen, onHide, s, C, t }) {
+  const text = t('syncNudge', { n });
+  function hide() {
+    Haptics.selectionAsync();
+    layoutNext(); // список під карткою плавно під'їжджає (без руху при reduced motion)
+    onHide?.();
+  }
+  return (
+    <FadeIn dy={6} style={s.nudge}>
+      <Press style={s.nudgeMain} onPress={onOpen} accessibilityLabel={text} scaleTo={0.98}>
+        <View style={s.nudgeIcon}>
+          <IcCloud size={20} color={C.accent} />
+        </View>
+        <Text style={s.nudgeText}>{text}</Text>
+      </Press>
+      <Pressable
+        style={s.nudgeClose}
+        onPress={hide}
+        hitSlop={8}
+        accessibilityRole="button"
+        accessibilityLabel={t('syncNudgeHide')}
+      >
+        <IcClose size={16} color={C.faint} />
+      </Pressable>
+    </FadeIn>
+  );
+}
 
 // ─── Перемикач Список / Колекція ───────────────────────────────────────────
 // Стиль той самий, що в Профілі, але біла «пігулка» не стрибає, а
@@ -402,6 +438,27 @@ const makeStyles = (C, SHADOW_SM) =>
     root: { flex: 1, backgroundColor: C.bg, padding: 20, paddingBottom: 0 },
     title: { color: C.text, ...type(34, F.bold) },
     subtitle: { color: C.dim, ...type(13, F.reg), marginTop: 2, marginBottom: 14 },
+
+    // Підказка про вхід: м'який акцентний фон, як у картки Pro в Параметрах,
+    // — помітна, але не кричить червоним чи градієнтом.
+    nudge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: C.accentSoft,
+      borderRadius: R.lg,
+      marginBottom: 12,
+    },
+    nudgeMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 12, paddingLeft: 12 },
+    nudgeIcon: {
+      width: 34,
+      height: 34,
+      borderRadius: 11,
+      backgroundColor: C.card,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    nudgeText: { flex: 1, color: C.text, ...type(14, F.semi) },
+    nudgeClose: { width: 44, minHeight: 44, alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center' },
 
     segment: { flexDirection: 'row', backgroundColor: C.card2, borderRadius: R.md, padding: 3, marginBottom: 12 },
     segmentThumb: {

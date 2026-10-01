@@ -94,7 +94,7 @@ Turn a word, an achievement or your week into a clean 9:16 card and share it to 
 English, Spanish, German, French, Italian, Portuguese, Polish, Ukrainian, Japanese, Korean, Chinese and more. Nouns come with their article where it matters (die Tasse, la taza).
 
 NO ACCOUNT NEEDED
-Open the app and start scanning. Your words and progress stay on your phone. Photos are used only to recognise the object and are not stored on our servers.
+Open the app and start scanning. Your words and progress stay on your phone. Want a backup? Sign in with Apple to keep your words in sync on all your iPhones — we never ask for your name or email. Photos are used only to recognise the object and are not stored on our servers.
 
 LINGUALENS PRO
 Free: 5 scans a day, up to 100 words, one language. Pro removes the limits: unlimited scans, unlimited words, all 29 languages. Weekly, monthly, 3-month and yearly plans; the yearly plan may include a free trial for new subscribers.
@@ -142,7 +142,7 @@ LinguaLens перетворює світ навколо тебе на словн
 Англійська, іспанська, німецька, французька, італійська, португальська, польська, японська, корейська, китайська та інші. Іменники — з артиклем там, де він важливий (die Tasse, la taza).
 
 БЕЗ РЕЄСТРАЦІЇ
-Відкрив і скануєш. Слова й прогрес зберігаються на телефоні. Фото потрібне лише для розпізнавання і не зберігається на наших серверах.
+Відкрив і скануєш. Слова й прогрес зберігаються на телефоні. Хочеш резервну копію — увійди через Apple, і словник буде однаковий на всіх твоїх iPhone. Імені й пошти ми не просимо. Фото потрібне лише для розпізнавання і не зберігається на наших серверах.
 
 LINGUALENS PRO
 Безкоштовно: 5 сканів на день, до 100 слів, одна мова. Pro знімає обмеження: скани без ліміту, словник без ліміту, усі 29 мов. Плани на тиждень, місяць, 3 місяці й рік; річний може починатися з безкоштовного пробного періоду для нових підписників.
@@ -202,16 +202,30 @@ Apple вважає дані **«зібраними» (collected)**, якщо в�
 | **Identifiers → User ID** | App Functionality | **Yes** | No |
 | **Purchases → Purchase History** | App Functionality | **Yes** | No |
 | **User Content → Photos or Videos** | App Functionality | **No** | No |
+| **User Content → Other User Content** | App Functionality | **Yes** | No |
+| **Usage Data → Product Interaction** | App Functionality | **Yes** | No |
 
 **Чому так:**
 
 - **User ID.** При першому запуску сервер видає випадковий id. Він живе в
   Keychain, на сервері до нього прив'язані лічильник сканів і статус Pro, а в
-  RevenueCat — покупки. Імені, пошти чи Apple ID ми не знаємо, але за
-  визначенням Apple дані вважаються пов'язаними, якщо перед збором з них не
-  прибрали ідентифікатор. Тут сам id і є ідентифікатором, тому чесна відповідь
-  — **Linked**. «Device ID» не підходить: у Apple це ідентифікатори рівня
-  пристрою на кшталт рекламного, а наш id видає сервер, як номер користувача.
+  RevenueCat — покупки. Хто входить через Apple, отримує id акаунта, а сервер
+  зберігає ще й знеособлений хеш (HMAC) ідентифікатора Apple — щоб упізнати
+  той самий акаунт на іншому iPhone. Імені й пошти ми не просимо й не знаємо,
+  але за визначенням Apple дані вважаються пов'язаними, якщо перед збором з
+  них не прибрали ідентифікатор. Тут сам id і є ідентифікатором, тому чесна
+  відповідь — **Linked**. «Device ID» не підходить: у Apple це ідентифікатори
+  рівня пристрою на кшталт рекламного, а наш id видає сервер, як номер
+  користувача.
+- **Other User Content.** Лише після входу через Apple: словник (слова,
+  транскрипції, переклади, приклади, мови, розклад повторень) лежить на
+  сервері під id акаунта, щоб синхронізуватися між iPhone людини. Тому
+  **Linked**. Без входу словник не залишає телефон, але анкета App Privacy
+  питає про застосунок загалом, а не про найскромніший сценарій.
+- **Product Interaction.** Разом зі словником синхронізуються кількість дій
+  за днями (для серії й графіка), лічильники досягнень (скільки квізів тощо)
+  і список уже показаних досягнень. Це не аналітика, а частина прогресу
+  людини, але за формою — дані про взаємодію з застосунком, пов'язані з id.
 - **Purchase History.** Статус підписки (дата закінчення) зберігається на
   сервері біля id пристрою, а RevenueCat тримає історію покупок під тим самим
   id. Тому теж **Linked**.
@@ -225,17 +239,19 @@ Apple вважає дані **«зібраними» (collected)**, якщо в�
 
 **Не відзначаємо:**
 
-- **Contact Info** (пошта, ім'я, телефон) — застосунок їх не питає. Лист у
+- **Contact Info** (пошта, ім'я, телефон) — застосунок їх не питає, і вхід
+  через Apple теж: ми не запитуємо в Apple ні ім'я, ні пошту (scope порожній),
+  тож навіть «приховану» адресу @privaterelay ми не отримуємо. Лист у
   підтримку людина пише зі своєї пошти, поза застосунком.
-- **Usage Data** — аналітики немає. Сервер тримає лише число сканів за
-  сьогодні (одне число, яке перезаписується щодня) як технічну квоту. Якщо
-  хочеш перестрахуватися, відзнач **Usage Data → Product Interaction → App
-  Functionality, Linked**; помилкою це не буде.
+- **Analytics** — аналітики немає. Сервер ще тримає число сканів за сьогодні
+  (одне число, яке перезаписується щодня) як технічну квоту — воно вже
+  покрите рядком Product Interaction вище.
 - **Diagnostics** — звітів про падіння поки немає. Додамо Sentry — з'явиться
   **Crash Data**.
 - **Location, Contacts, Financial Info** тощо — нічого з цього. Оплату проводить
   Apple, картки ми не бачимо.
-- Словник, прогрес, ім'я й аватар у профілі **не залишають телефон**, тож це не «збір».
+- Фото наліпок, ім'я й аватар у профілі **не залишають телефон** навіть в
+  акаунті, тож це не «збір».
 
 **Does your app use data for tracking?** → **No**. Рекламного ідентифікатора
 (IDFA) і запиту App Tracking Transparency немає.
@@ -247,10 +263,11 @@ Apple вважає дані **«зібраними» (collected)**, якщо в�
 
 ## Нотатки для рецензента (App Review Information → Notes)
 
-Sign-in required: **No** (поля логіна залиш порожніми). Текст англійською:
+Sign-in required: **No** (поля логіна залиш порожніми): вхід через Apple
+необов'язковий, рецензент може пройти все без нього. Текст англійською:
 
 ```
-LinguaLens has no user accounts and no sign-in. On first launch the app silently registers a random anonymous ID with our server; no personal data is requested.
+Signing in is optional. On first launch the app silently registers a random anonymous ID with our server; no personal data is requested, and every feature works without an account.
 
 How to test:
 1. Allow camera access, point the camera at any everyday object (a cup, a keyboard, a plant) and tap the shutter. Before the first scan the app explains that the photo is sent to our server and to a third-party AI service (Google Gemini or Anthropic) only to recognise the object, and asks for permission (Allow / Not now); nothing is uploaded before Allow. The object's name appears in the language being learned (Spanish by default on an English-language device, English otherwise; change it in Settings → I'm learning). Recognition needs an internet connection.
@@ -262,7 +279,12 @@ Subscriptions (auto-renewable, via StoreKit / RevenueCat):
 - Purchases work with a Sandbox Apple Account. Restore Purchases is available on the paywall and in Settings.
 - The paywall shows prices from the App Store, the Terms of Use (Apple standard EULA) and the Privacy Policy.
 
-Data deletion: Settings → Data → Erase all my data removes the anonymous server record and all data on the device.
+Optional account (Sign in with Apple):
+- Sign in with Apple is the only sign-in method in the app; there is no third-party or email login (Guideline 4.8). We request no name and no email (empty scope).
+- Settings → Account → Sign in with Apple backs up the word list and syncs it between the person's iPhones. To test sync: sign in on two devices with the same Apple Account, save a word on one, then open the app (or tap Sync now) on the other.
+- Sign out (Settings → Account) clears the device; the words stay in the account and come back after signing in again.
+
+Data and account deletion (Guideline 5.1.1(v)): Settings → Data → Erase all my data removes the server record and all data on the device. For a signed-in user it also deletes the account and the synced word list from our server and revokes the Sign in with Apple token.
 
 Offline: scanning shows an explanatory message; the dictionary, flashcards and quiz keep working.
 
@@ -308,8 +330,19 @@ Contact: <your email>
 - [ ] Підписки прикріплені до версії
 - [ ] Нотатки для рецензента вставлено, пошта вказана
 
-Видалення акаунта (Guideline 5.1.1(v)) і Sign in with Apple не потрібні:
-акаунтів у застосунку немає.
+**Вхід через Apple**
+- [ ] App ID має capability **Sign in with Apple** (EAS вмикає її сам за
+  `ios.usesAppleSignIn` в `app.json`; перевір у developer.apple.com → Identifiers)
+- [ ] На сервері задано `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY`
+  (ключ Sign in with Apple) — без них «Стерти всі мої дані» не зможе
+  відкликати вхід, а Apple цього вимагає при видаленні акаунта
+- [ ] TestFlight: вхід на двох iPhone з одним Apple ID, слова з'являються на
+  обох (див. `TESTING.md`)
+
+Вхід необов'язковий, і єдиний спосіб входу — Sign in with Apple, тож вимога
+Guideline 4.8 виконана без інших кнопок. Видалення акаунта (Guideline
+5.1.1(v)) — у застосунку: «Стерти всі мої дані» стирає й акаунт, і словник
+на сервері та відкликає вхід через Apple.
 
 ---
 
