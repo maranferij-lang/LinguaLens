@@ -6,6 +6,8 @@ const http = require('http');
 const os = require('os');
 const fs = require('fs');
 const path = require('path');
+const zlib = require('zlib');
+const { promisify } = require('util');
 
 // Підвантажуємо server/.env, якщо він є (локальний запуск). Робимо це ДО
 // підключення модулів — вони читають process.env при завантаженні.
@@ -23,6 +25,10 @@ const auth = require('./auth');
 const ai = require('./ai');
 const billing = require('./billing');
 const words = require('./words');
+const apple = require('./apple');
+const sync = require('./sync');
+
+const gzip = promisify(zlib.gzip);
 
 const PORT = Number(process.env.PORT || 3000);
 
@@ -87,6 +93,15 @@ const meLimited = limiter(RATE_PER_MIN, 60000);
 // Двадцять на годину з IP — запас для гуртожитку чи офісу за одним NAT,
 // але не для скрипта, що фармить безкоштовні скани.
 const deviceLimited = limiter(20, 60 * 60 * 1000);
+// Вхід через Apple: nonce + сам вхід — два запити, людина робить це раз на
+// телефон. Тридцять за 10 хвилин з IP (nonce і вхід рахуються разом)
+// вистачає на кілька спроб для цілого офісу, але не на перебір.
+const appleLimited = limiter(30, 10 * 60 * 1000);
+// Синхронізація: на старті, при поверненні в застосунок, після змін, а
+// перша — пачками по 500 слів (6000 слів — 12 запитів). Окремо на IP і
+// на акаунт: акаунт з багатьох IP не має засипати свій документ записами.
+const syncLimited = limiter(60, 60000);
+const syncUserLimited = limiter(60, 60000);
 
 // IP клієнта для лімітів. Перший запис у X-Forwarded-For пише сам клієнт —
 // його можна підробити. Довіряємо лише запису, який додав наш проксі:
@@ -140,16 +155,44 @@ const SECURITY_HEADERS = {
   'Cache-Control': 'no-store',
 };
 
+const JSON_HEADERS = {
+  'content-type': 'application/json; charset=utf-8',
+  ...SECURITY_HEADERS,
+  // Мобільний застосунок не має Origin, тому CORS тут потрібен лише для
+  // локальної діагностики з браузера. Дозволяємо, але без credentials —
+  // куки й авторизація через '*' не проходять за специфікацією.
+  'Access-Control-Allow-Origin': '*',
+};
+
 function json(res, status, obj) {
-  res.writeHead(status, {
-    'content-type': 'application/json; charset=utf-8',
-    ...SECURITY_HEADERS,
-    // Мобільний застосунок не має Origin, тому CORS тут потрібен лише для
-    // локальної діагностики з браузера. Дозволяємо, але без credentials —
-    // куки й авторизація через '*' не проходять за специфікацією.
-    'Access-Control-Allow-Origin': '*',
-  });
+  res.writeHead(status, JSON_HEADERS);
   res.end(JSON.stringify(obj));
+}
+
+// gzip, якщо клієнт його приймає і явно не заборонив (q=0).
+function acceptsGzip(req) {
+  return String(req.headers['accept-encoding'] || '')
+    .split(',')
+    .some((part) => {
+      const [name, ...params] = part.trim().toLowerCase().split(';').map((s) => s.trim());
+      const q = params.find((p) => p.startsWith('q='));
+      return name === 'gzip' && (!q || Number(q.slice(2)) > 0);
+    });
+}
+
+// Повна синхронізація — це мегабайти JSON на 6000 слів. Телефон
+// (NSURLSession) сам просить gzip і сам розпаковує; стиснення урізає
+// трафік у кілька разів. Дрібні відповіді не стискаємо — не варто.
+async function jsonCompressed(req, res, status, obj) {
+  const text = JSON.stringify(obj);
+  const headers = { ...JSON_HEADERS, Vary: 'Accept-Encoding' };
+  if (text.length < 2048 || !acceptsGzip(req)) {
+    res.writeHead(status, headers);
+    return res.end(text);
+  }
+  const body = await gzip(text);
+  res.writeHead(status, { ...headers, 'Content-Encoding': 'gzip' });
+  res.end(body);
 }
 
 function appTokenOk(req) {
@@ -184,6 +227,9 @@ async function handleScan(req, res, user) {
   if (out) return json(res, out[0], out[1]);
 }
 
+const UNREADABLE = [502, { error: 'Модель повернула нерозбірливу відповідь. Спробуй ще раз.' }];
+const NOTHING_SEEN = [422, { error: "Не бачу чіткого об'єкта. Наведи камеру ближче." }];
+
 // Повертає [статус, тіло] або null, якщо відповідати вже нікому.
 async function scanWithSlot(req, user, day, slot, t0) {
   // Апка надсилає кадр 1024px/JPEG ≈ 150–400 КБ у base64. 4 МБ із запасом.
@@ -194,10 +240,16 @@ async function scanWithSlot(req, user, day, slot, t0) {
   }
   const lang = ai.LANG_NAMES[body.lang] ? body.lang : 'en';
   const nativeLang = ai.LANG_NAMES[body.nativeLang] ? body.nativeLang : 'uk';
+  // Сцена (кілька предметів з одного кадру) коштує так само один скан.
+  // Відсутній чи невідомий mode — звичайний скан: старі версії застосунку
+  // цього поля не знають.
+  const scene = body.mode === 'scene';
 
   let parsed;
   try {
-    parsed = await ai.recognize(body.image, lang, nativeLang);
+    parsed = scene
+      ? await ai.recognizeScene(body.image, lang, nativeLang)
+      : await ai.recognize(body.image, lang, nativeLang);
   } catch (e) {
     if (e.name === 'TimeoutError' || e.name === 'AbortError') {
       console.error(new Date().toISOString(), 'AI TIMEOUT');
@@ -209,59 +261,96 @@ async function scanWithSlot(req, user, day, slot, t0) {
     return [502, { error: 'AI тимчасово недоступний. Спробуй ще раз.' }];
   }
 
-  if (!parsed || !parsed.word) {
-    return [502, { error: 'Модель повернула нерозбірливу відповідь. Спробуй ще раз.' }];
-  }
-  if (String(parsed.word).toLowerCase() === 'unknown') {
-    return [422, { error: "Не бачу чіткого об'єкта. Наведи камеру ближче." }];
+  let result;
+  if (scene) {
+    // Рамки, контури й рядки чистить ai.cleanScene: предмет без рамки
+    // викинуто, повтори злито. Не лишилось жодного — як «не бачу предмета».
+    const objects = ai.cleanScene(parsed);
+    if (!objects) return UNREADABLE;
+    if (!objects.length) return NOTHING_SEEN;
+    result = { mode: 'scene', objects };
+  } else {
+    if (!parsed || !parsed.word) return UNREADABLE;
+    if (String(parsed.word).toLowerCase() === 'unknown') return NOTHING_SEEN;
+    result = { ...ai.cleanWord(parsed), box: ai.cleanBox(parsed.box), outline: ai.cleanOutline(parsed.outline) };
   }
   // Застосунок уже перестав чекати (таймаут, закрив екран) — відповідь
   // ніхто не побачить, тож і скан не рахуємо.
   if (req.socket.destroyed) return null;
 
-  // Рамка предмета: 4 цілих 0–1000 у порядку y1,x1,y2,x2 (як у Gemini).
-  // Апка ріже по ній кадр, щоб дістати сам предмет без тла.
-  const box =
-    Array.isArray(parsed.box) && parsed.box.length === 4
-      ? parsed.box.map((v) => Math.max(0, Math.min(1000, Math.round(Number(v) || 0))))
-      : null;
-  const validBox = box && box[2] > box[0] + 40 && box[3] > box[1] + 40 ? box : null;
-
-  // Силует предмета. Менше 6 точок — це не контур, а трикутник; більше 40 —
-  // модель почала фантазувати.
-  const rawOutline = Array.isArray(parsed.outline) ? parsed.outline : null;
-  const outline =
-    rawOutline && rawOutline.length >= 6 && rawOutline.length <= 40
-      ? rawOutline
-          .filter((p) => Array.isArray(p) && p.length === 2)
-          .map(([y, x]) => [
-            Math.max(0, Math.min(1000, Math.round(Number(y) || 0))),
-            Math.max(0, Math.min(1000, Math.round(Number(x) || 0))),
-          ])
-      : null;
-  const validOutline = outline && outline.length >= 6 ? outline : null;
-
   const pro = slot.pro || (user.proUntil || 0) > Date.now();
-
-  const result = {
-    word: ai.clean(parsed.word, 60),
-    ipa: ai.clean(parsed.ipa, 80),
-    translation: ai.clean(parsed.translation, 80),
-    example: ai.clean(parsed.example, 240),
-    example_translation: ai.clean(parsed.example_translation, 240),
-    box: validBox,
-    outline: validOutline,
-    usage: billing.usageView(user, day, pro),
-  };
+  result.usage = billing.usageView(user, day, pro);
   console.log(
     new Date().toISOString(),
     ai.PROVIDER,
     lang + '→' + nativeLang,
     Math.round((Date.now() - t0) / 100) / 10 + 's',
     '→',
-    result.word
+    scene ? 'сцена: ' + result.objects.map((o) => o.word).join(', ') : result.word
   );
   return [200, result];
+}
+
+// ---------- Sign in with Apple ----------
+// 400, а не 401: застосунок на 401 UNAUTHORIZED вважає, що сервер забув
+// пристрій, і бере нову ідентичність. Поганий токен Apple — інша історія.
+async function handleAppleSignIn(req, res, user) {
+  if (appleLimited(clientIp(req))) return json(res, 429, { error: 'TOO_MANY_ATTEMPTS' });
+  // identityToken Apple важить 1–2 КБ; 16 КБ із запасом.
+  const body = await readJson(req, 16 * 1024);
+  if (!body || typeof body !== 'object' || !auth.appleNonceValid(body.nonce, user.id)) {
+    return json(res, 400, { error: 'APPLE_INVALID' });
+  }
+  let claims;
+  try {
+    claims = await apple.verifyIdentityToken(body.identityToken, auth.sha256hex(body.nonce));
+  } catch (e) {
+    if (e.code === 'APPLE_UNAVAILABLE') return json(res, 503, { error: 'APPLE_UNAVAILABLE' });
+    if (e.code !== 'APPLE_INVALID') throw e;
+    // Лише причина (aud, expired, nonce…): токен і sub у лог не пишемо.
+    console.log(new Date().toISOString(), '/auth/apple → відхилено:', e.message);
+    return json(res, 400, { error: 'APPLE_INVALID' });
+  }
+
+  const link = await auth.linkApple(user, claims.sub);
+  if (link.gone) return json(res, 401, { error: 'UNAUTHORIZED' });
+  if (link.busy) return json(res, 429, { error: 'TOO_MANY_ATTEMPTS' });
+
+  // Refresh-токен потрібен лише щоб відкликати вхід, коли людина видалить
+  // акаунт. Не вийшло — вхід однаково вдався, видалення просто не матиме
+  // чого відкликати.
+  const code = body.authorizationCode;
+  if (apple.configured() && typeof code === 'string' && code && code.length <= 1024) {
+    try {
+      const refresh = await apple.exchangeCode(code, claims.aud, claims.sub);
+      await auth.saveAppleRefresh(link.account.id, refresh, claims.aud);
+    } catch (e) {
+      console.error(new Date().toISOString(), 'apple: обмін коду не вдався:', e.message);
+    }
+  }
+  console.log(new Date().toISOString(), '/auth/apple →', link.switched ? 'перехід в акаунт' : 'привʼязано');
+  return json(res, 200, {
+    user: auth.publicUser(link.account),
+    token: auth.makeToken(link.account.id),
+    switched: link.switched,
+  });
+}
+
+// ---------- синхронізація словника ----------
+async function handleSync(req, res, user) {
+  if (syncLimited(clientIp(req)) || syncUserLimited(user.id)) {
+    return json(res, 429, { error: 'TOO_MANY_REQUESTS' });
+  }
+  if (!(await auth.isLinked(user))) return json(res, 403, { error: 'SIGN_IN_REQUIRED' });
+  // 500 слів — до пів мегабайта в найгіршому разі; 1 МБ із запасом.
+  const body = await readJson(req, 1024 * 1024);
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return json(res, 400, { error: 'BAD_JSON' });
+  const out = await sync.sync(user.id, body);
+  if (out.status === 200) {
+    const sent = Array.isArray(body.words) ? body.words.length : 0;
+    console.log(new Date().toISOString(), '/sync → rev', out.body.rev, '↑' + sent, '↓' + out.body.words.length);
+  }
+  return jsonCompressed(req, res, out.status, out.body);
 }
 
 async function handleWordOfDay(req, res, user) {
@@ -341,12 +430,20 @@ async function handle(req, res) {
   // Усе далі — лише з токеном пристрою.
   const known =
     (route === '/me' && (req.method === 'GET' || req.method === 'DELETE')) ||
-    (route === '/scan' && req.method === 'POST') ||
+    (req.method === 'POST' && ['/scan', '/sync', '/auth/apple', '/auth/apple/nonce'].includes(route)) ||
     (route === '/word-of-day' && req.method === 'GET');
   if (!known) return json(res, 404, { error: 'Not found' });
 
   const user = await auth.userFromRequest(req);
   if (!user) return json(res, 401, { error: 'UNAUTHORIZED' });
+
+  // nonce для входу через Apple: без стану на сервері (див. auth.appleNonce)
+  if (route === '/auth/apple/nonce') {
+    if (appleLimited(clientIp(req))) return json(res, 429, { error: 'TOO_MANY_ATTEMPTS' });
+    return json(res, 200, auth.appleNonce(user.id));
+  }
+  if (route === '/auth/apple') return handleAppleSignIn(req, res, user);
+  if (route === '/sync') return handleSync(req, res, user);
 
   if (route === '/me' && req.method === 'GET') {
     if (meLimited(clientIp(req))) return json(res, 429, { error: 'Забагато запитів.' });
@@ -360,9 +457,21 @@ async function handle(req, res) {
       usage: billing.usageView(user, day, pro.active),
     });
   }
-  // Видалення даних з сервера — для приватності (і GDPR): запис зникає повністю.
+  // Видалення даних з сервера — для приватності (і GDPR): запис зникає
+  // повністю, разом зі словником і зв'язком з Apple ID.
   if (route === '/me' && req.method === 'DELETE') {
     await auth.deleteUser(user);
+    // Apple вимагає відкликати вхід, коли людина видаляє акаунт. Невдача тут
+    // не скасовує видалення — дані вже стерто; лишається запис у лозі.
+    if (user.appleRefresh) {
+      try {
+        if (await apple.revoke(user.appleRefresh, user.appleClient || apple.AUDIENCES[0])) {
+          console.log(new Date().toISOString(), 'apple: вхід відкликано');
+        }
+      } catch (e) {
+        console.error(new Date().toISOString(), 'apple: відкликання не вдалося:', e.message);
+      }
+    }
     console.log(new Date().toISOString(), 'DELETE /me → ok');
     return json(res, 200, { ok: true });
   }
@@ -377,7 +486,8 @@ function createServer() {
   return http.createServer((req, res) => {
     handle(req, res).catch((e) => {
       if (e && e.message === 'TOO_LARGE') {
-        if (!res.headersSent) json(res, 413, { error: 'Фото завелике' });
+        const scan = req.url.split('?')[0] === '/scan';
+        if (!res.headersSent) json(res, 413, { error: scan ? 'Фото завелике' : 'TOO_LARGE' });
         return;
       }
       console.error(new Date().toISOString(), 'UNHANDLED:', e && e.stack ? e.stack : e);

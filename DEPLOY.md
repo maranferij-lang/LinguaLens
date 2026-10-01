@@ -49,7 +49,9 @@ openssl rand -hex 24      # REVENUECAT_WEBHOOK_AUTH — пароль вебху�
 - `AUTH_SECRET` живе лише на сервері. **Не міняй його після релізу:** кожен
   пристрій тихо отримає нову анонімну ідентичність, а лічильники сканів
   скинуться. Підписка не пропаде (її знає Apple і RevenueCat), але людям,
-  можливо, доведеться натиснути «Відновити покупки».
+  можливо, доведеться натиснути «Відновити покупки». І гірше: зв'язок
+  «Apple ID → акаунт зі словником» зберігається під HMAC цим секретом, тож
+  після зміни вхід через Apple не знайде жодного старого словника.
 - `APP_TOKEN` потрібен двічі: на сервері і в застосунку як
   `EXPO_PUBLIC_APP_TOKEN`. **Якщо задати його лише на сервері, усі запити
   застосунку отримають 401.** Можна не задавати взагалі, тоді перевірка вимкнена.
@@ -94,6 +96,15 @@ service cloud.firestore {
 NUM=$(gcloud projects describe $PROJECT --format='value(projectNumber)')
 SA="$NUM-compute@developer.gserviceaccount.com"
 gcloud projects add-iam-policy-binding $PROJECT --member="serviceAccount:$SA" --role=roles/datastore.user
+```
+
+**Словники синхронізації** лежать у колекції `dicts`: увесь словник людини —
+одне стиснене поле `data` до мегабайта. Шукати по ньому нічого, а індекс
+такого поля лише коштує місця й часу на кожен запис. Вимкни індексацію
+(колекції ще може не бути — це не заважає):
+
+```bash
+gcloud firestore indexes fields update data --collection-group=dicts --disable-indexes
 ```
 
 ## 4. Ключі в Secret Manager (рекомендовано)
@@ -177,6 +188,8 @@ gcloud run services describe lingualens-server --region europe-central2 --format
 | `REVENUECAT_SECRET_KEY` | так, для Pro | секретний ключ RevenueCat `sk_…`: сервер сам перевіряє Pro |
 | `REVENUECAT_WEBHOOK_AUTH` | так, для Pro | значення заголовка `Authorization` вебхука. Без нього вебхук відповідає 401 |
 | `REVENUECAT_ENTITLEMENT` | ні | за замовчуванням `pro` |
+| `APPLE_AUDIENCES` | ні | bundle id застосунку для перевірки входу через Apple; за замовчуванням `com.marik.lingualens`. Кілька — через кому |
+| `APPLE_TEAM_ID` / `APPLE_KEY_ID` / `APPLE_PRIVATE_KEY` | так, для релізу з входом через Apple | ключ Sign in with Apple (крок 9). Без них вхід працює, але при видаленні акаунта вхід не відкликається — App Review цього вимагає |
 | `SUPPORT_EMAIL` | так | пошта на сторінках `/privacy` і `/support` |
 | `FREE_SCANS_PER_DAY` | ні | безкоштовних сканів на день, за замовчуванням 5 |
 | `RATE_PER_MIN` | ні | сканів з однієї IP за хвилину, за замовчуванням 20 |
@@ -235,7 +248,54 @@ RevenueCat → твій проєкт → **Integrations → Webhooks → Add**:
 Натисни **Send test event**: RevenueCat має показати `200`. Якщо `401`,
 значення заголовка не збігаються.
 
-## 9. Ліміт бюджету
+## 9. Sign in with Apple (синхронізація словника)
+
+Вхід через Apple переносить словник між телефонами. Сам вхід працює без
+жодних налаштувань сервера: identityToken перевіряється відкритими ключами
+Apple. Але **App Store вимагає**, щоб «Видалити акаунт» відкликав і вхід
+через Apple, а для цього серверу потрібен приватний ключ Sign in with Apple.
+
+**1. Можливість у App ID.** EAS вмикає її сам на наступній збірці (у
+`app.json` стоїть `ios.usesAppleSignIn: true`). Перевір:
+https://developer.apple.com/account/resources/identifiers/list →
+`com.marik.lingualens` → галочка **Sign In with Apple**.
+
+**2. Ключ.** https://developer.apple.com/account/resources/authkeys/list →
+**+** (Create a key):
+
+- Key Name: `LinguaLens Sign in with Apple`
+- галочка **Sign in with Apple** → **Configure** → Primary App ID:
+  `com.marik.lingualens` → **Save**
+- **Continue** → **Register** → **Download**
+
+Файл `AuthKey_XXXXXXXXXX.p8` завантажується **лише один раз**: поклади його в
+менеджер паролів одразу. `XXXXXXXXXX` у назві — це **Key ID**. **Team ID**
+видно в https://developer.apple.com/account → Membership details (10 символів).
+
+**3. На сервер.** Ключ — у сейф, як є (справжні переноси рядків не заважають):
+
+```bash
+gcloud secrets create apple-private-key --data-file=$HOME/Downloads/AuthKey_XXXXXXXXXX.p8
+gcloud run services update lingualens-server --region europe-central2 \
+  --update-env-vars APPLE_TEAM_ID=ТВІЙ_TEAM_ID,APPLE_KEY_ID=XXXXXXXXXX \
+  --update-secrets APPLE_PRIVATE_KEY=apple-private-key:latest
+rm $HOME/Downloads/AuthKey_XXXXXXXXXX.p8      # копія вже в сейфі й менеджері паролів
+```
+
+Для локального `server/.env` ключ записується одним рядком (див.
+`server/.env.example`).
+
+**4. Перевір логи** після деплою: рядка `apple: APPLE_PRIVATE_KEY не
+розібрався` бути не повинно. Після першого входу через Apple на справжньому
+iPhone і «Видалити акаунт» у лозі має з'явитися `apple: вхід відкликано`, а
+LinguaLens зникне зі списку «Вхід через Apple» у налаштуваннях Apple ID на
+iPhone.
+
+> `APPLE_AUDIENCES` чіпати не треба, поки bundle id — `com.marik.lingualens`.
+> Змінив bundle id — впиши новий, інакше кожен вхід отримає `APPLE_INVALID`
+> (у лозі: `відхилено: APPLE_INVALID: aud`).
+
+## 10. Ліміт бюджету
 
 https://console.cloud.google.com/billing → **Budgets & alerts** → Create budget:
 сума, напр. $20/міс, листи на 50%, 90% і 100%. Це не зупиняє сервер, а лише
@@ -245,7 +305,7 @@ https://console.cloud.google.com/billing → **Budgets & alerts** → Create bud
 Для Gemini можна ще й обмежити кількість запитів: Google Cloud Console →
 APIs & Services → Generative Language API → **Quotas**.
 
-## 10. Як оновлювати
+## 11. Як оновлювати
 
 Після змін у `server/`:
 

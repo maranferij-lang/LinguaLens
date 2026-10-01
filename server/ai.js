@@ -93,6 +93,33 @@ the object's edge rather than inside it.
 If no clear object is visible, return {"word":"unknown"}.`;
 }
 
+// Скан цілої сцени: кілька предметів з одного кадру. Кадр — портрет 9:16
+// (формат Stories), тому координати рамок і контурів — від усього кадру.
+// Правила відбору тут важливіші, ніж в одиночному скані: модель сама
+// вирішує, що варте картки, а людина бачить результат як готову підбірку.
+const MAX_SCENE_OBJECTS = 8;
+
+function buildScenePrompt(lang, nativeLang) {
+  const L = langName(lang, 'English');
+  const N = langName(nativeLang, 'Ukrainian');
+  return `You are the recognition engine inside a language-learning app.
+The user is learning ${L}; their native language is ${N}.
+The photo shows a whole scene (a room, a desk, a shelf, a street). Find up to ${MAX_SCENE_OBJECTS} distinct, clearly visible physical objects that a learner can name.
+Reply with ONLY minified JSON, no markdown, no extra text:
+{"objects":[{"word":"<specific common ${L} name of the object, 1-3 words>","ipa":"<IPA transcription of that ${L} word>","translation":"<translation of the word into ${N}>","example":"<one short natural ${L} sentence using the word>","example_translation":"<translation of that sentence into ${N}>","box":[<ymin>,<xmin>,<ymax>,<xmax>],"outline":[[<y>,<x>],...]}]}
+${wordRules(lang)}
+Which objects to include:
+- Everyday vocabulary that is useful to a learner. Prefer specific but commonly used words (e.g. "mug", not "container").
+- Variety: one entry per kind of object. Three books are one "book" — describe the most visible one.
+- Order the list by prominence: the largest, most central, sharpest object first.
+- Never include people, faces, body parts, clothing worn by a person, text, signs, logos or brand names.
+- Skip tiny objects (smaller than about 2% of the image) and objects cut off so much that they are hard to recognise.
+- Skip surfaces and structure (wall, floor, ceiling, ground, sky) unless nothing else is visible.
+"box" is the tight bounding box of the object: four integers 0-1000 normalised to the WHOLE image, y first (like Gemini spatial output). It must hug the object — no extra background, no parts cut off.
+"outline" is the object's silhouette as a closed polygon of 12 to 24 points, each [y,x] with integers 0-1000 normalised to the WHOLE image (not to the box), walking the visible edge clockwise and staying just outside the object's edge. Follow the real contour (handles, legs, leaves), not the box.
+If no suitable object is visible, return {"objects":[]}.`;
+}
+
 function buildTranslatePrompt(enWord, lang, nativeLang) {
   const L = langName(lang, 'English');
   const N = langName(nativeLang, 'Ukrainian');
@@ -128,9 +155,18 @@ function parseModelJson(text) {
 
 // Скан має вкластися в таймаут застосунку (25 с, src/api.js): відповідь,
 // що прийшла пізніше, людина вже не побачить. Тому один дедлайн на обидві
-// спроби, із запасом на мережу. Слово дня застосунок чекає 45 с.
+// спроби, із запасом на мережу. Сцену застосунок чекає 40 с — у ній до
+// восьми предметів із контурами, і модель пише в кілька разів більше. Слово
+// дня застосунок чекає 45 с.
 const SCAN_BUDGET_MS = 21000;
+const SCENE_BUDGET_MS = 34000;
 const TEXT_BUDGET_MS = 40000;
+
+// Стеля довжини відповіді Anthropic. Один предмет із контуром — це ~400
+// токенів, вісім — до ~3200. Зі стелею одиночного скану сцена обривалась
+// би на півслові й не розбиралась як JSON.
+const SCAN_MAX_TOKENS = 600;
+const SCENE_MAX_TOKENS = 3500;
 
 // fetch у межах дедлайну і з одним повтором при 503 (перевантаження AI),
 // якщо на повтор ще лишається час
@@ -148,7 +184,7 @@ async function fetchAI(url, options, budgetMs) {
   }
 }
 
-async function callAnthropic(content, budgetMs) {
+async function callAnthropic(content, budgetMs, maxTokens = SCAN_MAX_TOKENS) {
   if (!ANTHROPIC_API_KEY) throw new Error('ANTHROPIC_API_KEY не заданий у .env');
   const res = await fetchAI('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -159,7 +195,7 @@ async function callAnthropic(content, budgetMs) {
     },
     body: JSON.stringify({
       model: ANTHROPIC_MODEL,
-      max_tokens: 600,
+      max_tokens: maxTokens,
       messages: [{ role: 'user', content }],
     }),
   }, budgetMs);
@@ -219,6 +255,61 @@ function mockScan(lang, nativeLang) {
   return { ...w, ...n, box: [290, 350, 710, 740], outline: MOCK_OUTLINE };
 }
 
+// Сцена без мережі: чотири предмети в кадрі 9:16, від найпомітнішого.
+// Контури — вписані в рамку багатокутники за годинниковою стрілкою, як
+// просить підказка. Рідна мова, якої тут немає, — англійська, як у MOCK_NATIVE.
+const MOCK_SCENE = [
+  {
+    box: [520, 140, 760, 470],
+    en: { word: 'mug', ipa: '/mʌɡ/', example: 'I drink tea from my favourite mug.' },
+    de: { word: 'die Tasse', ipa: '/diː ˈtasə/', example: 'Ich trinke Tee aus meiner Lieblingstasse.' },
+    es: { word: 'la taza', ipa: '/la ˈtaθa/', example: 'Bebo té en mi taza favorita.' },
+    uk: { translation: 'кружка', example_translation: 'Я п’ю чай зі своєї улюбленої кружки.' },
+  },
+  {
+    box: [150, 560, 600, 900],
+    en: { word: 'plant', ipa: '/plænt/', example: 'The plant needs more light.' },
+    de: { word: 'die Pflanze', ipa: '/diː ˈpflant͡sə/', example: 'Die Pflanze braucht mehr Licht.' },
+    es: { word: 'la planta', ipa: '/la ˈplanta/', example: 'La planta necesita más luz.' },
+    uk: { translation: 'рослина', example_translation: 'Рослині потрібно більше світла.' },
+  },
+  {
+    box: [780, 380, 900, 860],
+    en: { word: 'book', ipa: '/bʊk/', example: 'The book is on the table.' },
+    de: { word: 'das Buch', ipa: '/das buːx/', example: 'Das Buch liegt auf dem Tisch.' },
+    es: { word: 'el libro', ipa: '/el ˈliβɾo/', example: 'El libro está en la mesa.' },
+    uk: { translation: 'книжка', example_translation: 'Книжка лежить на столі.' },
+  },
+  {
+    box: [90, 100, 440, 420],
+    en: { word: 'lamp', ipa: '/læmp/', example: 'Turn on the lamp, please.' },
+    de: { word: 'die Lampe', ipa: '/diː ˈlampə/', example: 'Mach bitte die Lampe an.' },
+    es: { word: 'la lámpara', ipa: '/la ˈlampaɾa/', example: 'Enciende la lámpara, por favor.' },
+    uk: { translation: 'лампа', example_translation: 'Увімкни, будь ласка, лампу.' },
+  },
+];
+
+// 16 точок по еліпсу, вписаному в рамку: старт угорі, далі праворуч, униз
+// і ліворуч — тобто за годинниковою стрілкою на екрані (y росте донизу).
+function ellipseOutline([y1, x1, y2, x2], points = 16) {
+  const cy = (y1 + y2) / 2;
+  const cx = (x1 + x2) / 2;
+  return Array.from({ length: points }, (_, i) => {
+    const a = (2 * Math.PI * i) / points;
+    return [Math.round(cy - ((y2 - y1) / 2) * Math.cos(a)), Math.round(cx + ((x2 - x1) / 2) * Math.sin(a))];
+  });
+}
+
+function mockScene(lang, nativeLang) {
+  return {
+    objects: MOCK_SCENE.map((o) => {
+      const w = o[lang] || o.en;
+      const n = nativeLang === 'uk' ? o.uk : { translation: o.en.word, example_translation: o.en.example };
+      return { ...w, ...n, box: o.box, outline: ellipseOutline(o.box) };
+    }),
+  };
+}
+
 function mockTranslate(enWord, lang, nativeLang) {
   return {
     word: enWord,
@@ -242,6 +333,19 @@ async function recognize(base64, lang, nativeLang) {
   return callGemini([{ inline_data: { mime_type: 'image/jpeg', data: base64 } }, { text: prompt }], SCAN_BUDGET_MS);
 }
 
+// Сирий JSON моделі для сцени; розбирає й чистить його cleanScene.
+async function recognizeScene(base64, lang, nativeLang) {
+  if (PROVIDER === 'mock') return mockScene(lang, nativeLang);
+  const prompt = buildScenePrompt(lang, nativeLang);
+  if (PROVIDER === 'anthropic') {
+    return callAnthropic([
+      { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: base64 } },
+      { type: 'text', text: prompt },
+    ], SCENE_BUDGET_MS, SCENE_MAX_TOKENS);
+  }
+  return callGemini([{ inline_data: { mime_type: 'image/jpeg', data: base64 } }, { text: prompt }], SCENE_BUDGET_MS);
+}
+
 async function callText(prompt) {
   if (PROVIDER === 'anthropic') return callAnthropic([{ type: 'text', text: prompt }], TEXT_BUDGET_MS);
   return callGemini([{ text: prompt }], TEXT_BUDGET_MS);
@@ -258,14 +362,7 @@ async function translateWord(enWord, lang, nativeLang) {
       ? mockTranslate(enWord, lang, nativeLang)
       : await callText(buildTranslatePrompt(enWord, lang, nativeLang));
   if (!parsed || !parsed.word) throw new Error('bad translation');
-  const out = {
-    word: clean(parsed.word, 60),
-    ipa: clean(parsed.ipa, 80),
-    translation: clean(parsed.translation, 80),
-    example: clean(parsed.example, 240),
-    example_translation: clean(parsed.example_translation, 240),
-    source: enWord,
-  };
+  const out = { ...cleanWord(parsed), source: enWord };
   if (PROVIDER !== 'mock') await store.put('wordCache', key, out);
   return out;
 }
@@ -276,4 +373,85 @@ function clean(v, max) {
   return String(v == null ? '' : v).trim().slice(0, max);
 }
 
-module.exports = { PROVIDER, LANG_NAMES, recognize, translateWord, clean, parseModelJson };
+function cleanWord(o) {
+  return {
+    word: clean(o.word, 60),
+    ipa: clean(o.ipa, 80),
+    translation: clean(o.translation, 80),
+    example: clean(o.example, 240),
+    example_translation: clean(o.example_translation, 240),
+  };
+}
+
+function coord(v) {
+  return Math.max(0, Math.min(1000, Math.round(Number(v) || 0)));
+}
+
+// Рамка предмета: 4 цілих 0–1000 у порядку y1,x1,y2,x2 (як у Gemini).
+// Апка ріже по ній кадр, щоб дістати сам предмет без тла. Рамка, вужча
+// за 4% кадру в будь-якому вимірі, — це не предмет, а помилка моделі.
+function cleanBox(raw) {
+  if (!Array.isArray(raw) || raw.length !== 4) return null;
+  const box = raw.map(coord);
+  return box[2] > box[0] + 40 && box[3] > box[1] + 40 ? box : null;
+}
+
+// Силует предмета. Менше 6 точок — це не контур, а трикутник; більше 40 —
+// модель почала фантазувати.
+function cleanOutline(raw) {
+  if (!Array.isArray(raw) || raw.length < 6 || raw.length > 40) return null;
+  const outline = raw.filter((p) => Array.isArray(p) && p.length === 2).map(([y, x]) => [coord(y), coord(x)]);
+  return outline.length >= 6 ? outline : null;
+}
+
+function boxArea(b) {
+  return (b[2] - b[0]) * (b[3] - b[1]);
+}
+
+// Відповідь моделі для сцени → до восьми чистих предметів у її порядку
+// (від найпомітнішого). null — відповідь не розібрати (502), порожній
+// масив — предметів немає (422). Предмет без придатної рамки викидаємо:
+// апці нема з чого вирізати наліпку. Однакові слова (модель усе ж
+// повторилась) зливаємо в одне: лишається більша рамка на місці першого.
+function cleanScene(parsed) {
+  if (!parsed || typeof parsed !== 'object') return null;
+  if (!Array.isArray(parsed) && String(parsed.word || '').toLowerCase() === 'unknown') return [];
+  const list = Array.isArray(parsed) ? parsed : parsed.objects;
+  if (!Array.isArray(list)) return null;
+  const out = [];
+  const index = new Map();
+  // Модель, що «розговорилась» на сотню предметів, не має коштувати сотні
+  // перевірок: розглядаємо лише початок списку — він і найпомітніший.
+  for (const raw of list.slice(0, MAX_SCENE_OBJECTS * 4)) {
+    if (!raw || typeof raw !== 'object') continue;
+    const item = cleanWord(raw);
+    if (!item.word || item.word.toLowerCase() === 'unknown') continue;
+    item.box = cleanBox(raw.box);
+    if (!item.box) continue;
+    item.outline = cleanOutline(raw.outline);
+    const key = item.word.toLowerCase();
+    if (!index.has(key)) {
+      index.set(key, out.length);
+      out.push(item);
+    } else if (boxArea(item.box) > boxArea(out[index.get(key)].box)) {
+      out[index.get(key)] = item;
+    }
+  }
+  return out.slice(0, MAX_SCENE_OBJECTS);
+}
+
+module.exports = {
+  PROVIDER,
+  LANG_NAMES,
+  MAX_SCENE_OBJECTS,
+  recognize,
+  recognizeScene,
+  translateWord,
+  clean,
+  cleanWord,
+  cleanBox,
+  cleanOutline,
+  cleanScene,
+  parseModelJson,
+  buildScenePrompt,
+};
