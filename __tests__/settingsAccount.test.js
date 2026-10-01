@@ -154,6 +154,13 @@ describe('signed in', () => {
     await act(async () => tree.unmount());
   });
 
+  test('with Pro, the sign-out question says Pro stays with the account too', async () => {
+    const tree = await render({ account: { available: true, signedIn: true }, sync: { status: 'idle', at, error: null }, sub: { pro: true } });
+    await press(tree, t('signOut'));
+    expect(alert.mock.calls[0][1]).toBe(t('signOutMsgPro'));
+    await act(async () => tree.unmount());
+  });
+
   test('deleting all words and erasing say it reaches every iPhone', async () => {
     const tree = await render({ account: { available: true, signedIn: true }, sync: { status: 'idle', at, error: null } });
     expect(hasText(tree, t('eraseHintAccount'))).toBe(true);

@@ -68,3 +68,35 @@ test('word of the day: Listen and Save are separate from the card', async () => 
   expect(hiddenInsideAccessible(control(tree, t('listen')))).toBe(false);
   await act(async () => tree.unmount());
 });
+
+test('backup nudge: the card and its close button are separate, labelled targets', async () => {
+  const words = Array.from({ length: 12 }, (_, i) => ({ id: 'w' + i, word: 'w' + i, translation: 't', lang: 'es', addedAt: i }));
+  const onNudge = jest.fn();
+  const onDismissNudge = jest.fn();
+  const tree = await render(
+    <SafeAreaProvider initialMetrics={metrics}>
+      <DictionaryScreen words={words} onDelete={() => {}} nudge onNudge={onNudge} onDismissNudge={onDismissNudge} t={t} />
+    </SafeAreaProvider>
+  );
+  const open = control(tree, t('syncNudge', { n: 12 }));
+  const hide = control(tree, t('syncNudgeHide'));
+  expect(open.props.accessibilityRole).toBe('button');
+  expect(hide.props.accessibilityRole).toBe('button');
+  expect(hiddenInsideAccessible(open)).toBe(false);
+  expect(hiddenInsideAccessible(hide)).toBe(false);
+
+  await act(async () => open.props.onClick());
+  await act(async () => hide.props.onClick());
+  expect(onNudge).toHaveBeenCalledTimes(1);
+  expect(onDismissNudge).toHaveBeenCalledTimes(1);
+  await act(async () => tree.unmount());
+
+  // без nudge картки немає зовсім
+  const plain = await render(
+    <SafeAreaProvider initialMetrics={metrics}>
+      <DictionaryScreen words={words} onDelete={() => {}} t={t} />
+    </SafeAreaProvider>
+  );
+  expect(plain.root.findAll((n) => n.props.accessibilityLabel === t('syncNudgeHide'))).toHaveLength(0);
+  await act(async () => plain.unmount());
+});

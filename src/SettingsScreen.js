@@ -100,7 +100,7 @@ export function syncedLabel(at, now, t, lang) {
 // Акаунт Apple. Без входу — що він дає і офіційна кнопка Apple (HIG вимагає
 // саме її: системний вигляд, локалізований текст, доступність з коробки).
 // Після входу — коли востаннє синхронізовано, «Синхронізувати зараз» і вихід.
-function AccountCard({ account, sync, onSignIn, onSignOut, onSyncNow, lang, t, C, isDark, s }) {
+function AccountCard({ account, sync, pro, onSignIn, onSignOut, onSyncNow, lang, t, C, isDark, s }) {
   const [busy, setBusy] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const [error, setError] = useState(null);
@@ -163,7 +163,9 @@ function AccountCard({ account, sync, onSignIn, onSignOut, onSyncNow, lang, t, C
   }
 
   function confirmSignOut() {
-    Alert.alert(t('signOutTitle'), t('signOutMsg'), [
+    // Pro прив'язаний до акаунта: на цьому телефоні після виходу його не
+    // буде, доки людина не ввійде знову. Кажемо про це, щоб не лякати.
+    Alert.alert(t('signOutTitle'), t(pro ? 'signOutMsgPro' : 'signOutMsg'), [
       { text: t('cancel'), style: 'cancel' },
       { text: t('signOut'), style: 'destructive', onPress: () => signOut(false) },
     ]);
@@ -350,6 +352,7 @@ export default function SettingsScreen({
           <AccountCard
             account={account}
             sync={sync}
+            pro={!!sub?.pro}
             onSignIn={onSignIn}
             onSignOut={onSignOut}
             onSyncNow={onSyncNow}
