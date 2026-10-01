@@ -64,7 +64,10 @@
       "expo-secure-store",
       "expo-font",
       "expo-audio",
-      "expo-asset"
+      "expo-asset",
+      "expo-status-bar",
+      "expo-sharing",
+      "expo-localization"
     ]
   }
 }
