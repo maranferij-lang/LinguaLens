@@ -93,6 +93,22 @@ test('a forged far-away local date falls back to the server day', async () => {
   assert.equal(r.data.usage.day, billing.utcDay());
 });
 
+test('alternating today/tomorrow in x-local-date does not reset the quota', async () => {
+  const { token } = await newDevice();
+  const today = billing.utcDay();
+  const tomorrow = billing.addDays(today, 1);
+  const statuses = [];
+  for (const day of [today, tomorrow, today, tomorrow, today]) {
+    const r = await call('POST', '/scan', { token, body: IMAGE, headers: { 'x-local-date': day } });
+    statuses.push(r.status);
+  }
+  // 1 скан за «сьогодні», потім лічильник переходить на «завтра» (ліміт 2)
+  // і назад уже не відкочується. Раніше тут проходило все.
+  assert.deepEqual(statuses, [200, 200, 200, 402, 402]);
+  const me = await call('GET', '/me', { token, headers: { 'x-local-date': today } });
+  assert.equal(me.data.usage.scans, 2);
+});
+
 test('RevenueCat webhook grants Pro and lifts the limit', async () => {
   const { token, user } = await newDevice();
   const day = billing.utcDay();
@@ -175,11 +191,13 @@ test('bad JSON and oversize bodies do not crash the server', async () => {
   assert.equal((await call('GET', '/health')).status, 200);
 });
 
-test('privacy policy is served as a public page', async () => {
-  const res = await fetch(base + '/privacy');
-  assert.equal(res.status, 200);
-  assert.match(res.headers.get('content-type'), /text\/html/);
-  assert.match(await res.text(), /Privacy Policy/);
+test('privacy policy and support pages are served as public pages', async () => {
+  for (const [route, title] of [['/privacy', /Privacy Policy/], ['/support', /Support/]]) {
+    const res = await fetch(base + route);
+    assert.equal(res.status, 200);
+    assert.match(res.headers.get('content-type'), /text\/html/);
+    assert.match(await res.text(), title);
+  }
 });
 
 test('removed email endpoints answer 404', async () => {

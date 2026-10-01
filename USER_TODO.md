@@ -62,19 +62,23 @@
 
 ## 5. Сервер у Google Cloud Run
 Деталі — у [`DEPLOY.md`](DEPLOY.md). Коротко:
-1. `brew install --cask google-cloud-sdk` → `gcloud init` → увімкни білінг.
-2. Увімкни **Firestore** (Native mode) і задай правила «нікому напряму» (DEPLOY.md, крок 3).
+1. `brew install --cask gcloud-cli` → `gcloud init` → увімкни білінг.
+2. Увімкни **Firestore** (Native mode). Сервер ходить у базу через свій сервісний акаунт;
+   правила безпеки потрібні, лише якщо колись підключиш Firebase (DEPLOY.md, крок 3).
 3. Ключ AI: для релізу — **платний** тариф Gemini (на безкоштовному Google може
    використовувати запити для покращення моделей — це суперечило б політиці приватності)
    або ключ Anthropic.
 4. Задеплой із змінними: `PROVIDER`, `GEMINI_API_KEY`/`ANTHROPIC_API_KEY`, `AUTH_SECRET`,
    `FIRESTORE_PROJECT`, `REVENUECAT_SECRET_KEY`, `REVENUECAT_WEBHOOK_AUTH`, `SUPPORT_EMAIL`.
-5. 🔑 Адреса сервера `https://lingualens-server-…run.app`. Перевір `/health` і `/privacy`.
+   🔑 Необов'язково `APP_TOKEN` — довгий випадковий рядок. **Якщо задаєш його тут, той самий
+   рядок обов'язково впиши в `EXPO_PUBLIC_APP_TOKEN` (крок 7)**, інакше кожен запит застосунку
+   отримає 401.
+5. 🔑 Адреса сервера `https://lingualens-server-…run.app`. Перевір `/health`, `/privacy` і `/support`.
 6. Google Cloud → Billing → **Budgets & alerts**: постав ліміт (напр. $20) з листом-попередженням.
 
 ## 6. Пошта підтримки
 Заведи окрему скриньку (напр. `lingualens.app@gmail.com`). Вона йде в
-`SUPPORT_EMAIL` на сервері (з'явиться на сторінці `/privacy`) і в
+`SUPPORT_EMAIL` на сервері (з'явиться на сторінках `/privacy` і `/support`) і в
 `EXPO_PUBLIC_SUPPORT_EMAIL` (пункт «Написати в підтримку» в налаштуваннях).
 
 ## 7. Змінні для збірки (EAS)
@@ -84,9 +88,11 @@ eas login
 eas init                        # прив'яже проєкт і впише projectId в app.json
 eas env:set production --name EXPO_PUBLIC_SERVER_URL --value https://<сервер> --visibility plaintext
 eas env:set production --name EXPO_PUBLIC_REVENUECAT_IOS_KEY --value appl_… --visibility plaintext
-eas env:set production --name EXPO_PUBLIC_PRIVACY_URL --value https://<сервер>/privacy --visibility plaintext
 eas env:set production --name EXPO_PUBLIC_SUPPORT_EMAIL --value <пошта> --visibility plaintext
+# лише якщо на сервері задано APP_TOKEN (крок 5):
+eas env:set production --name EXPO_PUBLIC_APP_TOKEN --value <той самий рядок> --visibility plaintext
 ```
+Політику приватності застосунок сам відкриє з `<сервер>/privacy` — окремо її задавати не треба.
 Те саме для `preview` (TestFlight-збірки для себе). Для локального запуску —
 скопіюй `.env.example` у `.env` і заповни.
 
@@ -103,7 +109,7 @@ npm run submit:ios     # відправить у App Store Connect → TestFligh
   сканер з наліпкою, колекція, картка «поділитись», флешкартки, слово дня.
 - Опис, ключові слова, промо-текст — чернетки в [`APPSTORE.md`](APPSTORE.md).
 - **App Privacy** — відповіді в APPSTORE.md (акаунтів більше немає — анкета коротша).
-- Privacy Policy URL: `https://<сервер>/privacy`.
+- Privacy Policy URL: `https://<сервер>/privacy`. Support URL: `https://<сервер>/support`.
 - Age rating 4+, категорія Education.
 - Submit for Review.
 

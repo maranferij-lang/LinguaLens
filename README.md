@@ -41,7 +41,7 @@ iPhone (Expo SDK 57 · React Native 0.86 · React 19.2)
 │                                       (5 безкоштовних сканів на день, далі 402)
 │            GET  /word-of-day          7 днів слів під seed пристрою
 │            GET  /me · DELETE /me      Pro-статус і лічильник · стерти дані
-│            GET  /privacy · /health    політика приватності · перевірка
+│            GET  /privacy · /support · /health
 │            POST /webhooks/revenuecat  зміни підписки
 │              │
 │              ├─► Gemini або Claude    ключі лише тут
@@ -170,6 +170,7 @@ server/billing.js         — денний ліміт сканів, Pro чере
 server/store.js           — Firestore (REST) або data.json
 server/words.js           — 320 слів для «слова дня»
 server/public/privacy.html— політика приватності (/privacy)
+server/public/support.html— сторінка підтримки (/support)
 server/test/api.test.js   — тести API
 server/.env.example       — усі змінні сервера (.env — НЕ комітити)
 

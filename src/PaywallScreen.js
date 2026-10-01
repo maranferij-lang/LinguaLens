@@ -137,9 +137,10 @@ export default function PaywallScreen({ reason, plans, onClose, onPurchase, onRe
           ))}
         </FadeIn>
 
-        {/* Те, чого без Pro немає взагалі */}
+        {/* Те, чого немає в таблиці. Лише правда: наліпки й колекція
+            безкоштовні для всіх, тож тут їх немає (App Review 3.1.2). */}
         <FadeIn delay={70} style={s.benefits}>
-          {PRO_BENEFITS.filter((b) => b.id === 'photos' || b.id === 'support').map((b) => (
+          {PRO_BENEFITS.filter((b) => b.id === 'support').map((b) => (
             <View key={b.id} style={s.benefitRow}>
               <View style={s.benefitIcon}>
                 <ProIcon name={b.icon} size={20} color={C.accent} />

@@ -26,20 +26,22 @@ const words = require('./words');
 
 const PORT = Number(process.env.PORT || 3000);
 
-// Політика приватності — обов'язкове посилання для App Store. Сервер віддає
-// її сам: GitHub Pages для приватного репозиторію на безкоштовному тарифі
-// недоступні, а Cloud Run у нас однаково є. Пошту підставляємо з оточення.
+// Політика приватності й сторінка підтримки — обов'язкові посилання для
+// App Store (Privacy Policy URL і Support URL). Сервер віддає їх сам: GitHub
+// Pages для приватного репозиторію на безкоштовному тарифі недоступні, а
+// Cloud Run у нас однаково є. Пошту підставляємо з оточення.
 const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || '';
-const PRIVACY_HTML = (() => {
+function loadPage(file) {
   try {
-    const html = fs.readFileSync(path.join(__dirname, 'public', 'privacy.html'), 'utf8');
+    const html = fs.readFileSync(path.join(__dirname, 'public', file), 'utf8');
     if (!SUPPORT_EMAIL) return html;
     const link = `<a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a>`;
     return html.replace(/<span class="contact">[^<]*<\/span>/g, link);
   } catch (_) {
     return null;
   }
-})();
+}
+const PAGES = { '/privacy': loadPage('privacy.html'), '/support': loadPage('support.html') };
 
 // APP_TOKEN — секрет, який знає лише апка (шле в заголовку x-app-token).
 // Якщо не заданий — перевірка вимкнена (зручно для локальної розробки).
@@ -274,9 +276,9 @@ async function handle(req, res) {
   if (req.method === 'GET' && route === '/health') {
     return json(res, 200, { ok: true, provider: ai.PROVIDER, store: store.MODE });
   }
-  if (req.method === 'GET' && route === '/privacy' && PRIVACY_HTML) {
+  if (req.method === 'GET' && Object.hasOwn(PAGES, route) && PAGES[route]) {
     res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', ...SECURITY_HEADERS, 'Cache-Control': 'public, max-age=3600' });
-    return res.end(PRIVACY_HTML);
+    return res.end(PAGES[route]);
   }
 
   // Вебхук RevenueCat має власний секрет у заголовку Authorization.

@@ -157,7 +157,7 @@ LINGUALENS PRO
 | Поле | Значення |
 |---|---|
 | Privacy Policy URL | `https://<сервер>/privacy` |
-| Support URL | обов'язкове. Поки немає окремої сторінки, підійде `https://<сервер>/privacy`: там є пошта підтримки. Краще — окрема сторінка на своєму домені |
+| Support URL | обов'язкове: `https://<сервер>/support` — часті питання (відновлення, скасування, повернення коштів, видалення даних) і пошта підтримки |
 | Категорія | Education, додаткова — Reference |
 | Вікова категорія | анкету проходь чесно: насильства, контенту для дорослих, чатів і реклами немає, тож очікувано 4+ |
 | Ціна застосунку | Free (заробляємо на підписці) |
@@ -253,7 +253,7 @@ Sign-in required: **No** (поля логіна залиш порожніми). 
 LinguaLens has no user accounts and no sign-in. On first launch the app silently registers a random anonymous ID with our server; no personal data is requested.
 
 How to test:
-1. Allow camera access, point the camera at any everyday object (a cup, a keyboard, a plant) and tap the shutter. The object's name appears in the language being learned (English by default; change it in Settings → I'm learning). Recognition needs an internet connection.
+1. Allow camera access, point the camera at any everyday object (a cup, a keyboard, a plant) and tap the shutter. The object's name appears in the language being learned (Spanish by default on an English-language device, English otherwise; change it in Settings → I'm learning). Recognition needs an internet connection.
 2. Tap Save. The word appears in the Words tab (List / Collection) and in Learn (flashcards and quiz).
 3. Tap Share on a scan result or a word card: the app renders an image and opens the standard iOS share sheet.
 
@@ -287,7 +287,7 @@ Contact: <your email>
 - [ ] Бюджетний алерт у Google Cloud
 
 **Збірка**
-- [ ] `eas env:list production`: `EXPO_PUBLIC_SERVER_URL`, `EXPO_PUBLIC_REVENUECAT_IOS_KEY` (`appl_…`), `EXPO_PUBLIC_PRIVACY_URL`, `EXPO_PUBLIC_SUPPORT_EMAIL`, а також `EXPO_PUBLIC_APP_TOKEN`, якщо на сервері задано `APP_TOKEN`
+- [ ] `eas env:list production`: `EXPO_PUBLIC_SERVER_URL`, `EXPO_PUBLIC_REVENUECAT_IOS_KEY` (`appl_…`), `EXPO_PUBLIC_SUPPORT_EMAIL`, а також `EXPO_PUBLIC_APP_TOKEN`, якщо на сервері задано `APP_TOKEN`
 - [ ] `eas.json` → `submit.production.ios`: справжні `ascAppId` і `appleTeamId`
 - [ ] Перевір пошту після завантаження білда: якщо Apple пише про Privacy Manifest (`ITMS-91053`), напиши мені — додамо декларацію
 

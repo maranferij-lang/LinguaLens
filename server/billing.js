@@ -90,8 +90,18 @@ async function proStatus(user, { refresh = false } = {}) {
 }
 
 // ---------- ліміт сканів ----------
+// День лічильника ніколи не йде назад. Інакше, чергуючи в x-local-date
+// «сьогодні» і «завтра» (обидва в межах доби), можна було б щоразу обнуляти
+// ліміт. Дати ISO порівнюються як рядки. Людина, що перелетіла на захід через
+// північ, просто продовжить учорашній-завтрашній лічильник — це чесно.
+function counterDay(user, day) {
+  const last = user.usage && user.usage.day;
+  return typeof last === 'string' && DAY_RE.test(last) && last > day ? last : day;
+}
+
 function usedOn(user, day) {
-  return user.usage && user.usage.day === day ? user.usage.scans || 0 : 0;
+  const d = counterDay(user, day);
+  return user.usage && user.usage.day === d ? user.usage.scans || 0 : 0;
 }
 
 function usageView(user, day, pro) {
@@ -110,7 +120,7 @@ async function checkScan(user, day) {
 
 // Рахуємо лише успішні скани: «не бачу предмета» людині не коштує спроби.
 async function countScan(user, day) {
-  user.usage = { day, scans: usedOn(user, day) + 1 };
+  user.usage = { day: counterDay(user, day), scans: usedOn(user, day) + 1 };
   await store.put('users', user.id, user);
 }
 

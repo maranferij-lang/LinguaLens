@@ -158,7 +158,6 @@ export const PRO_BENEFITS = [
   { id: 'scans', icon: 'scan' },
   { id: 'words', icon: 'book' },
   { id: 'langs', icon: 'globe' },
-  { id: 'photos', icon: 'sticker' },
   { id: 'support', icon: 'heart' },
 ];
 

@@ -177,7 +177,7 @@ gcloud run services describe lingualens-server --region europe-central2 --format
 | `REVENUECAT_SECRET_KEY` | так, для Pro | секретний ключ RevenueCat `sk_…`: сервер сам перевіряє Pro |
 | `REVENUECAT_WEBHOOK_AUTH` | так, для Pro | значення заголовка `Authorization` вебхука. Без нього вебхук відповідає 401 |
 | `REVENUECAT_ENTITLEMENT` | ні | за замовчуванням `pro` |
-| `SUPPORT_EMAIL` | так | пошта на сторінці `/privacy` |
+| `SUPPORT_EMAIL` | так | пошта на сторінках `/privacy` і `/support` |
 | `FREE_SCANS_PER_DAY` | ні | безкоштовних сканів на день, за замовчуванням 5 |
 | `RATE_PER_MIN` | ні | сканів з однієї IP за хвилину, за замовчуванням 20 |
 | `TRUST_PROXY_HOPS` | ні | скільки проксі перед сервером. Cloud Run напряму — `1` (за замовчуванням), за External Load Balancer — `2` |
@@ -196,7 +196,7 @@ curl -s -X POST $URL/auth/device -H 'x-app-token: ТВІЙ_APP_TOKEN'
 # {"user":{"id":"…","createdAt":…},"token":"…"}
 ```
 
-Відкрий у браузері `$URL/privacy`: має бути політика приватності з твоєю поштою
+Відкрий у браузері `$URL/privacy` і `$URL/support`: обидві сторінки мають показати твою пошту
 в розділі «Контакти», без плейсхолдера.
 
 Якщо щось не так, дивись логи:
@@ -212,7 +212,7 @@ gcloud run services logs read lingualens-server --region europe-central2 --limit
 ```bash
 cd ~/Documents/LinguaLens
 eas env:set production --name EXPO_PUBLIC_SERVER_URL --value $URL --visibility plaintext
-eas env:set production --name EXPO_PUBLIC_PRIVACY_URL --value $URL/privacy --visibility plaintext
+# EXPO_PUBLIC_PRIVACY_URL не потрібен: застосунок сам відкриє $URL/privacy
 eas env:set production --name EXPO_PUBLIC_APP_TOKEN --value ТВІЙ_APP_TOKEN --visibility plaintext
 ```
 

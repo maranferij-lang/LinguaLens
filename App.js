@@ -207,11 +207,20 @@ export default function App() {
       const me = await apiMe(refresh);
       if (me?.usage) updateUsage(me.usage);
     } catch (e) {
-      if (e?.status === 401) {
-        const s = await renewSession();
-        if (s) setDeviceId(s.userId);
-      }
+      if (e?.status === 401) renewIdentity();
     }
+  }
+
+  // Нова ідентичність має свій лічильник — підтягуємо його одразу, інакше
+  // старе локальне «5 з 5» блокувало б скани до наступного запуску.
+  async function renewIdentity() {
+    const s = await renewSession();
+    if (!s) return;
+    setDeviceId(s.userId);
+    try {
+      const me = await apiMe();
+      if (me?.usage) updateUsage(me.usage);
+    } catch (_) {}
   }
 
   function updateUsage(next) {
@@ -590,7 +599,7 @@ export default function App() {
                   if (data?.used != null) updateUsage({ day: localDayKey(), scans: data.used });
                   setPaywall('scans');
                 }}
-                onSessionLost={() => renewSession().then((x) => x && setDeviceId(x.userId))}
+                onSessionLost={renewIdentity}
                 scansLeft={scansLeft({ pro: sub.pro, usage })}
                 t={t}
               />
