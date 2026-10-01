@@ -130,19 +130,30 @@ function glyphEm(ch) {
   return 0.59;
 }
 
-// Ширина рядка в «кеглях». track() для великих кеглів стискає кожну літеру
-// на 0.022 кегля — враховуємо, інакше оцінка завжди трохи завищена.
-export function textEm(text) {
+// Ширина рядка в «кеглях». tracking — розрядка на літеру в частках кегля:
+// track() для великих кеглів стискає кожну літеру на 0.022, капс навпаки
+// розріджено. Без цього оцінка завжди трохи хибить.
+export function textEm(text, tracking = -0.022) {
   const chars = Array.from(String(text || ''));
-  return chars.reduce((sum, ch) => sum + glyphEm(ch), 0) - chars.length * 0.022;
+  return chars.reduce((sum, ch) => sum + glyphEm(ch), 0) + chars.length * tracking;
 }
 
-export function fontSizeForWord(word, { max = 64, min = 28, width = CONTENT_W } = {}) {
-  const em = textEm(word);
+export function fontSizeForWord(word, { max = 64, min = 28, width = CONTENT_W, tracking } = {}) {
+  const em = textEm(word, tracking);
   if (em <= 0) return max;
   // 4 % запасу: справжній рендер ще додає бокові відступи гліфів
   const fit = Math.floor((width * 0.96) / em);
   return Math.max(min, Math.min(max, fit));
+}
+
+// Підпис капсом під числом. Між словами він перенесеться, а всередині слова —
+// ні, тож міряємо найдовше слово: «WIEDERHOLUNGEN» у третині картки
+// інакше обрізалося б.
+export const CAPS_TRACK = 0.06;
+
+export function capsSize(label, width, max = 10, min = 8) {
+  const words = String(label || '').toLocaleUpperCase().split(/\s+/);
+  return Math.min(...words.map((w) => fontSizeForWord(w, { max, min, width, tracking: CAPS_TRACK })));
 }
 
 // ─── Текстові дрібниці ─────────────────────────────────────────────────────
@@ -339,14 +350,14 @@ export function toFileUri(uri) {
 
 // Масштаб прев'ю, щоб картка разом із заголовком, крапками, палітрою й
 // кнопками вмістилася на екрані з урахуванням вирізу та home indicator.
-// CHROME — висота всього, що в панелі не є самою карткою (≈300), плюс
+// chrome — висота всього, що в панелі не є самою карткою (≈300), плюс
 // рядок помилки й зазор під статус-баром: поява помилки не має виштовхнути
-// панель під виріз.
+// панель під виріз. Один шаблон — без підказки й крапок, мінус ~40 пт.
 export const SHEET_MAX_W = 520;
-const CHROME = 340;
 
-export function previewScale({ width, height, top = 0, bottom = 0 }) {
-  const byH = (height - top - bottom - CHROME) / CARD_H;
+export function previewScale({ width, height, top = 0, bottom = 0, multi = true }) {
+  const chrome = multi ? 340 : 300;
+  const byH = (height - top - bottom - chrome) / CARD_H;
   const byW = (Math.min(width, SHEET_MAX_W) - 96) / CARD_W;
   const s = Math.min(byH, byW, 0.8);
   return Math.max(0.36, Math.floor(s * 1000) / 1000);

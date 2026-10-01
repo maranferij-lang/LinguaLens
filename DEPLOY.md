@@ -1,101 +1,287 @@
-# Деплой сервера в Google Cloud Run
+# Сервер у Google Cloud Run (з Mac)
 
-Після цього апка працюватиме будь-де (не лише у твоїй Wi-Fi), і її можна давати друзям та класти в App Store. Усе робиться з Windows.
+Після цього застосунок працює будь-де, а не лише у твоїй Wi-Fi, і його можна
+давати друзям і подавати в App Store. Сервер без npm-залежностей; Cloud Run сам
+збирає його з папки `server/`.
+
+Команди вводь у Terminal. Плейсхолдери `ТВІЙ_…` заміни своїми значеннями.
+
+---
 
 ## 1. Одноразова підготовка
 
-1. Постав **Google Cloud CLI**: https://cloud.google.com/sdk/docs/install (Windows-інсталятор).
-2. У новому PowerShell:
-   ```powershell
-   gcloud init
-   ```
-   — залогінься Google-акаунтом і створи/обери проєкт (напр. `lingualens`).
-3. Увімкни білінг (потрібна картка, але Cloud Run має великий безкоштовний ліміт ~2 млн запитів/міс): https://console.cloud.google.com/billing
-
-## 2. Згенеруй два секрети
-
-У PowerShell:
-
-```powershell
-# APP_TOKEN — токен апки
-node -e "console.log(require('crypto').randomBytes(24).toString('base64url'))"
-
-# AUTH_SECRET — підпис токенів входу користувачів
-node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```bash
+brew install --cask gcloud-cli      # колишня назва cask: google-cloud-sdk — теж спрацює
+gcloud init                         # вхід у Google і вибір/створення проєкту, напр. lingualens
 ```
 
-`APP_TOKEN` знадобиться двічі (на сервері і в апці), `AUTH_SECRET` — лише на сервері.
+Увімкни білінг: https://console.cloud.google.com/billing (картка потрібна, але
+безкоштовного ліміту Cloud Run, ~2 млн запитів на місяць, вистачить надовго).
 
-> ⚠️ Якщо потім змінити `AUTH_SECRET`, усі користувачі вилетять з акаунтів і муситимуть увійти знову.
+Потрібні сервіси (gcloud однаково спитає про них при першому деплої, `y`):
 
-## 3. Увімкни Firestore (сховище юзерів)
-
-Один раз, у браузері: https://console.cloud.google.com/firestore → **Create database** → режим **Native**, регіон `eur3` (або `europe-central2`).
-
-Без цього сервер зберігатиме юзерів у файл `data.json` усередині контейнера — а Cloud Run контейнери перезапускаються, і дані зникнуть.
-
-## 4. Задеплой сервер (одна команда)
-
-```powershell
-cd "$HOME\Documents\LinguaLens\server"
-
-gcloud run deploy lingualens-server `
-  --source . `
-  --region europe-central2 `
-  --allow-unauthenticated `
-  --set-env-vars "PROVIDER=gemini,GEMINI_API_KEY=ТВІЙ_GEMINI_КЛЮЧ,GEMINI_MODEL=gemini-3.1-flash-lite,APP_TOKEN=ТВІЙ_ТОКЕН,AUTH_SECRET=ТВІЙ_AUTH_SECRET,RATE_PER_MIN=20,FIRESTORE_PROJECT=ID_ТВОГО_ПРОЄКТУ"
+```bash
+gcloud services enable run.googleapis.com cloudbuild.googleapis.com \
+  artifactregistry.googleapis.com firestore.googleapis.com secretmanager.googleapis.com
 ```
 
-- `europe-central2` — Варшава, найближчий регіон.
-- `FIRESTORE_PROJECT` — ID проєкту з `gcloud config get-value project`. Порожньо = файлове сховище (лише для локальних тестів).
-- Ключі й токени живуть у змінних середовища Cloud Run; файл `.env` у хмару не потрапляє (`.gcloudignore`).
-- При першому запуску gcloud спитає дозволи на сервіси — відповідай `y`.
-- Сервіс-акаунту Cloud Run потрібна роль **Cloud Datastore User** — зазвичай вона вже є у дефолтного Compute service account.
+Запам'ятай ID проєкту, він ще знадобиться:
 
-Наприкінці отримаєш URL типу:
-
-```
-https://lingualens-server-xxxxx-lm.a.run.app
+```bash
+PROJECT=$(gcloud config get-value project)
+echo $PROJECT
 ```
 
-Перевір у браузері: `https://...run.app/health` → `{"ok":true,...}`.
+> Змінні на кшталт `PROJECT`, `SA`, `URL` живуть, поки відкрите вікно
+> терміналу. У новому вікні виконай рядок із `PROJECT=…` (і `NUM=…`/`SA=…` з
+> кроку 3) ще раз.
 
-## 5. Підключи апку до хмари
+## 2. Згенеруй секрети
 
-У `src/api.js` заміни два рядки:
-
-```js
-export const SERVER_URL = 'https://lingualens-server-xxxxx-lm.a.run.app';
-export const APP_TOKEN = 'ТВІЙ_ТОКЕН'; // той самий, що в APP_TOKEN сервера
+```bash
+openssl rand -hex 32      # AUTH_SECRET — підпис токенів пристроїв
+openssl rand -hex 24      # APP_TOKEN — спільний токен застосунку
+openssl rand -hex 24      # REVENUECAT_WEBHOOK_AUTH — пароль вебхука
 ```
 
-Перезапусти expo (`r`) — тепер апка працює через хмару звідусіль, і сервер приймає запити лише з правильним токеном.
+Збережи їх у менеджері паролів.
 
-## 6. Оновити сервер після змін
+- `AUTH_SECRET` живе лише на сервері. **Не міняй його після релізу:** кожен
+  пристрій тихо отримає нову анонімну ідентичність, а лічильники сканів
+  скинуться. Підписка не пропаде (її знає Apple і RevenueCat), але людям,
+  можливо, доведеться натиснути «Відновити покупки».
+- `APP_TOKEN` потрібен двічі: на сервері і в застосунку як
+  `EXPO_PUBLIC_APP_TOKEN`. **Якщо задати його лише на сервері, усі запити
+  застосунку отримають 401.** Можна не задавати взагалі, тоді перевірка вимкнена.
+- `REVENUECAT_WEBHOOK_AUTH` піде на сервер і в налаштування вебхука
+  RevenueCat (крок 8), символ у символ.
 
-Та сама команда `gcloud run deploy ...` ще раз.
+## 3. Firestore (сховище) і правила
 
-## Перевірити, що акаунти працюють
+Без Firestore сервер пише в `data.json` усередині контейнера, а контейнери
+Cloud Run перезапускаються, тож дані зникали б.
 
-```powershell
-$u = "https://lingualens-server-xxxxx-lm.a.run.app"
-curl.exe -s -X POST "$u/auth/register" -H "content-type: application/json" -H "x-app-token: ТВІЙ_ТОКЕН" -d '{\"email\":\"test@test.com\",\"password\":\"123456\",\"name\":\"Test\"}'
+```bash
+gcloud firestore databases create --location=europe-central2
 ```
 
-Має повернути `{"token":"...","user":{...}}`. Другий такий самий запит → `email_taken`.
+Або в браузері: https://console.cloud.google.com/firestore → **Create database**
+→ режим **Native** → регіон `europe-central2` (Варшава).
 
-## Перемкнути провайдера на Claude (краща якість)
+**Правила доступу.** Сервер ходить у Firestore від імені сервісного акаунта
+Cloud Run (IAM), а клієнти напряму туди не стукають узагалі. Поки проєкт **не
+підключений до Firebase**, прямого доступу ззовні немає, і правила не потрібні.
+Якщо колись додаси Firebase до цього проєкту (Analytics, Crashlytics тощо),
+одразу відкрий Firebase Console → Firestore Database → Rules і встав:
 
-```powershell
-gcloud run services update lingualens-server --region europe-central2 `
-  --set-env-vars "PROVIDER=anthropic,ANTHROPIC_API_KEY=sk-ant-...,APP_TOKEN=ТВІЙ_ТОКЕН"
+```
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
 ```
 
-## Захист, який уже вбудований
+Серверу ці правила не заважають: доступ через IAM їх обходить.
 
-- **Акаунти користувачів**: пароль ніколи не зберігається — лише `scrypt`-хеш із власною сіллю. Токен сесії підписаний HMAC-SHA256 (`AUTH_SECRET`), живе 180 днів, лежить на телефоні в `expo-secure-store` (Keychain).
-- **Токен апки** (`APP_TOKEN`): без правильного заголовка `x-app-token` сервер відповідає 401 гостям. Зупиняє випадкове зловживання твоїм URL.
-- **Ліміт на IP** (`RATE_PER_MIN`, дефолт 20/хв): захист від флуду.
-- Для повного контролю витрат постав ще **ліміт бюджету** в Google Cloud Billing і квоту в Gemini.
+Сервісному акаунту потрібна роль **Cloud Datastore User**. У нових проєктах
+її в дефолтного акаунта може не бути, тож додай одразу:
 
-> Токен у бінарнику апки — це захист «від випадкових», не «від хакерів». Основний захист тепер — акаунти: залогінений юзер ходить із власним Bearer-токеном.
+```bash
+NUM=$(gcloud projects describe $PROJECT --format='value(projectNumber)')
+SA="$NUM-compute@developer.gserviceaccount.com"
+gcloud projects add-iam-policy-binding $PROJECT --member="serviceAccount:$SA" --role=roles/datastore.user
+```
+
+## 4. Ключі в Secret Manager (рекомендовано)
+
+Простими словами: змінні середовища видно кожному, хто відкриє сервіс у
+консолі, і вони потрапляють в історію ревізій. Secret Manager — це сейф. Cloud
+Run дістає з нього значення на старті й підставляє як звичайну змінну, тож код
+міняти не треба.
+
+```bash
+printf '%s' 'ТВІЙ_GEMINI_КЛЮЧ'          | gcloud secrets create gemini-api-key --data-file=-
+printf '%s' 'ТВІЙ_AUTH_SECRET'          | gcloud secrets create auth-secret --data-file=-
+printf '%s' 'ТВІЙ_APP_TOKEN'            | gcloud secrets create app-token --data-file=-
+printf '%s' 'sk_ТВІЙ_REVENUECAT_SECRET' | gcloud secrets create revenuecat-secret --data-file=-
+printf '%s' 'ТВІЙ_WEBHOOK_AUTH'         | gcloud secrets create revenuecat-webhook-auth --data-file=-
+
+# дозволити Cloud Run читати сейф
+gcloud projects add-iam-policy-binding $PROJECT --member="serviceAccount:$SA" \
+  --role=roles/secretmanager.secretAccessor
+```
+
+`printf '%s'` не додає перенесення рядка в кінець, і ключ лишається точним.
+
+Хочеш почати швидше? Можна пропустити цей крок і передати все через
+`--set-env-vars` (варіант Б нижче), а в сейф перенести пізніше.
+
+## 5. Деплой
+
+Для релізу потрібен **платний** тариф Gemini: на безкоштовному Google може
+використовувати запити для покращення моделей, а це суперечить нашій політиці
+приватності. Або бери ключ Anthropic (`PROVIDER=anthropic`, `ANTHROPIC_API_KEY`).
+
+**Варіант А — із Secret Manager:**
+
+```bash
+cd ~/Documents/LinguaLens/server
+
+gcloud run deploy lingualens-server \
+  --source . \
+  --region europe-central2 \
+  --allow-unauthenticated \
+  --set-env-vars "PROVIDER=gemini,FIRESTORE_PROJECT=$PROJECT,SUPPORT_EMAIL=ТВОЯ_ПОШТА" \
+  --set-secrets "GEMINI_API_KEY=gemini-api-key:latest,AUTH_SECRET=auth-secret:latest,APP_TOKEN=app-token:latest,REVENUECAT_SECRET_KEY=revenuecat-secret:latest,REVENUECAT_WEBHOOK_AUTH=revenuecat-webhook-auth:latest"
+```
+
+**Варіант Б — усе в змінних (для старту):**
+
+```bash
+cd ~/Documents/LinguaLens/server
+
+gcloud run deploy lingualens-server \
+  --source . \
+  --region europe-central2 \
+  --allow-unauthenticated \
+  --set-env-vars "PROVIDER=gemini,GEMINI_API_KEY=ТВІЙ_КЛЮЧ,AUTH_SECRET=ТВІЙ_AUTH_SECRET,APP_TOKEN=ТВІЙ_APP_TOKEN,FIRESTORE_PROJECT=$PROJECT,REVENUECAT_SECRET_KEY=sk_…,REVENUECAT_WEBHOOK_AUTH=ТВІЙ_WEBHOOK_AUTH,SUPPORT_EMAIL=ТВОЯ_ПОШТА"
+```
+
+- `--allow-unauthenticated` потрібен: застосунок ходить без Google-логіна, а
+  захист робить сам сервер (токени пристроїв, ліміти).
+- `server/.env` у хмару не потрапляє (`.gcloudignore`), значення беруться лише з
+  команди.
+- Перша збірка триває 3–5 хв. Наприкінці буде адреса на кшталт
+  `https://lingualens-server-xxxxx-lm.a.run.app`. Подивитись її знову:
+
+```bash
+gcloud run services describe lingualens-server --region europe-central2 --format='value(status.url)'
+```
+
+### Усі змінні сервера
+
+Повний зразок із поясненнями лежить у [`server/.env.example`](server/.env.example).
+
+| Змінна | Обов'язкова | Що це |
+|---|---|---|
+| `PROVIDER` | так | `gemini`, `anthropic` або `mock` (без ключа, завжди «кружка», тільки для тестів). Якщо не задано — `gemini` |
+| `GEMINI_API_KEY` / `ANTHROPIC_API_KEY` | так, для свого провайдера | ключ AI |
+| `GEMINI_MODEL` / `ANTHROPIC_MODEL` | ні | модель; за замовчуванням `gemini-3.1-flash-lite` / `claude-haiku-4-5` |
+| `AUTH_SECRET` | **так** | підпис токенів пристроїв. Без нього сервер бере випадковий при кожному старті, і всі пристрої «губляться» |
+| `FIRESTORE_PROJECT` | **так** у хмарі | ID проєкту; порожньо — файл `data.json` |
+| `APP_TOKEN` | рекомендовано | спільний токен; той самий у `EXPO_PUBLIC_APP_TOKEN` |
+| `REVENUECAT_SECRET_KEY` | так, для Pro | секретний ключ RevenueCat `sk_…`: сервер сам перевіряє Pro |
+| `REVENUECAT_WEBHOOK_AUTH` | так, для Pro | значення заголовка `Authorization` вебхука. Без нього вебхук відповідає 401 |
+| `REVENUECAT_ENTITLEMENT` | ні | за замовчуванням `pro` |
+| `SUPPORT_EMAIL` | так | пошта на сторінці `/privacy` |
+| `FREE_SCANS_PER_DAY` | ні | безкоштовних сканів на день, за замовчуванням 5 |
+| `RATE_PER_MIN` | ні | сканів з однієї IP за хвилину, за замовчуванням 20 |
+| `TRUST_PROXY_HOPS` | ні | скільки проксі перед сервером. Cloud Run напряму — `1` (за замовчуванням), за External Load Balancer — `2` |
+| `PORT` | ні | Cloud Run задає сам, не чіпай |
+| `DATA_FILE` | ні | шлях до файлу сховища; потрібен лише тестам |
+
+## 6. Перевірка
+
+```bash
+URL=$(gcloud run services describe lingualens-server --region europe-central2 --format='value(status.url)')
+
+curl -s $URL/health
+# {"ok":true,"provider":"gemini","store":"firestore"}   ← store має бути firestore!
+
+curl -s -X POST $URL/auth/device -H 'x-app-token: ТВІЙ_APP_TOKEN'
+# {"user":{"id":"…","createdAt":…},"token":"…"}
+```
+
+Відкрий у браузері `$URL/privacy`: має бути політика приватності з твоєю поштою
+в розділі «Контакти», без плейсхолдера.
+
+Якщо щось не так, дивись логи:
+
+```bash
+gcloud run services logs read lingualens-server --region europe-central2 --limit 50
+```
+
+## 7. Підключи застосунок
+
+Адреса й токен ідуть у змінні EAS (докладно — [`USER_TODO.md`](USER_TODO.md), крок 7):
+
+```bash
+cd ~/Documents/LinguaLens
+eas env:set production --name EXPO_PUBLIC_SERVER_URL --value $URL --visibility plaintext
+eas env:set production --name EXPO_PUBLIC_PRIVACY_URL --value $URL/privacy --visibility plaintext
+eas env:set production --name EXPO_PUBLIC_APP_TOKEN --value ТВІЙ_APP_TOKEN --visibility plaintext
+```
+
+Те саме для `preview` і `development`, якщо збираєш ці профілі. Для локальної
+перевірки з хмарним сервером впиши ті самі значення в кореневий `.env` і
+перезапусти Metro з `npx expo start -c`.
+
+> `EXPO_PUBLIC_APP_TOKEN` усе одно опиниться в бінарнику, тож справжнім секретом
+> він не є (див. [`SECURITY.md`](SECURITY.md)). Тому `plaintext`, а не `secret`.
+
+## 8. Вебхук RevenueCat
+
+RevenueCat → твій проєкт → **Integrations → Webhooks → Add**:
+
+- URL: `https://lingualens-server-…run.app/webhooks/revenuecat`
+- Authorization header: те саме значення, що в `REVENUECAT_WEBHOOK_AUTH`,
+  символ у символ (якщо там `Bearer abc…`, то і на сервері `Bearer abc…`)
+- Environment: обидва (production і sandbox)
+
+Натисни **Send test event**: RevenueCat має показати `200`. Якщо `401`,
+значення заголовка не збігаються.
+
+## 9. Ліміт бюджету
+
+https://console.cloud.google.com/billing → **Budgets & alerts** → Create budget:
+сума, напр. $20/міс, листи на 50%, 90% і 100%. Це не зупиняє сервер, а лише
+попереджає. Різкий стрибок означає або вірусний ріст, або зловживання; в обох
+випадках краще дізнатися першим.
+
+Для Gemini можна ще й обмежити кількість запитів: Google Cloud Console →
+APIs & Services → Generative Language API → **Quotas**.
+
+## 10. Як оновлювати
+
+Після змін у `server/`:
+
+```bash
+cd ~/Documents/LinguaLens/server
+npm test                                                     # спершу тести
+gcloud run deploy lingualens-server --source . --region europe-central2
+```
+
+Змінні й секрети з попереднього деплою зберігаються, передавати їх знову не треба.
+
+Змінити одну змінну без перезбирання:
+
+```bash
+gcloud run services update lingualens-server --region europe-central2 \
+  --update-env-vars FREE_SCANS_PER_DAY=5
+```
+
+> `--set-env-vars` **замінює всі** змінні на ті, що в команді.
+> Щоб змінити одну, використовуй `--update-env-vars`.
+
+Новий ключ у сейфі:
+
+```bash
+printf '%s' 'НОВИЙ_КЛЮЧ' | gcloud secrets versions add gemini-api-key --data-file=-
+gcloud run deploy lingualens-server --source . --region europe-central2   # щоб підхопив
+```
+
+Перемкнути провайдера на Claude:
+
+```bash
+printf '%s' 'sk-ant-…' | gcloud secrets create anthropic-api-key --data-file=-
+gcloud run services update lingualens-server --region europe-central2 \
+  --update-env-vars PROVIDER=anthropic \
+  --update-secrets ANTHROPIC_API_KEY=anthropic-api-key:latest
+```
+
+Відкотитись на попередню версію: Cloud Run Console → сервіс → **Revisions** →
+попередня ревізія → Manage traffic → 100%.

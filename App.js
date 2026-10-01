@@ -359,6 +359,10 @@ export default function App() {
   }
 
   function saveSetting(patch) {
+    // Вчити мову, яка й так рідна, безглуздо: обрали її з іншого боку —
+    // міняємо мови місцями, а не лишаємо «English → English».
+    if (patch.targetLang && patch.targetLang === settings.nativeLang) patch = { ...patch, nativeLang: settings.targetLang };
+    if (patch.nativeLang && patch.nativeLang === settings.targetLang) patch = { ...patch, targetLang: settings.nativeLang };
     const next = { ...settings, ...patch };
     setSettings(next);
     persistSettings(next);

@@ -306,24 +306,36 @@ export default function SettingsScreen({
           <View style={s.sep} />
           <Pressable style={s.linkRow} onPress={restore}>
             <Text style={[s.linkText, { flex: 1 }]}>{t('restore')}</Text>
+            <View style={{ transform: [{ rotate: '-90deg' }] }}>
+              <IcChevron color={C.faint} />
+            </View>
           </Pressable>
           {PRIVACY_URL ? (
             <>
               <View style={s.sep} />
               <Pressable style={s.linkRow} onPress={() => openUrl(PRIVACY_URL)}>
                 <Text style={[s.linkText, { flex: 1 }]}>{t('privacy')}</Text>
+                <View style={{ transform: [{ rotate: '-90deg' }] }}>
+                  <IcChevron color={C.faint} />
+                </View>
               </Pressable>
             </>
           ) : null}
           <View style={s.sep} />
           <Pressable style={s.linkRow} onPress={() => openUrl(TERMS_URL)}>
             <Text style={[s.linkText, { flex: 1 }]}>{t('terms')}</Text>
+            <View style={{ transform: [{ rotate: '-90deg' }] }}>
+              <IcChevron color={C.faint} />
+            </View>
           </Pressable>
           {SUPPORT_EMAIL ? (
             <>
               <View style={s.sep} />
               <Pressable style={s.linkRow} onPress={() => openUrl('mailto:' + SUPPORT_EMAIL)}>
                 <Text style={[s.linkText, { flex: 1 }]}>{t('support')}</Text>
+                <View style={{ transform: [{ rotate: '-90deg' }] }}>
+                  <IcChevron color={C.faint} />
+                </View>
               </Pressable>
             </>
           ) : null}

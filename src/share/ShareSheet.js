@@ -73,11 +73,14 @@ function Sheet({ payload, onClose, t }) {
   const pageRef = useRef(0);
   const scroller = useRef(null);
   const cards = useRef([]);
+  // Окремо від стану busy: два швидкі тапи встигають прийти до перерендеру,
+  // і тоді відкрилося б два системні меню поспіль.
+  const busyRef = useRef(false);
 
   const pal = paletteByKey(paletteKey);
   const locale = safeLocale(t('shareLocale'));
   const pageW = Math.min(width, SHEET_MAX_W);
-  const scale = previewScale({ width, height, top: insets.top, bottom: insets.bottom });
+  const scale = previewScale({ width, height, top: insets.top, bottom: insets.bottom, multi });
   const title = t(TITLES[payload.kind]);
 
   useEffect(() => {
@@ -130,7 +133,8 @@ function Sheet({ payload, onClose, t }) {
   }
 
   async function share() {
-    if (busy) return;
+    if (busyRef.current) return;
+    busyRef.current = true;
     setBusy(true);
     setError(null);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
@@ -143,6 +147,7 @@ function Sheet({ payload, onClose, t }) {
       setError(t(e?.code === 'SHARE_UNAVAILABLE' ? 'shareUnavailable' : 'shareError'));
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
     } finally {
+      busyRef.current = false;
       setBusy(false);
     }
   }

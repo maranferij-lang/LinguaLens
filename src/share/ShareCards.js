@@ -19,6 +19,7 @@ import { flagFor, nameFor } from '../speech';
 import { StickerLarge } from '../Sticker';
 import { F, type } from '../theme';
 import {
+  CAPS_TRACK,
   CARD_H,
   CARD_W,
   COLLAGE_H,
@@ -27,6 +28,7 @@ import {
   PAD_TOP,
   PAD_X,
   barHeights,
+  capsSize,
   dateLabel,
   dayLetter,
   fontSizeForWord,
@@ -208,6 +210,8 @@ function IpaPill({ ipa, pal, style }) {
 // Рядок великих чисел із підписами капсом — серце «стравівського» вигляду.
 function Stats({ items, pal, locale, style }) {
   const cellW = CONTENT_W / items.length;
+  // один кегль на весь рядок, щоб підписи стояли рівно
+  const labelSize = Math.min(...items.map((it) => capsSize(it.label, cellW - 8)));
   return (
     <View style={[{ flexDirection: 'row' }, style]}>
       {items.map((it, i) => {
@@ -230,9 +234,10 @@ function Stats({ items, pal, locale, style }) {
             >
               {value}
             </Txt>
-            {/* розрядка тут менша: «ПОВТОРЕННЯ» чи «WIEDERHOLUNGEN» — одне
-                довге слово, якому нема де перенестися */}
-            <Txt numberOfLines={2} style={[capsStyle(pal.muted, 10), { letterSpacing: 0.6, textAlign: 'center', marginTop: 4 }]}>
+            <Txt
+              numberOfLines={2}
+              style={[capsStyle(pal.muted, labelSize), { letterSpacing: labelSize * CAPS_TRACK, textAlign: 'center', marginTop: 4 }]}
+            >
               {it.label}
             </Txt>
           </View>

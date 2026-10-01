@@ -7,6 +7,7 @@ import {
   EXPORT_W,
   PALETTES,
   barHeights,
+  capsSize,
   dateLabel,
   dayFromKey,
   dayLetter,
@@ -88,6 +89,11 @@ describe('preview scale', () => {
     expect(CARD_W * s).toBeLessThan(393 - 80);
   });
 
+  test('a single template gets a bigger preview: no hint and no dots', () => {
+    const screen = { width: 375, height: 667, top: 20, bottom: 0 };
+    expect(previewScale({ ...screen, multi: false })).toBeGreaterThan(previewScale(screen));
+  });
+
   test('small phones still get a usable preview, big screens are capped', () => {
     expect(previewScale({ width: 320, height: 568, top: 20, bottom: 0 })).toBeGreaterThanOrEqual(0.36);
     expect(previewScale({ width: 1600, height: 1400 })).toBeLessThanOrEqual(0.8);
@@ -150,6 +156,23 @@ describe('fontSizeForWord', () => {
     expect(fontSizeForWord('12', { max: 40, min: 22, width: 80 })).toBe(40);
     expect(fontSizeForWord('123456', { max: 40, min: 22, width: 80 })).toBeLessThan(40);
     expect(fontSizeForWord('', { max: 40 })).toBe(40);
+  });
+});
+
+describe('capsSize', () => {
+  test('short labels keep the default size', () => {
+    expect(capsSize('day streak', 90)).toBe(10);
+    expect(capsSize('повторення', 90)).toBe(10);
+  });
+
+  test('a single long word shrinks to fit a third of the card', () => {
+    const size = capsSize('Wiederholungen', 90);
+    expect(size).toBeLessThan(10);
+    expect(size).toBeGreaterThanOrEqual(8);
+  });
+
+  test('multi-word labels are measured by their longest word', () => {
+    expect(capsSize('words collected', 90)).toBe(capsSize('collected', 90));
   });
 });
 
