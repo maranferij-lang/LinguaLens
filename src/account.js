@@ -218,7 +218,12 @@ export function useAccount(deviceId) {
     ...st,
     signedIn: !!st.id && st.id === deviceId,
     linked: (id) => setId(id),
-    forget: () => setId(null),
+    // Акаунта на цьому телефоні більше немає — і його since з надгробками
+    // нічого не означають: наступний вхід почнеться з повної синхронізації.
+    forget() {
+      setId(null);
+      clearSyncData();
+    },
     // user.apple з /me — правда сервера: після перевстановлення (Keychain
     // зберіг токен акаунта, а AsyncStorage — ні) вхід повертається сам.
     noteMe(me, startedAt) {

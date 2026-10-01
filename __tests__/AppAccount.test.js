@@ -334,6 +334,37 @@ test('erasing everything while signed in deletes the account and forgets the sig
   await act(async () => tree.unmount());
 });
 
+test('the account erased from another iPhone: this one becomes a guest and keeps its words', async () => {
+  await returning({ words: [synced('a')], extra: [['ll_sync_v1', JSON.stringify({ id: 'acc', since: 4, at: NOW })]] });
+  serve((path, method, body, token) => {
+    if (path === '/auth/device') return [200, { token: 'anon-token', user: { id: 'anon', createdAt: 2 } }];
+    if (path === '/me') return token === 'anon-token' ? me('anon', false) : [401, { error: 'UNAUTHORIZED' }];
+    if (path === '/sync') return [401, { error: 'UNAUTHORIZED' }];
+  });
+  const tree = await renderApp();
+  await openTab(tree, 'settings');
+  expect(one(tree, SettingsScreen).props.account.signedIn).toBe(false);
+  expect(keychain.get('ll_token')).toBe('anon-token');
+  expect((await stored('ll_words_v1')).map((w) => w.id)).toEqual(['a']);
+  expect(await AsyncStorage.getItem('ll_sync_v1')).toBeNull();
+  await act(async () => tree.unmount());
+});
+
+test('the server says the account is no longer linked: signed out, same identity, words kept', async () => {
+  await returning({ words: [synced('a')] });
+  serve((path) => {
+    if (path === '/me') return me('acc', true);
+    if (path === '/sync') return [403, { error: 'SIGN_IN_REQUIRED' }];
+  });
+  const tree = await renderApp();
+  await openTab(tree, 'settings');
+  expect(one(tree, SettingsScreen).props.account.signedIn).toBe(false);
+  expect(keychain.get('ll_token')).toBe('acc-token');
+  expect(await AsyncStorage.getItem('ll_account_v1')).toBeNull();
+  expect(await stored('ll_words_v1')).toHaveLength(1);
+  await act(async () => tree.unmount());
+});
+
 // ─── вхід ───────────────────────────────────────────────────────────────────
 describe('signing in with Apple', () => {
   const CREDENTIAL = { user: 'sub', identityToken: 'jwt', authorizationCode: 'code' };
