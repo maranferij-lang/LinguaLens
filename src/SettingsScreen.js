@@ -1,4 +1,20 @@
-// Налаштування: акаунт, мови, слово дня, тема, сервер, дані.
+// Налаштування: акаунт, Pro, мови, слово дня, тема, про застосунок, дані.
+//
+// v1.3: секції, які міняють паралельні потоки, винесено в src/settings/*
+// (WodSection, StreakSection, WidgetsSection, ThemeSection, DevSection,
+// Footer) — цей файл після цього ніхто, крім інтеграції, не править.
+// Підпис кожної секції: ({ ctx, extra }), де
+//   ctx = { settings, saveSetting, commitSettings, t, lang, pro, openPaywall,
+//           C, s, isDark, themeKey, props, dev }
+//     settings / saveSetting / commitSettings — налаштування App і його
+//       функції (порожній об'єкт і no-op, якщо App їх не передав);
+//     openPaywall(reason, opts) — пейвол App з причиною;
+//     s — стилі цього екрана (sectionLabel, switchRow, dimText…);
+//     props — усі пропси SettingsScreen (наявні секції беруть звідти те,
+//       що брали до винесення: wodEnabled, onToggleWod, themeMode…);
+//     dev — { open, setOpen }: діагностику відкривають сім дотиків по футеру;
+//   extra = settingsExtra з App.js — нові поля кожен потік додає між своїми
+//     маркерами <v13:Wn> там.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
@@ -15,38 +31,30 @@ import {
 } from 'react-native';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import * as Haptics from 'expo-haptics';
-import { checkServer } from './api';
 import { accountErrorKey, syncErrorKey } from './account';
-import { IS_DEV, PRIVACY_URL, SERVER_SOURCE, SERVER_URL, SUPPORT_EMAIL, TERMS_URL } from './config';
-import { formatDate, localeFor } from './locale';
+import { PRIVACY_URL, SUPPORT_EMAIL, TERMS_URL } from './config';
+import { formatDate } from './locale';
 import { restoreNote } from './purchases';
-import { profileSummary } from './profile';
-import { version as APP_VERSION } from '../package.json';
 import { LANGS, flagFor, nameFor } from './speech';
 import { IcCheck, IcChevron, IcCloud } from './icons';
-import { LogoRow } from './Logo';
 import { PCrown } from './ProIcons';
 import { Mascot } from './Mascot';
 import { FadeIn, Glass, Press } from './ui';
 import { UNDER_TAB } from './Chrome';
 import { layoutNext } from './motion';
-import { F, R, THEME_DEFS, type, useTheme } from './theme';
+import { F, R, type, useTheme } from './theme';
+import WodSection from './settings/WodSection';
+import StreakSection from './settings/StreakSection';
+import WidgetsSection from './settings/WidgetsSection';
+import ThemeSection from './settings/ThemeSection';
+import DevSection from './settings/DevSection';
+import Footer from './settings/Footer';
 
-// Підпис години нагадування — у форматі годинника для мови інтерфейсу:
-// де годинник 12-годинний (en-US) — «8 AM», де 24-годинний — «08:00».
-export function hourLabel(h, lang) {
-  const loc = localeFor(lang);
-  const at = new Date(2000, 0, 1, h);
-  try {
-    // 13:00 у 12-годинному форматі — «1 PM»: числа 13 там немає
-    const h12 = !/13/.test(new Date(2000, 0, 1, 13).toLocaleTimeString(loc, { hour: 'numeric' }));
-    return h12
-      ? at.toLocaleTimeString(loc, { hour: 'numeric', hour12: true })
-      : at.toLocaleTimeString(loc, { hour: '2-digit', minute: '2-digit', hour12: false });
-  } catch (_) {
-    return String(h).padStart(2, '0') + ':00';
-  }
-}
+// Підпис години — тепер у WodSection; звідси — для наявних імпортів.
+export { hourLabel } from './settings/WodSection';
+
+const NOOP = () => {};
+const NO_SETTINGS = {};
 
 // Тогл-лист вибору мови: розгортається на ~4 рядки, далі скрол
 function LangPicker({ label, hint, value, onChange, C, s }) {
@@ -308,45 +316,52 @@ function AccountCard({ account, sync, pro, onSignIn, onSignOut, onSyncNow, lang,
   );
 }
 
-export default function SettingsScreen({
-  targetLang,
-  onSetLang,
-  nativeLang,
-  onSetNative,
-  // Мова, якою зараз говорить інтерфейс (мова телефону): для рядка «Мова
-  // інтерфейсу» і для дат.
-  uiLang = 'en',
-  themeKey,
-  themeMode,
-  onSetTheme,
-  wordsCount,
-  scenesCount = 0,
-  onClearAll,
-  onEraseEverything,
-  onReplayOnb,
-  onDevReset,
-  wodEnabled,
-  onToggleWod,
-  wodHour,
-  onSetWodHour,
-  sub,
-  onOpenPaywall,
-  onManageSub,
-  onRestore,
-  account,
-  sync,
-  onSignIn,
-  onSignOut,
-  onSyncNow,
-  profile = null,
-  onEditProfile,
-  // «Анонімна статистика» (src/analytics.js): рядок є, лише коли збірка
-  // взагалі має ключ PostHog — інакше перемикати нічого.
-  analyticsAvailable = false,
-  analyticsOn = true,
-  onToggleAnalytics,
-  t,
-}) {
+export default function SettingsScreen(props) {
+  const {
+    targetLang,
+    onSetLang,
+    nativeLang,
+    onSetNative,
+    // Мова, якою зараз говорить інтерфейс (мова телефону): для рядка «Мова
+    // інтерфейсу» і для дат.
+    uiLang = 'en',
+    themeKey,
+    themeMode,
+    onSetTheme,
+    wordsCount,
+    scenesCount = 0,
+    onClearAll,
+    onEraseEverything,
+    onReplayOnb,
+    onDevReset,
+    wodEnabled,
+    onToggleWod,
+    wodHour,
+    onSetWodHour,
+    sub,
+    onOpenPaywall,
+    onManageSub,
+    onRestore,
+    account,
+    sync,
+    onSignIn,
+    onSignOut,
+    onSyncNow,
+    profile = null,
+    onEditProfile,
+    // «Анонімна статистика» (src/analytics.js): рядок є, лише коли збірка
+    // взагалі має ключ PostHog — інакше перемикати нічого.
+    analyticsAvailable = false,
+    analyticsOn = true,
+    onToggleAnalytics,
+    // v1.3 — для секцій src/settings/* (див. шапку файлу)
+    settings = NO_SETTINGS,
+    saveSetting = NOOP,
+    commitSettings = NOOP,
+    openPaywall,
+    extra = NO_SETTINGS,
+    t,
+  } = props;
   const { C, T, isDark } = useTheme();
   const s = useMemo(() => makeStyles(C), [C]);
   // Без кнопки Apple (веб, Android) про акаунт мовчимо; хто вже увійшов —
@@ -354,18 +369,26 @@ export default function SettingsScreen({
   const showAccount = !!(account?.signedIn || account?.available);
   const synced = !!account?.signedIn;
 
-  const [checking, setChecking] = useState(false);
+  // Діагностику відкривають сім дотиків по футеру (Footer → DevSection)
   const [devOpen, setDevOpen] = useState(false);
-  const tapCount = useRef(0);
-  const [status, setStatus] = useState(null);
 
-  async function check() {
-    setChecking(true);
-    setStatus(null);
-    const res = await checkServer();
-    setStatus(res);
-    setChecking(false);
-  }
+  // Спільне для всіх секцій src/settings/* (див. шапку файлу). Без
+  // openPaywall від App пейвол відкриває наявний onOpenPaywall (причина info).
+  const ctx = {
+    settings,
+    saveSetting,
+    commitSettings,
+    t,
+    lang: uiLang,
+    pro: !!sub?.pro,
+    openPaywall: openPaywall || ((_reason) => onOpenPaywall?.()),
+    C,
+    s,
+    isDark,
+    themeKey,
+    props,
+    dev: { open: devOpen, setOpen: setDevOpen },
+  };
 
   // В акаунті видалення розійдеться на всі iPhone — кажемо про це прямо.
   function confirmClear() {
@@ -409,8 +432,6 @@ export default function SettingsScreen({
   function openUrl(url) {
     if (url) Linking.openURL(url).catch(() => {});
   }
-
-  const HOURS = [8, 10, 12, 18, 20];
 
   return (
     <ScrollView
@@ -497,121 +518,12 @@ export default function SettingsScreen({
         />
         <UiLangRow lang={uiLang} t={t} C={C} s={s} />
 
-        {/* Слово дня */}
-        <Text style={s.sectionLabel}>{t('wordOfDay')}</Text>
-        <Glass>
-          {/* Під кого підбирається слово: «Фінанси · B2+». Відкриває ті самі
-              кроки, що в онбордингу, власним шаром поверх вкладок. */}
-          {onEditProfile ? (
-            <>
-              <Pressable
-                style={s.profileRow}
-                onPress={onEditProfile}
-                accessibilityRole="button"
-                accessibilityLabel={`${t('pfRowTitle')}, ${profileSummary(profile, t)}`}
-              >
-                <View style={{ flex: 1, paddingRight: 12 }}>
-                  <Text style={s.switchTitle}>{t('pfRowTitle')}</Text>
-                  <Text style={[s.dimText, profile && { color: C.accent, fontFamily: F.bold }]}>{profileSummary(profile, t)}</Text>
-                </View>
-                <View style={{ transform: [{ rotate: '-90deg' }] }}>
-                  <IcChevron color={C.faint} />
-                </View>
-              </Pressable>
-              <View style={s.sepInner} />
-            </>
-          ) : null}
-          <View style={s.switchRow}>
-            <View style={{ flex: 1, paddingRight: 12 }}>
-              <Text style={s.switchTitle}>{t('dailyPush')}</Text>
-              <Text style={s.dimText}>{t('dailyPushHint')}</Text>
-            </View>
-            <Switch
-              value={wodEnabled}
-              onValueChange={onToggleWod}
-              trackColor={{ false: C.card3, true: C.accent }}
-              thumbColor="#fff"
-            />
-          </View>
-
-          {wodEnabled ? (
-            <>
-              <View style={s.sepInner} />
-              <Text style={s.dimText}>{t('pushTime')}</Text>
-              <View style={s.hourRow}>
-                {HOURS.map((h) => {
-                  const active = wodHour === h;
-                  return (
-                    <Pressable
-                      key={h}
-                      style={[s.hourChip, active && s.hourChipActive]}
-                      onPress={() => {
-                        Haptics.selectionAsync();
-                        onSetWodHour(h);
-                      }}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected: active }}
-                    >
-                      <Text
-                        style={[s.hourText, active && { color: C.onAccent, fontFamily: F.extra }]}
-                        numberOfLines={1}
-                        adjustsFontSizeToFit
-                        minimumFontScale={0.8}
-                        maxFontSizeMultiplier={1.3}
-                      >
-                        {hourLabel(h, uiLang)}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </>
-          ) : null}
-        </Glass>
-
-        {/* Тема */}
-        <Text style={s.sectionLabel}>{t('themeLabel')}</Text>
-        {/* Три варіанти замість галереї з восьми. Менше вибору — менше рішень
-            для юзера, і кожна тема доведена до ладу, а не «ще один відтінок». */}
-        <View style={s.themeRow}>
-          {[{ key: 'system', name: t('themeAuto') }, ...THEME_DEFS].map((th) => {
-            const active = themeMode === th.key;
-            const isAuto = th.key === 'system';
-            return (
-              <Pressable
-                key={th.key}
-                style={s.themeCell}
-                onPress={() => {
-                  Haptics.selectionAsync();
-                  onSetTheme(th.key);
-                }}
-              >
-                <View
-                  style={[
-                    s.swatch,
-                    { backgroundColor: isAuto ? '#FAF8F4' : th.swatch },
-                    active && { borderColor: C.accent, borderWidth: 2.5 },
-                  ]}
-                >
-                  {/* «Авто» — половина плитки темна: світло й темрява разом */}
-                  {isAuto ? <View style={s.swatchHalf} /> : null}
-                  <View
-                    style={[
-                      s.swatchDot,
-                      { backgroundColor: isAuto ? '#5B4FD6' : th.accent },
-                    ]}
-                  />
-                </View>
-                <Text
-                  style={[s.themeName, active && { color: C.text, fontFamily: F.bold }]}
-                  numberOfLines={1}
-                >
-                  {isAuto ? th.name : t(th.key === 'dark' ? 'themeDark' : 'themeLight')}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
+        {/* Слово дня (W2), серія (W1), віджети (W2), тема (W5) — секції-файли
+            src/settings/*: кожен потік править лише свій файл. */}
+        <WodSection ctx={ctx} extra={extra} />
+        <StreakSection ctx={ctx} extra={extra} />
+        <WidgetsSection ctx={ctx} extra={extra} />
+        <ThemeSection ctx={ctx} extra={extra} />
 
         {/* Про застосунок */}
         <Text style={s.sectionLabel}>{t('about')}</Text>
@@ -705,59 +617,10 @@ export default function SettingsScreen({
           </Press>
         </Glass>
 
-        {/* Технічна панель. Звичайний користувач її не бачить і не має бачити:
-            адреса сервера — наша кухня, а не його справа. Відкривається сімома
-            дотиками по логотипу — класичний прихований жест для діагностики. */}
-        {devOpen ? (
-          <>
-            <Text style={s.sectionLabel}>Діагностика</Text>
-            <Glass>
-              {/* Лише в розробці: у релізі це дарувало б новий безкоштовний скан. */}
-              {IS_DEV && onDevReset ? (
-                <>
-                  <Press style={s.dangerBtn} onPress={onDevReset} accessibilityRole="button">
-                    <Text style={s.dangerText}>Почати з нуля: онбординг, дані, новий пристрій</Text>
-                  </Press>
-                  <View style={s.sepInner} />
-                </>
-              ) : null}
-              <Text style={s.serverUrl}>
-                {SERVER_URL} · {SERVER_SOURCE}
-              </Text>
-              <Press style={s.checkBtn} onPress={check} disabled={checking}>
-                {checking ? (
-                  <ActivityIndicator color={C.onAccent} size="small" />
-                ) : (
-                  <Text style={s.checkBtnText}>{t('checkConn')}</Text>
-                )}
-              </Press>
-              {status ? (
-                status.ok ? (
-                  <Text style={s.okText}>{t('srvOnline', { p: status.provider })}</Text>
-                ) : (
-                  <Text style={s.badText}>{t('srvOffline')}</Text>
-                )
-              ) : null}
-            </Glass>
-          </>
-        ) : null}
-
-        <Pressable
-          style={{ alignItems: 'center', marginTop: 26, gap: 6 }}
-          onPress={() => {
-            const n = tapCount.current + 1;
-            tapCount.current = n;
-            if (n >= 7) {
-              tapCount.current = 0;
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              setDevOpen((v) => !v);
-            }
-          }}
-        >
-          <LogoRow size={26} />
-          <Text style={s.footer}>{t('footer')}</Text>
-          <Text style={s.version}>v{APP_VERSION}</Text>
-        </Pressable>
+        {/* Діагностика (сім дотиків по футеру; у розробці — «Почати з нуля»)
+            і футер з іконкою застосунку */}
+        <DevSection ctx={ctx} extra={extra} />
+        <Footer ctx={ctx} extra={extra} />
       </FadeIn>
     </ScrollView>
   );
@@ -916,6 +779,4 @@ const makeStyles = (C) =>
     syncBtnText: { color: C.text, ...type(15, F.bold, { noLead: true }) },
     signOutBtn: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
     dangerText: { color: C.red, fontSize: 16, letterSpacing: -0.1, fontFamily: F.semi },
-    version: { color: C.dim, fontSize: 11, fontFamily: F.reg, marginTop: 2 },
-    footer: { color: C.dim, fontSize: 12, textAlign: 'center', fontFamily: F.semi },
   });
