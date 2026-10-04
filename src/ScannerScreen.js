@@ -509,7 +509,8 @@ export default function ScannerScreen({
   // налазить на кути видошукача. Постійний лічильник над камерою тисне.
   const usedUp = !firstScan && scansLeft === 0;
   const showLeft = !firstScan && !loading && Number.isFinite(scansLeft) && scansLeft > 0 && scansLeft <= 3;
-  const proChip = usedUp && !loading && !!onOpenPro;
+  // поки відкритий аркуш результату, чип під ним ні до чого
+  const proChip = usedUp && !loading && !result && !!onOpenPro;
   const vf = viewfinder(sceneMode, win.width, rootH, (showLeft ? COUNTER_H : 0) + (proChip ? CHIP_H : 0));
   const status = [t('sceneStatus1'), t('sceneStatus2'), t('sceneStatus3')];
   const idleHint = usedUp ? t('scanUsedUp') : sceneMode ? t('sceneHint') : t('hint');
@@ -1124,7 +1125,7 @@ const makeStyles = (C) =>
     // тоді, коли впирається в maxHeight
     sheetScroll: { flexGrow: 0, flexShrink: 1 },
     extras: { marginTop: 14, backgroundColor: C.card2, borderRadius: R.md, paddingHorizontal: 14, paddingTop: 12, paddingBottom: 4 },
-    extrasTitle: { color: C.faint, ...CAPS, marginBottom: 4 },
+    extrasTitle: { color: C.dim, ...CAPS, marginBottom: 4 },
     extraRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 9 },
     extraLine: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.sep },
     extraPhrase: { color: C.text, fontSize: 15, lineHeight: 20, fontFamily: F.bold },

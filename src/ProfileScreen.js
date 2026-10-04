@@ -316,7 +316,7 @@ export default function ProfileScreen({ words, activity, stats, profile, onUpdat
               value={draftName}
               onChangeText={setDraftName}
               placeholder={t('namePlaceholder')}
-              placeholderTextColor={C.faint}
+              placeholderTextColor={C.dim}
               autoFocus
               returnKeyType="done"
               onSubmitEditing={saveName}

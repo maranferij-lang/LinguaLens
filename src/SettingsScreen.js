@@ -417,7 +417,9 @@ export default function SettingsScreen({
       contentContainerStyle={{ paddingBottom: UNDER_TAB + 24 }}
       showsVerticalScrollIndicator={false}
     >
-      <Text style={[T.largeTitle, s.title]}>{t('setTitle')}</Text>
+      <Text style={[T.largeTitle, s.title]} accessibilityRole="header">
+        {t('setTitle')}
+      </Text>
 
       <FadeIn>
         {/* Акаунт — найперше: від нього залежить, чи переживуть слова втрату

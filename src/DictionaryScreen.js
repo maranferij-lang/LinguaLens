@@ -255,7 +255,7 @@ export default function DictionaryScreen({
     if (!scenes.length) return <View style={s.empty}>{empty}</View>;
     return (
       <View style={[s.root, s.rootPadded]}>
-        <Text style={T.largeTitle}>{t('dictTitle')}</Text>
+        <Text style={T.largeTitle} accessibilityRole="header">{t('dictTitle')}</Text>
         <Text style={s.subtitle}>{t('dictCount', { n: 0 })}</Text>
         {sceneStrip}
         <View style={[s.empty, { paddingHorizontal: 14 }]}>{empty}</View>
@@ -274,7 +274,7 @@ export default function DictionaryScreen({
   // Шапка їде разом зі списком
   const header = (
     <View style={s.head}>
-      <Text style={T.largeTitle}>{t('dictTitle')}</Text>
+      <Text style={T.largeTitle} accessibilityRole="header">{t('dictTitle')}</Text>
       {/* «Збережено: 24», а не «24 слів»: так число узгоджується з будь-якою
           мовою без правил множини. */}
       <Text style={s.subtitle}>{t('dictCount', { n: words.length })}</Text>

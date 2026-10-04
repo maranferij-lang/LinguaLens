@@ -270,6 +270,20 @@ describe('the camera after the free scan', () => {
     expect(uk('scanUsedUp')).toBe('Безкоштовний скан використано');
   });
 
+  test('the chip waits while the result sheet covers the camera', async () => {
+    const tree = await render(scanner({ scansLeft: 0, onOpenPro: jest.fn() }));
+    expect(byLabel(tree.root, t('scanProChip'))).toBeTruthy();
+    // останній скан (у тесті затвор не питає App) — аркуш поверх камери
+    await press(() => shutter(tree).props.onPress());
+    expect(resultSheet(tree).props.visible).toBe(true);
+    expect(byLabel(tree.root, t('scanProChip'))).toBeUndefined();
+    await press(() => byTitle(resultSheet(tree), t('save')).props.onPress());
+    await press(() => backdrop(tree).props.onPress());
+    expect(resultSheet(tree).props.visible).toBe(false);
+    expect(byLabel(tree.root, t('scanProChip'))).toBeTruthy();
+    await act(async () => tree.unmount());
+  });
+
   test('a scan left: the counter is a second line of the hint pill; Pro has neither', async () => {
     let tree = await render(scanner({ scansLeft: 1, onOpenPro: jest.fn() }));
     let pill = tree.root.findAll((n) => n.type === 'Text' && n.props.children === t('hint'))[0];
@@ -584,6 +598,25 @@ describe('Learn hub', () => {
       await act(async () => tree.unmount());
     }
     expect(onGoScan).toHaveBeenCalledTimes(2);
+  });
+
+  test('on a small phone the empty state is compact, so its button clears the tab bar', async () => {
+    const MascotBob = require('../src/Mascot').MascotBob;
+    const was = Dimensions.get('window');
+    const size = async () => {
+      const tree = await render(hub({ wordOfDay: null, onGoScan: () => {} }));
+      const v = tree.root.findByType(MascotBob).props.size;
+      await act(async () => tree.unmount());
+      return v;
+    };
+    try {
+      act(() => Dimensions.set({ window: { width: 375, height: 667, scale: 2, fontScale: 1 }, screen: { width: 375, height: 667, scale: 2, fontScale: 1 } }));
+      expect(await size()).toBe(100);
+      act(() => Dimensions.set({ window: { width: 440, height: 956, scale: 3, fontScale: 1 }, screen: { width: 440, height: 956, scale: 3, fontScale: 1 } }));
+      expect(await size()).toBe(140);
+    } finally {
+      act(() => Dimensions.set({ window: was, screen: was }));
+    }
   });
 
   test('App: saving the word of the day from the empty state gives one card due', async () => {

@@ -1,6 +1,6 @@
 // «Навчання»: хаб — флешкартки (3D-фліп) + квіз
 import { useMemo, useRef, useState } from 'react';
-import { Animated, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Animated, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { dueWords, nextDueText, practiceWords } from './srs';
 import { speak } from './speech';
@@ -64,6 +64,9 @@ export default function FlashcardsScreen({
   const { C, T, SHADOW } = useTheme();
   const s = useMemo(() => makeStyles(C), [C]);
   const reduced = useReducedMotion();
+  // iPhone SE: порожній стан компактніший, щоб кнопка під ним не ховалась
+  // під таб-бар
+  const compact = useWindowDimensions().height < 700;
 
   const [mode, setMode] = useState('hub');
   const [session, setSession] = useState(null);
@@ -144,7 +147,9 @@ export default function FlashcardsScreen({
         showsVerticalScrollIndicator={false}
       >
         <View style={s.hubHead}>
-          <Text style={T.largeTitle}>{t('learnTitle')}</Text>
+          <Text style={T.largeTitle} accessibilityRole="header">
+            {t('learnTitle')}
+          </Text>
           {/* Pro завжди на очах, але не кричить: маленький піл замість
               попапа. Попап, що вилітає сам, бісить і псує оцінку. */}
           {onOpenPro && !isPro ? (
@@ -175,8 +180,8 @@ export default function FlashcardsScreen({
         {/* Щоденне повторення — одразу під словом дня, ще до підказок: на SE
             підказки інакше виштовхували «Картки» за край екрана. */}
         {!words.length ? (
-          <FadeIn delay={45} style={{ alignItems: 'center', paddingVertical: 30 }}>
-            <MascotBob pose="think" size={140} />
+          <FadeIn delay={45} style={{ alignItems: 'center', paddingVertical: compact ? 14 : 30 }}>
+            <MascotBob pose="think" size={compact ? 100 : 140} />
             <Text style={s.bigTitle}>{t('cardsEmptyTitle')}</Text>
             <Text style={s.dimText}>{t('cardsEmptyText')}</Text>
             {/* Порожній стан без виходу — глухий кут. Слово дня не збережене —
