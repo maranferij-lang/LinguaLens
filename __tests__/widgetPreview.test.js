@@ -87,6 +87,29 @@ describe('WidgetPreview', () => {
     await act(async () => tree.unmount());
   });
 
+  test('scales as a whole with its width: a narrow step keeps the same layout, only smaller', async () => {
+    const tree = await render(<WidgetPreview wod={WOD} sample={SAMPLE} streakN={1} t={uk} lang="uk" targetLang="en" />);
+    const size = () => {
+      const word = tree.root.find((n) => n.type === Text && flat(n) === 'lighthouse');
+      return Object.assign({}, ...[].concat(word.props.style).flat()).fontSize;
+    };
+    const layout = (width) =>
+      act(async () => byId(tree, 'widget-preview').props.onLayout({ nativeEvent: { layout: { width, height: width } } }));
+    expect(size()).toBe(30);
+    await layout(268);
+    expect(size()).toBe(24);
+    await layout(402);
+    expect(size()).toBe(36);
+    // і не безмежно: на iPad-ширині — не більше ×1,3
+    await layout(900);
+    expect(size()).toBe(39);
+    // без серії — «0 днів», а не «0 днів поспіль»
+    const none = await render(<WidgetPreview wod={WOD} streakN={0} t={uk} lang="uk" />);
+    expect(texts(none.root.find((n) => n.props.testID === 'preview-streak' && n.props.style))[1]).toBe('днів');
+    await act(async () => none.unmount());
+    await act(async () => tree.unmount());
+  });
+
   test('colours come from the widget palette of the current theme', async () => {
     for (const theme of [THEMES.light, THEMES.dark]) {
       const pal = widgetPalette(theme.key)[theme.isDark ? 'd' : 'l'];

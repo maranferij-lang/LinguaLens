@@ -276,6 +276,20 @@ describe('Word of the Day layout', () => {
     expect(texts(w().render(empty.props, env('systemSmall')))).toEqual(['Word of the day', 'Open LinguaLens for new words']);
   });
 
+  test('empty states: at the bottom of small and medium, in the middle of the large one', () => {
+    const lastIsSpacer = (tree) => kids(tree).filter(Boolean).at(-1).type === 'SpacerView';
+    const [wod] = buildWordTimeline(null, o);
+    const [mine] = buildMyWordsTimeline([], o);
+    for (const [name, entry] of [
+      ['WordOfDay', wod],
+      ['MyWords', mine],
+    ]) {
+      expect(lastIsSpacer(widget(name).render(entry.props, env('systemLarge')))).toBe(true);
+      expect(lastIsSpacer(widget(name).render(entry.props, env('systemMedium')))).toBe(false);
+      expect(lastIsSpacer(widget(name).render(entry.props, env('systemSmall')))).toBe(false);
+    }
+  });
+
   test('the tap target names the family it came from', () => {
     const [entry] = buildWordTimeline(wodCache(1), o);
     expect(mods(w().render(entry.props, env('systemMedium'))).widgetURL.url).toBe(entry.props.link + '&f=systemMedium');

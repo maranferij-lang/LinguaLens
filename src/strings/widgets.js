@@ -28,6 +28,8 @@ export default {
     widgetWordsEmpty: 'Your words will rotate here',
     widgetWordsEmptyHint: 'Save today’s word to get started',
     widgetStreakTitle: 'Streak',
+    // серії немає: «0 days» замість «0 days in a row»
+    widgetDays: '{n|day|days}',
     // «як додати віджет» — коротко, під три колонки
     widgetHow1: 'Touch and hold an empty spot',
     widgetHow2: 'Edit → Add Widget',
@@ -69,6 +71,7 @@ export default {
     widgetWordsEmpty: 'Тут крутитимуться твої слова',
     widgetWordsEmptyHint: 'Збережи слово дня — і почнемо',
     widgetStreakTitle: 'Серія',
+    widgetDays: '{n|день|дні|днів}',
     widgetHow1: 'Затисни порожнє місце',
     widgetHow2: '«Редагувати» → «Додати віджет»',
     widgetHow3: 'Знайди LinguaLens',
@@ -106,6 +109,7 @@ export default {
     widgetWordsEmpty: 'Hier wechseln sich deine Wörter ab',
     widgetWordsEmptyHint: 'Speichere das Wort des Tages — dann geht’s los',
     widgetStreakTitle: 'Serie',
+    widgetDays: '{n|Tag|Tage}',
     widgetHow1: 'Leere Stelle gedrückt halten',
     widgetHow2: '„Bearbeiten“ → „Widget hinzufügen“',
     widgetHow3: 'LinguaLens suchen',
@@ -143,6 +147,7 @@ export default {
     widgetWordsEmpty: 'Aquí irán rotando tus palabras',
     widgetWordsEmptyHint: 'Guarda la palabra del día y empezamos',
     widgetStreakTitle: 'Racha',
+    widgetDays: '{n|día|días}',
     widgetHow1: 'Mantén pulsado un espacio vacío',
     widgetHow2: 'Editar → Añadir widget',
     widgetHow3: 'Busca LinguaLens',

@@ -96,7 +96,8 @@ export function buildStreakTimeline(activeDays, { t, now = new Date(), firstWeek
       until = end ? String(end.getTime()) : '';
     }
     const { n } = seg;
-    const unit = t('streakUnit', { n });
+    // «0 днів поспіль» читається дивно: без серії — просто «0 днів»
+    const unit = n ? t('streakUnit', { n }) : t('widgetDays', { n });
     const goal = nextMilestone(n);
     const { line, short } = streakLines(t, seg);
     // день у тижні — той, що «справжній» для запису (у прискореному часі теж)

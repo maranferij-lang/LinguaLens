@@ -139,17 +139,20 @@ const WordOfDay = (props, environment) => {
 
   const caption = <Text modifiers={caps(accent).concat([minimumScaleFactor(0.7)])}>{hasWord ? props.caption : props.title || 'LinguaLens'}</Text>;
 
+  // Порожній стан: у великому — посередині (знизу лишалась би пустка на
+  // пів екрана), крупніше.
   if (!hasWord) {
     return (
       <VStack alignment="leading" spacing={0} modifiers={shell}>
         {caption}
         <Spacer />
-        <VStack alignment="leading" spacing={6}>
-          <Image systemName="sparkles" size={medium || large ? 22 : 20} modifiers={[foregroundStyle(accent)]} />
-          <Text modifiers={[rounded(medium || large ? 19 : 16, 'bold'), foregroundStyle(ink), lineLimit(3), minimumScaleFactor(0.8)]}>
+        <VStack alignment="leading" spacing={large ? 10 : 6}>
+          <Image systemName="sparkles" size={large ? 28 : medium ? 22 : 20} modifiers={[foregroundStyle(accent)]} />
+          <Text modifiers={[rounded(large ? 24 : medium ? 19 : 16, 'bold'), foregroundStyle(ink), lineLimit(3), minimumScaleFactor(0.8)]}>
             {message}
           </Text>
         </VStack>
+        {large ? <Spacer /> : null}
       </VStack>
     );
   }

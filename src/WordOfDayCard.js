@@ -242,33 +242,8 @@ export default function WordOfDayCard({
               </Text>
             </View>
             <View style={{ flex: 1 }} />
-            {multi ? (
-              <View style={s.dots} testID="wod-slots">
-                {Array.from({ length: slots.n }, (_, i) => {
-                  const opened = i < list.length;
-                  const on = i === index;
-                  return (
-                    <Pressable
-                      key={i}
-                      disabled={!opened}
-                      onPress={() => pick(i)}
-                      hitSlop={{ top: 14, bottom: 14, left: 4, right: 4 }}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected: on, disabled: !opened }}
-                      accessibilityLabel={t('wodSlotOf', { i: i + 1, n: slots.n })}
-                      style={s.dotHit}
-                    >
-                      <View style={[s.dot, opened ? (on ? s.dotOn : s.dotOpen) : s.dotLocked]} />
-                    </Pressable>
-                  );
-                })}
-                <Text style={s.slotText} numberOfLines={1}>
-                  {t('widgetSlot', { i: index + 1, n: slots.n })}
-                </Text>
-              </View>
-            ) : null}
             {canOpen ? (
-              <View style={[{ marginLeft: multi ? 8 : 0 }, open ? { transform: [{ rotate: '180deg' }] } : null]}>
+              <View style={[{ marginLeft: 8 }, open ? { transform: [{ rotate: '180deg' }] } : null]}>
                 <IcChevron color={C.faint} size={18} />
               </View>
             ) : null}
@@ -309,6 +284,33 @@ export default function WordOfDayCard({
             </FadeIn>
           )}
 
+          {/* Крапки слотів — під словом, як сторінки в iOS: у заголовку вони
+              з'їдали тему («WORT DES TAGES · REIS…» на SE). */}
+          {multi ? (
+            <View style={s.dots} testID="wod-slots">
+              {Array.from({ length: slots.n }, (_, i) => {
+                const opened = i < list.length;
+                const on = i === index;
+                return (
+                  <Pressable
+                    key={i}
+                    disabled={!opened}
+                    onPress={() => pick(i)}
+                    hitSlop={{ top: 14, bottom: 14, left: 4, right: 4 }}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: on, disabled: !opened }}
+                    accessibilityLabel={t('wodSlotOf', { i: i + 1, n: slots.n })}
+                    style={s.dotHit}
+                  >
+                    <View style={[s.dot, opened ? (on ? s.dotOn : s.dotOpen) : s.dotLocked]} />
+                  </Pressable>
+                );
+              })}
+              <Text style={s.slotText} numberOfLines={1}>
+                {t('widgetSlot', { i: index + 1, n: slots.n })}
+              </Text>
+            </View>
+          ) : null}
           {multi && slots.next ? (
             <View style={s.locked} accessible accessibilityLabel={t('wodNextLocked', { t: slots.next.label })}>
               <IcLock size={14} color={C.faint} />
@@ -422,7 +424,7 @@ const makeStyles = (C) =>
     // Кепс задає стиль: тема приходить звичайним словом («Фінанси»)
     badgeText: { color: C.accent, ...CAPS, letterSpacing: 0.5 },
     // крапки слотів: відкриті — акцент (поточна — довша), майбутні — порожні
-    dots: { flexDirection: 'row', alignItems: 'center', marginLeft: 8 },
+    dots: { flexDirection: 'row', alignItems: 'center', marginTop: 8, marginLeft: -2.5 },
     dotHit: { height: 24, justifyContent: 'center', paddingHorizontal: 2.5 },
     dot: { height: 7, borderRadius: 3.5 },
     dotOn: { width: 16, backgroundColor: C.accent },

@@ -115,7 +115,9 @@ describe('buildStreakTimeline', () => {
     expect(at(7)).toMatchObject({ goalLabel: '14', goal: '0.00', line: uk('streakWeek') });
     expect(at(30).line).toBe(uk('streak30'));
     expect(at(9).line).toBe(uk('streakToNext', { m: 14, k: 5 }));
-    expect(at(0)).toMatchObject({ goal: '0', n: '0', unit: 'днів поспіль' });
+    // без серії — «0 днів», а не «0 днів поспіль»
+    expect(at(0)).toMatchObject({ goal: '0', n: '0', unit: 'днів', inline: '0 днів' });
+    expect(at(1)).toMatchObject({ unit: 'день поспіль', inline: '1 день поспіль' });
   });
 
   test('the week: Monday first by default, Sunday first when the phone says so; today pending until there is activity', () => {

@@ -46,7 +46,7 @@ function boldParts(md) {
     .map((x, i) => ({ text: plain(x), bold: i % 2 === 1 }));
 }
 
-function Reveal({ label, onPress, pal, s, testID }) {
+function Reveal({ label, onPress, pal, s, k = 1, testID }) {
   return (
     <Pressable
       onPress={onPress}
@@ -56,7 +56,7 @@ function Reveal({ label, onPress, pal, s, testID }) {
       style={({ pressed }) => [s.reveal, { backgroundColor: pal.accentSoft }, pressed && { opacity: 0.7 }]}
       testID={testID}
     >
-      <IcEye size={13} color={pal.accent} />
+      <IcEye size={Math.round(13 * k)} color={pal.accent} />
       <Text {...FIXED} style={[s.revealText, { color: pal.accent }]} numberOfLines={1}>
         {label}
       </Text>
@@ -82,7 +82,12 @@ export function WidgetPreview({ wod = null, sample = null, streakN = 1, t, lang,
     const p = widgetPalette(theme.key);
     return isDark ? p.d : p.l;
   }, [theme.key, isDark]);
-  const s = useMemo(() => makeStyles(pal), [pal]);
+  // Мініатюра масштабується як ціле: шрифти й відступи — від ширини
+  // «шпалер» (макет — 335 pt, ширина кроку онбордингу на iPhone SE), тож
+  // у вужчому чи ширшому місці віджети не тіснять і не розпливаються.
+  const [width, setWidth] = useState(0);
+  const k = width ? Math.min(Math.max(width / 335, 0.8), 1.3) : 1;
+  const s = useMemo(() => makeStyles(pal, k), [pal, k]);
   // «Шпалери»: від бузкового до рожевого — з акценту теми, а не з картинки.
   const C = theme.C;
   const wallTop = mix(C.accent, C.bg, isDark ? 0.15 : 0.32);
@@ -100,6 +105,7 @@ export function WidgetPreview({ wod = null, sample = null, streakN = 1, t, lang,
 
   const n = Math.max(0, Math.floor(Number(streakN) || 0));
   const streak = streakLines(t, { n, state: n ? 'done' : 'none' });
+  const unit = n ? t('streakUnit', { n }) : t('widgetDays', { n });
 
   function reveal(which) {
     Haptics.selectionAsync();
@@ -109,7 +115,12 @@ export function WidgetPreview({ wod = null, sample = null, streakN = 1, t, lang,
   }
 
   return (
-    <View testID="widget-preview" style={[s.wall, style]} accessibilityLabel={t('widgetPreviewA11y')}>
+    <View
+      testID="widget-preview"
+      style={[s.wall, style]}
+      accessibilityLabel={t('widgetPreviewA11y')}
+      onLayout={(e) => setWidth(Math.round(e.nativeEvent.layout.width))}
+    >
       <Svg style={StyleSheet.absoluteFill} width="100%" height="100%" preserveAspectRatio="none">
         <Defs>
           <LinearGradient id="wall" x1="0" y1="0" x2="1" y2="1">
@@ -122,7 +133,7 @@ export function WidgetPreview({ wod = null, sample = null, streakN = 1, t, lang,
 
       {/* Середнє «Слово дня» */}
       <View style={[s.widget, s.medium, SHADOW]} testID="preview-wod">
-        <Text {...FIXED} style={s.caps} numberOfLines={1}>
+        <Text {...FIXED} style={s.caps} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
           {caption}
         </Text>
         <View style={{ flex: 1 }} />
@@ -154,7 +165,7 @@ export function WidgetPreview({ wod = null, sample = null, streakN = 1, t, lang,
                 ) : null}
               </Appear>
             ) : (
-              <Reveal label={t('widgetRevealLong')} onPress={() => reveal('wod')} pal={pal} s={s} testID="preview-reveal" />
+              <Reveal label={t('widgetRevealLong')} onPress={() => reveal('wod')} pal={pal} s={s} k={k} testID="preview-reveal" />
             )}
           </>
         ) : null}
@@ -162,15 +173,15 @@ export function WidgetPreview({ wod = null, sample = null, streakN = 1, t, lang,
 
       <View style={s.smallRow}>
         {/* Мала «Серія» */}
-        <View style={[s.widget, s.small, SHADOW]} testID="preview-streak" accessible accessibilityLabel={`${n} ${t('streakUnit', { n })}`}>
+        <View style={[s.widget, s.small, SHADOW]} testID="preview-streak" accessible accessibilityLabel={`${n} ${unit}`}>
           <View style={s.streakTop}>
             <Text {...FIXED} style={s.streakN}>
               {n}
             </Text>
-            <Flame n={n} size={30} breathe={false} />
+            <Flame n={n} size={Math.round(28 * k)} breathe={false} />
           </View>
           <Text {...FIXED} style={s.unit} numberOfLines={1}>
-            {t('streakUnit', { n })}
+            {unit}
           </Text>
           <View style={{ flex: 1 }} />
           <Text {...FIXED} style={s.phrase} numberOfLines={3}>
@@ -181,7 +192,9 @@ export function WidgetPreview({ wod = null, sample = null, streakN = 1, t, lang,
         {/* Малі «Мої слова» */}
         <View style={[s.widget, s.small, SHADOW]} testID="preview-words">
           <View style={s.wordsTop}>
-            <Text {...FIXED} style={[s.caps, { flex: 1 }]} numberOfLines={1}>
+            {/* «MEINE WÖRTER» поруч із плиткою — тісно: як і віджет
+                (minimumScaleFactor 0.7), трохи зменшуємо, а не обрізаємо */}
+            <Text {...FIXED} style={[s.caps, { flex: 1 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
               {t('widgetWordsTitle')}
             </Text>
             {mine ? (
@@ -210,7 +223,7 @@ export function WidgetPreview({ wod = null, sample = null, streakN = 1, t, lang,
                   </Text>
                 </Appear>
               ) : (
-                <Reveal label={t('widgetReveal')} onPress={() => reveal('words')} pal={pal} s={s} testID="preview-reveal-words" />
+                <Reveal label={t('widgetReveal')} onPress={() => reveal('words')} pal={pal} s={s} k={k} testID="preview-reveal-words" />
               )}
             </>
           ) : null}
@@ -220,40 +233,43 @@ export function WidgetPreview({ wod = null, sample = null, streakN = 1, t, lang,
   );
 }
 
-const makeStyles = (pal) =>
-  StyleSheet.create({
-    wall: { width: '100%', aspectRatio: 1, borderRadius: R.xl + 4, overflow: 'hidden', padding: '5%', gap: 14, justifyContent: 'center' },
-    widget: { backgroundColor: pal.bg, borderRadius: 22, padding: 14 },
+const makeStyles = (pal, k = 1) => {
+  const z = (v) => Math.round(v * k * 10) / 10;
+  return StyleSheet.create({
+    wall: { width: '100%', aspectRatio: 1, borderRadius: R.xl + 4, overflow: 'hidden', padding: '5%', gap: z(14), justifyContent: 'center' },
+    widget: { backgroundColor: pal.bg, borderRadius: z(22), padding: z(14) },
     medium: { flex: 47, minHeight: 0 },
-    smallRow: { flex: 50, flexDirection: 'row', gap: 14 },
+    smallRow: { flex: 50, flexDirection: 'row', gap: z(14) },
     small: { flex: 1 },
-    caps: { color: pal.accent, fontFamily: F.extra, fontSize: 10.5, letterSpacing: 0.9, textTransform: 'uppercase' },
-    wordRow: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },
-    wordBig: { flexShrink: 1, color: pal.ink, fontFamily: F.extra, fontSize: 30, letterSpacing: -0.6 },
-    wordSmall: { color: pal.ink, fontFamily: F.extra, fontSize: 23, letterSpacing: -0.3 },
-    ipa: { color: pal.dim, fontFamily: F.reg, fontSize: 12 },
-    translation: { color: pal.soft, fontFamily: F.bold, fontSize: 16, marginTop: 2 },
-    translationSmall: { color: pal.soft, fontFamily: F.bold, fontSize: 14, marginTop: 6 },
-    example: { color: pal.dim, fontFamily: F.reg, fontSize: 12, marginTop: 4 },
+    caps: { color: pal.accent, fontFamily: F.extra, fontSize: z(10.5), letterSpacing: z(0.9), textTransform: 'uppercase' },
+    wordRow: { flexDirection: 'row', alignItems: 'baseline', gap: z(8) },
+    wordBig: { flexShrink: 1, color: pal.ink, fontFamily: F.extra, fontSize: z(30), letterSpacing: z(-0.6) },
+    wordSmall: { color: pal.ink, fontFamily: F.extra, fontSize: z(23), letterSpacing: z(-0.3) },
+    ipa: { color: pal.dim, fontFamily: F.reg, fontSize: z(12) },
+    translation: { color: pal.soft, fontFamily: F.bold, fontSize: z(16), marginTop: z(2) },
+    translationSmall: { color: pal.soft, fontFamily: F.bold, fontSize: z(14), marginTop: z(6) },
+    example: { color: pal.dim, fontFamily: F.reg, fontSize: z(12), marginTop: z(4) },
     exampleBold: { color: pal.ink, fontFamily: F.extra },
     reveal: {
       alignSelf: 'flex-start',
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 5,
+      gap: z(5),
       borderRadius: R.pill,
-      paddingHorizontal: 10,
-      paddingVertical: 5,
-      marginTop: 6,
+      paddingHorizontal: z(10),
+      paddingVertical: z(5),
+      marginTop: z(6),
     },
-    revealText: { fontFamily: F.extra, fontSize: 12.5 },
-    streakTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
-    streakN: { color: pal.ink, fontFamily: F.extra, fontSize: 40, lineHeight: 44, letterSpacing: -1 },
-    unit: { color: pal.ink, fontFamily: F.bold, fontSize: 13 },
-    phrase: { color: pal.dim, fontFamily: F.semi, fontSize: 11.5, lineHeight: 15 },
-    wordsTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
-    tile: { width: 34, height: 34, borderRadius: 9, backgroundColor: pal.accentSoft, alignItems: 'center', justifyContent: 'center' },
-    tileLetter: { color: pal.accent, fontFamily: F.extra, fontSize: 17 },
+    revealText: { fontFamily: F.extra, fontSize: z(12.5) },
+    streakTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    // число й підпис — щільно, як у віджета; фраза — внизу, з повітрям над нею
+    streakN: { color: pal.ink, fontFamily: F.extra, fontSize: z(36), lineHeight: z(40), letterSpacing: z(-1) },
+    unit: { color: pal.ink, fontFamily: F.bold, fontSize: z(12.5), lineHeight: z(16) },
+    phrase: { color: pal.dim, fontFamily: F.semi, fontSize: z(11.5), lineHeight: z(14.5), marginTop: z(6) },
+    wordsTop: { flexDirection: 'row', alignItems: 'flex-start', gap: z(6) },
+    tile: { width: z(34), height: z(34), borderRadius: z(9), backgroundColor: pal.accentSoft, alignItems: 'center', justifyContent: 'center' },
+    tileLetter: { color: pal.accent, fontFamily: F.extra, fontSize: z(17) },
   });
+};
 
 export default WidgetPreview;

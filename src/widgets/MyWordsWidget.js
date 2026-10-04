@@ -139,18 +139,25 @@ const MyWords = (props, environment) => {
     .concat(a11y);
   const caption = <Text modifiers={caps(accent).concat([minimumScaleFactor(0.7)])}>{props.caption || 'LinguaLens'}</Text>;
 
+  // Порожній стан: у малому — щільніше (кепс, іскри, два рядки й
+  // підказка мають влізти й німецькою), у великому — посередині, крупніше.
   if (!hasWord) {
     return (
       <VStack alignment="leading" spacing={0} modifiers={shell}>
         {caption}
         <Spacer />
-        <VStack alignment="leading" spacing={4}>
-          <Image systemName="sparkles" size={20} modifiers={[foregroundStyle(accent)]} />
-          <Text modifiers={[rounded(small ? 16 : 18, 'bold'), foregroundStyle(ink), lineLimit(3), minimumScaleFactor(0.8)]}>{message}</Text>
+        <VStack alignment="leading" spacing={large ? 8 : 4}>
+          <Image systemName="sparkles" size={large ? 28 : small ? 18 : 20} modifiers={[foregroundStyle(accent)]} />
+          <Text modifiers={[rounded(large ? 24 : small ? 15 : 18, 'bold'), foregroundStyle(ink), lineLimit(3), minimumScaleFactor(0.8)]}>
+            {message}
+          </Text>
           {props.hint ? (
-            <Text modifiers={[rounded(13, 'medium'), foregroundStyle(dim), lineLimit(2), minimumScaleFactor(0.85)]}>{props.hint}</Text>
+            <Text modifiers={[rounded(large ? 15 : small ? 12 : 13, 'medium'), foregroundStyle(dim), lineLimit(2), minimumScaleFactor(0.85)]}>
+              {props.hint}
+            </Text>
           ) : null}
         </VStack>
+        {large ? <Spacer /> : null}
       </VStack>
     );
   }
