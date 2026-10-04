@@ -13,6 +13,7 @@ import { CameraView } from 'expo-camera';
 import { scannerLayout } from '../src/scanner/layout';
 import Viewfinder, { cornersPath, spotlightPath } from '../src/scanner/Viewfinder';
 import TopBar from '../src/scanner/TopBar';
+import { CAM } from '../src/scanner/CamGlass';
 import { StyleSheet } from 'react-native';
 
 jest.mock('expo-camera', () => {
@@ -364,7 +365,7 @@ describe('layout', () => {
   });
 
   test('under the status bar: the camera reaches the top of the screen, the chrome stays below it', async () => {
-    const root = (tree) => tree.root.findAll((n) => n.type === 'View' && typeof n.props.onLayout === 'function' && StyleSheet.flatten(n.props.style)?.backgroundColor === '#000')[0];
+    const root = (tree) => tree.root.findAll((n) => n.type === 'View' && typeof n.props.onLayout === 'function' && StyleSheet.flatten(n.props.style)?.backgroundColor === CAM.black)[0];
     const lay = async (tree, height) => {
       await act(async () => root(tree).props.onLayout({ nativeEvent: { layout: { height } } }));
       return tree.root.findByType(Viewfinder).props;

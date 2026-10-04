@@ -889,12 +889,12 @@ function FrozenFrame({ image, a, sweep, loading, win, top, rootH, reduced }) {
       ];
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: a }]} />
+      <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: CAM.black, opacity: a }]} />
       <Animated.View
         style={{ position: 'absolute', left: f.x, top: y, width: f.w, height: f.h, overflow: 'hidden', transform: motion }}
       >
         <Image source={{ uri: image.uri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-        <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.28)' }]} />
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: CAM.frozenDim }]} />
         {loading && !reduced ? (
           <Animated.View
             style={{
@@ -908,9 +908,9 @@ function FrozenFrame({ image, a, sweep, loading, win, top, rootH, reduced }) {
             <Svg width={band} height={f.h}>
               <Defs>
                 <LinearGradient id="sceneSweep" x1="0" y1="0" x2="1" y2="0">
-                  <Stop offset="0" stopColor="#FFFFFF" stopOpacity={0} />
-                  <Stop offset="0.5" stopColor="#FFFFFF" stopOpacity={0.3} />
-                  <Stop offset="1" stopColor="#FFFFFF" stopOpacity={0} />
+                  <Stop offset="0" stopColor={CAM.glint} stopOpacity={0} />
+                  <Stop offset="0.5" stopColor={CAM.glint} stopOpacity={0.3} />
+                  <Stop offset="1" stopColor={CAM.glint} stopOpacity={0} />
                 </LinearGradient>
               </Defs>
               <Rect width={band} height={f.h} fill="url(#sceneSweep)" />
@@ -928,7 +928,7 @@ export const FIRST_SHEET_MS = 320;
 
 const makeStyles = (C) =>
   StyleSheet.create({
-    root: { flex: 1, backgroundColor: '#000' },
+    root: { flex: 1, backgroundColor: CAM.black },
     center: { flex: 1, backgroundColor: C.bg, alignItems: 'center', justifyContent: 'center', padding: 30 },
     permTitle: { color: C.text, fontSize: 22, letterSpacing: -0.31, fontFamily: F.bold, marginTop: 14, marginBottom: 8, textAlign: 'center' },
     permText: { color: C.dim, fontSize: 15, textAlign: 'center', marginBottom: 24, lineHeight: 21, fontFamily: F.reg },
@@ -954,7 +954,7 @@ const makeStyles = (C) =>
     errorClose: { padding: 4, alignSelf: 'flex-start' },
     shutterRow: { position: 'absolute', left: 0, right: 0, height: SHUTTER },
 
-    modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
+    modalBackdrop: { flex: 1, backgroundColor: CAM.scrim },
     sheet: {
       backgroundColor: C.sheet,
       borderTopLeftRadius: R.xl,
