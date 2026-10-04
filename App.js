@@ -1035,11 +1035,12 @@ export default function App() {
 
   // Вихід: слова лишаються в акаунті, телефон стає чистим гостем. Спершу
   // пробуємо віддати несинхронізоване; не вийшло — кидаємо UNSYNCED, і
-  // екран перепитає людину (force — «однаково вийти»).
+  // екран перепитає людину (force — «однаково вийти»). reason — чому не
+  // вийшло: словник на стелі акаунта (DICT_FULL) — не те саме, що немає мережі.
   async function signOut({ force = false } = {}) {
     if (!force && sync.pending()) {
       const ok = await sync.syncNow();
-      if (!ok || sync.pending()) throw Object.assign(new Error('UNSYNCED'), { code: 'UNSYNCED' });
+      if (!ok || sync.pending()) throw Object.assign(new Error('UNSYNCED'), { code: 'UNSYNCED', reason: sync.lastError() });
     }
     sync.stop();
     wordsRef.current.forEach((w) => deletePhoto(w.photo));

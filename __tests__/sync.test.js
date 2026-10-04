@@ -43,9 +43,12 @@ beforeEach(async () => {
 });
 
 // ─── несправжній сервер ─────────────────────────────────────────────────────
-function fakeServer({ clock = () => Date.now() } = {}) {
-  const st = { rev: 0, words: new Map(), activity: {}, stats: {}, seen: [] };
+// maxLive — стеля живих слів акаунта: запит, що її перевищує, сервер
+// відхиляє цілком (413 DICT_FULL) і нічого з нього не записує.
+function fakeServer({ clock = () => Date.now(), maxLive = Infinity } = {}) {
+  const st = { rev: 0, words: new Map(), activity: {}, stats: {}, seen: [], prunedRev: 0 };
   const calls = [];
+  const live = (words) => [...words.values()].filter((x) => !x.deleted).length;
   function clean(raw) {
     const out = {};
     for (const k of WIRE) if (raw[k] !== undefined) out[k] = raw[k];
@@ -57,16 +60,23 @@ function fakeServer({ clock = () => Date.now() } = {}) {
     calls.push(JSON.parse(JSON.stringify(body)));
     if ((body.words || []).length > CHUNK) throw Object.assign(new Error('TOO_MANY_WORDS'), { code: 'TOO_MANY_WORDS' });
     const since = body.since > 0 ? body.since : 0;
-    const reset = since === 0 || since > st.rev;
+    // since старший за надгробки, які сервер уже забув: повний список з позначкою stale
+    const stale = since > 0 && since < st.prunedRev;
+    const reset = since === 0 || since > st.rev || stale;
     const rev = st.rev + 1;
     let changed = false;
+    const words = new Map(st.words);
     for (const raw of body.words || []) {
       const e = clean(raw);
-      const cur = st.words.get(e.id);
+      const cur = words.get(e.id);
       if (cur ? e.updatedAt <= cur.updatedAt : e.deleted) continue;
-      st.words.set(e.id, { ...e, rev });
+      words.set(e.id, { ...e, rev });
       changed = true;
     }
+    if (live(words) > maxLive && live(words) > live(st.words)) {
+      throw Object.assign(new Error('DICT_FULL'), { code: 'DICT_FULL', status: 413 });
+    }
+    st.words = words;
     for (const key of ['activity', 'stats']) {
       for (const [k, v] of Object.entries(body[key] || {})) {
         if (v > (st[key][k] || 0)) {
@@ -89,6 +99,7 @@ function fakeServer({ clock = () => Date.now() } = {}) {
       stats: { ...st.stats },
       seen: [...st.seen],
       reset,
+      ...(stale ? { stale } : null),
     };
   }
   // Сервер втратив дані (новий документ із нуля)
@@ -96,12 +107,22 @@ function fakeServer({ clock = () => Date.now() } = {}) {
     st.rev = 0;
     st.words.clear();
   }
-  return { st, calls, request, lose };
+  // Минуло 60 днів: сервер забуває надгробки й пам'ятає, до якого rev
+  function prune() {
+    for (const [id, x] of st.words) {
+      if (!x.deleted) continue;
+      st.words.delete(id);
+      st.prunedRev = Math.max(st.prunedRev, x.rev);
+    }
+  }
+  return { st, calls, request, lose, prune };
 }
 
 // ─── «телефон» ──────────────────────────────────────────────────────────────
 // Кожен має власне сховище: перед його синхронізацією AsyncStorage
 // підміняється на його вміст (since, надгробки), після — зберігається.
+// Навіть якщо синхронізація впала: справжній телефон теж не відкочує
+// записане до обриву, і саме тут ховаються помилки «наступного запуску».
 function phone(server, { userId = 'acc', words = [], request } = {}) {
   const d = { words, activity: {}, stats: {}, seen: [], removed: [], storage: [], alive: true };
   d.io = {
@@ -121,10 +142,12 @@ function phone(server, { userId = 'acc', words = [], request } = {}) {
   d.use = async (fn) => {
     await AsyncStorage.clear();
     if (d.storage.length) await AsyncStorage.multiSet(d.storage);
-    const out = await fn();
-    const keys = await AsyncStorage.getAllKeys();
-    d.storage = await AsyncStorage.multiGet(keys);
-    return out;
+    try {
+      return await fn();
+    } finally {
+      const keys = await AsyncStorage.getAllKeys();
+      d.storage = await AsyncStorage.multiGet(keys);
+    }
   };
   d.sync = () => d.use(() => runSync(d.io));
   d.delete = (id) =>
@@ -285,6 +308,21 @@ describe('applyRemote', () => {
     expect(isDirty(out)).toBe(true);
   });
 
+  test('a stale full list: synced words missing from it were deleted elsewhere and go; dirty and new ones stay', () => {
+    const local = [
+      w('gone', { syncedAt: 1000, photo: 'stickers/gone.jpg' }), // стерли на іншому iPhone, надгробок сервер уже забув
+      w('kept', { syncedAt: 1000 }),
+      w('edited', { updatedAt: 2000, syncedAt: 1000 }), // змінене тут — піде на сервер
+      w('new'), // сервер його ще не бачив
+      w('sent', { updatedAt: 2000 }), // щойно надіслане, сервер його не повернув
+    ];
+    const out = applyRemote(local, [toWire(local[1])], { sent: new Map([['sent', 2000]]), stale: true });
+    expect(out.words.map((x) => x.id)).toEqual(['kept', 'edited', 'new', 'sent']);
+    expect(out.removedPhotos).toEqual(['stickers/gone.jpg']);
+    // звичайна відповідь (не stale) нічого не прибирає
+    expect(applyRemote(local, [toWire(local[1])]).words.map((x) => x.id)).toEqual(['gone', 'kept', 'edited', 'new', 'sent']);
+  });
+
   test('nothing changed — the very same array comes back', () => {
     const local = [w('a', { syncedAt: 1000 })];
     expect(applyRemote(local, []).words).toBe(local);
@@ -359,7 +397,7 @@ describe('runSync', () => {
     expect(server.calls.map((c) => [c.since, c.words.map((e) => e.id)])).toEqual([[3, ['w5']]]);
 
     // інший акаунт — з нуля
-    expect(await p.use(() => loadSyncState('another'))).toEqual({ since: 0, at: 0 });
+    expect(await p.use(() => loadSyncState('another'))).toEqual({ since: 0, at: 0, full: false });
   });
 
   test('two iPhones converge, and pick the same winner among duplicate words', async () => {
@@ -414,6 +452,144 @@ describe('runSync', () => {
     expect(server.calls[1].words.map((e) => e.id)).toEqual(['a', 'b']);
     expect([...server.st.words.keys()]).toEqual(['a', 'b']);
     expect(p.words.map((x) => x.id)).toEqual(['a', 'b']);
+  });
+
+  const failing = (code) => Promise.reject(Object.assign(new Error(code), { code }));
+
+  test('a first push into an account cut off between chunks resumes as a full push', async () => {
+    const server = fakeServer();
+    // позначки акаунта, який стерли з іншого iPhone: слова не брудні
+    const words = Array.from({ length: 800 }, (_, i) => w('k' + i, { syncedAt: 1000 }));
+    let n = 0;
+    const p = phone(server, { words, request: (body) => (++n === 2 ? failing('TIMEOUT') : server.request(body)) });
+    await expect(p.sync()).rejects.toThrow('TIMEOUT');
+    expect(server.st.words.size).toBe(500);
+
+    await p.sync();
+    expect(server.calls.map((c) => [c.since, c.words.length])).toEqual([
+      [0, 500],
+      [0, 500],
+      [1, 300],
+    ]);
+    expect(server.st.words.size).toBe(800);
+    expect(await p.use(() => loadSyncState('acc'))).toEqual({ since: 2, at: expect.any(Number), full: false });
+  });
+
+  test('server data lost: a re-push cut off between chunks still finishes, even once the new rev passes our old since', async () => {
+    const server = fakeServer();
+    const p = phone(server, { words: Array.from({ length: 800 }, (_, i) => w('k' + i)) });
+    await p.sync();
+    server.lose();
+    let n = 0;
+    // 1 — помічаємо втрату, 2 — перша пачка повторного надсилання, 3 — обрив
+    p.io.request = (body) => (++n === 3 ? failing('OFFLINE') : server.request(body));
+    await expect(p.sync()).rejects.toThrow('OFFLINE');
+    expect(server.st.words.size).toBe(500);
+
+    // інший iPhone тим часом синхронізувався: rev нового документа наздогнав наш старий since
+    const b = phone(server, { words: [w('b1')] });
+    await b.sync();
+    b.edit('b1', { translation: 'нове' });
+    await b.sync();
+    expect(server.st.rev).toBeGreaterThanOrEqual(2);
+
+    p.io.request = server.request;
+    await p.sync();
+    expect(server.st.words.size).toBe(801);
+    expect(p.words).toHaveLength(801);
+    expect(p.words.find((x) => x.id === 'b1').translation).toBe('нове');
+  });
+
+  test('the server loses its data again during the re-push: the sync fails, and the next one starts over in full', async () => {
+    const server = fakeServer();
+    const p = phone(server, { words: Array.from({ length: 800 }, (_, i) => w('k' + i)) });
+    await p.sync();
+    server.lose();
+    let n = 0;
+    // 1 — помічаємо втрату, 2 — перша пачка повторного надсилання, перед 3 — ще одна втрата
+    p.io.request = (body) => {
+      if (++n === 3) server.lose();
+      return server.request(body);
+    };
+    await expect(p.sync()).rejects.toThrow('RESET');
+    expect(await p.use(() => loadSyncState('acc'))).toMatchObject({ since: 0, full: true });
+
+    p.io.request = server.request;
+    await p.sync();
+    expect(server.st.words.size).toBe(800);
+    expect(await p.use(() => loadSyncState('acc'))).toMatchObject({ full: false });
+  });
+
+  test('back after 60+ days: the server forgot a tombstone, so its full list decides — nothing comes back to life, nothing is re-pushed', async () => {
+    const server = fakeServer();
+    const a = phone(server, { words: [w('w1'), w('x1'), w('v1')] });
+    await a.sync();
+    const b = phone(server);
+    await b.sync();
+    // наліпка — лише на цьому телефоні, слово від неї не брудне
+    b.words = b.words.map((x) => (x.id === 'w1' ? { ...x, photo: 'stickers/w1.jpg' } : x));
+    const since = (await b.use(() => loadSyncState('acc'))).since;
+
+    await a.delete('w1');
+    await a.sync();
+    server.prune();
+    a.words = [...a.words, w('y1')];
+    await a.sync();
+
+    // B тим часом без мережі: нове слово, повторення й видалення
+    b.words = [...b.words, w('z1')];
+    b.edit('x1', { srs: { box: 1, due: 9, reps: 1, correct: 1 } });
+    await b.delete('v1');
+    server.calls.length = 0;
+    await b.sync();
+
+    // один запит зі старим since, без повторного надсилання всього з нуля
+    expect(server.calls.map((c) => [c.since, c.words.map((e) => e.id).sort()])).toEqual([[since, ['v1', 'x1', 'z1']]]);
+    expect(b.words.map((x) => x.id).sort()).toEqual(['x1', 'y1', 'z1']);
+    expect(b.removed).toEqual(['stickers/w1.jpg']);
+    expect(b.words.every((x) => !isDirty(x))).toBe(true);
+    expect(server.st.words.has('w1')).toBe(false);
+    expect(server.st.words.get('v1')).toMatchObject({ deleted: true });
+    expect(server.st.words.get('x1').srs.reps).toBe(1);
+    expect((await b.use(() => loadSyncState('acc'))).since).toBe(server.st.rev);
+
+    await a.sync();
+    expect(view(a.words)).toEqual(view(b.words));
+  });
+
+  test('the account is full: new words wait on the phone, while reviews and other iPhones’ changes keep syncing', async () => {
+    const server = fakeServer({ maxLive: 3 });
+    const a = phone(server, { words: [w('a1'), w('a2'), w('a3')] });
+    await a.sync();
+    const b = phone(server);
+    await b.sync();
+    a.edit('a1', { translation: 'з A' });
+    await a.sync();
+
+    b.words = [...b.words, w('n1')]; // четверте слово вже не влазить
+    b.edit('a2', { srs: { box: 1, due: 9, reps: 1, correct: 1 } });
+    expect(await b.sync()).toMatchObject({ error: 'DICT_FULL' });
+    expect(server.st.words.get('a2').srs.reps).toBe(1);
+    expect(server.st.words.has('n1')).toBe(false);
+    expect(b.words.find((x) => x.id === 'a1').translation).toBe('з A');
+    expect(b.words.filter(isDirty).map((x) => x.id)).toEqual(['n1']);
+
+    // видалення звільняє місце — нове слово йде наступною синхронізацією
+    await b.delete('a3');
+    expect(await b.sync()).not.toHaveProperty('error');
+    expect(server.st.words.get('n1')).toBeDefined();
+    expect(b.words.filter(isDirty)).toEqual([]);
+  });
+
+  test('DICT_FULL with no new words to hold back is not retried', async () => {
+    const server = fakeServer();
+    const p = phone(server, { words: [w('a', { syncedAt: 1000, updatedAt: 2000 })], request: () => failing('DICT_FULL') });
+    await expect(p.sync()).rejects.toThrow('DICT_FULL');
+    p.words = [...p.words, w('n')];
+    let calls = 0;
+    p.io.request = () => (calls++, failing('DICT_FULL'));
+    await expect(p.sync()).rejects.toThrow('DICT_FULL');
+    expect(calls).toBe(2);
   });
 
   test('edits and deletions made while a request is in flight are not lost', async () => {

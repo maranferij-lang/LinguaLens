@@ -154,6 +154,16 @@ describe('signed in', () => {
     await act(async () => tree.unmount());
   });
 
+  test('when the word list is too big, the second question says so instead of blaming the connection', async () => {
+    const onSignOut = jest.fn(async () => Promise.reject(Object.assign(new Error('UNSYNCED'), { code: 'UNSYNCED', reason: 'DICT_FULL' })));
+    const tree = await render({ account: { available: true, signedIn: true }, sync: { status: 'error', at, error: 'DICT_FULL' }, onSignOut });
+    await press(tree, t('signOut'));
+    await act(async () => alert.mock.calls[0][2].find((b) => b.style === 'destructive').onPress());
+    expect(alert.mock.calls[1].slice(0, 2)).toEqual([t('signOutUnsyncedTitle'), t('signOutUnsyncedFullMsg')]);
+    expect(t('signOutUnsyncedFullMsg')).not.toBe('signOutUnsyncedFullMsg');
+    await act(async () => tree.unmount());
+  });
+
   test('with Pro, the sign-out question says Pro stays with the account too', async () => {
     const tree = await render({ account: { available: true, signedIn: true }, sync: { status: 'idle', at, error: null }, sub: { pro: true } });
     await press(tree, t('signOut'));
