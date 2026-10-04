@@ -278,6 +278,33 @@ describe('in the app', () => {
     expect((await stored()).palette).toBe('ocean');
   });
 
+  test('until the store answers, a saved palette stays on — no flash of Chalk for Pro on every launch', async () => {
+    await returning({ theme: 'light', palette: 'ocean' });
+    // імітований магазин «думає», доки тест його не відпустить
+    let release;
+    const gate = new Promise((r) => (release = r));
+    // getItem у заглушці AsyncStorage — уже jest.fn: підміняємо й повертаємо
+    // саме його реалізацію (spyOn повернув би той самий мок)
+    const real = AsyncStorage.getItem.getMockImplementation();
+    AsyncStorage.getItem.mockImplementation(async (k, cb) => {
+      if (k === 'll_sub_v1') {
+        await gate;
+        return null;
+      }
+      return real(k, cb);
+    });
+    try {
+      const tree = await renderApp();
+      expect(await themeKey(tree)).toBe('ocean-light');
+      // магазин відповів: Pro немає — «Крейда», а вибір лишився
+      await run(async () => release());
+      expect(await themeKey(tree)).toBe('light');
+      expect((await stored()).palette).toBe('ocean');
+    } finally {
+      AsyncStorage.getItem.mockImplementation(real);
+    }
+  });
+
   test('the root view takes the theme’s background, and an old build without the native part is left alone', async () => {
     await returning({ theme: 'light', palette: 'berry' }, { pro: true });
     await renderApp();
