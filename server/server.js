@@ -222,19 +222,34 @@ async function handleScan(req, res, user) {
     return json(res, 429, { error: 'Забагато запитів. Зачекай хвилинку.' });
   }
   const day = billing.localDay(req.headers['x-local-date']);
-  const slot = await billing.reserveScan(user, day);
+  // Тіло читаємо ДО слота: від нього залежить, що саме займати. Сцена
+  // займає ще й довічну безкоштовну пробу, і обидва лічильники пишуться одним
+  // умовним записом (див. billing.reserveScan). Погане тіло — просто 400.
+  // Апка надсилає кадр 1024px/JPEG ≈ 150–400 КБ у base64. 4 МБ із запасом.
+  const body = await readJson(req, 4 * 1024 * 1024);
+  if (!body) return json(res, 400, { error: 'Некоректний JSON' });
+  if (!body.image || typeof body.image !== 'string') {
+    return json(res, 400, { error: 'Поле "image" (base64 JPEG) обовʼязкове' });
+  }
+  // Сцена (кілька предметів з одного кадру) коштує один денний скан, а без
+  // Pro ще й одну з FREE_SCENES довічних проб. Відсутній чи невідомий mode —
+  // звичайний скан: старі версії застосунку цього поля не знають.
+  const scene = body.mode === 'scene';
+  const slot = await billing.reserveScan(user, day, { scene });
   if (slot.gone) return json(res, 401, { error: 'UNAUTHORIZED' });
   if (slot.busy) return json(res, 429, { error: 'Забагато запитів. Зачекай хвилинку.' });
   if (!slot.ok) {
-    return json(res, 402, { error: 'SCAN_LIMIT', limit: slot.limit, used: slot.used });
+    // Обидві відмови — до виклику AI. Застосунок розрізняє їх за error:
+    // SCAN_LIMIT — пейвол сканів, SCENE_PRO — пейвол сцени.
+    return json(res, 402, { error: slot.scene ? 'SCENE_PRO' : 'SCAN_LIMIT', limit: slot.limit, used: slot.used });
   }
-  // Слот зайнятий. Якщо далі щось піде не так (погане тіло, помилка AI,
-  // «не бачу предмета», людина не дочекалась) — повертаємо його, і саме ДО
-  // відповіді: інакше миттєвий повтор на межі ліміту отримав би 402.
+  // Слот зайнятий. Якщо далі щось піде не так (помилка AI, «не бачу
+  // предмета», людина не дочекалась) — повертаємо його, і саме ДО відповіді:
+  // інакше миттєвий повтор на межі ліміту отримав би 402.
   const release = () => slot.release().catch((e) => console.error('release failed:', e.message));
   let out;
   try {
-    out = await scanWithSlot(req, user, day, slot, t0);
+    out = await scanWithSlot(req, body, scene, user, day, slot, t0);
   } catch (e) {
     await release();
     throw e;
@@ -247,19 +262,9 @@ const UNREADABLE = [502, { error: 'Модель повернула нерозб�
 const NOTHING_SEEN = [422, { error: "Не бачу чіткого об'єкта. Наведи камеру ближче." }];
 
 // Повертає [статус, тіло] або null, якщо відповідати вже нікому.
-async function scanWithSlot(req, user, day, slot, t0) {
-  // Апка надсилає кадр 1024px/JPEG ≈ 150–400 КБ у base64. 4 МБ із запасом.
-  const body = await readJson(req, 4 * 1024 * 1024);
-  if (!body) return [400, { error: 'Некоректний JSON' }];
-  if (!body.image || typeof body.image !== 'string') {
-    return [400, { error: 'Поле "image" (base64 JPEG) обовʼязкове' }];
-  }
+async function scanWithSlot(req, body, scene, user, day, slot, t0) {
   const lang = langOr(body.lang, 'en');
   const nativeLang = langOr(body.nativeLang, 'uk');
-  // Сцена (кілька предметів з одного кадру) коштує так само один скан.
-  // Відсутній чи невідомий mode — звичайний скан: старі версії застосунку
-  // цього поля не знають.
-  const scene = body.mode === 'scene';
   // Рівень зі слайдера (1–10) робить приклад простішим чи багатшим, а від 7
   // додає вирази. Немає рівня — відповідь рівно така, як до персоналізації.
   const level = profile.level(body.level);
