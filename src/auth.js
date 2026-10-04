@@ -23,35 +23,42 @@ if (Platform.OS !== 'web') {
 }
 
 const TOKEN_KEY = 'll_token';
+// Що нова ідентичність має понести в POST /auth/device як previous: токен, з
+// яким телефон вийшов з акаунта, або carry від DELETE /me. Лежить, доки
+// сервер справді не видасть новий запис (див. startOver, createIdentity).
+const CARRY_KEY = 'll_carry';
 const USER_KEY = 'll_device_v1';
 // Після першого розблокування після перезавантаження — щоб токен був
 // доступний і для фонових задач, але не до того, як людина ввела код.
 const KEYCHAIN = SecureStore ? { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK } : undefined;
 
-async function readToken() {
+async function readSecret(key) {
   try {
-    if (SecureStore) return (await SecureStore.getItemAsync(TOKEN_KEY, KEYCHAIN)) || '';
+    if (SecureStore) return (await SecureStore.getItemAsync(key, KEYCHAIN)) || '';
   } catch (_) {}
   try {
-    return (await AsyncStorage.getItem('sec_' + TOKEN_KEY)) || '';
+    return (await AsyncStorage.getItem('sec_' + key)) || '';
   } catch (_) {
     return '';
   }
 }
 
-async function writeToken(token) {
+async function writeSecret(key, value) {
   try {
     if (SecureStore) {
-      if (token) await SecureStore.setItemAsync(TOKEN_KEY, token, KEYCHAIN);
-      else await SecureStore.deleteItemAsync(TOKEN_KEY, KEYCHAIN);
+      if (value) await SecureStore.setItemAsync(key, value, KEYCHAIN);
+      else await SecureStore.deleteItemAsync(key, KEYCHAIN);
       return;
     }
   } catch (_) {}
   try {
-    if (token) await AsyncStorage.setItem('sec_' + TOKEN_KEY, token);
-    else await AsyncStorage.removeItem('sec_' + TOKEN_KEY);
+    if (value) await AsyncStorage.setItem('sec_' + key, value);
+    else await AsyncStorage.removeItem('sec_' + key);
   } catch (_) {}
 }
+
+const readToken = () => readSecret(TOKEN_KEY);
+const writeToken = (token) => writeSecret(TOKEN_KEY, token);
 
 // Повертає { token, userId } або null, якщо ідентичності ще немає, а сервер
 // зараз недоступний (тоді спробуємо знову при наступному старті чи скані).
@@ -85,11 +92,15 @@ export async function ensureSession() {
 
 // Нова ідентичність від сервера. Старі токен і id переписуємо лише ПІСЛЯ
 // того, як сервер видав нові: збій мережі посередині не має лишати пристрій
-// зовсім без ідентичності.
-async function createIdentity(previous) {
+// зовсім без ідентичності. Недонесений carry (startOver) іде з нею — і з
+// наступного старту теж, — а стирається лише тоді, коли сервер уже видав
+// запис із його лічильниками.
+async function createIdentity(carry) {
+  const previous = carry || (await readSecret(CARRY_KEY));
   try {
     const d = await apiCreateDevice(previous);
     await writeToken(d.token);
+    if (previous) await writeSecret(CARRY_KEY, '');
     await AsyncStorage.setItem(USER_KEY, d.user.id).catch(() => {});
     setSessionToken(d.token);
     return { token: d.token, userId: d.user.id };
@@ -109,16 +120,21 @@ export function renewSession() {
 // аркуша. Кидає помилку, якщо сервер недоступний, — інакше людина думала б,
 // що дані стерто. Старий токен видаляємо з Keychain одразу: навіть якщо
 // нову ідентичність зараз отримати не вдасться, наступний старт почнеться
-// з нуля, а не з токена стертого запису.
+// не з токена стертого запису. З нуля — усе, крім лічильників сканів і
+// проби сцени: сервер віддає їх як carry без id, і нова ідентичність їх
+// несе. Інакше стирання щоразу дарувало б безкоштовний скан, а в акаунті
+// Apple ще й нічого не коштувало б (вийти, стерти гостя, увійти назад).
 export async function eraseServerData() {
+  let carry = '';
   try {
-    await apiDeleteMe();
+    const r = await apiDeleteMe();
+    if (typeof r?.carry === 'string') carry = r.carry;
   } catch (e) {
     // Сервер уже не знає цього пристрою — стирати там нічого, тож це не
     // збій: продовжуємо з телефоном.
     if (!deviceForgotten(e)) throw e;
   }
-  return startOver();
+  return startOver({ carry });
 }
 
 // Вхід через Apple віддав токен акаунта. Пишемо його туди ж і так само, як
@@ -135,11 +151,16 @@ export async function adoptSession(token, userId) {
 // нову анонімну ідентичність. Старий токен прибираємо ДО запиту: інакше
 // збій мережі лишив би телефон в акаунті, з якого людина щойно вийшла, —
 // наступний старт тихо повернув би її туди.
-// carry — вихід, а не стирання: старий токен іде в запит, і сервер переносить
-// його лічильники сканів і проби сцени в нову ідентичність. Інакше «вийти й
-// увійти знову» щоразу давало б новий безкоштовний скан і нову пробу сцени.
+// carry — що нести в нову ідентичність: true — вихід, старий токен іде в
+// запит, і сервер переносить його лічильники сканів і проби сцени; рядок —
+// carry від DELETE /me (стирання). Інакше «вийти й увійти знову» щоразу
+// давало б новий безкоштовний скан і нову пробу сцени. Carry кладемо в
+// Keychain окремо і ДО того, як прибрати токен: без мережі чи з загубленою
+// відповіддю його понесе наступний старт, а не чиста ідентичність. Сесії
+// він не повертає — сервер бере з нього лише лічильники.
 export async function startOver({ carry = false } = {}) {
-  const previous = carry ? await readToken() : '';
+  const previous = carry === true ? await readToken() : typeof carry === 'string' ? carry : '';
+  if (previous) await writeSecret(CARRY_KEY, previous);
   await writeToken('');
   await AsyncStorage.removeItem(USER_KEY).catch(() => {});
   setSessionToken('');

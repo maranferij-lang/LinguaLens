@@ -518,8 +518,9 @@ async function handle(req, res) {
   // ---------- ІДЕНТИЧНІСТЬ ПРИСТРОЮ ----------
   if (req.method === 'POST' && route === '/auth/device') {
     if (deviceLimited(clientIp(req))) return json(res, 429, { error: 'TOO_MANY_ATTEMPTS' });
-    // { previous } — токен, з яким телефон виходить з акаунта: лічильники
-    // сканів і проби сцени переходять у новий запис (див. auth.createDevice).
+    // { previous } — токен, з яким телефон виходить з акаунта, або carry від
+    // DELETE /me: лічильники сканів і проби сцени переходять у новий запис
+    // (див. auth.createDevice).
     // Тіло, що не розібралось, — просто без нього: пристрій однаково
     // потрібен, а старі версії застосунку шлють {}.
     const body = await readJson(req, 4 * 1024);
@@ -560,8 +561,11 @@ async function handle(req, res) {
     });
   }
   // Видалення даних з сервера — для приватності (і GDPR): запис зникає
-  // повністю, разом зі словником і зв'язком з Apple ID.
+  // повністю, разом зі словником і зв'язком з Apple ID. Лишаються тільки
+  // лічильники сканів у відповіді (carry, без id — див. auth.carryToken): їх
+  // застосунок несе в нову ідентичність, тож стирання нового скану не дає.
   if (route === '/me' && req.method === 'DELETE') {
+    const carry = auth.carryToken(user);
     await auth.deleteUser(user);
     // Apple вимагає відкликати вхід, коли людина видаляє акаунт. Невдача тут
     // не скасовує видалення — дані вже стерто; лишається запис у лозі.
@@ -575,7 +579,7 @@ async function handle(req, res) {
       }
     }
     console.log(new Date().toISOString(), 'DELETE /me → ok');
-    return json(res, 200, { ok: true });
+    return json(res, 200, { ok: true, carry });
   }
   if (route === '/me/profile') return handleProfile(req, res, user);
   if (route === '/scan') return handleScan(req, res, user);

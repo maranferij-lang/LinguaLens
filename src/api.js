@@ -74,8 +74,9 @@ export function deviceForgotten(e) {
 }
 
 // ---------- ІДЕНТИЧНІСТЬ ПРИСТРОЮ ----------
-// previous — токен, з яким телефон виходить з акаунта: сервер переносить
-// його лічильники сканів і проби сцени в новий запис (див. auth.startOver).
+// previous — токен, з яким телефон виходить з акаунта, або carry від
+// DELETE /me: сервер переносить лічильники сканів і проби сцени в новий
+// запис (див. auth.startOver).
 export function apiCreateDevice(previous) {
   return request('/auth/device', { method: 'POST', body: previous ? { previous } : {} });
 }
@@ -86,6 +87,7 @@ export function apiCreateDevice(previous) {
 export function apiMe(refresh = false) {
   return request(refresh ? '/me?refresh=1' : '/me');
 }
+// { ok, carry } — carry: лічильники стертого запису без id (див. auth.eraseServerData)
 export function apiDeleteMe() {
   return request('/me', { method: 'DELETE' });
 }

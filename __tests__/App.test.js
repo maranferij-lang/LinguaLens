@@ -341,8 +341,8 @@ test('the server’s lifetime count from /me replaces the cache and is kept with
   await act(async () => tree.unmount());
 });
 
-// «Стерти мої дані»: новий запис на сервері — лічильник справді з нуля. До
-// відповіді /me екран показує нуль, і /me для нового запису питаємо одразу.
+// «Стерти мої дані»: /me для нового запису питаємо одразу. Сервер, що не дав
+// carry (див. наступний тест), заводить запис із нуля — екран показує його.
 test('after “erase all my data” the new record’s counter is asked for at once', async () => {
   await returning({ seen: ALL_ACH });
   let records = 0;
@@ -368,6 +368,37 @@ test('after “erase all my data” the new record’s counter is asked for at o
   await openTab(tree, 'scan');
   expect(one(tree, ScannerScreen).props).toMatchObject({ scansLeft: 1, sceneLocked: false });
   expect(await stored('ll_usage_v1')).toEqual({ scans: 0, limit: 1, scenes: 0, sceneLimit: 1 });
+  await act(async () => tree.unmount());
+});
+
+// Стирання нового безкоштовного скану не дає: DELETE /me віддає carry, нова
+// ідентичність його несе, а екран не обнуляє лічильник — навіть коли /me
+// після стирання не відповів.
+test('after “erase all my data” the counters carry over and the screen does not promise a new free scan', async () => {
+  await returning({ seen: ALL_ACH });
+  let records = 0;
+  serve((u, method) => {
+    if (method === 'POST' && u.pathname === '/auth/device') {
+      records++;
+      return reply(200, { token: 't' + records, user: { id: 'u' + records, createdAt: 1 } });
+    }
+    if (u.pathname === '/me' && method === 'DELETE') return reply(200, { ok: true, carry: 'carry-1' });
+    if (u.pathname === '/me' && records === 1)
+      return reply(200, { user: { id: 'u1', apple: false }, pro: { active: false }, usage: { day: localDayKey(), scans: 1, limit: 1, scenes: 1, sceneLimit: 1 } });
+    return null; // /me нового запису не відповідає
+  });
+  const tree = await renderApp();
+  expect(one(tree, ScannerScreen).props.scansLeft).toBe(0);
+  await openTab(tree, 'settings');
+  await run(() => one(tree, SettingsScreen).props.onEraseEverything());
+  expect(records).toBe(2);
+  const bodies = global.fetch.mock.calls
+    .filter(([url, init]) => init?.method === 'POST' && new URL(url).pathname === '/auth/device')
+    .map(([, init]) => JSON.parse(init.body));
+  expect(bodies).toEqual([{}, { previous: 'carry-1' }]);
+  await openTab(tree, 'scan');
+  expect(one(tree, ScannerScreen).props.scansLeft).toBe(0);
+  expect(await stored('ll_usage_v1')).toEqual({ scans: 1, limit: 1, scenes: 1, sceneLimit: 1 });
   await act(async () => tree.unmount());
 });
 

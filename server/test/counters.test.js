@@ -236,3 +236,67 @@ test('a device linked to one Apple ID takes its counters into the new account of
   assert.equal((await usage(second.data.token)).scenes, 1);
   assert.equal((await scene(second.data.token)).data.error, 'SCENE_PRO');
 });
+
+// «Стерти всі мої дані» гостем, що щойно вийшов з акаунта: DELETE /me віддає
+// підписані лічильники без id, і застосунок несе їх у нову ідентичність, як
+// токен при виході. Інакше цикл «вийти → стерти як гість → сканувати → увійти
+// назад» давав би безкоштовний скан щоразу, а словник лишався б в акаунті.
+test('erasing as a guest after signing out gives no new free scan, and the account gets none back', async () => {
+  const s = sub();
+  const device = await newDevice();
+  const acc = await signIn(device.token, s);
+  await store.update('users', acc.data.user.id, { scans: 9 });
+  let token = acc.data.token;
+  assert.equal((await scene(token)).status, 200);
+  assert.deepEqual((await single(token)).data, { error: 'SCAN_LIMIT', limit: 10, used: 10 });
+
+  for (let i = 0; i < 3; i++) {
+    const out = await signOut(token);
+    assert.equal(out.status, 200);
+    const erased = await call('DELETE', '/me', { token: out.data.token });
+    assert.equal(erased.status, 200);
+    assert.equal(erased.data.ok, true);
+    assert.equal(typeof erased.data.carry, 'string');
+    // запис справді стерто
+    assert.equal(await store.get('users', out.data.user.id), null);
+
+    // нова ідентичність — як її бере застосунок після стирання
+    const fresh = await call('POST', '/auth/device', { body: { previous: erased.data.carry } });
+    assert.equal(fresh.status, 200);
+    assert.deepEqual(await usage(fresh.data.token), view(10, 1));
+    assert.deepEqual((await single(fresh.data.token)).data, { error: 'SCAN_LIMIT', limit: 10, used: 10 });
+
+    const back = await signIn(fresh.data.token, s);
+    assert.equal(back.data.switched, true);
+    assert.equal(back.data.user.id, acc.data.user.id);
+    token = back.data.token;
+  }
+  const stored = await store.get('users', acc.data.user.id);
+  assert.equal(stored.scans, 10);
+  assert.equal(stored.scenes, 1);
+});
+
+test('the erase carry holds only the counters: no id, not a session, not to be forged', async () => {
+  const d = await newDevice();
+  const yesterday = billing.addDays(day(), -1);
+  await store.update('users', d.user.id, { scans: 3, scenes: 1, usage: { day: yesterday, scans: 5 } });
+  const { carry } = (await call('DELETE', '/me', { token: d.token })).data;
+  const [body, sig] = carry.split('.');
+  const payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf8'));
+  assert.deepEqual(Object.keys(payload).sort(), ['exp', 'purpose', 'scans', 'scenes']);
+  // старий денний лічильник теж іде в рахунок, як при злитті
+  assert.deepEqual({ ...payload, exp: 0 }, { purpose: 'carry', scans: 5, scenes: 1, exp: 0 });
+  // як токен пристрою не годиться
+  assert.equal((await call('GET', '/me', { token: carry })).status, 401);
+  assert.equal((await call('POST', '/scan', { token: carry, body: IMAGE, headers: headers() })).status, 401);
+  // переписані лічильники з чужим підписом — чисті лічильники, а не нулі з «carry»
+  const forged = Buffer.from(JSON.stringify({ ...payload, scans: 0 })).toString('base64url') + '.' + sig;
+  const r = await call('POST', '/auth/device', { body: { previous: forged } });
+  assert.deepEqual(await usage(r.data.token), view(0, 0));
+  // справжній carry — лічильники переходять
+  const ok = await call('POST', '/auth/device', { body: { previous: carry } });
+  assert.deepEqual(await usage(ok.data.token), view(5, 1));
+  // скрипт без previous — той самий фарм пристроїв, що й завжди: чисті лічильники
+  const bare = await call('POST', '/auth/device', { body: {} });
+  assert.deepEqual(await usage(bare.data.token), view(0, 0));
+});

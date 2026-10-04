@@ -74,16 +74,33 @@ async function createUser(fields = {}) {
   return user;
 }
 
-// previous — токен, з яким телефон виходить з акаунта (необов'язковий):
-// його лічильники сканів і проб сцени переходять у новий запис (див.
-// billing.mergeCounters). Недійсний чи чужий токен просто ігноруємо — з
-// нього можна взяти лише обмеження, а не щось цінне.
+// previous — токен, з яким телефон виходить з акаунта, або carry, який віддав
+// DELETE /me (необов'язковий): лічильники сканів і проб сцени переходять у
+// новий запис (див. billing.mergeCounters). Недійсний чи чужий токен просто
+// ігноруємо — з нього можна взяти лише обмеження, а не щось цінне.
 async function createDevice({ previous } = {}) {
-  const user = await createUser({ ...billing.mergeCounters({}, await userFromToken(previous)) });
+  const user = await createUser({ ...billing.mergeCounters({}, await countersFrom(previous)) });
   return { user: publicUser(user), token: makeToken(user.id) };
 }
 
-// Підписане тим самим секретом, але з purpose (nonce для Apple) — не
+async function countersFrom(previous) {
+  const p = typeof previous === 'string' ? verify(previous) : null;
+  if (p && p.purpose === 'carry') return { scans: p.scans, scenes: p.scenes };
+  return userFromToken(previous);
+}
+
+// «Стерти мої дані»: лічильники сканів і проб сцени запису — без id і без
+// нічого особистого, але з підписом, щоб телефон не міг їх зменшити.
+// Застосунок несе їх у нову ідентичність як previous, так само як токен при
+// виході. Інакше стирання давало б новий безкоштовний скан, а в акаунті Apple
+// ще й нічого не коштувало б: вийти, стерти гостя, сканувати, увійти назад —
+// і словник знову на місці. Скрипт, що carry не несе, — той самий фарм
+// пристроїв, що й без нього (SECURITY.md).
+function carryToken(user) {
+  return sign({ purpose: 'carry', ...billing.mergeCounters({}, user), exp: Date.now() + TOKEN_DAYS * 86400000 });
+}
+
+// Підписане тим самим секретом, але з purpose (nonce для Apple, carry) — не
 // токен пристрою, і в ролі токена не годиться.
 async function userFromToken(token) {
   if (typeof token !== 'string' || !token) return null;
@@ -250,6 +267,7 @@ module.exports = {
   createDevice,
   userFromRequest,
   deleteUser,
+  carryToken,
   publicUser,
   makeToken,
   verify,
