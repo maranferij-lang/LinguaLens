@@ -323,6 +323,53 @@ test('signing out with unsynced changes and no connection asks first; “anyway�
   await act(async () => tree.unmount());
 });
 
+test('deletions still waiting from before a restart count as unsynced: signing out offline asks first', async () => {
+  // стерли без мережі, iOS закрила застосунок, і запуск знову без мережі
+  const tomb = { id: 'gone', deleted: true, updatedAt: NOW - 5 };
+  await returning({
+    words: [synced('a')],
+    extra: [
+      ['ll_sync_v1', JSON.stringify({ id: 'acc', since: 4, at: NOW })],
+      ['ll_tombstones_v1', JSON.stringify([tomb])],
+    ],
+  });
+  serve((path, method, body, token) => {
+    if (path === '/auth/device') return [200, { token: 'anon-token', user: { id: 'anon', createdAt: 2 } }];
+    if (path === '/me') return token === 'anon-token' ? me('anon', false) : me('acc', true);
+    // /sync — немає мережі
+  });
+  const tree = await renderApp();
+  expect(syncCalls()[0].body.words).toEqual([tomb]);
+  await openTab(tree, 'settings');
+  const err = await run(() => one(tree, SettingsScreen).props.onSignOut({ force: false }).catch((e) => e));
+  expect(err?.code).toBe('UNSYNCED');
+  expect(await stored('ll_tombstones_v1')).toEqual([tomb]);
+  expect(keychain.get('ll_token')).toBe('acc-token');
+  await act(async () => tree.unmount());
+});
+
+test('the account is full: the sync still pulls, the card says why, and sign-out names the real cause', async () => {
+  const srv = accountServer([synced('a')]);
+  // слово з іншого iPhone, якого тут ще немає
+  srv.st.words.set('r1', { ...word('r1'), updatedAt: NOW - 5, rev: 2 });
+  srv.st.rev = 2;
+  await returning({ words: [synced('a'), word('new')], extra: [['ll_sync_v1', JSON.stringify({ id: 'acc', since: 1, at: NOW - 60000 })]] });
+  serve((path, method, body, token) => {
+    if (path === '/me') return me('acc', true);
+    if (path === '/sync') return body.words.some((e) => e.id === 'new') ? [413, { error: 'DICT_FULL', max: 6000 }] : srv.sync(body);
+  });
+  const tree = await renderApp();
+  await openTab(tree, 'settings');
+  expect(one(tree, SettingsScreen).props.sync).toMatchObject({ status: 'error', error: 'DICT_FULL' });
+  expect(one(tree, SettingsScreen).props.sync.at).toBeGreaterThan(NOW - 60000);
+  expect((await stored('ll_words_v1')).map((w) => w.id).sort()).toEqual(['a', 'new', 'r1']);
+
+  const err = await run(() => one(tree, SettingsScreen).props.onSignOut({ force: false }).catch((e) => e));
+  expect(err).toMatchObject({ code: 'UNSYNCED', reason: 'DICT_FULL' });
+  expect(keychain.get('ll_token')).toBe('acc-token');
+  await act(async () => tree.unmount());
+});
+
 test('erasing everything while signed in deletes the account and forgets the sign-in', async () => {
   await returning({ words: [synced('a')], extra: [['ll_sync_v1', JSON.stringify({ id: 'acc', since: 4, at: NOW })]] });
   serve((path, method, body, token) => {

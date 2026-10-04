@@ -150,10 +150,11 @@ function AccountCard({ account, sync, pro, onSignIn, onSignOut, onSyncNow, lang,
       await onSignOut({ force });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) {
-      // Сервер недоступний, а дещо ще не синхронізовано: питаємо вдруге,
-      // бо вихід очищає телефон і ці зміни пропали б.
+      // Дещо ще не синхронізовано: питаємо вдруге, бо вихід очищає телефон
+      // і ці зміни пропали б. Причину називаємо справжню: сервер недоступний
+      // чи словник уже на стелі акаунта (тоді мережа ні до чого).
       if (e?.code === 'UNSYNCED') {
-        Alert.alert(t('signOutUnsyncedTitle'), t('signOutUnsyncedMsg'), [
+        Alert.alert(t('signOutUnsyncedTitle'), t(e.reason === 'DICT_FULL' ? 'signOutUnsyncedFullMsg' : 'signOutUnsyncedMsg'), [
           { text: t('cancel'), style: 'cancel' },
           { text: t('signOutAnyway'), style: 'destructive', onPress: () => signOut(true) },
         ]);

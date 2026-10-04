@@ -18,6 +18,7 @@ import {
   countsAhead,
   isDirty,
   loadSyncState,
+  loadTombstones,
   mergeCounts,
   mergeSeen,
   runSync,
@@ -66,7 +67,8 @@ export function useSync({
   latest.current = { userId, enabled, activity, stats, seen, onSignedOut, onForgotten };
   // epoch росте при кожному скасуванні: відповідь запиту, що встиг вилетіти
   // до виходу з акаунта, не має дописати слова в уже очищений телефон.
-  const run = useRef({ epoch: 0, busy: null, again: false, timer: null, attempt: 0, server: null, tombs: false });
+  // error — код, яким закінчилась остання спроба (для діалогу виходу).
+  const run = useRef({ epoch: 0, busy: null, again: false, timer: null, attempt: 0, server: null, tombs: false, error: null });
 
   // Застосувати відповідь: слова, лічильники й показані досягнення — разом,
   // в одному оновленні екрана. Інакше підтягнуті слова на мить опинились би
@@ -117,8 +119,11 @@ export function useSync({
         });
         if (!out) return false;
         r.tombs = out.tombstones > 0;
-        setState({ status: 'idle', at: out.at, error: null });
-        return true;
+        // DICT_FULL: решта синхронізована (час оновлюємо), але нові слова
+        // лишились тут — кажемо про це тим самим рядком, що й про помилку.
+        r.error = out.error || null;
+        setState({ status: out.error ? 'error' : 'idle', at: out.at, error: r.error });
+        return !out.error;
       } catch (e) {
         if (!alive()) return false;
         if (e?.code === 'SIGN_IN_REQUIRED') {
@@ -134,7 +139,8 @@ export function useSync({
           latest.current.onForgotten?.();
           return false;
         }
-        setState((s) => ({ ...s, status: 'error', error: e?.code || 'FAILED' }));
+        r.error = e?.code || 'FAILED';
+        setState((s) => ({ ...s, status: 'error', error: r.error }));
         return false;
       } finally {
         if (run.current.epoch === epoch) {
@@ -155,6 +161,10 @@ export function useSync({
     const r = run.current;
     return wordsRef.current.some(isDirty) || r.tombs;
   }, []);
+
+  // Чим закінчилась остання спроба: стан у рендері для виходу з акаунта
+  // застарий, а він має назвати справжню причину (DICT_FULL ≠ немає мережі).
+  const lastError = useCallback(() => run.current.error, []);
 
   function hasLocalChanges() {
     const r = run.current;
@@ -191,6 +201,7 @@ export function useSync({
   const stop = useCallback(() => {
     cancel();
     run.current.tombs = false;
+    run.current.error = null;
     setState({ status: 'idle', at: 0, error: null });
   }, []);
 
@@ -212,6 +223,15 @@ export function useSync({
     loadSyncState(userId).then((st) => {
       if (live && st.at) setState((s) => (s.at ? s : { ...s, at: st.at }));
     });
+    // Надгробки, що чекають ще з минулого запуску (стирали без мережі, потім
+    // iOS закрила застосунок), — теж несинхронізоване. Без цього вихід з
+    // акаунта без мережі не перепитав би й стер би їх разом зі сховищем, а
+    // стерті слова повернулися б з інших iPhone. Успішна синхронізація далі
+    // сама скаже, скільки їх лишилось.
+    const epoch = run.current.epoch;
+    loadTombstones().then((list) => {
+      if (live && run.current.epoch === epoch && list.length) run.current.tombs = true;
+    });
     syncNow();
     return () => {
       live = false;
@@ -228,5 +248,5 @@ export function useSync({
     return () => sub.remove();
   }, []);
 
-  return { ...state, syncNow, noteDeleted, pending, stop };
+  return { ...state, syncNow, noteDeleted, pending, lastError, stop };
 }

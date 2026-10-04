@@ -47,6 +47,11 @@ export function isDirty(w) {
   return w.syncedAt !== stampOf(w);
 }
 
+// Сервер (цього чи попереднього акаунта) не бачив цього слова жодного разу.
+function isNew(w) {
+  return !Number.isFinite(w.syncedAt);
+}
+
 export function tombstoneFor(w, now = Date.now()) {
   return { id: w.id, deleted: true, updatedAt: Math.max(now, stampOf(w) + 1) };
 }
@@ -181,8 +186,12 @@ export function dedupe(words) {
 //     (він приймає лише строго новіше), тож усі телефони сходяться;
 //   • слово, стерте тут пізніше за серверну версію, не воскресає;
 //   • надіслане, якого сервер не повернув, у нього вже є (рівний час або
-//     він його відкинув як некоректне) — позначаємо, щоб не слати вічно.
-export function applyRemote(words, remote, { sent = new Map(), tombstones = [] } = {}) {
+//     він його відкинув як некоректне) — позначаємо, щоб не слати вічно;
+//   • stale — повний список від сервера, який уже забув частину надгробків
+//     (телефон не синхронізувався понад 60 днів). Чого в ньому немає, те
+//     стерли на іншому телефоні: прибираємо, але лише вже синхронізоване й
+//     відтоді не змінене. Нове й змінене тут лишається і піде на сервер.
+export function applyRemote(words, remote, { sent = new Map(), tombstones = [], stale = false } = {}) {
   const index = new Map(words.map((w, i) => [w.id, i]));
   const deletedAt = new Map(tombstones.map((x) => [x.id, x.updatedAt]));
   const next = words.slice();
@@ -234,6 +243,17 @@ export function applyRemote(words, remote, { sent = new Map(), tombstones = [] }
     }
   }
 
+  // До дедуплікації: інакше стерте деінде слово могло б «перемогти» свого
+  // двійника з сервера, і зникли б обидва. Наліпка переходить до двійника.
+  if (stale) {
+    for (const [i, w] of words.entries()) {
+      if (echoed.has(w.id) || sent.has(w.id) || gone.has(i) || isDirty(w)) continue;
+      gone.add(i);
+      if (w.photo) orphans.push(w);
+      changed = true;
+    }
+  }
+
   if (!changed) {
     const d = dedupe(words);
     return { ...d, changed: d.tombstones.length > 0 };
@@ -277,12 +297,13 @@ export function seenAhead(local, server) {
 // ─── Збережений стан ───────────────────────────────────────────────────────
 // since — останній бачений rev сервера. Прив'язаний до id акаунта: інший
 // акаунт — і синхронізація починається з нуля (усе туди, усе звідти).
+// full — повне надсилання почалось і ще не дійшло до останньої пачки.
 export async function loadSyncState(userId) {
   try {
     const st = JSON.parse((await AsyncStorage.getItem(SYNC_KEY)) || 'null');
-    if (st && st.id === userId) return { since: Number(st.since) || 0, at: Number(st.at) || 0 };
+    if (st && st.id === userId) return { since: Number(st.since) || 0, at: Number(st.at) || 0, full: st.full === true };
   } catch (_) {}
-  return { since: 0, at: 0 };
+  return { since: 0, at: 0, full: false };
 }
 
 // Стан синхронізації й надгробки пишуть і синхронізація, і видалення слів,
@@ -300,11 +321,11 @@ function serial(fn) {
 }
 const always = () => true;
 
-function saveSyncState(userId, since, at, guard = always) {
+function saveSyncState(userId, since, at, guard = always, full = false) {
   return serial(async () => {
     if (!guard()) return;
     try {
-      await AsyncStorage.setItem(SYNC_KEY, JSON.stringify({ id: userId, since, at }));
+      await AsyncStorage.setItem(SYNC_KEY, JSON.stringify({ id: userId, since, at, ...(full ? { full } : null) }));
     } catch (_) {}
   });
 }
@@ -378,35 +399,69 @@ export function clearSyncData() {
 //   removePhoto(photo)   — прибрати файл наліпки;
 //   alive()              — false: синхронізацію скасовано (вихід з акаунта,
 //                          інший акаунт), відповідь застосовувати не можна.
-// → { at, since, tombstones } або null, якщо скасовано. tombstones — скільки
-// надгробків чекає наступного разу (слова стирали, поки йшли запити).
+// → { at, since, tombstones, error? } або null, якщо скасовано. tombstones —
+// скільки надгробків чекає наступного разу (слова стирали, поки йшли
+// запити). error: 'DICT_FULL' — акаунт на стелі сервера: усе інше
+// синхронізовано, а нові слова лишились тут (брудними) до наступного разу.
 export async function runSync(io, now = () => Date.now()) {
-  let { since } = await loadSyncState(io.userId);
-  let all = since === 0;
+  const saved = await loadSyncState(io.userId);
+  let { since } = saved;
+  // Повне надсилання позначене в стані (full) від першої пачки до останньої.
+  // Інакше обрив між пачками (тайм-аут, iOS приспала застосунок) лишив би
+  // since першої пачки, наступний запуск пішов би звичайним шляхом — лише
+  // брудні слова, — і чисті з ненадісланих пачок (позначки стертого акаунта
+  // чи сервера, що втратив дані) не потрапили б на сервер ніколи, а вихід
+  // з акаунта стер би їх без попередження. since при цьому — 0: після
+  // втрати даних старий since — номер чужого документа.
+  let all = since === 0 || saved.full;
+  if (all) since = 0;
+  const markFull = () => saveSyncState(io.userId, 0, saved.at, io.alive, true);
   let restarted = false;
-  // Не більше трьох проходів: основний, після втрати даних на сервері й
-  // після дедуплікації (її надгробки варто віддати одразу).
-  for (let pass = 0; pass < 3; pass++) {
-    const list = outgoing(io.getWords(), await loadTombstones(), { all });
+  // Сервер відповів DICT_FULL — акаунт на стелі. Повторюємо прохід без
+  // слів, яких сервер ще не бачив: повторення, правки, видалення й зміни
+  // з інших телефонів мають іти й далі, а не стояти разом з новим словом.
+  let capped = false;
+  // Не більше чотирьох проходів: основний, після втрати даних на сервері,
+  // без нових слів після DICT_FULL і після дедуплікації (її надгробки
+  // варто віддати одразу).
+  for (let pass = 0; pass < 4; pass++) {
+    if (all) await markFull();
+    const words = io.getWords();
+    const list = outgoing(capped ? words.filter((w) => !isNew(w)) : words, await loadTombstones(), { all });
+    const parts = chunks(list);
     let lost = false;
     let deduped = false;
-    for (const [n, part] of chunks(list).entries()) {
+    let retry = false;
+    for (const [n, part] of parts.entries()) {
       const body = { since, words: part, ...(n === 0 ? io.counts() : null) };
-      const res = await io.request(body);
+      let res;
+      try {
+        res = await io.request(body);
+      } catch (e) {
+        // Без нових слів повторювати нема сенсу: той самий запит — та сама відмова.
+        if (e?.code !== 'DICT_FULL' || capped || !words.some(isNew) || !io.alive()) throw e;
+        capped = retry = true;
+        break;
+      }
       if (!io.alive()) return null;
-      // since > 0, а сервер каже «ось усе з нуля» — він втратив дані.
-      // Ця відповідь неповна для нас: надсилаємо весь словник наново.
-      if (res?.reset && since > 0) {
+      // since > 0, а сервер каже «ось усе з нуля»:
+      //   • stale — наш since старший за надгробки, які сервер уже забув.
+      //     Дані на сервері цілі: звіряємось із повним списком (applyRemote);
+      //   • інакше сервер втратив дані. Ця відповідь неповна для нас:
+      //     надсилаємо весь словник наново.
+      if (res?.reset && since > 0 && !res.stale) {
         lost = true;
         break;
       }
+      // У повному надсиланні ще не надіслані слова теж «чисті» — їх не чіпаємо.
+      const stale = !!(res?.reset && res.stale && since > 0 && !all);
       const sent = new Map(part.filter((e) => !e.deleted).map((e) => [e.id, e.updatedAt]));
       const tombs = await loadTombstones();
       if (!io.alive()) return null;
       let out = null;
       io.apply({
         words: (prev) => {
-          out = applyRemote(prev, res?.words, { sent, tombstones: tombs });
+          out = applyRemote(prev, res?.words, { sent, tombstones: tombs, stale });
           return out.words;
         },
         activity: res?.activity,
@@ -422,19 +477,28 @@ export async function runSync(io, now = () => Date.now()) {
       }
       await dropTombstones(part.filter((e) => e.deleted), io.alive);
       since = Number.isFinite(res?.rev) ? res.rev : since;
-      await saveSyncState(io.userId, since, now(), io.alive);
+      // Повне надсилання запам'ятовує since лише після останньої пачки.
+      if (!all || n === parts.length - 1) await saveSyncState(io.userId, since, now(), io.alive);
     }
-    if (lost && !restarted) {
+    if (lost) {
+      // Сервер утратив дані вдруге за один запуск — надсилання не скінчене:
+      // наступна спроба почне його з нуля.
+      if (restarted) {
+        await markFull();
+        throw Object.assign(new Error('RESET'), { code: 'RESET' });
+      }
       restarted = true;
       all = true;
       since = 0;
       continue;
     }
+    if (retry) continue;
     if (!deduped) break;
     all = false;
   }
   if (!io.alive()) return null;
   const at = now();
   await saveSyncState(io.userId, since, at, io.alive);
-  return { at, since, tombstones: (await loadTombstones()).length };
+  const out = { at, since, tombstones: (await loadTombstones()).length };
+  return capped ? { ...out, error: 'DICT_FULL' } : out;
 }
