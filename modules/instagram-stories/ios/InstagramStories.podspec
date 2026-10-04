@@ -4,8 +4,8 @@
 Pod::Spec.new do |s|
   s.name           = 'InstagramStories'
   s.version        = '1.0.0'
-  s.summary        = 'Shares LinguaLens cards to Instagram Stories'
-  s.description    = 'Puts a background or sticker image on the pasteboard and opens Instagram Stories.'
+  s.summary        = 'Shares LinguaLens stickers and cards to Instagram Stories and the pasteboard'
+  s.description    = 'Puts a background or sticker image on the pasteboard and opens Instagram Stories; copies a PNG sticker to the pasteboard as public.png.'
   s.license        = 'MIT'
   s.author         = 'LinguaLens'
   s.homepage       = 'https://docs.expo.dev/modules/'
