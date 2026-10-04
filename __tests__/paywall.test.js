@@ -197,7 +197,8 @@ describe('v1.2 paywall', () => {
   test('the comparison has scans, scenes and languages — and no word cap', async () => {
     const tree = await open({ reason: 'info', freeScans: 1, freeScenes: 1, plans: PLANS });
     const all = strings(tree);
-    expect(all).toEqual(expect.arrayContaining([t('cmp_scans'), t('cmp_scene'), t('cmp_langs'), t('cmp_wod'), t('cmp_srs'), t('cmp_speech')]));
+    // v1.3: слова дня й теми — нові рядки; картки, квіз і віджети — один
+    expect(all).toEqual(expect.arrayContaining([t('cmp_scans'), t('cmp_scene'), t('cmp_langs'), t('cmp_wodn'), t('cmp_themes'), t('cmp_core')]));
     expect(all).not.toContain('Saved words');
     expect(STRINGS.en.cmp_words).toBeUndefined();
     expect(STRINGS.en.pwWordsTitle).toBeUndefined();
@@ -230,7 +231,8 @@ describe('v1.2 paywall', () => {
   test('with a trial timeline the Pro benefits replace the table', async () => {
     const tree = await open({ reason: 'intro', plans: PLANS });
     const all = strings(tree);
-    expect(all).toEqual(expect.arrayContaining([t('pro_scans'), t('pro_scene'), t('pro_langs')]));
+    // v1.3: головні чотири — скани, сцени, слова дня й теми
+    expect(all).toEqual(expect.arrayContaining([t('pro_scans'), t('pro_scene'), t('pro_wodn', { n: 5 }), t('pro_themes')]));
     expect(all).not.toContain(t('colFree'));
   });
 
@@ -252,7 +254,7 @@ describe('v1.2 paywall', () => {
       const tree = await open({ reason, plans: PLANS });
       const all = strings(tree);
       expect(all.indexOf('$34.99')).toBeGreaterThan(-1);
-      expect(all.indexOf('$34.99')).toBeLessThan(all.indexOf(t('cmp_wod')));
+      expect(all.indexOf('$34.99')).toBeLessThan(all.indexOf(t('cmp_core')));
       await act(async () => tree.unmount());
       mounted = null;
     }

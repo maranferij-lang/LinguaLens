@@ -122,6 +122,21 @@ import { useWodSlots } from './src/WordOfDayCard';
 // <v13:W4>
 // </v13:W4>
 // <v13:W5>
+import { requireOptionalNativeModule } from 'expo';
+import { PRO_PALETTES, resolveTheme } from './src/theme';
+
+// Тло кореневого вікна (expo-system-ui) — у колір теми: його видно під
+// аркушами під час переходів, під клавіатурою й на «гумовому» скролі, і з
+// чужою палітрою там блимала б «Крейда» з app.json. Лише коли нативна частина
+// є: require модуля без неї (стара збірка) — червоний екран ще до try/catch.
+function setRootBackground(color) {
+  if (!requireOptionalNativeModule('ExpoSystemUI')) return;
+  try {
+    require('expo-system-ui')
+      .setBackgroundColorAsync(color)
+      .catch(() => {});
+  } catch (_) {}
+}
 // </v13:W5>
 
 // Порядок вкладок зафіксований і не обговорюється:
@@ -503,7 +518,11 @@ export default function App() {
     return u;
   }
 
-  const themeKey = resolveThemeKey(settings.theme, systemScheme);
+  // Тема: вигляд (settings.theme) + палітра (settings.palette). Без Pro —
+  // «Крейда», але обрана палітра лишається в налаштуваннях і повертається з
+  // Pro. Поки магазин ще не відповів (subKnown), палітру не відкочуємо:
+  // інакше людина з Pro на кожному старті бачила б мить «Крейди».
+  const themeKey = resolveTheme({ mode: settings.theme, palette: settings.palette, scheme: systemScheme, pro: sub.pro || !subKnown });
   const theme = THEMES[themeKey];
   const C = theme.C;
   // Інтерфейс — завжди мовою телефону, а не «моєю мовою»: та лише для
@@ -935,6 +954,8 @@ export default function App() {
     if (res.ok) {
       track('purchase_success', { plan: planId, trial: !!res.state?.trial, source, ui: 'custom' });
       proActivated(res.state);
+      // з пейволу «themes» — застосунок одразу в палітрі, яку людина дивилась
+      applyThemePick();
     } else {
       // коди RevenueCat/StoreKit — числа-рядки, без тексту помилки
       track('purchase_fail', { plan: planId, cancelled: !!res.cancelled, pending: !!res.pending, error: res.error || null, source });
@@ -991,9 +1012,18 @@ export default function App() {
   // «Перейти на Pro» і мʼякий пейвол після першого скану. Спершу — пейвол
   // RevenueCat, якщо пропозиція його просить; ні — наш PaywallScreen.
   // onlyIfNone — не перебивати пейвол, що вже відкритий (мʼякий пейвол).
-  async function openPaywall(reason, { onlyIfNone = false } = {}) {
+  // palette — для 'themes': яку палітру показати в прев'ю (тап по плитці в
+  // Параметрах); куплено — застосунок бере ту, яку людина дивилась останньою.
+  async function openPaywall(reason, { onlyIfNone = false, palette = null } = {}) {
     if (rcPaywallOpen.current || (onlyIfNone && paywallRef.current)) return;
-    if (await showRcPaywall(reason)) return;
+    themePick.current = reason === 'themes' ? palette || PRO_PALETTES[0] : null;
+    setPaywallPalette(themePick.current);
+    if (await showRcPaywall(reason)) {
+      // шаблон RevenueCat про палітри не знає: купили чи відновили там —
+      // беремо ту, на яку людина натиснула
+      await settleThemePick();
+      return;
+    }
     track('paywall_view', { source: reason, ui: 'custom', offering: pro.offeringId });
     trackPaywallImpression('custom_' + reason);
     paywallRef.current = reason;
@@ -1039,6 +1069,7 @@ export default function App() {
     const at = Number.isInteger(step) ? step : source === 'onboarding' ? onbPaywallStep.current : 0;
     if (source) track('paywall_close', { source, step: at, ui: 'custom' });
     paywallRef.current = null;
+    themePick.current = null;
     setPaywall(null);
   }
 
@@ -1474,6 +1505,42 @@ export default function App() {
   // <v13:W4>
   // </v13:W4>
   // <v13:W5>
+  // Корінь — у колір тла теми (див. setRootBackground)
+  const rootBg = theme.C.bg;
+  useEffect(() => {
+    setRootBackground(rootBg);
+  }, [rootBg]);
+
+  // Пейвол «themes»: палітра, яку людина зараз дивиться (плитка в
+  // Параметрах, далі кружечки в самому пейволі). Купила чи відновила Pro —
+  // застосунок одразу в ній; закрила — забуваємо (closePaywall).
+  const themePick = useRef(null);
+  const [paywallPalette, setPaywallPalette] = useState(null);
+  function previewPalette(key) {
+    themePick.current = key;
+    track('theme_preview', { palette: key, source: 'paywall' });
+  }
+  function applyThemePick() {
+    const key = themePick.current;
+    themePick.current = null;
+    const st = settingsRef.current;
+    if (!key || key === st.palette) return;
+    commitSettings({ ...st, palette: key });
+    track('theme_set', { palette: key, mode: st.theme || 'system' });
+  }
+  // Після пейволу RevenueCat: чи є тепер Pro, знає лише магазин
+  async function settleThemePick() {
+    if (!themePick.current) return;
+    const st = await pro.refresh();
+    if (st?.pro) applyThemePick();
+    else themePick.current = null;
+  }
+  // «Відновити покупки» з пейволу «themes» — так само, як покупка
+  async function restoreFromPaywall() {
+    const next = await restorePurchases();
+    if (next?.pro && !next.error) applyThemePick();
+    return next;
+  }
   // </v13:W5>
 
   // Додаткове для секцій Параметрів (src/settings/*: ({ ctx, extra })) —
@@ -1811,9 +1878,12 @@ export default function App() {
                 plansFailed={pro.plansStatus === 'failed'}
                 onRetry={pro.reloadPlans}
                 canRemind={remindOk}
+                palette={paywallPalette}
+                onPalette={previewPalette}
+                previewWord={todayWord}
                 onClose={() => closePaywall()}
                 onPurchase={purchasePlan}
-                onRestore={restorePurchases}
+                onRestore={restoreFromPaywall}
                 onOpen={() => !pro.plans.length && pro.reloadPlans()}
                 lang={ui}
                 t={t}

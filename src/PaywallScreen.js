@@ -30,6 +30,12 @@
 //     сьогодні, ні завтра.
 //   • Наприкінці онбордингу перед цим екраном ще два (OnboardingPaywall.js):
 //     пробний період і таймлайн. Таймлайн і план за замовчуванням — звідси.
+//   • v1.3 — дві нові причини. 'themes' (тап по палітрі з короною в
+//     Параметрах): замість Lingo — мініекран «Навчання» в палітрі, яку людина
+//     обрала, і п'ять кружечків, що його перефарбовують; куплено — App одразу
+//     бере ту палітру, яку людина дивилась останньою (onPalette). 'wod_per_day'
+//     (тап на 3 чи 5 у «Слів на день»): лише свій заголовок і текст.
+//     Таблиця й переваги — з прапорців (src/flags.js): вимкнене не обіцяємо.
 import { Children, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -43,15 +49,16 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { PRO_BENEFITS, COMPARISON, FREE, TRIAL_REMIND_DAYS } from './subscription';
+import Svg, { Circle, Path } from 'react-native-svg';
+import { PRO_BENEFITS, COMPARISON, FREE, TRIAL_REMIND_DAYS, topBenefits } from './subscription';
 import { PRIVACY_URL, SUPPORT_EMAIL, TERMS_URL } from './config';
 import { purchaseNote, restoreNote } from './purchases';
 import { formatDate } from './locale';
 import { ProIcon, PCrown } from './ProIcons';
-import { IcCheck, IcClose } from './icons';
-import { MascotBob } from './Mascot';
+import { IcBell, IcCheck, IcClose, IcFlame, IcSpeaker } from './icons';
+import { Mascot, MascotBob } from './Mascot';
 import { FadeIn, GradBtn, Press } from './ui';
-import { CAPS, F, R, type, useTheme } from './theme';
+import { CAPS, F, PALETTE_KEYS, PRO_PALETTES, R, THEMES, themeKeyOf, type, useTheme } from './theme';
 
 // Нижче за це (iPhone SE, mini, збільшений шрифт дисплея) — без Lingo і з
 // тіснішою шапкою: тарифи мають влізти над кнопкою без прокрутки.
@@ -70,7 +77,7 @@ const RESTORE_TITLE = {
   purchasesUnavailable: 'restoreTitleFail',
 };
 // Причина стіни → рядок таблиці, що її пояснює (його ставимо першим)
-const REASON_ROW = { scans: 'scans', scene: 'scene', langs: 'langs' };
+const REASON_ROW = { scans: 'scans', scene: 'scene', langs: 'langs', themes: 'themes', wod_per_day: 'wodn' };
 // Більша ціль для дрібних посилань під кнопкою
 const LINK_SLOP = { top: 6, bottom: 6, left: 10, right: 10 };
 
@@ -86,10 +93,17 @@ const LINK_SLOP = { top: 6, bottom: 6, left: 10, right: 10 };
 // compact — третій екран пейволу онбордингу: Lingo, переваги й пробний
 // період людина щойно бачила на двох попередніх, тут — лише тарифи й
 // таймлайн обраного.
+// palette — з якою палітрою відкрити прев'ю 'themes' (на яку людина
+// натиснула); onPalette(key) — людина обрала інший кружечок; previewWord —
+// її слово дня ({ word, ipa, translation }) для мініекрана, без нього —
+// слово-приклад.
 export default function PaywallScreen({
   reason,
   plans,
   compact = false,
+  palette,
+  onPalette,
+  previewWord = null,
   freeScans = FREE.scans,
   freeScenes = FREE.scenes,
   scansLeft,
@@ -104,9 +118,12 @@ export default function PaywallScreen({
   lang,
   t,
 }) {
-  const { C, SHADOW, SHADOW_LG } = useTheme();
+  const { C, SHADOW, SHADOW_LG, isDark } = useTheme();
   const s = useMemo(() => makeStyles(C), [C]);
   const short = useWindowDimensions().height < SHORT_SCREEN;
+  // Палітра в прев'ю 'themes': та, на яку людина натиснула, інакше перша з Pro
+  const [shownPalette, setShownPalette] = useState(PALETTE_KEYS.includes(palette) ? palette : PRO_PALETTES[0]);
+  const themes = reason === 'themes' && !compact;
   const [picked, setPicked] = useState('year');
   const [busy, setBusy] = useState(false);
   // покупка вже йде: другий тап, що встиг до перерендеру, нічого не запускає
@@ -139,11 +156,16 @@ export default function PaywallScreen({
   // невідомий (екран без App) — стеля.
   const freeLeft = Number.isFinite(scansLeft) ? scansLeft : freeScans;
 
+  // Скільки слів дня дає Pro: найбільший варіант (з таблиці, тобто з прапорців)
+  const wodMost = COMPARISON.find((r) => r.id === 'wodn')?.pro || 5;
+
   // Заголовок під причину: кожна стіна має свій аргумент.
   const HEAD = {
     scans: { title: t('pwScansTitle', { n: freeScans }), text: t('pwScansText', { n: freeScans }) },
     scene: { title: t('pwSceneTitle'), text: t('pwSceneText', { n: freeScenes }) },
     langs: { title: t('pwLangsTitle'), text: t('pwLangsText') },
+    themes: { title: t('pwThemesTitle'), text: t('pwThemesText') },
+    wod_per_day: { title: t('pwWodTitle', { n: wodMost }), text: t('pwWodText') },
   };
   const plain = { title: t('pwTitle'), text: t('pwText') };
   const trialHead = { title: t('pwIntroTitle'), text: t('pwIntroText') };
@@ -220,6 +242,14 @@ export default function PaywallScreen({
   function retry() {
     Haptics.selectionAsync();
     if (onRetry) onRetry();
+  }
+
+  // Кружечок палітри: мініекран перефарбовується, App запамʼятовує вибір
+  function pickPalette(key) {
+    if (key === shownPalette) return;
+    Haptics.selectionAsync();
+    setShownPalette(key);
+    if (onPalette) onPalette(key);
   }
 
   // Що під назвою тарифу: місячний — «щомісяця, скасуй будь-коли» (ціна й
@@ -314,11 +344,22 @@ export default function PaywallScreen({
 
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false} bounces={false}>
         <FadeIn style={{ alignItems: 'center' }}>
-          {compact || short ? null : <MascotBob pose="celebrate" size={140} />}
-          <View style={s.proBadge}>
-            <PCrown size={17} color={C.onAccent} />
-            <Text style={s.proBadgeText}>PRO</Text>
-          </View>
+          {themes ? (
+            <>
+              <ThemePreview palette={shownPalette} dark={isDark} word={previewWord} short={short} t={t} />
+              <PaletteDots value={shownPalette} dark={isDark} onPick={pickPalette} short={short} t={t} />
+            </>
+          ) : compact || short ? null : (
+            <MascotBob pose="celebrate" size={140} />
+          )}
+          {/* на SE під прев'ю бейдж зайвий: заголовок і так каже «у Pro», а
+              тарифи мають лишитись над підвалом */}
+          {themes && short ? null : (
+            <View style={[s.proBadge, themes && s.proBadgeAfterDots]}>
+              <PCrown size={17} color={C.onAccent} />
+              <Text style={s.proBadgeText}>PRO</Text>
+            </View>
+          )}
           <Stable index={headAt}>
             {heads.map((h, i) => (
               <View key={i} style={{ alignItems: 'center' }}>
@@ -365,16 +406,38 @@ export default function PaywallScreen({
             {rows.map((row, i) => {
               // стелі — з сервера, а не з довідника
               const free = row.id === 'scans' ? String(freeScans) : row.id === 'scene' ? String(freeScenes) : row.free;
+              const pro = row.upTo ? t('cmpUpTo', { n: row.pro }) : row.pro;
               return (
                 <View key={row.id} style={[s.tableRow, i > 0 && s.tableRowLine]}>
-                  <Text style={s.rowLabel}>{t('cmp_' + row.id)}</Text>
+                  {/* Нове у v1.3 — з позначкою; на вузькому екрані вона
+                      переходить під назву, а не стискає її */}
+                  <View style={s.rowLabelWrap}>
+                    <Text style={s.rowLabel}>{t('cmp_' + row.id)}</Text>
+                    {row.fresh ? (
+                      <View style={s.newTag}>
+                        <Text style={s.newTagText}>{t('cmpNew')}</Text>
+                      </View>
+                    ) : null}
+                  </View>
 
                   <View style={s.cellFree}>
-                    {free === true ? <IcCheck size={16} color={C.faint} /> : <Text style={s.cellFreeText}>{free}</Text>}
+                    {free === true ? (
+                      <IcCheck size={16} color={C.faint} />
+                    ) : (
+                      <Text style={s.cellFreeText} accessibilityLabel={row.none ? t('cmpNone') : undefined}>
+                        {free}
+                      </Text>
+                    )}
                   </View>
 
                   <View style={s.cellPro}>
-                    {row.pro === true ? <IcCheck size={16} color={C.accent} /> : <Text style={s.cellProText}>{row.pro}</Text>}
+                    {pro === true ? (
+                      <IcCheck size={16} color={C.accent} />
+                    ) : (
+                      <Text style={s.cellProText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
+                        {pro}
+                      </Text>
+                    )}
                   </View>
                 </View>
               );
@@ -386,12 +449,12 @@ export default function PaywallScreen({
             безкоштовні для всіх, тож тут їх немає (App Review 3.1.2). У
             мʼякому пейволі таблиці немає — тоді тут і самі переваги Pro. */}
         <FadeIn delay={90} style={s.benefits}>
-          {PRO_BENEFITS.filter((b) => !compact && (intro || b.id === 'support')).map((b) => (
+          {(compact ? [] : intro ? topBenefits(PRO_BENEFITS) : PRO_BENEFITS.filter((b) => b.id === 'support')).map((b) => (
             <View key={b.id} style={s.benefitRow}>
               <View style={s.benefitIcon}>
-                <ProIcon name={b.icon} size={20} color={C.accent} />
+                <BenefitIcon name={b.icon} size={20} color={C.accent} />
               </View>
-              <Text style={s.benefitText}>{t('pro_' + b.id)}</Text>
+              <Text style={s.benefitText}>{t('pro_' + b.id, { n: b.n })}</Text>
             </View>
           ))}
         </FadeIn>
@@ -551,6 +614,198 @@ export function TrialTimeline({ days, price, lang, canRemind, dense = false, t }
   );
 }
 
+// ── Пейвол «themes» ──────────────────────────────────────────────────────────
+// Мініекран у палітрі, яку людина дивиться: картка слова дня, як на
+// «Навчанні», лише без дотиків. Кольори — не з контексту (там тема, яку
+// людина має зараз), а з THEMES обраної палітри, у тому ж світлому чи
+// темному вигляді, що й застосунок. Видно, що змінюється (тло, картка,
+// акцент), а що ні (бурштин серії, Lingo). Шрифт не масштабується: це
+// ілюстрація, а не текст для читання, і VoiceOver чує її одним підписом.
+// short — iPhone SE: без рядка кнопок, «Зберегти» поруч зі словом, щоб
+// тарифи лишились над підвалом без прокрутки.
+export function ThemePreview({ palette, dark, word, short = false, t }) {
+  const th = THEMES[themeKeyOf(palette, dark)] || THEMES.light;
+  const P = th.C;
+  const s = useMemo(() => makePreviewStyles(P), [P]);
+  const w = word?.word ? word : { word: t('themeSampleWord'), ipa: t('themeSampleIpa'), translation: t('themeSampleTr') };
+  const name = t('palette_' + palette);
+  const save = (
+    <View style={[s.btn, s.saveBtn, short ? s.saveShort : s.grow]}>
+      <Text style={[s.btnText, { color: P.onAccent }]} numberOfLines={1} allowFontScaling={false}>
+        {t('saveWord')}
+      </Text>
+    </View>
+  );
+  return (
+    <View
+      testID="theme-preview"
+      style={[s.stage, short && s.stageShort]}
+      accessible
+      accessibilityRole="image"
+      accessibilityLabel={t('pwThemesPreview', { p: name })}
+    >
+      <View style={[s.card, th.SHADOW_SM, short && s.cardShort]}>
+        <View style={s.head}>
+          <View style={s.badge}>
+            <Text style={s.badgeText} numberOfLines={1} allowFontScaling={false}>
+              {t('wordOfDay').toLocaleUpperCase()}
+            </Text>
+          </View>
+          <View style={{ flex: 1 }} />
+          {/* серія — бурштин, однаковий у всіх палітрах */}
+          <View style={s.streak}>
+            <IcFlame size={12} color={P.warm} />
+            <Text style={s.streakText} allowFontScaling={false}>
+              5
+            </Text>
+          </View>
+        </View>
+        <View style={s.row}>
+          <View style={{ flex: 1 }}>
+            <Text style={s.word} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} allowFontScaling={false}>
+              {w.word}
+            </Text>
+            <Text style={s.tr} numberOfLines={1} allowFontScaling={false}>
+              {!short && w.ipa ? <Text style={s.ipa}>{w.ipa + '  '}</Text> : null}
+              {w.translation}
+            </Text>
+          </View>
+          {short ? save : <Mascot pose="think" size={40} />}
+        </View>
+        {short ? null : (
+          <View style={s.actions}>
+            <View style={[s.btn, s.listen]}>
+              <IcSpeaker size={14} color={P.accent} />
+            </View>
+            <View style={[s.btn, s.know, s.grow]}>
+              <Text style={s.btnText} numberOfLines={1} allowFontScaling={false}>
+                {t('wodKnow')}
+              </Text>
+            </View>
+            {save}
+          </View>
+        )}
+      </View>
+    </View>
+  );
+}
+
+// П'ять кружечків — акценти палітр у теперішньому вигляді (світлому чи
+// темному). Обраний обведено його ж кольором з проміжком у колір тла.
+// Для VoiceOver — група перемикачів з назвами палітр.
+export function PaletteDots({ value, dark, onPick, short = false, t }) {
+  const { C } = useTheme();
+  const s = useMemo(() => makePreviewStyles(C), [C]);
+  return (
+    <View style={[s.dots, short && s.dotsShort]} accessibilityRole="radiogroup">
+      {PALETTE_KEYS.map((key) => {
+        const accent = (THEMES[themeKeyOf(key, dark)] || THEMES.light).C.accent;
+        const on = key === value;
+        return (
+          <Pressable
+            key={key}
+            testID={'palette-dot-' + key}
+            onPress={() => onPick(key)}
+            hitSlop={short ? 6 : 5}
+            style={[s.dotHit, short && s.dotHitShort]}
+            accessibilityRole="radio"
+            accessibilityState={{ checked: on }}
+            accessibilityLabel={t('palette_' + key)}
+          >
+            <View style={[s.dotRing, short && s.dotRingShort, on && { borderColor: accent }]}>
+              <View style={[s.dot, short && s.dotShort, { backgroundColor: accent }]} />
+            </View>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+// Іконки переваг (і для інших екранів, що показують PRO_BENEFITS): решта —
+// з ProIcons, «слова дня» — дзвіночок сповіщення, «теми» — палітра
+// художника (сітка 24, штрих 1.8, як у ProIcons).
+export function BenefitIcon({ name, size, color }) {
+  if (name === 'bell') return <IcBell size={size} color={color} />;
+  if (name === 'palette') {
+    const st = { fill: 'none', stroke: color, strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round' };
+    return (
+      <Svg width={size} height={size} viewBox="0 0 24 24">
+        <Path
+          d="M12 3.6a8.4 8.4 0 1 0 0 16.8c1.1 0 1.8-.7 1.8-1.6 0-.5-.2-.9-.5-1.2-.3-.3-.5-.7-.5-1.2 0-.9.8-1.7 1.7-1.7h2.1a3.8 3.8 0 0 0 3.8-3.8c0-4-3.8-7.3-8.4-7.3z"
+          {...st}
+        />
+        <Circle cx="7.6" cy="11.4" r="1.2" {...st} strokeWidth={1.5} />
+        <Circle cx="9.8" cy="7.6" r="1.2" {...st} strokeWidth={1.5} />
+        <Circle cx="14.4" cy="7.4" r="1.2" {...st} strokeWidth={1.5} />
+      </Svg>
+    );
+  }
+  return <ProIcon name={name} size={size} color={color} />;
+}
+
+const DOT = 26;
+const makePreviewStyles = (P) =>
+  StyleSheet.create({
+    // Сцена — тло палітри. Тонка рамка її ж роздільника: світле тло палітри
+    // інакше зливалося б зі світлим тлом пейволу.
+    stage: {
+      alignSelf: 'stretch',
+      backgroundColor: P.bg,
+      borderRadius: R.xl,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: P.sep,
+      padding: 12,
+    },
+    stageShort: { padding: 8, borderRadius: R.lg },
+    card: { backgroundColor: P.card, borderRadius: 20, padding: 12 },
+    cardShort: { paddingVertical: 10 },
+    head: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
+    badge: { flexShrink: 1, backgroundColor: P.accentSoft, borderRadius: R.pill, paddingHorizontal: 8, paddingVertical: 3 },
+    badgeText: { color: P.accent, ...CAPS, fontSize: 9, letterSpacing: 0.5 },
+    streak: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 3,
+      backgroundColor: P.warmSoft,
+      borderRadius: R.pill,
+      paddingHorizontal: 7,
+      paddingVertical: 2,
+    },
+    streakText: { color: P.text, ...type(11, F.extra, { noLead: true }) },
+    row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    word: { color: P.text, ...type(20, F.extra, { noLead: true }), lineHeight: 25 },
+    ipa: { color: P.dim, fontFamily: F.reg },
+    tr: { color: P.text, ...type(13, F.semi, { noLead: true }), lineHeight: 17, marginTop: 1 },
+    actions: { flexDirection: 'row', gap: 7, marginTop: 10 },
+    btn: { height: 30, borderRadius: 10, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
+    listen: { width: 38, backgroundColor: P.accentSoft },
+    grow: { flex: 1 },
+    know: { backgroundColor: P.card2 },
+    saveBtn: { backgroundColor: P.accent },
+    saveShort: { paddingHorizontal: 14 },
+    btnText: { color: P.text, ...type(12, F.bold, { noLead: true }) },
+
+    dots: { flexDirection: 'row', justifyContent: 'center', gap: 10, marginTop: 12 },
+    dotsShort: { marginTop: 4, gap: 8 },
+    dotHit: { width: DOT + 12, height: DOT + 12, alignItems: 'center', justifyContent: 'center' },
+    // Кільце обраного: колір акценту, проміжок у колір тла
+    dotRing: {
+      width: DOT + 10,
+      height: DOT + 10,
+      borderRadius: (DOT + 10) / 2,
+      borderWidth: 2.5,
+      borderColor: 'transparent',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    dot: { width: DOT, height: DOT, borderRadius: DOT / 2 },
+    // SE: на 4 pt менші — з hitSlop ціль однаково ≥ 44
+    dotHitShort: { width: DOT + 6, height: DOT + 6 },
+    dotRingShort: { width: DOT + 4, height: DOT + 4, borderRadius: (DOT + 4) / 2, borderWidth: 2 },
+    dotShort: { width: DOT - 4, height: DOT - 4, borderRadius: (DOT - 4) / 2 },
+  });
+
 // Ширина колонки «безкоштовно»: «БЕЗКОШТОВНО» капсом має влізти в рядок
 const FREE_COL = 96;
 const PRO_COL = 66;
@@ -591,6 +846,8 @@ const makeStyles = (C) =>
       marginTop: 4,
     },
     proBadgeText: { color: C.onAccent, ...CAPS, letterSpacing: 1.6 },
+    // під кружечками палітр — трохи повітря, щоб бейдж не злипався з ними
+    proBadgeAfterDots: { marginTop: 12 },
 
     title: { color: C.text, ...type(28, F.extra), textAlign: 'center', marginTop: 14 },
     titleShort: { ...type(26, F.extra), marginTop: 10 },
@@ -623,7 +880,11 @@ const makeStyles = (C) =>
     colPro: { color: C.accent, ...CAPS, letterSpacing: 1.4 },
     tableRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 13 },
     tableRowLine: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.sep },
-    rowLabel: { flex: 1, color: C.text, ...type(14, F.semi, { noLead: true }) },
+    rowLabelWrap: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 6, rowGap: 4, paddingRight: 4 },
+    rowLabel: { flexShrink: 1, color: C.text, ...type(14, F.semi, { noLead: true }) },
+    // «нове» — тихо, бурштином серії, а не другим акцентом
+    newTag: { backgroundColor: C.warmSoft, borderRadius: R.pill, paddingHorizontal: 7, paddingVertical: 2 },
+    newTagText: { color: C.text, ...type(11, F.extra, { noLead: true }) },
     cellFree: { width: FREE_COL, alignItems: 'center' },
     cellFreeText: { color: C.dim, ...type(14, F.semi, { noLead: true }) },
     cellPro: { width: PRO_COL, alignItems: 'center', backgroundColor: C.accentSoft, paddingVertical: 8 },

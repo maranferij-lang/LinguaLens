@@ -983,4 +983,101 @@ Sharing as a sticker (v1.3): the Share sheet now makes a transparent PNG sticker
 
 ## v1.3 · W5 Pro: кольорові теми, пейвол, умови тарифів
 
-_Заповнює потік W5._
+Умови після v1.3 — `MONETIZATION.md`, розділ 1: ціни й ліміти сканів без
+змін, Pro **додає** 4 кольорові палітри (Океан, Ягода, Графіт, Какао) і 3 або
+5 слів дня на день о годинах людини. Нічого, що було безкоштовним, платним не
+стало: словник без ліміту слів, картки, квіз, слово дня (одне на день) і всі
+віджети. Ліміту колекції й захисту серії в v1.3 немає — ні в застосунку, ні в
+текстах сторінки.
+
+### Опис: абзац «FREE AND PRO» (заміни ним наявний у трьох описах)
+
+Сума списання й умови підписки — без змін (3.1.2). Після заміни перевір, що
+повний опис укладається в 4000 символів (абзац довший на ≈ 150).
+
+en:
+```
+FREE AND PRO
+Free forever: your dictionary with no word limit, flashcards, quiz, one word of the day and all three widgets. Plus one free AI scan to try (one in total, not per day): an object or a whole room.
+LinguaLens Pro: unlimited AI scans and room scans, all 29 languages, up to 5 words of the day at times you choose, and four color themes for the app and widgets (Ocean, Berry, Graphite, Cocoa). Choose monthly or yearly (the yearly plan may start with a free trial for eligible new subscribers), or Lifetime — a one-time purchase, not a subscription.
+```
+
+uk:
+```
+БЕЗКОШТОВНО І PRO
+Назавжди безкоштовно: словник без ліміту слів, флешкартки, квіз, слово дня й усі три віджети. А ще один безкоштовний AI-скан на пробу (один загалом, а не щодня): предмет або ціла кімната.
+LinguaLens Pro: AI-скани й скани кімнат без ліміту, усі 29 мов, до 5 слів дня о годинах, які обереш, і чотири кольорові теми для застосунку й віджетів (Океан, Ягода, Графіт, Какао). Обери місяць чи рік (річний може починатися з безкоштовного пробного періоду для нових підписників) або «Назавжди» — один платіж, не підписка.
+```
+
+es (México):
+```
+GRATIS Y PRO
+Gratis para siempre: tu diccionario sin límite de palabras, tarjetas, quiz, una palabra del día y los tres widgets. Además, 1 escaneo con IA gratis para probar (uno en total, no al día): un objeto o un cuarto entero.
+LinguaLens Pro: escaneos con IA y de cuartos ilimitados, los 29 idiomas, hasta 5 palabras del día a las horas que elijas y cuatro temas de color para la app y los widgets (Océano, Baya, Grafito, Cacao). Elige plan mensual o anual (el anual puede empezar con una prueba gratuita para nuevos suscriptores elegibles) o Lifetime: un pago único, no una suscripción.
+```
+
+Назви палітр — ті самі, що в застосунку (`palette_*` у `src/strings/pro.js`).
+
+### Покупки на сторінці (Promoted In-App Purchases): нові описи
+
+Назви без змін; описи (≤ 45 символів, у дужках — довжина):
+
+| Продукт | Опис en | Опис uk |
+|---|---|---|
+| Місяць | Unlimited scans, 29 languages, color themes (43) | Безлімітні скани, 29 мов, кольорові теми (40) |
+| Рік | Unlimited scans, 5 words a day, color themes (44) | Скани без ліміту, 5 слів на день, теми (38) |
+| Назавжди | Pay once: unlimited scans and color themes (42) | Один платіж: скани без ліміту й теми (36) |
+
+Опис підписки в App Store Connect (група «LinguaLens Pro») — так само: до
+сканів і мов додай «color themes» / «кольорові теми». Скріншот пейволу для
+рецензента зніми наново: у таблиці тепер «Слова дня 1 / до 5» і «Кольорові
+теми — / 4» (позначка «нове»), а «Картки, квіз, віджети» — один рядок.
+
+### Скріншоти сторінки (пропозиція)
+
+Палітри видно щодня, тож вони варті одного кадру в другій половині набору
+(не першого: перші три — скан, слово, звичка). Ідея кадру: три телефони з
+«Навчанням» в Океані, Ягоді й Какао, підпис en «Make it yours — 4 color
+themes with Pro» / uk «Твій колір — 4 теми в Pro». Знімай у застосунку з
+Pro (імітація покупок у розробці або Sandbox), не малюй окремо: правило 2.3.3
+вимагає показувати застосунок як він є.
+
+### Нотатки для рецензента: що дописати
+
+Встав після блоку «FREE VS PRO» і заміни ним рядок «LinguaLens Pro: …» там
+(англійською; назви пунктів звір із релізною збіркою):
+
+```
+- LinguaLens Pro: unlimited AI scans, unlimited room scans, all 29 learning languages, up to 5 words of the day at hours the user picks, and four color themes (Ocean, Berry, Graphite, Cocoa) for the app and its widgets. Plans: monthly or yearly auto-renewable subscriptions (the yearly plan may start with a 7-day free trial for eligible users) and Lifetime, a one-time non-consumable purchase.
+
+NEW IN THIS VERSION (Pro additions; nothing that was free became paid):
+- Color themes are cosmetic and sold as part of LinguaLens Pro. The default look "Chalk" (light, dark or automatic) stays free. Settings → Theme → Palette: without Pro, tapping a palette with a crown opens the paywall with a live preview of that palette; nothing changes until a purchase. After a Sandbox purchase the app switches to the previewed palette at once. Widgets use the same palette and stay free for everyone.
+- Words of the day: one word a day stays free. Pro can choose 3 or 5 words a day, each at an hour the user picks (Settings → Word of the day → Words per day; 3 and 5 open the paywall without Pro). What we sell is extra learning content (more words), not the ability to send notifications.
+- The paywall comparison table lists exactly these terms. There is no word limit, no quiz limit and no streak feature for sale.
+
+HOW TO TEST (Pro additions):
+6. Settings → Theme → Palette → tap "Berry" → the paywall shows a preview in Berry; tap the color dots to preview other palettes; close with X — the app stays in Chalk.
+7. Buy any plan with a Sandbox Apple Account from that paywall: the app switches to the palette you previewed. Settings → Theme then changes palettes instantly, in light and dark.
+8. Settings → Word of the day → Words per day → 5: without Pro this opens the paywall; with Pro, pick an hour for each word.
+```
+
+Абзац «REMOTE CONFIGURATION» не змінюється: v1.3 не додає віддалених
+перемикачів. Палітри й варіанти «слів на день» (3 і 5) зашиті в збірку
+(`src/theme.js`, `src/flags.js`), верхню межу слів (5) тримає сервер — код не
+завантажується (2.3.1(a), 2.5.2).
+
+### Перевірка перед «Submit for Review» (додати до списку)
+
+- [ ] Sandbox: Параметри → «Тема» → «Ягода» → пейвол із прев'ю → кружечок
+      «Какао» → покупка → застосунок і віджети в «Какао»
+- [ ] Хрестик на пейволі «themes» нічого не змінює; «Відновити покупки» з
+      нього на іншому iPhone з Pro теж вмикає палітру з прев'ю
+- [ ] Pro скінчився (Sandbox: місячна підписка закінчується за 5 хв) →
+      застосунок у «Крейді», під плитками — «Ягода повернеться разом із Pro»;
+      поновлення → палітра повертається
+- [ ] Пейволи `themes` і `wod_per_day` на iPhone SE: обраний тариф із сумою
+      списання видно без прокрутки
+- [ ] Хром камери й іконка застосунку однакові в усіх палітрах
+- [ ] Шаблон RevenueCat (`paywall_ui: "revenuecat"`), якщо ввімкнений: у
+      його текстах немає ліміту слів чи захисту серії; палітри названі так
+      само, як у застосунку
