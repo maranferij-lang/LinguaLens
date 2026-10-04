@@ -441,6 +441,24 @@ describe('the Learn tab with several words a day (App → card)', () => {
     expect(cardText(tree)).toContain(uk('widgetSlot', { i: 1, n: 3 }));
   });
 
+  test('“I know it” on a later word: remembered, counts towards the level offer and today’s streak, a new word comes', async () => {
+    const tree = await learn();
+    const before = wodPosts().length;
+    await run(() =>
+      card(tree)
+        .findAll((n) => n.props.onPress && n.props.accessibilityLabel === uk('wodKnowA11y'))
+        .at(-1)
+        .props.onPress()
+    );
+    await settle(5);
+    const st = await stored('ll_settings_v1');
+    expect(st.knownWords).toContain('w0-1');
+    expect(st.knowStreak).toBe(1);
+    expect(Object.values(await stored('ll_activity_v1'))).toEqual([1]);
+    expect(wodPosts().length).toBeGreaterThan(before);
+    expect(wodPosts().at(-1).body).toMatchObject({ perDay: 3, known: expect.arrayContaining(['w0-1']) });
+  });
+
   test('a tap on the notification of a word opens that word on the card', async () => {
     // тап приходить подією нативного модуля, як на телефоні
     const { LegacyEventEmitter } = require('expo-modules-core');

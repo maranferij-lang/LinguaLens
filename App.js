@@ -1447,10 +1447,13 @@ export default function App() {
     if (!w || !w.slot) return knowWordOfDay();
     const known = String(w.source || w.word || '').trim();
     if (!known) return;
+    // так само, як «Знаю» на першому слові: лік «Знаю» поспіль (пропозиція
+    // підняти рівень) і день серії — це теж дія
     const cur = settingsRef.current;
-    const next = { ...cur, knownWords: addKnown(cur.knownWords, known) };
+    const next = { ...cur, knownWords: addKnown(cur.knownWords, known), knowStreak: (cur.knowStreak || 0) + 1 };
     commitSettings(next);
-    track('wod_known', { streak: cur.knowStreak || 0, level: cur.profile?.level ?? null, slot: w.slot });
+    logActivity(1);
+    track('wod_known', { streak: next.knowStreak, level: cur.profile?.level ?? null, slot: w.slot });
     const c = await syncWordOfDay(wodArgs(next, true));
     if (c) setWod(c);
   }
