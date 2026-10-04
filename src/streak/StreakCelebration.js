@@ -153,6 +153,8 @@ export default function StreakCelebration({ data, activeDays, onDone, onShare, t
   const burst = useRef(new Animated.Value(0)).current;
   const timers = useRef([]);
   const leaving = useRef(false);
+  // Свято, яке вже порахували в статистиці (показ після паузи — те саме)
+  const counted = useRef(null);
 
   const clear = () => {
     timers.current.forEach(clearTimeout);
@@ -161,13 +163,24 @@ export default function StreakCelebration({ data, activeDays, onDone, onShare, t
   useEffect(() => clear, []);
 
   useEffect(() => {
-    if (!data || shown) return;
+    // Черга знову зайнята (у тому ж кадрі відкрився пейвол, застосунок пішов
+    // у фон…): свято ховається й чекає, а не грає під пейволом чи над ним.
+    // onDone не кличемо — App покаже його знову, щойно черга звільниться.
+    if (!data) {
+      if (shown && !leaving.current) {
+        clear();
+        setShown(null);
+      }
+      return;
+    }
+    if (shown) return;
     leaving.current = false;
     const to = data.to;
     const milestone = isMilestone(to);
     const lit = milestone && to >= 7;
     setShown(data);
-    track('streak_celebrate', { n: to, milestone });
+    if (counted.current !== data) track('streak_celebrate', { n: to, milestone });
+    counted.current = data;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     AccessibilityInfo.announceForAccessibility?.(`${streakMessage({ n: to, doneToday: true }, t)}. ${streakMessage({ n: to }, t, { line: 'next' })}`);
     if (reduced) {

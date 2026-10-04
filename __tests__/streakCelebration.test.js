@@ -99,6 +99,35 @@ describe('the celebration layer', () => {
     await act(async () => tree.unmount());
   });
 
+  test('if the queue gets busy after it appeared (a paywall in the same frame), it steps aside and comes back', async () => {
+    jest.useFakeTimers();
+    const onDone = jest.fn();
+    const data = { from: 3, to: 4 };
+    const el = (d) => (
+      <SafeAreaProvider initialMetrics={metrics}>
+        <StreakCelebration data={d} activeDays={[]} onDone={onDone} t={t} />
+      </SafeAreaProvider>
+    );
+    const layer = (tree) => tree.root.findAll((n) => n.props.testID === 'streak-celebration');
+    let tree;
+    await act(async () => {
+      tree = create(el(data));
+    });
+    expect(layer(tree).length).toBeGreaterThan(0);
+    // черга зайнята: свята не видно, і воно не «закінчилось» без людини
+    await act(async () => tree.update(el(null)));
+    expect(layer(tree)).toHaveLength(0);
+    await act(async () => jest.advanceTimersByTime(CELEBRATE_MS * 2));
+    expect(onDone).not.toHaveBeenCalled();
+    // черга вільна — те саме свято знову, і звичайний день знову закривається сам
+    await act(async () => tree.update(el(data)));
+    expect(layer(tree).length).toBeGreaterThan(0);
+    expect(texts(tree.root)).toContain('4');
+    await act(async () => jest.advanceTimersByTime(CELEBRATE_MS + 400));
+    expect(onDone).toHaveBeenCalledTimes(1);
+    await act(async () => tree.unmount());
+  });
+
   test('a tap anywhere closes an ordinary day', async () => {
     const onDone = jest.fn();
     const tree = await show({ from: 3, to: 4 }, { onDone });
