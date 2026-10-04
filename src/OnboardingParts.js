@@ -1,21 +1,23 @@
-// Частини онбордингу, яких немає в редакторі профілю: персональний план,
-// «перший скан» і попередній перегляд сповіщення. Кроки й порядок —
-// у OnboardingScreen.js.
+// Частини онбордингу, яких немає в редакторі профілю: вітання, план зі
+// словом на сьогодні й станом «складаємо…», години й попередній перегляд
+// сповіщення, обіцянка. Кроки й порядок — у OnboardingScreen.js.
 //
 // Правило для всього тут: лише правда. Ні вигаданих цифр («97 % вивчили
 // мову»), ні відгуків, ні оцінок — план показує те, що сервер справді
 // робитиме з цими відповідями, а кожна обіцянка спирається на функцію,
 // яка в застосунку вже є.
-import { useMemo } from 'react';
-import { Image, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useRef } from 'react';
+import { ActivityIndicator, Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { cefrFor, cleanProfile, levelBand, planTopics, topicCycle } from './profile';
-import { flagFor, nameFor } from './speech';
+import { flagFor, nameFor, speak } from './speech';
 import { localeFor, phoneUiLang } from './locale';
-import { LogoMark } from './Logo';
-import { Mascot } from './Mascot';
-import { IcBell, IcCards, IcChart, IcCheck, IcCompass, IcScan } from './icons';
+import { AppIcon } from './Logo';
+import { Mascot, MascotBob } from './Mascot';
+import { MiniKey, MiniMug, MiniPlant, TagLabel } from './DemoDesk';
+import { IcBell, IcCards, IcChart, IcCheck, IcCompass, IcScan, IcSpeaker } from './icons';
 import { FadeIn } from './ui';
-import { stagger } from './motion';
+import { EASE, stagger, useReducedMotion } from './motion';
 import { CAPS, F, R, type, useTheme } from './theme';
 
 // Якщо людина нічого не обрала на кроці «що заважає» (чи у варіанті без
@@ -132,52 +134,69 @@ export function PlanBody({ profile, struggles, lang, t }) {
   );
 }
 
-// Ілюстрація з Lingo й чашкою для світлої і темної теми: світла — на
-// майже білому тлі, темна — та сама сцена на кольорі картки темної теми,
-// щоб на першому ж екрані не світився білий квадрат.
-export const HERO = {
-  light: require('../assets/onb-1.png'),
-  dark: require('../assets/onb-1-dark.png'),
-};
-
-// ─── «Спробуй зараз» ───────────────────────────────────────────────────────
-// Lingo у кутах видошукача — тих самих, що на екрані сканера: людина
-// впізнає їх, коли відкриється камера.
-export function WowHero() {
-  const { C, isDark } = useTheme();
+// ─── Слово на сьогодні (план) ──────────────────────────────────────────────
+// Справжнє слово дня під щойно складений профіль: те саме, що чекатиме на
+// вкладці «Навчання» й у сповіщенні. Тап по динаміку — вимова.
+export function TodayCard({ word, topic, lang, t }) {
+  const { C, SHADOW_SM } = useTheme();
   const s = useMemo(() => makeStyles(C), [C]);
+  if (!word?.word) return null;
+  const caps = topic ? `${t('obPlanToday')} · ${topic}` : t('obPlanToday');
+  const sub = [word.ipa, word.translation].filter(Boolean).join(' · ');
   return (
-    <View style={s.wow} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-      <Image source={isDark ? HERO.dark : HERO.light} style={s.wowImg} />
-      <View style={[s.corner, s.tl]} />
-      <View style={[s.corner, s.tr]} />
-      <View style={[s.corner, s.bl]} />
-      <View style={[s.corner, s.br]} />
-    </View>
+    <FadeIn style={[s.today, SHADOW_SM]} testID="plan-today">
+      <Text style={[s.caps, { color: C.accent }]} numberOfLines={1}>
+        {caps}
+      </Text>
+      <View style={s.todayRow}>
+        <Text style={s.todayWord} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.7}>
+          {word.word}
+        </Text>
+        <Pressable
+          onPress={() => speak(word.word, lang)}
+          hitSlop={10}
+          style={({ pressed }) => [s.todaySpeak, pressed && { opacity: 0.6 }]}
+          accessibilityRole="button"
+          accessibilityLabel={`${t('listen')}: ${word.word}`}
+        >
+          <IcSpeaker size={20} color={C.accent} />
+        </Pressable>
+      </View>
+      {sub ? <Text style={s.todaySub}>{sub}</Text> : null}
+    </FadeIn>
   );
 }
 
-// Після першого збереженого слова — коротке «є!» над наступним кроком.
-// Зелений — колір успіху (theme.js), саме тут він і доречний.
-export function FirstWord({ word, t }) {
-  const { C } = useTheme();
+// ─── «Складаємо твій план…» ────────────────────────────────────────────────
+// Lingo думає, а рядки — це відповіді людини, по черзі, з галочками.
+// Останній — «Підбираємо слово дня…» — чекає на справжній запит слова дня
+// під щойно складений профіль: крутилка, а коли прийшло — галочка.
+// rows — [{ key, flag?, text, done }].
+export const BUILD_STAGGER = 220;
+
+export function PlanBuilding({ title, rows }) {
+  const { C, SHADOW_SM } = useTheme();
   const s = useMemo(() => makeStyles(C), [C]);
-  const pair = word?.translation ? `${word.word} — ${word.translation}` : word?.word || '';
   return (
-    <FadeIn style={s.first} dy={8}>
-      <View style={s.firstIcon}>
-        <IcCheck size={18} color={C.onAccent} />
+    <View style={s.build} testID="plan-building">
+      <MascotBob pose="think" size={150} />
+      <Text style={s.buildTitle} accessibilityRole="header" accessibilityLiveRegion="polite">
+        {title}
+      </Text>
+      <View style={{ alignSelf: 'stretch', gap: 10, marginTop: 22 }}>
+        {rows.map((r, i) => (
+          <FadeIn key={r.key} delay={i * BUILD_STAGGER} style={[s.buildRow, SHADOW_SM]}>
+            <View style={[s.buildMark, r.done && { backgroundColor: C.green }]}>
+              {r.done ? <IcCheck size={14} color={C.onAccent} /> : <ActivityIndicator size="small" color={C.accent} />}
+            </View>
+            {r.flag ? <Text style={s.buildFlag}>{r.flag}</Text> : null}
+            <Text style={s.buildText} numberOfLines={2}>
+              {r.text}
+            </Text>
+          </FadeIn>
+        ))}
       </View>
-      <View style={{ flex: 1 }} accessible accessibilityLiveRegion="polite" accessibilityLabel={`${t('obWowDone')}: ${pair}`}>
-        <Text style={s.firstTitle}>{t('obWowDone')}</Text>
-        {pair ? (
-          <Text style={s.firstWord} numberOfLines={1}>
-            {pair}
-          </Text>
-        ) : null}
-      </View>
-      <Mascot pose="celebrate" size={44} />
-    </FadeIn>
+    </View>
   );
 }
 
@@ -193,19 +212,57 @@ export function hourLabel(hour) {
   }
 }
 
-// Схоже на банер iOS: значок, назва застосунку, година і текст. Заголовок —
-// як у справжньому сповіщенні слова дня («Слово дня · Фінанси»), тіло —
-// без вигаданого слова: його ще ніхто не обрав. Тіло — у два рядки навіть
-// на SE: банер, що обривається трикрапкою, виглядає зламаним.
-export function PushPreview({ topic, hour, t }) {
-  const { C, SHADOW } = useTheme();
+// Години на вибір: зранку, удень, увечері
+export const PUSH_HOURS = [
+  { hour: 10, key: 'obPushMorning' },
+  { hour: 14, key: 'obPushDay' },
+  { hour: 19, key: 'obPushEvening' },
+];
+
+export function HourChips({ value, onChange, t }) {
+  const { C } = useTheme();
+  const s = useMemo(() => makeStyles(C), [C]);
+  return (
+    <View style={s.hours} accessibilityRole="radiogroup">
+      {PUSH_HOURS.map(({ hour, key }) => {
+        const on = value === hour;
+        const time = hourLabel(hour);
+        return (
+          <Pressable
+            key={hour}
+            onPress={() => onChange(hour)}
+            style={({ pressed }) => [s.hourChip, on && s.hourOn, pressed && !on && { backgroundColor: C.card2 }]}
+            accessibilityRole="radio"
+            accessibilityState={{ checked: on }}
+            accessibilityLabel={`${t(key)}, ${time}`}
+            testID={'push-hour-' + hour}
+          >
+            <Text style={[s.hourPart, on && { color: C.accent }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
+              {t(key)}
+            </Text>
+            <Text style={[s.hourTime, on && { color: C.accent }]} numberOfLines={1}>
+              {time}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+// Схоже на банер iOS на екрані блокування: «шпалери» з великим часом, на
+// них — значок, назва застосунку, година і текст. Заголовок — як у
+// справжньому сповіщенні слова дня («Слово дня · Фінанси»), тіло — без
+// вигаданого слова: його ще ніхто не обрав. Тіло — у два рядки навіть на
+// SE: банер, що обривається трикрапкою, виглядає зламаним. wallpaper={false}
+// — лише сам банер.
+export function PushPreview({ topic, hour, t, wallpaper = true }) {
+  const { C, SHADOW, isDark } = useTheme();
   const s = useMemo(() => makeStyles(C), [C]);
   const title = topic ? t('obPushPreviewTopic', { topic }) : t('obPushPreviewTitle');
-  return (
-    <View style={[s.push, SHADOW]} accessible accessibilityLabel={t('obPushPreviewA11y', { title, h: hour })}>
-      <View style={s.pushIcon}>
-        <LogoMark size={26} color={C.onAccent} fg={C.accent} />
-      </View>
+  const banner = (
+    <View style={[s.push, !wallpaper && SHADOW]} accessible accessibilityLabel={t('obPushPreviewA11y', { title, h: hour })}>
+      <AppIcon size={38} />
       <View style={{ flex: 1 }}>
         <View style={s.pushHead}>
           <Text style={s.pushApp}>LinguaLens</Text>
@@ -220,9 +277,125 @@ export function PushPreview({ topic, hour, t }) {
       </View>
     </View>
   );
+  if (!wallpaper) return banner;
+  return (
+    <View style={[s.wall, SHADOW]} testID="push-wallpaper">
+      <Svg style={StyleSheet.absoluteFill} width="100%" height="100%">
+        <Defs>
+          <LinearGradient id="obWall" x1="0" y1="0" x2="1" y2="1">
+            <Stop offset="0" stopColor={C.accent} stopOpacity={isDark ? 0.55 : 0.62} />
+            <Stop offset="1" stopColor={C.warm} stopOpacity={isDark ? 0.4 : 0.5} />
+          </LinearGradient>
+        </Defs>
+        <Rect x="0" y="0" width="100%" height="100%" fill={C.card} />
+        <Rect x="0" y="0" width="100%" height="100%" fill="url(#obWall)" />
+      </Svg>
+      <Text style={[s.wallTime, { color: isDark ? C.text : C.onAccent }]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+        {hour}
+      </Text>
+      {banner}
+    </View>
+  );
 }
 
-const WOW = 220;
+// ─── Вітання ───────────────────────────────────────────────────────────────
+// Lingo махає на мʼякому колі, довкола три предмети з табличками різними
+// мовами ледь плавають (±6 pt, 3,2 с, розфазовано). «Менше руху» — стоять.
+const FLOATERS = [
+  { key: 'mug', code: 'en', word: 'mug', at: { left: '4%', top: '8%' }, tilt: -8, phase: 0 },
+  { key: 'plant', code: 'es', word: 'planta', at: { right: '2%', top: '2%' }, tilt: 7, phase: 1 },
+  { key: 'key', code: 'de', word: 'Schlüssel', at: { right: '0%', bottom: '10%' }, tilt: -6, phase: 2 },
+];
+
+function Floater({ f, reduced, children }) {
+  const v = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (reduced) return undefined;
+    const half = { duration: 1600, easing: EASE.inOut, useNativeDriver: true };
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.delay(f.phase * 520),
+        Animated.timing(v, { toValue: 1, ...half }),
+        Animated.timing(v, { toValue: 0, ...half }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [reduced]);
+  return (
+    <Animated.View
+      style={[
+        { position: 'absolute', alignItems: 'center' },
+        f.at,
+        { transform: [{ translateY: v.interpolate({ inputRange: [0, 1], outputRange: [6, -6] }) }] },
+      ]}
+    >
+      {children}
+    </Animated.View>
+  );
+}
+
+export function WelcomeHero({ size = 230 }) {
+  const { C } = useTheme();
+  const reduced = useReducedMotion();
+  const box = size + 96;
+  return (
+    <View
+      style={{ width: box, height: box * 0.86, alignItems: 'center', justifyContent: 'center' }}
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      testID="welcome-hero"
+    >
+      <View style={{ position: 'absolute', width: size * 0.92, height: size * 0.92, borderRadius: size, backgroundColor: C.accentSoft }} />
+      <MascotBob pose="wave" size={size * 0.86} />
+      {FLOATERS.map((f) => (
+        <Floater key={f.key} f={f} reduced={reduced}>
+          {f.key === 'mug' ? <MiniMug size={54} sticker={false} /> : f.key === 'plant' ? <MiniPlant size={46} /> : <MiniKey size={52} />}
+          <View style={{ marginTop: f.key === 'key' ? 2 : -4 }}>
+            <TagLabel code={f.code} word={f.word} tilt={f.tilt} />
+          </View>
+        </Floater>
+      ))}
+    </View>
+  );
+}
+
+// Бульбашка Lingo над заголовком: «Привіт! Я Lingo.», «Англійська —
+// чудовий вибір!».
+export function LingoBubble({ text, pose = 'wave', style }) {
+  const { C, SHADOW_SM } = useTheme();
+  const s = useMemo(() => makeStyles(C), [C]);
+  return (
+    <FadeIn delay={120} style={[s.bubble, SHADOW_SM, style]} testID="lingo-bubble">
+      <Mascot pose={pose} size={30} />
+      <Text style={s.bubbleText} numberOfLines={2}>
+        {text}
+      </Text>
+    </FadeIn>
+  );
+}
+
+// ─── Обіцянка: текст і перша ціль ──────────────────────────────────────────
+// «Я, Марік, вчитиму англійську щодня — по слову за раз» і під ним «Перша
+// ціль — 7 днів поспіль» із сімома крапками; перша світиться бурштином, якщо
+// слово вже збережено (lit) — день перший зараховано.
+export function PledgeCard({ text, lit, t }) {
+  const { C, SHADOW_SM } = useTheme();
+  const s = useMemo(() => makeStyles(C), [C]);
+  return (
+    <View style={[s.pledge, SHADOW_SM]} testID="pledge">
+      <Text style={s.pledgeText}>{text}</Text>
+      <View style={s.goal} accessible accessibilityLabel={t('obCommitGoal')}>
+        <Text style={s.goalText}>{t('obCommitGoal')}</Text>
+        <View style={s.goalDots}>
+          {Array.from({ length: 7 }, (_, i) => (
+            <View key={i} testID={i === 0 && lit ? 'goal-lit' : undefined} style={[s.goalDot, i === 0 && lit && { backgroundColor: C.warm }]} />
+          ))}
+        </View>
+      </View>
+    </View>
+  );
+}
 
 const makeStyles = (C) =>
   StyleSheet.create({
@@ -258,29 +431,55 @@ const makeStyles = (C) =>
     },
     lineText: { flex: 1, color: C.text, ...type(15, F.semi) },
 
-    wow: { width: WOW, height: WOW, alignSelf: 'center', marginTop: 8, padding: 14 },
-    wowImg: { width: WOW - 28, height: WOW - 28, borderRadius: 24 },
-    corner: { position: 'absolute', width: 34, height: 34, borderColor: C.accent },
-    tl: { top: 0, left: 0, borderTopWidth: 3, borderLeftWidth: 3, borderTopLeftRadius: 12 },
-    tr: { top: 0, right: 0, borderTopWidth: 3, borderRightWidth: 3, borderTopRightRadius: 12 },
-    bl: { bottom: 0, left: 0, borderBottomWidth: 3, borderLeftWidth: 3, borderBottomLeftRadius: 12 },
-    br: { bottom: 0, right: 0, borderBottomWidth: 3, borderRightWidth: 3, borderBottomRightRadius: 12 },
+    today: {
+      backgroundColor: C.card,
+      borderRadius: R.lg,
+      borderWidth: 2,
+      borderColor: C.accentSoft,
+      paddingHorizontal: 18,
+      paddingTop: 14,
+      paddingBottom: 16,
+      marginBottom: 12,
+    },
+    todayRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
+    todayWord: { flexShrink: 1, color: C.text, ...type(28, F.extra) },
+    todaySpeak: { width: 36, height: 36, borderRadius: 18, backgroundColor: C.accentSoft, alignItems: 'center', justifyContent: 'center' },
+    todaySub: { color: C.dim, ...type(14, F.semi), marginTop: 2 },
 
-    first: {
+    build: { alignItems: 'center', paddingTop: 12 },
+    buildTitle: { color: C.text, ...type(24, F.extra), textAlign: 'center', marginTop: 10 },
+    buildRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 12,
-      backgroundColor: C.greenSoft,
-      borderRadius: R.lg,
-      paddingVertical: 10,
-      paddingLeft: 14,
-      paddingRight: 8,
-      marginBottom: 18,
+      gap: 10,
+      backgroundColor: C.card,
+      borderRadius: R.md,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
     },
-    firstIcon: { width: 30, height: 30, borderRadius: 15, backgroundColor: C.green, alignItems: 'center', justifyContent: 'center' },
-    firstTitle: { color: C.text, ...type(15, F.extra) },
-    firstWord: { color: C.dim, ...type(14, F.semi) },
+    buildMark: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: C.card2 },
+    buildFlag: { fontSize: 16 },
+    buildText: { flex: 1, color: C.text, ...type(15, F.bold) },
 
+    hours: { flexDirection: 'row', gap: 8 },
+    hourChip: {
+      flex: 1,
+      minHeight: 58,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: C.card,
+      borderRadius: R.md,
+      borderWidth: 2,
+      borderColor: 'transparent',
+      paddingHorizontal: 6,
+      paddingVertical: 8,
+    },
+    hourOn: { borderColor: C.accent, backgroundColor: C.accentSoft },
+    hourPart: { color: C.dim, ...type(13, F.bold, { noLead: true }) },
+    hourTime: { color: C.text, ...type(17, F.extra, { noLead: true }), marginTop: 3 },
+
+    wall: { borderRadius: R.xl, overflow: 'hidden', paddingHorizontal: 12, paddingTop: 16, paddingBottom: 14, marginTop: 18 },
+    wallTime: { ...type(46, F.extra, { noLead: true }), textAlign: 'center', marginBottom: 14 },
     push: {
       flexDirection: 'row',
       gap: 12,
@@ -288,10 +487,31 @@ const makeStyles = (C) =>
       borderRadius: R.lg,
       padding: 14,
     },
-    pushIcon: { width: 40, height: 40, borderRadius: 10, backgroundColor: C.accent, alignItems: 'center', justifyContent: 'center' },
     pushHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
     pushApp: { color: C.faint, ...CAPS },
     pushTime: { color: C.faint, ...type(13, F.semi, { noLead: true }) },
     pushTitle: { color: C.text, ...type(16, F.extra), marginTop: 2 },
     pushBody: { color: C.dim, ...type(14, F.reg) },
+
+    bubble: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      alignSelf: 'flex-start',
+      gap: 8,
+      backgroundColor: C.card,
+      borderRadius: R.pill,
+      paddingLeft: 8,
+      paddingRight: 14,
+      paddingVertical: 5,
+      marginBottom: 14,
+      maxWidth: '100%',
+    },
+    bubbleText: { flexShrink: 1, color: C.text, ...type(14, F.extra) },
+
+    pledge: { backgroundColor: C.card, borderRadius: R.lg, paddingHorizontal: 20, paddingTop: 18, paddingBottom: 14 },
+    pledgeText: { color: C.text, ...type(22, F.extra), textAlign: 'center' },
+    goal: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 12, flexWrap: 'wrap' },
+    goalText: { color: C.dim, ...type(13, F.bold, { noLead: true }) },
+    goalDots: { flexDirection: 'row', gap: 4 },
+    goalDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: C.card3 },
   });
