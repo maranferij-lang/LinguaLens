@@ -239,7 +239,9 @@ function SceneBody({ scene, active, backRef, cutter, savedWords, onSaveWords, on
   function share() {
     if (!visible.length || broken) return;
     Haptics.selectionAsync().catch(() => {});
-    setSharing({ kind: 'scene', scene: { ...scene, objects: visible } });
+    // backdrop — фото сцени (уже 9:16, 1080×1920) тлом для «Stories з цим
+    // фото»: наліпка-набір слів лягає поверх тієї самої кімнати
+    setSharing({ kind: 'scene', scene: { ...scene, objects: visible }, backdrop: sceneImageUri(scene) || null });
   }
 
   const { frame, items, chips } = geo;
