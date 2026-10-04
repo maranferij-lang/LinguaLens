@@ -16,7 +16,7 @@
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "CFBundleAllowMixedLocalizations": true,
-        "NSPhotoLibraryAddUsageDescription": "LinguaLens saves your share cards and stickers to Photos when you choose “Save Image”.",
+        "NSPhotoLibraryAddUsageDescription": "LinguaLens saves your stickers and cards to Photos when you tap “Save”.",
         "LSApplicationQueriesSchemes": [
           "instagram-stories",
           "instagram"
@@ -84,6 +84,24 @@
       "expo-status-bar",
       "expo-sharing",
       [
+        "expo-media-library",
+        {
+          "photosPermission": "LinguaLens only opens the photo you pick, to put your sticker on it for Stories.",
+          "savePhotosPermission": "LinguaLens saves your stickers and cards to Photos when you tap “Save”.",
+          "isAccessMediaLocationEnabled": false,
+          "granularPermissions": [
+            "photo"
+          ]
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "LinguaLens only opens the photo you pick, to put your sticker on it for Stories.",
+          "microphonePermission": false
+        }
+      ],
+      [
         "expo-localization",
         {
           "supportedLocales": [
@@ -98,15 +116,45 @@
       [
         "expo-widgets",
         {
+          "groupIdentifier": "group.com.marik.lingualens",
           "widgets": [
             {
               "name": "WordOfDay",
               "displayName": "Word of the Day",
-              "description": "A new word in the language you’re learning, every day.",
+              "description": "A new word every day, with an example sentence. Tap to reveal the translation.",
               "ios": {
                 "supportedFamilies": [
                   "systemSmall",
                   "systemMedium",
+                  "systemLarge",
+                  "accessoryRectangular",
+                  "accessoryInline"
+                ]
+              }
+            },
+            {
+              "name": "MyWords",
+              "displayName": "My Words",
+              "description": "Your saved words, one at a time — the ones due for review first.",
+              "ios": {
+                "supportedFamilies": [
+                  "systemSmall",
+                  "systemMedium",
+                  "systemLarge",
+                  "accessoryRectangular",
+                  "accessoryInline"
+                ]
+              }
+            },
+            {
+              "name": "Streak",
+              "displayName": "Streak",
+              "description": "Your learning streak. The flame grows every day you learn.",
+              "ios": {
+                "supportedFamilies": [
+                  "systemSmall",
+                  "systemMedium",
+                  "accessoryCircular",
                   "accessoryRectangular",
                   "accessoryInline"
                 ]

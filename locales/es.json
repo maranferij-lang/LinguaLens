@@ -1,7 +1,8 @@
 {
   "ios": {
     "NSCameraUsageDescription": "LinguaLens usa la cámara para reconocer un objeto y mostrar cómo se llama en el idioma que estás aprendiendo.",
-    "NSPhotoLibraryAddUsageDescription": "LinguaLens guarda tus tarjetas y stickers en Fotos cuando eliges «Guardar imagen».",
+    "NSPhotoLibraryUsageDescription": "LinguaLens solo abre la foto que elijas para poner tu pegatina encima en Stories.",
+    "NSPhotoLibraryAddUsageDescription": "LinguaLens guarda tus pegatinas y tarjetas en Fotos cuando tocas «Guardar».",
     "CFBundleDisplayName": "LinguaLens"
   }
 }
