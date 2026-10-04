@@ -144,7 +144,8 @@ test('the first shutter tap asks before any photo leaves the phone', async () =>
 
   await press(tree, () => shutter(tree).props.onPress());
   expect(recognizeImage).toHaveBeenCalledTimes(1);
-  expect(recognizeImage).toHaveBeenCalledWith('b64', 'es', 'en');
+  // профілю немає — рівень не передаємо, сервер робить як завжди
+  expect(recognizeImage).toHaveBeenCalledWith('b64', 'es', 'en', undefined);
   await act(async () => tree.unmount());
 });
 
@@ -274,7 +275,7 @@ describe('scene mode', () => {
       [{ crop: { originX: 150, originY: 0, width: 900, height: 1600 } }, { resize: { width: 900 } }],
       [{ crop: { originX: 150, originY: 0, width: 900, height: 1600 } }, { resize: { width: 720 } }],
     ]);
-    expect(recognizeScene).toHaveBeenCalledWith('b64', 'es', 'en');
+    expect(recognizeScene).toHaveBeenCalledWith('b64', 'es', 'en', undefined);
     expect(onScanned).toHaveBeenCalledWith(SCENE);
 
     const fresh = onSceneScanned.mock.calls[0][0];

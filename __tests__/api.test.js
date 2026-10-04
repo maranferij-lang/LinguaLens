@@ -93,9 +93,10 @@ test('network failure is OFFLINE, an aborted request is TIMEOUT', async () => {
 test('requests carry the device token and the local day', async () => {
   respond(200, { words: [] });
   setSessionToken('tok');
-  await apiWordOfDay(7, 'en', 'uk');
+  await apiWordOfDay({ days: 14, lang: 'en', native: 'uk' });
   const [url, init] = global.fetch.mock.calls[0];
-  expect(url).toContain(`today=${localDayKey()}`);
+  expect(JSON.parse(init.body).today).toBe(localDayKey());
+  expect(new URL(url).pathname).toBe('/word-of-day');
   expect(init.headers.authorization).toBe('Bearer tok');
   expect(init.headers['x-local-date']).toBe(localDayKey());
 });

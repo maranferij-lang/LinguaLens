@@ -8,6 +8,7 @@ import {
   PanResponder,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -31,7 +32,7 @@ import { useSafeAreaInsets } from './SafeArea';
 import { UNDER_TAB } from './Chrome';
 import { FadeIn, GradBtn, Press, SecBtn } from './ui';
 import { EASE, SPRING, layoutNext, useReducedMotion } from './motion';
-import { F, R, useTheme } from './theme';
+import { CAPS, F, R, useTheme } from './theme';
 
 // Пресети зуму. Точної кратності тут не буде: iOS рахує зум як
 // maxZoom^value, а maxZoom залежить від моделі телефону. Тому показуємо лише
@@ -69,6 +70,9 @@ export default function ScannerScreen({
   scanMode = 'object',
   onScanModeChange,
   scansLeft,
+  // рівень людини 1–10 з профілю (undefined — профілю немає): від нього
+  // сервер робить приклад простішим чи багатшим і додає «Ще вирази»
+  level,
   t,
 }) {
   const { C } = useTheme();
@@ -318,11 +322,11 @@ export default function ScannerScreen({
   // тоді той самий кадр іде ще раз, і людині не треба знімати вдруге.
   async function recognize(fn, base64) {
     try {
-      return await fn(base64, targetLang, nativeLang);
+      return await fn(base64, targetLang, nativeLang, level);
     } catch (e) {
       if (e.message !== 'SCAN_LIMIT' || !onLimitReached || !(await onLimitReached(e.data))) throw e;
     }
-    return fn(base64, targetLang, nativeLang);
+    return fn(base64, targetLang, nativeLang, level);
   }
 
   // Камера стояла на паузі, поки була відкрита сцена, і запускається не
@@ -340,9 +344,10 @@ export default function ScannerScreen({
   }
 
   // Слово з результату скану в тому вигляді, в якому його зберігає словник.
-  // usage — службове поле відповіді сервера, у словник воно не йде.
+  // usage — службове поле відповіді сервера, extras — підказка до цього
+  // скану: у словник вони не йдуть.
   function resultWord() {
-    const { usage, ...word } = result;
+    const { usage, extras, ...word } = result;
     return { ...word, lang: targetLang, nativeLang };
   }
 
@@ -525,57 +530,85 @@ export default function ScannerScreen({
       <Modal visible={!!result} transparent animationType="slide" onRequestClose={backFromResult}>
         {/* Тло — лише для пальця; VoiceOver закриває аркуш кнопкою або жестом виходу */}
         <Pressable style={s.modalBackdrop} onPress={closeResult} accessible={false} />
-        <View style={s.sheet} onAccessibilityEscape={backFromResult}>
+        {/* Від 7/10 під прикладом ще кілька виразів — і на маленькому
+            iPhone аркуш може не влізти. Тоді він гортається, а не обрізається. */}
+        <View style={[s.sheet, { maxHeight: win.height - insets.top - 8 }]} onAccessibilityEscape={backFromResult}>
           <View style={s.sheetHandle} />
-          {result ? (
-            <>
-              {result.photo ? (
-                <View style={{ alignItems: 'center', marginBottom: 14 }}>
-                  <StickerLarge uri={result.photo} shape={result.shape} outline={result.outline} box={result.box} size={150} pop />
-                </View>
-              ) : null}
-              <FadeIn dy={14}>
-                <View style={s.wordRow}>
-                  <Text style={s.word}>{result.word}</Text>
-                  <Press style={s.speakBtn} onPress={() => speak(result.word, targetLang)} accessibilityLabel={t('listen')}>
-                    <IcSpeaker size={20} color={C.accent} />
-                  </Press>
-                </View>
-                {result.ipa ? <Text style={s.ipa}>{result.ipa}</Text> : null}
-                <Text style={s.translation}>{result.translation}</Text>
-              </FadeIn>
-
-              {result.example ? (
-                <FadeIn delay={45}>
-                  <Press style={s.exampleBox} onPress={() => speak(result.example, targetLang)}>
-                    <View style={s.exampleSpeaker}>
-                      <IcSpeaker size={15} color={C.dim} />
-                    </View>
-                    <Text style={s.example}>“{result.example}”</Text>
-                    <Text style={s.exampleTr}>{result.exampleTranslation}</Text>
-                  </Press>
-                </FadeIn>
-              ) : null}
-
-              <FadeIn delay={90} style={s.sheetBtns}>
-                <View style={s.btnRow}>
-                  <View style={{ flex: 1 }}>
-                    {alreadySaved || justSaved ? (
-                      <View style={s.savedBadge}>
-                        <Text style={s.savedBadgeText}>{t('saved')}</Text>
-                      </View>
-                    ) : (
-                      <GradBtn title={t('save')} onPress={save} />
-                    )}
+          <ScrollView style={s.sheetScroll} bounces={false} showsVerticalScrollIndicator={false}>
+            {result ? (
+              <>
+                {result.photo ? (
+                  <View style={{ alignItems: 'center', marginBottom: 14 }}>
+                    <StickerLarge uri={result.photo} shape={result.shape} outline={result.outline} box={result.box} size={150} pop />
                   </View>
-                  <Press style={s.shareBtn} onPress={share} accessibilityLabel={t('share')}>
-                    <IcShare size={22} color={C.accent} />
-                  </Press>
-                </View>
-                <SecBtn title={t('scanAgain')} onPress={closeResult} />
-              </FadeIn>
-            </>
-          ) : null}
+                ) : null}
+                <FadeIn dy={14}>
+                  <View style={s.wordRow}>
+                    <Text style={s.word}>{result.word}</Text>
+                    <Press style={s.speakBtn} onPress={() => speak(result.word, targetLang)} accessibilityLabel={t('listen')}>
+                      <IcSpeaker size={20} color={C.accent} />
+                    </Press>
+                  </View>
+                  {result.ipa ? <Text style={s.ipa}>{result.ipa}</Text> : null}
+                  <Text style={s.translation}>{result.translation}</Text>
+                </FadeIn>
+
+                {result.example ? (
+                  <FadeIn delay={45}>
+                    <Press style={s.exampleBox} onPress={() => speak(result.example, targetLang)}>
+                      <View style={s.exampleSpeaker}>
+                        <IcSpeaker size={15} color={C.dim} />
+                      </View>
+                      <Text style={s.example}>“{result.example}”</Text>
+                      <Text style={s.exampleTr}>{result.exampleTranslation}</Text>
+                    </Press>
+                  </FadeIn>
+                ) : null}
+
+                {/* «Ще вирази»: колокації, ідіоми й фразові дієслова зі словом —
+                    для тих, кому сам іменник уже нічого не дає. Тап — озвучити. */}
+                {result.extras?.length ? (
+                  <FadeIn delay={70} style={s.extras}>
+                    <Text style={s.extrasTitle}>{t('moreExpr')}</Text>
+                    {result.extras.map((x, i) => (
+                      <Press
+                        key={x.phrase}
+                        style={[s.extraRow, i > 0 && s.extraLine]}
+                        onPress={() => speak(x.phrase, targetLang)}
+                        scaleTo={0.98}
+                        accessibilityLabel={x.translation ? `${x.phrase}, ${x.translation}` : x.phrase}
+                        accessibilityHint={t('listen')}
+                      >
+                        <View style={{ flex: 1 }}>
+                          <Text style={s.extraPhrase}>{x.phrase}</Text>
+                          {x.translation ? <Text style={s.extraTr}>{x.translation}</Text> : null}
+                        </View>
+                        <IcSpeaker size={15} color={C.dim} />
+                      </Press>
+                    ))}
+                  </FadeIn>
+                ) : null}
+
+                <FadeIn delay={90} style={s.sheetBtns}>
+                  <View style={s.btnRow}>
+                    <View style={{ flex: 1 }}>
+                      {alreadySaved || justSaved ? (
+                        <View style={s.savedBadge}>
+                          <Text style={s.savedBadgeText}>{t('saved')}</Text>
+                        </View>
+                      ) : (
+                        <GradBtn title={t('save')} onPress={save} />
+                      )}
+                    </View>
+                    <Press style={s.shareBtn} onPress={share} accessibilityLabel={t('share')}>
+                      <IcShare size={22} color={C.accent} />
+                    </Press>
+                  </View>
+                  <SecBtn title={t('scanAgain')} onPress={closeResult} />
+                </FadeIn>
+              </>
+            ) : null}
+          </ScrollView>
         </View>
         {/* Картка «поділитись» живе всередині цього ж Modal: iOS не покаже
             другий нативний Modal поверх уже відкритого. */}
@@ -886,6 +919,15 @@ const makeStyles = (C) =>
     exampleSpeaker: { position: 'absolute', top: 10, right: 10 },
     example: { color: C.text, fontSize: 15, lineHeight: 22, paddingRight: 20, fontFamily: F.reg },
     exampleTr: { color: C.dim, fontSize: 13, marginTop: 6, lineHeight: 19, fontFamily: F.reg },
+    // не тягнеться понад вміст: аркуш лишається внизу, а гортається лише
+    // тоді, коли впирається в maxHeight
+    sheetScroll: { flexGrow: 0, flexShrink: 1 },
+    extras: { marginTop: 14, backgroundColor: C.card2, borderRadius: R.md, paddingHorizontal: 14, paddingTop: 12, paddingBottom: 4 },
+    extrasTitle: { color: C.faint, ...CAPS, marginBottom: 4 },
+    extraRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 9 },
+    extraLine: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.sep },
+    extraPhrase: { color: C.text, fontSize: 15, lineHeight: 20, fontFamily: F.bold },
+    extraTr: { color: C.dim, fontSize: 13, lineHeight: 18, marginTop: 1, fontFamily: F.reg },
     sheetBtns: { marginTop: 22, gap: 10 },
     btnRow: { flexDirection: 'row', gap: 10, alignItems: 'stretch' },
     shareBtn: {

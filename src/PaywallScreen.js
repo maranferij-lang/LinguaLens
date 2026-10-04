@@ -10,6 +10,11 @@
 //     передвибраних дорогих варіантів — це нечесно і повертається відписками.
 //   • Закрити можна завжди, хрестик великий і на своєму місці. Пейвол, з
 //     якого важко вийти, псує оцінку в App Store сильніше, ніж дає виторгу.
+//   • 'intro' — мʼякий пейвол один раз після першого скану: замість таблиці
+//     таймлайн пробного періоду (сьогодні — доступ, день 5 — нагадування,
+//     день 7 — списання) і окрема кнопка «Продовжити безкоштовно». Так
+//     людина знає, що й коли станеться, ще до натиску (App Review 3.1.2).
+//     Без пробного періоду таймлайну немає і «безкоштовно» не обіцяємо.
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
@@ -25,11 +30,14 @@ import { CAPS, F, R, type, useTheme } from './theme';
 
 // freeScans — денна стеля з сервера (див. freeScansPerDay у subscription.js).
 // unavailable — збірка без магазину: тарифів немає, купити не можна.
+// canRemind — чи зможемо нагадати про кінець пробного періоду (сповіщення
+// дозволені або ще можна спитати): лише тоді таймлайн це обіцяє.
 export default function PaywallScreen({
   reason,
   plans,
   freeScans = FREE.scansPerDay,
   unavailable,
+  canRemind = true,
   onClose,
   onPurchase,
   onRestore,
@@ -48,18 +56,24 @@ export default function PaywallScreen({
     if (onOpen) onOpen();
   }, []);
 
+  // Ціни приходять з App Store (RevenueCat) у валюті людини. Поки вони
+  // вантажаться, список порожній — показуємо індикатор, а не вигадані ціни.
+  const list = plans || [];
+  const plan = list.find((p) => p.id === picked) || list.find((p) => p.best) || list[0];
+  const intro = reason === 'intro';
+  // «Спробуй безкоштовно» — лише якщо пробний період справді є хоч на одному
+  // тарифі (Apple дає його не всім: хто вже пробував, платить одразу).
+  const anyTrial = list.some((p) => p.trialDays > 0);
+
   // Заголовок під причину: кожна стіна має свій аргумент.
   const HEAD = {
     scans: { title: t('pwScansTitle'), text: t('pwScansText', { n: freeScans }) },
     words: { title: t('pwWordsTitle'), text: t('pwWordsText', { n: FREE.maxWords }) },
     langs: { title: t('pwLangsTitle'), text: t('pwLangsText') },
+    intro: anyTrial ? { title: t('pwIntroTitle'), text: t('pwIntroText') } : null,
   };
   const head = HEAD[reason] || { title: t('pwTitle'), text: t('pwText') };
-
-  // Ціни приходять з App Store (RevenueCat) у валюті людини. Поки вони
-  // вантажаться, список порожній — показуємо індикатор, а не вигадані ціни.
-  const list = plans || [];
-  const plan = list.find((p) => p.id === picked) || list.find((p) => p.best) || list[0];
+  const timeline = intro && plan?.trialDays > 0;
 
   // Пряма дата, коли спишуться гроші. «Через 7 днів» — розмито;
   // конкретне число прибирає відчуття, що щось приховали.
@@ -112,43 +126,61 @@ export default function PaywallScreen({
           <Text style={s.text}>{head.text}</Text>
         </FadeIn>
 
+        {/* Після першого скану — таймлайн пробного періоду замість таблиці:
+            людина щойно побачила, що вміє застосунок, і тепер питання не
+            «що дає Pro», а «що буде, якщо спробую». */}
+        {timeline ? (
+          <FadeIn delay={45}>
+            <TrialTimeline
+              days={plan.trialDays}
+              price={plan.price}
+              date={(n) => chargeDate(n)}
+              canRemind={canRemind}
+              t={t}
+              s={s}
+            />
+          </FadeIn>
+        ) : null}
+
         {/* Порівняння. Це головне на екрані: людина має побачити не список
             благ, а свою нинішню ситуацію і те, як вона зміниться. Без лівої
             колонки «зараз» права колонка нічого не означає. */}
-        <FadeIn delay={45} style={s.table}>
-          <View style={s.tableHead}>
-            <View style={{ flex: 1 }} />
-            <Text style={s.colFree}>{t('colFree')}</Text>
-            <View style={s.colProWrap}>
-              <Text style={s.colPro}>PRO</Text>
-            </View>
-          </View>
-
-          {COMPARISON.map((row, i) => {
-            const free = row.id === 'scans' ? String(freeScans) : row.free;
-            return (
-              <View key={row.id} style={[s.tableRow, i > 0 && s.tableRowLine]}>
-                <Text style={s.rowLabel}>{t('cmp_' + row.id)}</Text>
-
-                <View style={s.cellFree}>
-                  {free === true ? (
-                    <IcCheck size={16} color={C.faint} />
-                  ) : (
-                    <Text style={s.cellFreeText}>{free}</Text>
-                  )}
-                </View>
-
-                <View style={s.cellPro}>
-                  {row.pro === true ? (
-                    <IcCheck size={16} color={C.accent} />
-                  ) : (
-                    <Text style={s.cellProText}>{row.pro}</Text>
-                  )}
-                </View>
+        {timeline ? null : (
+          <FadeIn delay={45} style={s.table}>
+            <View style={s.tableHead}>
+              <View style={{ flex: 1 }} />
+              <Text style={s.colFree}>{t('colFree')}</Text>
+              <View style={s.colProWrap}>
+                <Text style={s.colPro}>PRO</Text>
               </View>
-            );
-          })}
-        </FadeIn>
+            </View>
+
+            {COMPARISON.map((row, i) => {
+              const free = row.id === 'scans' ? String(freeScans) : row.free;
+              return (
+                <View key={row.id} style={[s.tableRow, i > 0 && s.tableRowLine]}>
+                  <Text style={s.rowLabel}>{t('cmp_' + row.id)}</Text>
+
+                  <View style={s.cellFree}>
+                    {free === true ? (
+                      <IcCheck size={16} color={C.faint} />
+                    ) : (
+                      <Text style={s.cellFreeText}>{free}</Text>
+                    )}
+                  </View>
+
+                  <View style={s.cellPro}>
+                    {row.pro === true ? (
+                      <IcCheck size={16} color={C.accent} />
+                    ) : (
+                      <Text style={s.cellProText}>{row.pro}</Text>
+                    )}
+                  </View>
+                </View>
+              );
+            })}
+          </FadeIn>
+        )}
 
         {/* Те, чого немає в таблиці. Лише правда: наліпки й колекція
             безкоштовні для всіх, тож тут їх немає (App Review 3.1.2). */}
@@ -223,6 +255,13 @@ export default function PaywallScreen({
             ? t(plan.legalKey, { p: plan.price, d: chargeDate(plan.trialDays) })
             : t('renewLegal')}
         </Text>
+        {/* Вихід без покупки — повноцінна кнопка з тим, що лишається
+            безкоштовним, а не сірий дрібний текст, який треба шукати. */}
+        {intro ? (
+          <Pressable style={s.freeBtn} onPress={onClose} accessibilityRole="button">
+            <Text style={s.freeBtnText}>{t('pwContinueFree', { n: freeScans })}</Text>
+          </Pressable>
+        ) : null}
         <View style={s.legalRow}>
           <Pressable hitSlop={8} onPress={restore}>
             <Text style={s.legalLink}>{t('restore')}</Text>
@@ -241,6 +280,39 @@ export default function PaywallScreen({
           ) : null}
         </View>
       </View>
+    </View>
+  );
+}
+
+// Таймлайн пробного періоду: сьогодні → нагадування за 2 дні до кінця →
+// списання. Дні рахуються від сьогодні, дати — конкретні числа: «8 жовтня»
+// чесніше за «через тиждень». Нагадування — лише якщо зможемо його
+// надіслати (див. canRemind) і якщо до нього лишається хоч день.
+function TrialTimeline({ days, price, date, canRemind, t, s }) {
+  const rows = [
+    { key: 'today', label: t('tlToday'), text: t('tlTodayText') },
+    ...(canRemind && days >= 3
+      ? [{ key: 'remind', label: t('tlDay', { n: days - 2 }), date: date(days - 2), text: t('tlRemindText') }]
+      : []),
+    { key: 'charge', label: t('tlDay', { n: days }), date: date(days), text: t('tlChargeText', { p: price }) },
+  ];
+  return (
+    <View style={s.timeline}>
+      {rows.map((r, i) => (
+        <View key={r.key} style={s.tlRow} accessible>
+          <View style={s.tlRail}>
+            <View style={[s.tlDot, i === 0 && s.tlDotNow]} />
+            {i < rows.length - 1 ? <View style={s.tlLine} /> : null}
+          </View>
+          <View style={s.tlBody}>
+            <Text style={s.tlLabel}>
+              {r.label}
+              {r.date ? <Text style={s.tlDate}>{'  ·  ' + r.date}</Text> : null}
+            </Text>
+            <Text style={s.tlText}>{r.text}</Text>
+          </View>
+        </View>
+      ))}
     </View>
   );
 }
@@ -374,4 +446,33 @@ const makeStyles = (C) =>
     legalRow: { flexDirection: 'row', justifyContent: 'center', gap: 8, marginTop: 6 },
     legalLink: { color: C.dim, ...type(12, F.semi, { noLead: true }) },
     legalDot: { color: C.faint },
+    freeBtn: {
+      marginTop: 10,
+      minHeight: 46,
+      borderRadius: R.lg,
+      backgroundColor: C.card2,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+    },
+    freeBtnText: { color: C.text, ...type(15, F.bold), textAlign: 'center' },
+
+    timeline: {
+      marginTop: 24,
+      backgroundColor: C.card,
+      borderRadius: R.lg,
+      paddingHorizontal: 18,
+      paddingTop: 18,
+      paddingBottom: 6,
+    },
+    tlRow: { flexDirection: 'row', gap: 14 },
+    tlRail: { width: 16, alignItems: 'center' },
+    tlDot: { width: 14, height: 14, borderRadius: 7, borderWidth: 3, borderColor: C.accent, backgroundColor: C.card, marginTop: 3 },
+    tlDotNow: { backgroundColor: C.accent },
+    tlLine: { flex: 1, width: 2, borderRadius: 1, backgroundColor: C.accentSoft, marginVertical: 4 },
+    tlBody: { flex: 1, paddingBottom: 16 },
+    tlLabel: { color: C.text, ...type(16, F.extra) },
+    tlDate: { color: C.faint, ...type(14, F.semi) },
+    tlText: { color: C.dim, ...type(14, F.reg), marginTop: 2 },
   });

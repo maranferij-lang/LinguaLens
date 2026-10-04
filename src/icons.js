@@ -221,3 +221,60 @@ export function IcCloud({ size = 24, color = DIM, done = false }) {
     </Svg>
   );
 }
+
+// ─── Цілі навчання (онбординг, src/ProfileSteps.js) ────────────────────────
+
+// Робота: портфель із ручкою й лінією замка.
+export function IcBriefcase({ size = 24, color = DIM }) {
+  return (
+    <Svg {...box(size)}>
+      <Rect x="3" y="7" width="18" height="13" rx="3" {...S(color)} />
+      <Path d="M8.5 7V5.5A1.5 1.5 0 0 1 10 4h4a1.5 1.5 0 0 1 1.5 1.5V7M3 12.5h18" {...S(color)} />
+    </Svg>
+  );
+}
+
+// Навчання: академічна шапка — ромб і стрічка-китиця.
+export function IcCap({ size = 24, color = DIM }) {
+  return (
+    <Svg {...box(size)}>
+      <Path d="M2.5 9 12 4.5 21.5 9 12 13.5z" {...S(color)} />
+      <Path d="M6.5 11v4.5c0 1.5 2.5 3 5.5 3s5.5-1.5 5.5-3V11M21.5 9v5" {...S(color)} />
+    </Svg>
+  );
+}
+
+// Подорожі: літак збоку, ніс праворуч угору.
+export function IcPlane({ size = 24, color = DIM }) {
+  return (
+    <Svg {...box(size)}>
+      <Path
+        d="M10.2 13.8 4 12.2l-1-2 6.6.5 4.9-5.4a1.9 1.9 0 0 1 2.7 2.7l-5.4 4.9.5 6.6-2 -1z"
+        {...S(color)}
+      />
+    </Svg>
+  );
+}
+
+// Переїзд: дім, у якого відчинені двері.
+export function IcHome({ size = 24, color = DIM }) {
+  return (
+    <Svg {...box(size)}>
+      <Path d="M3.5 10.5 12 3.5l8.5 7" {...S(color)} />
+      <Path d="M5.5 9v9.5a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V9" {...S(color)} />
+      <Path d="M10 20.5v-5a2 2 0 0 1 4 0v5" {...S(color)} />
+    </Svg>
+  );
+}
+
+// Для себе: серце — без «прогресу» й «цілей», просто для задоволення.
+export function IcHeart({ size = 24, color = DIM }) {
+  return (
+    <Svg {...box(size)}>
+      <Path
+        d="M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.2a4.3 4.3 0 0 1 7.5 2.6C19.5 15.4 12 20 12 20z"
+        {...S(color)}
+      />
+    </Svg>
+  );
+}

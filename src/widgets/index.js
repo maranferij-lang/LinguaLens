@@ -12,6 +12,7 @@
 import { Linking, Platform } from 'react-native';
 import { localDayKey } from '../storage';
 import { nameFor } from '../speech';
+import { topicName } from '../profile';
 import { clipLines, dayFromKey, ipaLabel, quote } from '../share/layout';
 
 // Адреса, яку відкриває тап по віджету (див. widgetURL у WordOfDayWidget.js).
@@ -54,21 +55,26 @@ const text = (v) => (typeof v === 'string' ? v.trim() : '');
 
 // Props віджета — лише рядки: WidgetKit зберігає їх у UserDefaults, де
 // null чи undefined не мають місця. Набір ключів однаковий для обох станів.
-function wordProps(w, { title, caption, lang }) {
+// Тема (topic) — назва, а не ключ: розширення віджета не має перекладів.
+// У підписі вона стоїть замість «слово дня» («English · Фінанси»): що це
+// слово дня, видно й так, а тема каже, що воно підібране під людину.
+function wordProps(w, { t, title, caption, lang, langName }) {
   const word = text(w.word);
   const translation = text(w.translation);
   const example = text(w.example);
+  const topic = topicName(t, w.topic);
   return {
     state: 'word',
     title,
-    caption,
+    caption: topic ? `${langName} · ${topic}` : caption,
+    topic,
     word,
     ipa: ipaLabel(w.ipa),
     translation,
     example: example ? quote(clipLines(example, EXAMPLE_LINES, EXAMPLE_SIZE, EXAMPLE_WIDTH), lang) : '',
     message: '',
     line: translation ? `${word} — ${translation}` : word,
-    a11y: [title, word, translation].filter(Boolean).join(', '),
+    a11y: [title, topic, word, translation].filter(Boolean).join(', '),
   };
 }
 
@@ -78,6 +84,7 @@ function emptyProps(t, title) {
     state: 'empty',
     title,
     caption: '',
+    topic: '',
     word: '',
     ipa: '',
     translation: '',
@@ -105,7 +112,8 @@ export function buildWordTimeline(cache, { t, targetLang, nativeLang, now = new 
     .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
     .filter((w) => !seen.has(w.date) && seen.add(w.date));
 
-  const labels = { title, caption: t('widgetCaption', { lang: nameFor(targetLang) }), lang: targetLang };
+  const langName = nameFor(targetLang);
+  const labels = { t, title, caption: t('widgetCaption', { lang: langName }), lang: targetLang, langName };
   const entries = [];
   if (!days.length || days[0].date !== today) entries.push({ date: now, props: empty });
   days.forEach((w, i) => {
@@ -127,6 +135,12 @@ export function updateWordWidget(cache, opts) {
   } catch (_) {
     return false;
   }
+}
+
+// Чи є на цьому телефоні віджет (iOS-збірка з нативною частиною). Лише тоді
+// має сенс підказка «додай слово дня на головний екран».
+export function widgetsAvailable() {
+  return !!getWidget();
 }
 
 export function isWidgetLink(url) {
