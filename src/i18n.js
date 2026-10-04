@@ -16,8 +16,21 @@
 // • Жодних емодзі й галочок у тексті: стримана палітра, іконки малює код.
 // • Не пишемо КАПСОМ підписи, які стиль і так переводить у верхній регістр
 //   (CAPS, sectionLabel): VoiceOver читає капс по літерах.
+//
+// v1.3: нові рядки живуть не тут, а у фрагментах src/strings/*.js — по
+// одному на потік (shared — W0, core — W1, widgets — W2, onb — W3,
+// share — W4, pro — W5), щоб паралельні гілки не правили один файл.
+// STRINGS нижче — це база, злита з фрагментами. Фрагмент не повторює ключ
+// іншого фрагмента, а базовий ключ перекриває лише той, що названий у його
+// OVERRIDES (__tests__/i18nFragments.test.js).
+import * as shared from './strings/shared';
+import * as core from './strings/core';
+import * as widgets from './strings/widgets';
+import * as onb from './strings/onb';
+import * as share from './strings/share';
+import * as pro from './strings/pro';
 
-export const STRINGS = {
+const BASE = {
   en: {
     // ── вкладки ──
     tabScan: 'Scan', tabDict: 'Words', tabLearn: 'Learn', tabStats: 'Progress', tabProfile: 'Profile', tabSettings: 'Settings',
@@ -2001,6 +2014,23 @@ export const STRINGS = {
     pwUnclearNote: 'Algo salió mal. Si se te cobró, toca «Restaurar compras».',
   },
 };
+
+// Фрагменти в порядку злиття: { default: { en, uk, de, es }, OVERRIDES? }.
+export const FRAGMENTS = { shared, core, widgets, onb, share, pro };
+// База без фрагментів — для тесту перекриттів.
+export const BASE_STRINGS = BASE;
+
+const merged = (l) => ({
+  ...BASE[l],
+  ...shared.default[l],
+  ...core.default[l],
+  ...widgets.default[l],
+  ...onb.default[l],
+  ...share.default[l],
+  ...pro.default[l],
+});
+
+export const STRINGS = { en: merged('en'), uk: merged('uk'), de: merged('de'), es: merged('es') };
 
 // Індекс форми множини для числа n.
 // uk: 0 — «1 слово», 1 — «2 слова», 2 — «5 слів»; en/de/es: 0 — one, 1 — other.
