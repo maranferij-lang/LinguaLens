@@ -352,10 +352,14 @@ export default function PaywallScreen({
           ) : compact || short ? null : (
             <MascotBob pose="celebrate" size={140} />
           )}
-          <View style={[s.proBadge, themes && short && s.proBadgeTight]}>
-            <PCrown size={17} color={C.onAccent} />
-            <Text style={s.proBadgeText}>PRO</Text>
-          </View>
+          {/* на SE під прев'ю бейдж зайвий: заголовок і так каже «у Pro», а
+              тарифи мають лишитись над підвалом */}
+          {themes && short ? null : (
+            <View style={[s.proBadge, themes && s.proBadgeAfterDots]}>
+              <PCrown size={17} color={C.onAccent} />
+              <Text style={s.proBadgeText}>PRO</Text>
+            </View>
+          )}
           <Stable index={headAt}>
             {heads.map((h, i) => (
               <View key={i} style={{ alignItems: 'center' }}>
@@ -626,7 +630,7 @@ export function ThemePreview({ palette, dark, word, short = false, t }) {
   const w = word?.word ? word : { word: t('themeSampleWord'), ipa: t('themeSampleIpa'), translation: t('themeSampleTr') };
   const name = t('palette_' + palette);
   const save = (
-    <View style={[s.btn, s.saveBtn, short && s.saveShort]}>
+    <View style={[s.btn, s.saveBtn, short ? s.saveShort : s.grow]}>
       <Text style={[s.btnText, { color: P.onAccent }]} numberOfLines={1} allowFontScaling={false}>
         {t('saveWord')}
       </Text>
@@ -673,7 +677,7 @@ export function ThemePreview({ palette, dark, word, short = false, t }) {
             <View style={[s.btn, s.listen]}>
               <IcSpeaker size={14} color={P.accent} />
             </View>
-            <View style={[s.btn, s.know]}>
+            <View style={[s.btn, s.know, s.grow]}>
               <Text style={s.btnText} numberOfLines={1} allowFontScaling={false}>
                 {t('wodKnow')}
               </Text>
@@ -702,14 +706,14 @@ export function PaletteDots({ value, dark, onPick, short = false, t }) {
             key={key}
             testID={'palette-dot-' + key}
             onPress={() => onPick(key)}
-            hitSlop={5}
-            style={s.dotHit}
+            hitSlop={short ? 6 : 5}
+            style={[s.dotHit, short && s.dotHitShort]}
             accessibilityRole="radio"
             accessibilityState={{ checked: on }}
             accessibilityLabel={t('palette_' + key)}
           >
-            <View style={[s.dotRing, on && { borderColor: accent }]}>
-              <View style={[s.dot, { backgroundColor: accent }]} />
+            <View style={[s.dotRing, short && s.dotRingShort, on && { borderColor: accent }]}>
+              <View style={[s.dot, short && s.dotShort, { backgroundColor: accent }]} />
             </View>
           </Pressable>
         );
@@ -752,7 +756,7 @@ const makePreviewStyles = (P) =>
       borderColor: P.sep,
       padding: 12,
     },
-    stageShort: { padding: 10 },
+    stageShort: { padding: 8, borderRadius: R.lg },
     card: { backgroundColor: P.card, borderRadius: 20, padding: 12 },
     cardShort: { paddingVertical: 10 },
     head: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
@@ -775,13 +779,14 @@ const makePreviewStyles = (P) =>
     actions: { flexDirection: 'row', gap: 7, marginTop: 10 },
     btn: { height: 30, borderRadius: 10, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
     listen: { width: 38, backgroundColor: P.accentSoft },
-    know: { flex: 1, backgroundColor: P.card2 },
-    saveBtn: { flex: 1, backgroundColor: P.accent },
-    saveShort: { flex: 0, paddingHorizontal: 14 },
+    grow: { flex: 1 },
+    know: { backgroundColor: P.card2 },
+    saveBtn: { backgroundColor: P.accent },
+    saveShort: { paddingHorizontal: 14 },
     btnText: { color: P.text, ...type(12, F.bold, { noLead: true }) },
 
     dots: { flexDirection: 'row', justifyContent: 'center', gap: 10, marginTop: 12 },
-    dotsShort: { marginTop: 8, gap: 8 },
+    dotsShort: { marginTop: 4, gap: 8 },
     dotHit: { width: DOT + 12, height: DOT + 12, alignItems: 'center', justifyContent: 'center' },
     // Кільце обраного: колір акценту, проміжок у колір тла
     dotRing: {
@@ -794,6 +799,10 @@ const makePreviewStyles = (P) =>
       justifyContent: 'center',
     },
     dot: { width: DOT, height: DOT, borderRadius: DOT / 2 },
+    // SE: на 4 pt менші — з hitSlop ціль однаково ≥ 44
+    dotHitShort: { width: DOT + 6, height: DOT + 6 },
+    dotRingShort: { width: DOT + 4, height: DOT + 4, borderRadius: (DOT + 4) / 2, borderWidth: 2 },
+    dotShort: { width: DOT - 4, height: DOT - 4, borderRadius: (DOT - 4) / 2 },
   });
 
 // Ширина колонки «безкоштовно»: «БЕЗКОШТОВНО» капсом має влізти в рядок
@@ -836,8 +845,8 @@ const makeStyles = (C) =>
       marginTop: 4,
     },
     proBadgeText: { color: C.onAccent, ...CAPS, letterSpacing: 1.6 },
-    // пейвол «themes» на SE: під прев'ю бейдж ближче, щоб тарифи влізли
-    proBadgeTight: { marginTop: 10 },
+    // під кружечками палітр — трохи повітря, щоб бейдж не злипався з ними
+    proBadgeAfterDots: { marginTop: 12 },
 
     title: { color: C.text, ...type(28, F.extra), textAlign: 'center', marginTop: 14 },
     titleShort: { ...type(26, F.extra), marginTop: 10 },
