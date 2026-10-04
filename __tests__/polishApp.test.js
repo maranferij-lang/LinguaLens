@@ -1,6 +1,8 @@
 // Полірування застосунку: те, що людина бачить на кожній вкладці.
 //   • аркуш результату скану: «Зберегти» завжди видно, слово не губиться
-//     випадково (тло, «назад», «Сканувати ще» після останнього скану);
+//     випадково (тло, «назад», «Сканувати ще» після останнього скану),
+//     а збережене після останнього скану закриває «Готово»;
+//   • мова в онбордингу: після слова «Спробуй зараз» безкоштовно — лише підпис;
 //   • камера після безкоштовного скану чесна: «використано» і чип Pro;
 //   • без сканів застосунок відкривається на навчанні;
 //   • слово дня, порожнє навчання, картки, квіз, словник, профіль, параметри;
@@ -204,6 +206,43 @@ describe('scan result sheet', () => {
     await act(async () => tree.unmount());
   });
 
+  test('the free scan just used: once the word is saved, “Done” closes the sheet', async () => {
+    // На SE з «Ще виразами» аркуш займає весь екран, і тло — лише смужка під
+    // статус-баром: закрити його має кнопка в нерухомому низу.
+    const onSaveWord = jest.fn(() => true);
+    const tree = await render(scanner({ scansLeft: 0, onSaveWord }));
+    await press(() => shutter(tree).props.onPress());
+    expect(byTitle(resultSheet(tree), t('finishBtn'))).toBeUndefined();
+    await press(() => byTitle(resultSheet(tree), t('save')).props.onPress());
+    const sheet = resultSheet(tree);
+    expect(sheet.props.visible).toBe(true);
+    expect(byTitle(sheet, t('scanAgain'))).toBeUndefined();
+    expect(byTitle(sheet.findByType(ScrollView), t('finishBtn'))).toBeUndefined();
+    await press(() => byTitle(sheet, t('finishBtn')).props.onPress());
+    expect(resultSheet(tree).props.visible).toBe(false);
+    expect(onSaveWord).toHaveBeenCalledTimes(1);
+    await act(async () => tree.unmount());
+  });
+
+  test('the free scan just used on a word already in the dictionary: “Done” from the start', async () => {
+    const saved = [{ id: 'a', word: 'La taza', translation: 'mug', lang: 'es' }];
+    const tree = await render(scanner({ scansLeft: 0, savedWords: saved }));
+    await press(() => shutter(tree).props.onPress());
+    expect(byTitle(resultSheet(tree), t('save'))).toBeUndefined();
+    await press(() => byTitle(resultSheet(tree), t('finishBtn')).props.onPress());
+    expect(resultSheet(tree).props.visible).toBe(false);
+    await act(async () => tree.unmount());
+  });
+
+  test('Pro after saving: still “Scan again”, no extra “Done”', async () => {
+    const tree = await render(scanner({ scansLeft: Infinity }));
+    await press(() => shutter(tree).props.onPress());
+    await press(() => byTitle(resultSheet(tree), t('save')).props.onPress());
+    expect(byTitle(resultSheet(tree), t('scanAgain'))).toBeTruthy();
+    expect(byTitle(resultSheet(tree), t('finishBtn'))).toBeUndefined();
+    await act(async () => tree.unmount());
+  });
+
   test('onboarding first scan: only Save and Share, and back still ends in the saved word', async () => {
     const { FIRST_SAVED_MS, FIRST_SHEET_MS } = require('../src/ScannerScreen');
     const onFirstSaved = jest.fn();
@@ -218,6 +257,8 @@ describe('scan result sheet', () => {
     expect(resultSheet(tree).props.visible).toBe(true);
     await press(() => resultSheet(tree).props.onRequestClose());
     expect(onSaveWord).toHaveBeenCalledTimes(1);
+    // аркуш їде вниз сам — «Готово» тут не з'являється
+    expect(byTitle(resultSheet(tree), t('finishBtn'))).toBeUndefined();
     await act(async () => {
       await new Promise((r) => setTimeout(r, FIRST_SAVED_MS + FIRST_SHEET_MS + 60));
     });
@@ -431,6 +472,31 @@ describe('onboarding gets the language setter', () => {
     await openTab(tree, 'settings');
     await press(() => one(tree, SettingsScreen).props.onReplayOnb());
     expect(one(tree, OnboardingScreen).props.onSetLang).toBeUndefined();
+    await act(async () => tree.unmount());
+  });
+
+  test('after the “Try it now” word a free plan keeps its language: the pill is a label, no paywall mid-onboarding', async () => {
+    const tree = await renderApp();
+    const onb = one(tree, OnboardingScreen);
+    expect(typeof onb.props.onSetLang).toBe('function');
+    // перший скан онбордингу зберігає слово мовою, яку вгадав телефон
+    const first = onb.props.renderScanner({ onSaved: jest.fn(), onClose: jest.fn(), level: 5 });
+    await press(() => first.props.onSaveWord({ ...RESULT, lang: onb.props.targetLang, nativeLang: 'en' }));
+    expect(await stored('ll_words_v1')).toHaveLength(1);
+    // людина вертається на крок рівня — іншу мову дав би лише пейвол, якого
+    // тут не видно, тож вибору мови немає зовсім, а не мовчазної відмови
+    expect(one(tree, OnboardingScreen).props.onSetLang).toBeUndefined();
+    expect(one(tree, PaywallScreen)).toBeNull();
+    await act(async () => tree.unmount());
+  });
+
+  test('Pro: the pill still changes the language with a word saved', async () => {
+    await AsyncStorage.setItem('ll_sub_v1', JSON.stringify({ planId: 'year', until: Date.now() + 30 * 86400000 }));
+    await AsyncStorage.setItem('ll_words_v1', JSON.stringify([{ id: 'a', word: 'la taza', translation: 'mug', lang: 'es', nativeLang: 'en' }]));
+    const tree = await renderApp();
+    await press(() => one(tree, OnboardingScreen).props.onSetLang('de'));
+    expect((await stored('ll_settings_v1')).targetLang).toBe('de');
+    expect(one(tree, PaywallScreen)).toBeNull();
     await act(async () => tree.unmount());
   });
 });

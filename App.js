@@ -1307,8 +1307,12 @@ export default function App() {
             struggles={settings.struggles}
             targetLang={settings.targetLang}
             // мову навчання онбординг зберігає одразу: перший скан і план
-            // уже беруть її з налаштувань (під час повтору — не чіпаємо)
-            onSetLang={onbReplay.current ? undefined : setTargetLang}
+            // уже беруть її з налаштувань (під час повтору — не чіпаємо).
+            // Безкоштовна мова вже зайнята словом (скан «Спробуй зараз», до
+            // якого повернулись назад): іншу дав би лише пейвол, а посеред
+            // знайомства його не видно — вибір зник би мовчки. Тоді пігулка —
+            // просто підпис; змінити мову можна в Параметрах.
+            onSetLang={onbReplay.current || (!sub.pro && words.length > 0) ? undefined : setTargetLang}
             nativeLang={settings.nativeLang}
             wodHour={settings.wodHour}
             replay={onbReplay.current}
