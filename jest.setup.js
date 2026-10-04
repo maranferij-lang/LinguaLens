@@ -23,17 +23,135 @@ jest.mock('expo-apple-authentication', () => {
   };
 });
 
-// Віджет головного екрана (expo-widgets): нативний модуль є лише в iOS-збірці.
-// createWidget повертає об'єкт із тими самими методами, що й справжній.
-jest.mock('expo-widgets', () => ({
-  createWidget: jest.fn(() => ({
-    updateTimeline: jest.fn(),
-    updateSnapshot: jest.fn(),
-    reload: jest.fn(),
-    getTimeline: jest.fn(async () => []),
-  })),
-  addUserInteractionListener: jest.fn(() => ({ remove() {} })),
-  widgetsDirectory: null,
+// Віджети головного екрана (expo-widgets): нативний модуль є лише в
+// iOS-збірці. createWidget повертає об'єкт із тими самими методами, що й
+// справжній, і пам'ятає таймлайн: getTimeline віддає те, що записав
+// updateTimeline / updateSnapshot (дати — Date, як у справжнього).
+// Ім'я віджета мусить бути в app.json — інакше розширення його не знає, і
+// заглушка кидає помилку, як друкарську.
+// Помічники для тестів (поза справжнім API):
+//   __widgets[name]            — останній віджет із цим ім'ям;
+//   __timeline(name)           — його записи (або null);
+//   __interact(name, i, patch) — дотик у віджеті змінив props запису i, як
+//                                кнопка «Переклад» (onPress → нові props);
+//   __reset()                  — забути всі віджети.
+jest.mock('expo-widgets', () => {
+  const NAMES = require('./app.json')
+    .expo.plugins.find((p) => Array.isArray(p) && p[0] === 'expo-widgets')[1]
+    .widgets.map((w) => w.name);
+  const widgets = {};
+  const copy = (list) => list.map((e) => ({ date: new Date(e.date), props: { ...e.props } }));
+  function createWidget(name) {
+    if (!NAMES.includes(name)) throw new Error(`expo-widgets (jest): widget "${name}" is not in app.json (${NAMES.join(', ')})`);
+    let entries = [];
+    const widget = {
+      updateTimeline: jest.fn((list) => {
+        entries = copy(list || []);
+      }),
+      updateSnapshot: jest.fn((props) => {
+        entries = [{ date: new Date(), props: { ...props } }];
+      }),
+      reload: jest.fn(),
+      getTimeline: jest.fn(async () => copy(entries)),
+      __entries: () => entries,
+    };
+    widgets[name] = widget;
+    return widget;
+  }
+  return {
+    createWidget: jest.fn(createWidget),
+    addUserInteractionListener: jest.fn(() => ({ remove() {} })),
+    widgetsDirectory: 'file:///group/ExpoWidgets/',
+    __widgets: widgets,
+    __timeline: (name) => (widgets[name] ? copy(widgets[name].__entries()) : null),
+    __interact(name, i, patch) {
+      const e = widgets[name]?.__entries()[i];
+      if (e) e.props = { ...e.props, ...patch };
+    },
+    __reset() {
+      for (const k of Object.keys(widgets)) delete widgets[k];
+    },
+  };
+});
+
+// ── v1.3: нові нативні пакети (план §5.16) ──
+
+// Які нативні модулі «є» в цій збірці: requireOptionalNativeModule з 'expo'
+// повертає лише те, що тест сам «встановив». Типово — нічого, як в Expo Go
+// чи в старій dev-збірці до перезбирання: нові кнопки там ховаються.
+//   nativeModules.set('ExpoClipboard')            — модуль є (порожній об'єкт)
+//   nativeModules.set('InstagramStories', nativeModules.instagramStories())
+//   nativeModules.reset()                          — знову нічого
+// Імена — з ios/*Module.swift: ExpoClipboard, ExpoMediaLibraryNext,
+// ExponentImagePicker, InstagramStories (наш модуль у modules/).
+// Модуль, що читає requireOptionalNativeModule при імпорті
+// (modules/instagram-stories), бачить мапу на момент require: «встановіть»
+// модуль до нього (jest.isolateModules або require після set).
+global.nativeModules = {
+  map: new Map(),
+  set(name, impl = {}) {
+    this.map.set(name, impl);
+    return impl;
+  },
+  delete(name) {
+    this.map.delete(name);
+  },
+  reset() {
+    this.map.clear();
+  },
+  get(name) {
+    return this.map.has(name) ? this.map.get(name) : null;
+  },
+  // InstagramStories з copyPng (наліпка PNG з альфою в буфер, план S20)
+  instagramStories: () => ({
+    isAvailable: jest.fn(async () => true),
+    share: jest.fn(async () => true),
+    copyPng: jest.fn(async () => true),
+  }),
+};
+jest.mock('expo', () => ({
+  ...jest.requireActual('expo'),
+  __esModule: true,
+  requireOptionalNativeModule: jest.fn((name) => global.nativeModules.get(name)),
+}));
+
+// Буфер обміну (expo-clipboard): пам'ятає останню картинку й рядок.
+jest.mock('expo-clipboard', () => {
+  const state = { image: null, text: '' };
+  return {
+    setImageAsync: jest.fn(async (base64) => {
+      state.image = base64;
+    }),
+    hasImageAsync: jest.fn(async () => !!state.image),
+    getImageAsync: jest.fn(async () => (state.image ? { data: 'data:image/png;base64,' + state.image, size: { width: 0, height: 0 } } : null)),
+    setStringAsync: jest.fn(async (text) => {
+      state.text = String(text);
+      return true;
+    }),
+    getStringAsync: jest.fn(async () => state.text),
+    hasStringAsync: jest.fn(async () => !!state.text),
+  };
+});
+
+// «Фото» (expo-media-library, «next» API SDK 57). Типово: дозволу ще не
+// питали, запит його дає, Asset.create кладе файл у бібліотеку. Тест
+// перевизначає через mockResolvedValueOnce (відмова, помилка).
+jest.mock('expo-media-library', () => {
+  const answer = (status) => ({ status, granted: status === 'granted', canAskAgain: status !== 'denied', expires: 'never', accessPrivileges: status === 'granted' ? 'all' : 'none' });
+  return {
+    PermissionStatus: { GRANTED: 'granted', DENIED: 'denied', UNDETERMINED: 'undetermined' },
+    getPermissionsAsync: jest.fn(async () => answer('undetermined')),
+    requestPermissionsAsync: jest.fn(async () => answer('granted')),
+    Asset: { create: jest.fn(async (filePath) => ({ id: 'mock-asset-1', uri: filePath })) },
+  };
+});
+
+// Вибір фото (expo-image-picker): типово людина закрила вікно, нічого не
+// обравши. Фото — через mockResolvedValueOnce({ canceled: false, assets: [...] }).
+jest.mock('expo-image-picker', () => ({
+  launchImageLibraryAsync: jest.fn(async () => ({ canceled: true, assets: null })),
+  getMediaLibraryPermissionsAsync: jest.fn(async () => ({ status: 'granted', granted: true, canAskAgain: true, expires: 'never' })),
+  requestMediaLibraryPermissionsAsync: jest.fn(async () => ({ status: 'granted', granted: true, canAskAgain: true, expires: 'never' })),
 }));
 
 // @expo/ui — нативні SwiftUI-компоненти, і в застосунку їх імпортує лише
