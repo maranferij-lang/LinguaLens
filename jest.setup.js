@@ -87,3 +87,39 @@ jest.mock('react-native-purchases-ui', () => {
   };
   return { __esModule: true, default: RevenueCatUI, PAYWALL_RESULT };
 });
+
+// Мови телефону (expo-localization). Типово — en-US, як в офіційній заглушці.
+// Тест задає свої: require('expo-localization').__setLocales(['ru-RU', 'uk-UA'])
+// — так, ніби людина змінила мову (Android і веб кажуть про це подією, яку
+// чує useLocales). { silent: true } — без події: нову мову тоді бачить лише
+// той, хто перечитає getLocales (повернення з фону, див. src/locale.js).
+jest.mock('expo-localization', () => {
+  const React = require('react');
+  const actual = jest.requireActual('expo-localization');
+  const base = actual.getLocales()[0];
+  let tags = ['en-US'];
+  const listeners = new Set();
+  const getLocales = () =>
+    tags.map((tag) => {
+      const [code, region = null] = tag.split('-');
+      return { ...base, languageTag: tag, languageCode: code.toLowerCase(), regionCode: region, languageRegionCode: region };
+    });
+  function useLocales() {
+    // як справжній: перечитує мови лише після події
+    const [key, bump] = React.useReducer((n) => n + 1, 0);
+    React.useEffect(() => {
+      listeners.add(bump);
+      return () => listeners.delete(bump);
+    }, []);
+    return React.useMemo(getLocales, [key]);
+  }
+  return {
+    ...actual,
+    getLocales,
+    useLocales,
+    __setLocales(next, { silent = false } = {}) {
+      tags = next;
+      if (!silent) listeners.forEach((fn) => fn());
+    },
+  };
+});

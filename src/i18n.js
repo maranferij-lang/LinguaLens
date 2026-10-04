@@ -1,4 +1,6 @@
-// Локалізація UI. Мова інтерфейсу = «моя мова» користувача.
+// Локалізація UI. Мова інтерфейсу = мова телефону (pickUiLang): перша з
+// бажаних мов iOS, якою інтерфейс уміє говорити, інакше англійська. «Моя
+// мова» з налаштувань — лише мова перекладів, на інтерфейс не впливає.
 // en, uk, de, es — повні й мають однаковий набір ключів (це стереже
 // __tests__/i18n.test.js); решта мов падає на англійську.
 // Додати мову = скопіювати блок en і перекласти все, нічого не пропускаючи:
@@ -73,8 +75,8 @@ export const STRINGS = {
     // ── налаштування ──
     setTitle: 'Settings',
     learnLang: 'I’m learning', learnLangHint: 'Objects get named in this language',
-    myLang: 'My language', myLangHint: 'Translations and app language',
-    myLangHintNoUi: 'Translations in this language. The app stays in English',
+    myLang: 'My language', myLangHint: 'Words get translated into this language',
+    uiLangTitle: 'Interface language', uiLangHint: 'As on your phone. To change: Settings → LinguaLens → Language',
     themeLabel: 'Theme', themeAuto: 'Auto', themeLight: 'Light', themeDark: 'Dark',
     about: 'About', replayOnb: 'Watch the intro again',
     data: 'Data', inDict: 'Saved words: {n}', clearDict: 'Delete all words', clearTitle: 'Delete all words?',
@@ -532,8 +534,8 @@ export const STRINGS = {
 
     setTitle: 'Параметри',
     learnLang: 'Вивчаю', learnLangHint: 'Якою мовою називати предмети',
-    myLang: 'Моя мова', myLangHint: 'Переклади та інтерфейс',
-    myLangHintNoUi: 'Переклади цією мовою. Застосунок лишається англійською',
+    myLang: 'Моя мова', myLangHint: 'Якою мовою перекладати слова',
+    uiLangTitle: 'Мова інтерфейсу', uiLangHint: 'Як у телефоні. Змінити: Параметри → LinguaLens → Мова',
     themeLabel: 'Тема', themeAuto: 'Авто', themeLight: 'Світла', themeDark: 'Темна',
     about: 'Про застосунок', replayOnb: 'Показати вступ ще раз',
     data: 'Дані', inDict: 'Збережено слів: {n}', clearDict: 'Очистити словник', clearTitle: 'Очистити словник?',
@@ -987,8 +989,8 @@ export const STRINGS = {
 
     setTitle: 'Einstellungen',
     learnLang: 'Ich lerne', learnLangHint: 'In dieser Sprache werden Objekte benannt',
-    myLang: 'Meine Sprache', myLangHint: 'Übersetzungen und App-Sprache',
-    myLangHintNoUi: 'Übersetzungen in dieser Sprache. Die App bleibt auf Englisch',
+    myLang: 'Meine Sprache', myLangHint: 'In diese Sprache werden Wörter übersetzt',
+    uiLangTitle: 'App-Sprache', uiLangHint: 'Wie auf dem Handy. Ändern: Einstellungen → LinguaLens → Sprache',
     themeLabel: 'Design', themeAuto: 'Auto', themeLight: 'Hell', themeDark: 'Dunkel',
     about: 'Über die App', replayOnb: 'Intro nochmal ansehen',
     data: 'Daten', inDict: 'Gespeicherte Wörter: {n}', clearDict: 'Alle Wörter löschen', clearTitle: 'Alle Wörter löschen?',
@@ -1442,8 +1444,8 @@ export const STRINGS = {
 
     setTitle: 'Ajustes',
     learnLang: 'Aprendo', learnLangHint: 'Los objetos se nombran en este idioma',
-    myLang: 'Mi idioma', myLangHint: 'Traducciones e idioma de la app',
-    myLangHintNoUi: 'Traducciones en este idioma. La app sigue en inglés',
+    myLang: 'Mi idioma', myLangHint: 'Las palabras se traducen a este idioma',
+    uiLangTitle: 'Idioma de la app', uiLangHint: 'Como en el teléfono. Para cambiarlo: Ajustes → LinguaLens → Idioma',
     themeLabel: 'Tema', themeAuto: 'Auto', themeLight: 'Claro', themeDark: 'Oscuro',
     about: 'Acerca de', replayOnb: 'Ver la intro otra vez',
     data: 'Datos', inDict: 'Palabras guardadas: {n}', clearDict: 'Borrar todas las palabras', clearTitle: '¿Borrar todas las palabras?',
@@ -1867,10 +1869,28 @@ export function pluralIndex(lang, n) {
   return a === 1 ? 0 : 1;
 }
 
+// Чи є інтерфейс цією мовою. Власні ключі, а не STRINGS[code]: інакше
+// «constructor» чи «toString» з кривого тегу мови теж «мали б переклад».
+const hasUi = (code) => Object.prototype.hasOwnProperty.call(STRINGS, code);
+
 // Мова, якою інтерфейс реально говорить: для мов без перекладу UI (fr, pl…)
 // це англійська. Дати й підказки мусять іти за нею, а не за «моєю мовою».
 export function uiLang(lang) {
-  return STRINGS[lang] ? lang : 'en';
+  return hasUi(lang) ? lang : 'en';
+}
+
+// Мова інтерфейсу з бажаних мов телефону (getLocales() з expo-localization,
+// у порядку з Параметрів iOS). Так само iOS обирає й .lproj застосунку — а з
+// ним тексти системних запитів (app.json → locales): перша мова, для якої є
+// переклад, жодної — англійська. Тож [ru, uk] → uk, [fr] → en, і запит
+// камери говорить тією ж мовою, що й екран перед ним. Мова, обрана в
+// Параметри → LinguaLens → Мова, стоїть у цьому списку першою.
+export function pickUiLang(locales) {
+  for (const l of Array.isArray(locales) ? locales : []) {
+    const code = String(l?.languageCode || String(l?.languageTag || '').split(/[-_]/)[0] || '').toLowerCase();
+    if (hasUi(code)) return code;
+  }
+  return 'en';
 }
 
 export function makeT(lang) {

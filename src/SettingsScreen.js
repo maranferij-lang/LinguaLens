@@ -5,6 +5,7 @@ import {
   ActivityIndicator,
   Alert,
   Linking,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -18,7 +19,6 @@ import { checkServer } from './api';
 import { accountErrorKey, syncErrorKey } from './account';
 import { PRIVACY_URL, SERVER_SOURCE, SERVER_URL, SUPPORT_EMAIL, TERMS_URL } from './config';
 import { formatDate } from './locale';
-import { uiLang } from './i18n';
 import { restoreNote } from './purchases';
 import { profileSummary } from './profile';
 import { version as APP_VERSION } from '../package.json';
@@ -82,6 +82,45 @@ function LangPicker({ label, hint, value, onChange, C, s }) {
             })}
           </ScrollView>
         ) : null}
+      </Glass>
+    </>
+  );
+}
+
+// Мова інтерфейсу — не вибір усередині застосунку, а мова телефону (див.
+// src/locale.js). Змінити її лише для LinguaLens iOS дозволяє в Параметри →
+// LinguaLens → Мова — туди рядок і веде. Власного перемикача не робимо:
+// інакше системні запити (камера, сповіщення) говорили б однією мовою, а
+// екрани довкола них — іншою. На вебі Параметрів немає — лише підпис.
+function UiLangRow({ lang, t, C, s }) {
+  const canOpen = Platform.OS !== 'web';
+  function open() {
+    Haptics.selectionAsync();
+    Linking.openSettings().catch(() => {});
+  }
+  return (
+    <>
+      <Text style={s.sectionLabel}>{t('uiLangTitle')}</Text>
+      <Glass style={{ padding: 0, overflow: 'hidden' }}>
+        <Pressable
+          style={s.pickerHead}
+          onPress={canOpen ? open : undefined}
+          disabled={!canOpen}
+          accessibilityRole={canOpen ? 'button' : 'text'}
+          accessibilityLabel={`${t('uiLangTitle')}: ${nameFor(lang)}`}
+          accessibilityHint={t('uiLangHint')}
+        >
+          <Text style={{ fontSize: 22 }}>{flagFor(lang)}</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={s.pickerValue}>{nameFor(lang)}</Text>
+            <Text style={s.pickerHint}>{t('uiLangHint')}</Text>
+          </View>
+          {canOpen ? (
+            <View style={{ transform: [{ rotate: '-90deg' }] }}>
+              <IcChevron color={C.faint} />
+            </View>
+          ) : null}
+        </Pressable>
       </Glass>
     </>
   );
@@ -258,6 +297,9 @@ export default function SettingsScreen({
   onSetLang,
   nativeLang,
   onSetNative,
+  // Мова, якою зараз говорить інтерфейс (мова телефону): для рядка «Мова
+  // інтерфейсу» і для дат.
+  uiLang = 'en',
   themeKey,
   themeMode,
   onSetTheme,
@@ -372,7 +414,7 @@ export default function SettingsScreen({
             onSignIn={onSignIn}
             onSignOut={onSignOut}
             onSyncNow={onSyncNow}
-            lang={nativeLang}
+            lang={uiLang}
             t={t}
             C={C}
             isDark={isDark}
@@ -394,7 +436,7 @@ export default function SettingsScreen({
               <Text style={s.proTitle}>{sub.lifetime ? t('proLifetime') : sub.trial ? t('proTrial') : t('proActive')}</Text>
               <Text style={s.proHint}>
                 {!sub.lifetime && sub.until
-                  ? t('proUntil', { d: formatDate(sub.until, nativeLang, { day: 'numeric', month: 'long', year: 'numeric' }) }) + ' · '
+                  ? t('proUntil', { d: formatDate(sub.until, uiLang, { day: 'numeric', month: 'long', year: 'numeric' }) }) + ' · '
                   : ''}
                 {sub.lifetime ? t('managePurchases') : t('managePro')}
               </Text>
@@ -427,14 +469,14 @@ export default function SettingsScreen({
         />
         <LangPicker
           label={t('myLang')}
-          // Інтерфейс перекладено лише чотирма мовами; для решти рідна мова
-          // — це мова перекладів, а сам застосунок лишається англійським.
-          hint={uiLang(nativeLang) === nativeLang ? t('myLangHint') : t('myLangHintNoUi')}
+          // «Моя мова» — лише мова перекладів: інтерфейс від неї не залежить
+          hint={t('myLangHint')}
           value={nativeLang}
           onChange={onSetNative}
           C={C}
           s={s}
         />
+        <UiLangRow lang={uiLang} t={t} C={C} s={s} />
 
         {/* Слово дня */}
         <Text style={s.sectionLabel}>{t('wordOfDay')}</Text>

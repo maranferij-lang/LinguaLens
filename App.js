@@ -49,7 +49,8 @@ import {
 } from './src/storage';
 import { applyPractice, applyReview, dueWords, newSrs } from './src/srs';
 import { LANGS, initAudio } from './src/speech';
-import { makeT, uiLang } from './src/i18n';
+import { makeT } from './src/i18n';
+import { useUiLang } from './src/locale';
 import { initAnalytics, analyticsAvailable, resetAnalytics, setAnalyticsEnabled, setProps, track } from './src/analytics';
 import { ensureSession, eraseServerData, renewSession } from './src/auth';
 import { clearPersonalData, signInWithApple, signOut as leaveAccount, useAccount } from './src/account';
@@ -120,8 +121,9 @@ SplashScreen.setOptions({ duration: 250, fade: true });
 // Старі й альтернативні коди мов, які віддають iOS/Android.
 const LANG_ALIAS = { nb: 'no', nn: 'no', iw: 'he', in: 'id' };
 
-// Мова інтерфейсу й перекладів за замовчуванням — перша з бажаних мов
+// Мова перекладів («моя мова») за замовчуванням — перша з бажаних мов
 // телефону, яку ми підтримуємо. Вчити — англійську; англомовним — іспанську.
+// Мова інтерфейсу звідси не береться: вона завжди мовою телефону (useUiLang).
 function defaultLanguages() {
   let nativeLang = 'en';
   try {
@@ -423,7 +425,15 @@ export default function App() {
   const themeKey = resolveThemeKey(settings.theme, systemScheme);
   const theme = THEMES[themeKey];
   const C = theme.C;
-  const t = useMemo(() => makeT(settings.nativeLang), [settings.nativeLang]);
+  // Інтерфейс — завжди мовою телефону, а не «моєю мовою»: та лише для
+  // перекладів, і вибір її в налаштуваннях не перемикає екрани. Онбординг
+  // уже з першого кадру говорить мовою телефону (див. src/locale.js).
+  const ui = useUiLang();
+  const t = useMemo(() => makeT(ui), [ui]);
+  // Для довгих асинхронних дій (синхронізація слова дня зі старту) — щоб
+  // заголовки сповіщень були мовою, актуальною на момент планування.
+  const tRef = useRef(t);
+  tRef.current = t;
   const s = useMemo(() => makeStyles(C), [C]);
 
   // ---------- ДОСЯГНЕННЯ ----------
@@ -656,7 +666,8 @@ export default function App() {
   }
 
   // Усе, що треба syncWordOfDay: мови, сповіщення, профіль, «Знаю» і
-  // перекладач для теми в заголовку сповіщення.
+  // перекладач для теми в заголовку сповіщення — мовою інтерфейсу, як і
+  // все, що пише застосунок (переклад самого слова — «моєю мовою» з сервера).
   function wodArgs(st, force = false) {
     return {
       lang: st.targetLang,
@@ -665,7 +676,7 @@ export default function App() {
       hour: st.wodHour,
       profile: st.profile,
       known: st.knownWords,
-      t: makeT(st.nativeLang),
+      t: tRef.current,
       force,
     };
   }
@@ -730,6 +741,17 @@ export default function App() {
   useEffect(() => {
     if (ready) updateWordWidget(wod, { t, targetLang: settings.targetLang, nativeLang: settings.nativeLang });
   }, [ready, wod, t, settings.targetLang, settings.nativeLang]);
+
+  // Мова телефону змінилась на ходу (Android і веб; iOS для цього
+  // перезапускає застосунок, і старт сам усе переплановує): заплановані
+  // сповіщення мають тему в заголовку («Фінанси · liquidity») старою мовою —
+  // переплановуємо. Кеш слів той самий, тож сервер зазвичай не питаємо.
+  const uiSeen = useRef(ui);
+  useEffect(() => {
+    if (uiSeen.current === ui) return;
+    uiSeen.current = ui;
+    if (ready) syncWordOfDay(wodArgs(settingsRef.current)).then((c) => c && setWod(c));
+  }, [ui, ready]);
 
   function saveWordOfDay() {
     if (!todayWord || wodSaved) return;
@@ -1215,7 +1237,7 @@ export default function App() {
   useEffect(() => {
     if (!ready) return;
     setProps({
-      ui_lang: uiLang(settings.nativeLang),
+      ui_lang: ui,
       target_lang: settings.targetLang,
       native_lang: settings.nativeLang,
       level: settings.profile?.level ?? null,
@@ -1223,7 +1245,7 @@ export default function App() {
       field: settings.profile?.field || null,
       pro: !!sub.pro,
     });
-  }, [ready, settings.nativeLang, settings.targetLang, settings.profile, sub.pro, settings.analytics]);
+  }, [ready, ui, settings.nativeLang, settings.targetLang, settings.profile, sub.pro, settings.analytics]);
 
   const dueCount = useMemo(() => dueWords(words).length, [words, tab]);
   const profile = { name: settings.profileName, avatar: settings.avatar || 'wave' };
@@ -1408,6 +1430,7 @@ export default function App() {
                   onSetLang={setTargetLang}
                   nativeLang={settings.nativeLang}
                   onSetNative={(code) => saveSetting({ nativeLang: code })}
+                  uiLang={ui}
                   themeKey={themeKey}
                   themeMode={settings.theme}
                   onSetTheme={(m) => saveSetting({ theme: m })}
@@ -1509,7 +1532,7 @@ export default function App() {
                 onPurchase={purchasePlan}
                 onRestore={restorePurchases}
                 onOpen={() => !pro.plans.length && pro.reloadPlans()}
-                lang={settings.nativeLang}
+                lang={ui}
                 t={t}
               />
             ) : (
@@ -1527,7 +1550,7 @@ export default function App() {
                 onPurchase={purchasePlan}
                 onRestore={restorePurchases}
                 onOpen={() => !pro.plans.length && pro.reloadPlans()}
-                lang={settings.nativeLang}
+                lang={ui}
                 t={t}
               />
             )}
