@@ -17,6 +17,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Animated, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import { StatusBar } from 'expo-status-bar';
 import Svg, { Defs, Line, RadialGradient, Rect, Stop } from 'react-native-svg';
 import Flame from './Flame';
 import { firstWeekday } from './calendar';
@@ -136,7 +137,7 @@ function WeekDots({ activeDays, pop, C, t }) {
 }
 
 export default function StreakCelebration({ data, activeDays, onDone, onShare, t }) {
-  const { C } = useTheme();
+  const { C, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const reduced = useReducedMotion();
   const reader = useScreenReader();
@@ -235,6 +236,10 @@ export default function StreakCelebration({ data, activeDays, onDone, onShare, t
       onAccessibilityEscape={close}
       testID="streak-celebration"
     >
+      {/* Свято може відкритись і над камерою, де статус-бар світлий: поки
+          воно на екрані, статус-бар — під тло застосунку (пізніший StatusBar
+          перекриває App-івський, а з демонтажем той повертається) */}
+      <StatusBar style={isDark ? 'light' : 'dark'} />
       <Pressable
         style={[StyleSheet.absoluteFill, { backgroundColor: C.bg }]}
         onPress={waits ? undefined : close}

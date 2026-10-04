@@ -18,6 +18,13 @@ import StreakCelebration, { CELEBRATE_MS, isMilestone, streakAchievement } from 
 import { ACHIEVEMENTS } from '../src/achievements';
 import { makeT } from '../src/i18n';
 import { localDayKey } from '../src/storage';
+import { StatusBar } from 'expo-status-bar';
+import { THEMES, ThemeProvider } from '../src/theme';
+
+// StatusBar з React Native, змонтований під фейковими таймерами, лишає свій
+// setImmediate фейковим, і наступний тест із реальними таймерами зависає. Тут
+// він — заглушка, що лише запамʼятовує стиль (свято ставить свій статус-бар).
+jest.mock('expo-status-bar', () => ({ StatusBar: jest.fn(() => null) }));
 
 jest.setTimeout(20000);
 
@@ -63,6 +70,32 @@ describe('the celebration layer', () => {
     expect(onDone).not.toHaveBeenCalled();
     await act(async () => jest.advanceTimersByTime(800));
     expect(onDone).toHaveBeenCalledTimes(1);
+    await act(async () => tree.unmount());
+  });
+
+  test('over the camera’s light status bar it sets the app’s own while it is on screen', async () => {
+    const styleNow = () => StatusBar.mock.calls[StatusBar.mock.calls.length - 1][0].style;
+    StatusBar.mockClear();
+    let tree = await show({ from: 3, to: 4 });
+    // світла тема — темний текст на кремовому тлі свята
+    expect(styleNow()).toBe('dark');
+    await act(async () => tree.unmount());
+    StatusBar.mockClear();
+    await act(async () => {
+      tree = create(
+        <ThemeProvider value={THEMES.dark}>
+          <SafeAreaProvider initialMetrics={metrics}>
+            <StreakCelebration data={{ from: 3, to: 4 }} activeDays={[]} t={t} />
+          </SafeAreaProvider>
+        </ThemeProvider>
+      );
+    });
+    expect(styleNow()).toBe('light');
+    await act(async () => tree.unmount());
+    // нічого не святкуємо — і статус-бар не чіпаємо
+    StatusBar.mockClear();
+    tree = await show(null);
+    expect(StatusBar).not.toHaveBeenCalled();
     await act(async () => tree.unmount());
   });
 

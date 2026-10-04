@@ -11,7 +11,9 @@ import { recognizeImage } from '../src/api';
 import { makeT } from '../src/i18n';
 import { CameraView } from 'expo-camera';
 import { scannerLayout } from '../src/scanner/layout';
-import { cornersPath, spotlightPath } from '../src/scanner/Viewfinder';
+import Viewfinder, { cornersPath, spotlightPath } from '../src/scanner/Viewfinder';
+import TopBar from '../src/scanner/TopBar';
+import { StyleSheet } from 'react-native';
 
 jest.mock('expo-camera', () => {
   const React = require('react');
@@ -359,6 +361,30 @@ describe('layout', () => {
     expect(scannerLayout({ width: 393, height: 759, firstScan: true }).shutterBottom).toBeLessThan(
       scannerLayout({ width: 393, height: 759 }).shutterBottom
     );
+  });
+
+  test('under the status bar: the camera reaches the top of the screen, the chrome stays below it', async () => {
+    const root = (tree) => tree.root.findAll((n) => n.type === 'View' && typeof n.props.onLayout === 'function' && StyleSheet.flatten(n.props.style)?.backgroundColor === '#000')[0];
+    const lay = async (tree, height) => {
+      await act(async () => root(tree).props.onLayout({ nativeEvent: { layout: { height } } }));
+      return tree.root.findByType(Viewfinder).props;
+    };
+    // без заходу — як і раніше: сканер лише у своїй зоні
+    let tree = await render({ scansLeft: 1 });
+    expect(StyleSheet.flatten(root(tree).props.style).marginTop).toBeUndefined();
+    expect(tree.root.findByType(TopBar).props.offset).toBe(0);
+    let vf = await lay(tree, 759);
+    expect(vf.frame.y).toBe(scannerLayout({ width: 393, height: 759 }).frame.y);
+    await act(async () => tree.unmount());
+    // App дає безпечну зону: корінь піднімається під статус-бар, прожектор
+    // покриває і його, а верхній ряд і кадр зсуваються рівно на неї
+    tree = await render({ scansLeft: 1, bleedTop: 59 });
+    expect(StyleSheet.flatten(root(tree).props.style).marginTop).toBe(-59);
+    expect(tree.root.findByType(TopBar).props.offset).toBe(59);
+    vf = await lay(tree, 759 + 59);
+    expect(vf.rootH).toBe(759 + 59);
+    expect(vf.frame.y).toBe(scannerLayout({ width: 393, height: 759 }).frame.y + 59);
+    await act(async () => tree.unmount());
   });
 
   test('corners are arcs of radius 28; the spotlight cuts the same rounded frame', () => {

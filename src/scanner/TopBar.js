@@ -157,12 +157,13 @@ export function CloseButton({ onPress, t }) {
 
 // wide — екран від 390 pt: бокові слоти однакові, і статус стоїть рівно по
 // центру. На SE слоти вужчі, щоб довгий чип Pro вліз у ряд.
-export default function TopBar({ firstScan, lang, onLang, langDisabled, status, onPro, torch, onTorch, onClose, wide, t }) {
+// offset — на скільки сканер зайшов під статус-бар: ряд лишається під ним.
+export default function TopBar({ firstScan, lang, onLang, langDisabled, status, onPro, torch, onTorch, onClose, wide, offset = 0, t }) {
   const slot = wide ? { width: 76 } : null;
   return (
     <View
       pointerEvents="box-none"
-      style={{ position: 'absolute', top: TOP, left: SIDE, right: SIDE, height: BAR_H, flexDirection: 'row', alignItems: 'center' }}
+      style={{ position: 'absolute', top: TOP + offset, left: SIDE, right: SIDE, height: BAR_H, flexDirection: 'row', alignItems: 'center' }}
     >
       <View style={[{ alignItems: 'flex-start' }, slot]}>
         {firstScan ? onClose ? <CloseButton onPress={onClose} t={t} /> : null : <LangChip lang={lang} onPress={onLang} disabled={langDisabled} t={t} />}

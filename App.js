@@ -1582,6 +1582,8 @@ export default function App() {
                 // наліпка останнього слова → його аркуш у словнику
                 lastWord={lastWord}
                 onOpenWord={openWord}
+                // камера — до самого верху, під світлий статус-бар
+                bleedTop={insets.top}
                 t={t}
               />
             ) : null}

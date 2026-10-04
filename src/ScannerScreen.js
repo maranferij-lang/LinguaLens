@@ -117,6 +117,11 @@ export default function ScannerScreen({
   firstScan = false,
   onExit,
   onFirstSaved,
+  // На скільки сканер заходить під статус-бар (App дає безпечну зону згори):
+  // камера тоді йде до самого верху екрана, як у макеті, а світлий текст
+  // статус-бару лежить на ній, а не на тлі застосунку. Хром камери
+  // лишається там само — нижче статус-бару. 0 — сканер лише в своїй зоні.
+  bleedTop = 0,
   t,
 }) {
   const { C } = useTheme();
@@ -137,7 +142,7 @@ export default function ScannerScreen({
   const [torch, setTorch] = useState(false);
   // Висота самого сканера (екран мінус безпечна зона й таб-бар): від неї
   // рахуються кадр, ряд затвора й заморожений кадр сцени.
-  const [rootH, setRootH] = useState(win.height - insets.top - insets.bottom);
+  const [rootH, setRootH] = useState(win.height - insets.top - insets.bottom + bleedTop);
 
   // Сцена: заморожений кадр, поки модель думає, і готовий результат.
   const [frozen, setFrozen] = useState(null);
@@ -601,7 +606,10 @@ export default function ScannerScreen({
 
   // iPhone SE і подібні: аркуш результату компактніший
   const compact = win.height < 700;
-  const L = scannerLayout({ width: win.width, height: rootH, firstScan, scene: sceneMode });
+  // Розкладка рахується для зони під статус-баром і зсувається на bleedTop:
+  // відступи від низу (затвор, режими) від цього не змінюються.
+  const L0 = scannerLayout({ width: win.width, height: rootH - bleedTop, firstScan, scene: sceneMode });
+  const L = { ...L0, frame: { ...L0.frame, y: L0.frame.y + bleedTop }, hintTop: L0.hintTop + bleedTop };
   // Безкоштовні скани. Нуль — не «0 лишилось» поруч із затвором, який
   // відкриє лише пейвол, а чесне «використано», корона на затворі й чип Pro
   // угорі (поки аркуш результату закриває камеру, чип ні до чого).
@@ -625,7 +633,7 @@ export default function ScannerScreen({
   const cx = win.width / 2;
 
   return (
-    <View style={s.root} onLayout={(e) => setRootH(e.nativeEvent.layout.height)}>
+    <View style={[s.root, bleedTop ? { marginTop: -bleedTop } : null]} onLayout={(e) => setRootH(e.nativeEvent.layout.height)}>
       <CameraView
         ref={cameraRef}
         style={StyleSheet.absoluteFill}
@@ -647,7 +655,7 @@ export default function ScannerScreen({
           sweep={sweep}
           loading={loading}
           win={win}
-          top={insets.top}
+          top={insets.top - bleedTop}
           rootH={rootH}
           reduced={reduced}
         />
@@ -705,6 +713,7 @@ export default function ScannerScreen({
         onTorch={toggleTorch}
         onClose={onExit ? () => onExit('closed') : undefined}
         wide={win.width >= 390}
+        offset={bleedTop}
         t={t}
       />
 
