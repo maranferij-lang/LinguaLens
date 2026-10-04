@@ -5,9 +5,9 @@ import { StyleSheet } from 'react-native';
 import { Line } from 'react-native-svg';
 import { act, create } from 'react-test-renderer';
 import { ShareCard } from '../src/share/ShareCards';
-import { FRAME_ROWS, LABEL_INK, SCENE_INK, frameLayout, insetFrame, listFontSize } from '../src/share/SceneCards';
+import { FRAME_ROWS, LABEL_INK, SCENE_INK, frameLayout, insetFrame, listFontSize, photoAnchor } from '../src/share/SceneCards';
 import { chipSize } from '../src/scene/sceneLayout';
-import { CARD_H, CARD_W, CONTENT_W, PALETTES, SCENE_TEMPLATES, templatesFor } from '../src/share/layout';
+import { CARD_H, CARD_W, CONTENT_W, PAD_BOTTOM, PALETTES, SCENE_TEMPLATES, templatesFor } from '../src/share/layout';
 import { makeT } from '../src/i18n';
 
 const t = makeT('en');
@@ -319,4 +319,34 @@ test('Labels: a dimmed photo, a plate the size the layout planned and a dark und
   expect(dark).toHaveLength(light.length);
   for (const l of dark) expect(l.props.strokeWidth).toBeGreaterThan(light[0].props.strokeWidth);
   await act(async () => tree.unmount());
+});
+
+describe('dots stay off the brand footer and the Instagram avatar', () => {
+  const frame = { x: 0, y: 0, w: CARD_W, h: CARD_H };
+  // Перший рядок «LinguaLens» — нижче за цю межу
+  const footerTop = CARD_H - PAD_BOTTOM - 40;
+
+  test('a rug that reaches into the footer gets its dot on its own upper edge, above the footer', () => {
+    const rug = { key: 'rug', word: 'rug', translation: 'килим', box: [850, 200, 990, 800], outline: null };
+    const a = photoAnchor(rug, frame);
+    expect(a.y).toBeLessThan(footerTop);
+    expect(a.y).toBeGreaterThanOrEqual((850 / 1000) * CARD_H);
+  });
+
+  test('an object hidden entirely under the footer is not labelled on the photo; the rest are', async () => {
+    const p = payload(3);
+    p.scene.objects.push({ key: 'mat', word: 'die Fußmatte', translation: 'килимок', box: [930, 300, 995, 700], outline: null });
+    for (const template of ['sceneStickers', 'sceneLabels']) {
+      const tree = await card(p, template);
+      const all = texts(tree);
+      expect(all).not.toContain('die Fußmatte');
+      for (const o of p.scene.objects.slice(0, 3)) expect(all).toContain(o.word);
+      // крапки (кружечки svg) — жодної нижче межі бренду; на «Наліпках»
+      // плашка стоїть на самому предметі, і крапка є лише з виносною лінією
+      const dots = tree.root.findAll((n) => n.props && typeof n.props.cy === 'number');
+      if (template === 'sceneLabels') expect(dots.length).toBeGreaterThan(0);
+      for (const d of dots) expect(d.props.cy).toBeLessThan(footerTop);
+      await act(async () => tree.unmount());
+    }
+  });
 });

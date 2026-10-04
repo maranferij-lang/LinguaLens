@@ -146,12 +146,33 @@ function PhotoFooter({ meta }) {
 // знизу — наш бренд і поле відповіді.
 const PHOTO_BOUNDS = { x1: 14, y1: PAD_TOP - 8, x2: CARD_W - 14, y2: CARD_H - PAD_BOTTOM - 40 };
 
+// Крапка лишається на предметі, але не в тих самих зонах: інакше килим на
+// підлозі ставить свою крапку посеред «LinguaLens» унизу. Предмет, що
+// виходить за зону, отримує крапку на своєму ж краю всередині неї; той, що
+// весь сховався під брендом чи аватаром, на фото не підписуємо (у підсумку
+// «N слів» він лишається).
+export function photoAnchor(o, frame) {
+  const a = anchorOf(o, frame);
+  const top = PHOTO_BOUNDS.y1 + 6;
+  const bottom = PHOTO_BOUNDS.y2 - 6;
+  if (a.y >= top && a.y <= bottom) return a;
+  const r = rectOf(o.box, frame);
+  const y = Math.min(bottom, Math.max(top, a.y));
+  return y >= r.y1 && y <= r.y2 ? { x: a.x, y } : null;
+}
+
+// Предмети, яким є де стати на фото, разом із їхньою крапкою
+function onPhoto(scene, frame) {
+  return scene.objects.map((o) => ({ o, anchor: photoAnchor(o, frame) })).filter((p) => p.anchor);
+}
+
 // ─── «Наліпки» ─────────────────────────────────────────────────────────────
 function StickersCard({ scene, uri, frame, pal, t }) {
   const ink = inkFor(pal);
-  const items = scene.objects.map((o) => {
+  const shown = onPhoto(scene, frame);
+  const items = shown.map(({ o, anchor }) => {
     const size = chipSize(o.word, o.translation, { size: 14, sub: 11, maxW: 150, padX: 10, padY: 5 });
-    return { key: o.key, rect: rectOf(o.box, frame), anchor: anchorOf(o, frame), w: size.w, h: size.h, size };
+    return { key: o.key, rect: rectOf(o.box, frame), anchor, w: size.w, h: size.h, size };
   });
   const chips = layoutChips(items, PHOTO_BOUNDS);
   const lines = chips.filter((c) => c.leader).map((c) => ({ key: c.key, from: c.leader.from, to: c.leader.to }));
@@ -165,8 +186,8 @@ function StickersCard({ scene, uri, frame, pal, t }) {
       {chips.map((c, i) => (
         <SceneChip
           key={c.key}
-          word={scene.objects[i].word}
-          translation={scene.objects[i].translation}
+          word={shown[i].o.word}
+          translation={shown[i].o.translation}
           size={items[i].size}
           colors={{ bg: ink.chip, word: ink.word, sub: ink.sub }}
           radius={11}
@@ -191,9 +212,10 @@ const LABEL_PAD = { x: 7, y: 3 };
 
 function LabelsCard({ scene, uri, frame, pal, t }) {
   const ink = inkFor(pal);
-  const items = scene.objects.map((o) => {
+  const shown = onPhoto(scene, frame);
+  const items = shown.map(({ o, anchor }) => {
     const size = chipSize(o.word, o.translation, { size: 15, sub: 12, maxW: 150, padX: LABEL_PAD.x, padY: LABEL_PAD.y });
-    return { key: o.key, rect: rectOf(o.box, frame), anchor: anchorOf(o, frame), w: size.w, h: size.h, size };
+    return { key: o.key, rect: rectOf(o.box, frame), anchor, w: size.w, h: size.h, size };
   });
   const labels = layoutChips(items, PHOTO_BOUNDS, { mode: 'callout' });
   const lines = labels.map((c) => ({ key: c.key, from: c.leader.from, to: c.leader.to }));
@@ -206,7 +228,7 @@ function LabelsCard({ scene, uri, frame, pal, t }) {
       <PhotoFooter meta={metaLine(scene, scene.objects.length, t)} />
       <Leaders width={CARD_W} height={CARD_H} lines={lines} dot={ink.dot} dotR={3.4} ring={2} halo={10} under />
       {labels.map((c, i) => {
-        const o = scene.objects[i];
+        const { o } = shown[i];
         const { size } = items[i];
         return (
           <View
