@@ -174,6 +174,52 @@ test('deletions travel as tombstones and are pruned after 60 days', async () => 
   });
 });
 
+// Телефон, що мовчав довше, ніж живуть надгробки, не дізнався б про
+// видалення з частковою відповіддю: сервер їх уже не пам'ятає. Тоді він
+// отримує все з reset і stale — і звіряє словник, а не воскрешає стерте.
+test('a phone whose since is older than pruned tombstones gets everything with reset and stale', async () => {
+  const acc = await account();
+  const w = word();
+  const x = word();
+  const a1 = await sync(acc.a, { since: 0, words: [w, x] });
+  assert.equal(a1.data.stale, false);
+  const b1 = await sync(acc.b, { since: 0, words: [] });
+  assert.equal(b1.data.reset, true);
+  assert.equal(b1.data.stale, false);
+  const gone = { id: w.id, deleted: true, updatedAt: Date.now() + 1 };
+  const del = await sync(acc.a, { since: a1.data.rev, words: [gone] });
+  assert.equal(del.data.stale, false);
+
+  await withClock(61 * 86400000, async () => {
+    // B мовчав 61 день; його ж запис прибирає надгробок, і відповідь уже
+    // мусить бути повною, бо видалення w він не бачив
+    const y = word({ updatedAt: Date.now(), addedAt: Date.now() });
+    const b2 = await sync(acc.b, { since: b1.data.rev, words: [y] });
+    assert.equal(b2.status, 200);
+    assert.equal(b2.data.reset, true);
+    assert.equal(b2.data.stale, true);
+    assert.deepEqual(Object.keys(byId(b2.data.words)).sort(), [x.id, y.id].sort());
+    assert.equal((await store.get('dicts', acc.id)).prunedRev, del.data.rev);
+
+    // той самий старий since і без запису — так само
+    const b3 = await sync(acc.b, { since: b1.data.rev, words: [] });
+    assert.equal(b3.data.reset, true);
+    assert.equal(b3.data.stale, true);
+    assert.equal(b3.data.rev, b2.data.rev);
+    // хто бачив видалення (since ≥ rev надгробка), отримує лише нове
+    const a2 = await sync(acc.a, { since: del.data.rev, words: [] });
+    assert.equal(a2.data.reset, false);
+    assert.equal(a2.data.stale, false);
+    assert.deepEqual(a2.data.words, [y]);
+    // since 0 і since з майбутнього — звичайний reset, не stale
+    for (const since of [0, b2.data.rev + 50]) {
+      const r = await sync(acc.b, { since, words: [] });
+      assert.equal(r.data.reset, true);
+      assert.equal(r.data.stale, false);
+    }
+  });
+});
+
 test('a tombstone of a long-offline phone lives 60 days from when the server got it', async () => {
   const acc = await account();
   const w = word({ updatedAt: Date.now() - 90 * 86400000 });

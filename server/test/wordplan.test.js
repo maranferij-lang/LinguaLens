@@ -260,13 +260,68 @@ test('a term shared by active topics stays only in the heaviest one; ties go by 
   assert.deepEqual(where({ goals: ['work'], field: 'finance', level: 5 }, 'deadline'), ['finance']);
   // travel 2 = relocation 2 > general 1: перемагає перший ключ
   assert.deepEqual(where({ goals: ['travel', 'relocation'], level: 2 }, 'visa'), ['relocation']);
-  // у важчій темі слово нижче рівня людини — воно лишається в легшій, де підходить
-  assert.deepEqual(where({ goals: ['work'], field: 'finance', level: 9 }, 'deadline'), ['general']);
+  // у важчій темі слово нижче рівня людини — його немає ніде: легша тема, де
+  // воно позначене складнішим, не повертає людині 9/10 базове слово її сфери
+  assert.deepEqual(where({ goals: ['work'], field: 'finance', level: 9 }, 'deadline'), []);
+  assert.deepEqual(where({ goals: ['work'], field: 'finance', level: 6 }, 'deadline'), []);
+  assert.deepEqual(where({ goals: ['work'], field: 'finance', level: 2 }, 'deadline'), ['finance']);
 
   // на справжніх списках: жоден термін не трапляється у двох активних темах
   for (const level of [2, 5, 8]) {
     const all = [...plan({ ...FULL, level }).sources.values()].flatMap((s) => s.list.map((w) => w.norm));
     assert.equal(new Set(all).size, all.length);
+  }
+});
+
+test('a word that any active list rates below the slider is not served, whichever list owns it', () => {
+  const lex = fakeLex({
+    general: { 1: 20, 2: 20, 3: 20, extra: [['ledger', 1], ['forecast', 2]] },
+    finance: { 1: 20, 2: 20, 3: 20, extra: [['ledger', 3], ['forecast', 3], ['accrual', 3]] },
+    workplace: { 1: 20, 2: 20, 3: 20 },
+    // travel для роботи не активна — її думка про рівень не важить
+    travel: { 1: 20, 2: 20, 3: 20, extra: [['accrual', 1]] },
+  });
+  const where = (level, term) =>
+    [...plan({ goals: ['work'], field: 'finance', level }, { lex }).sources]
+      .filter(([, s]) => s.list.some((w) => w.en === term))
+      .map(([k]) => k);
+  // фінанси кажуть «просунуте», а загальні — «базове»: для 8–10 його немає
+  assert.deepEqual(where(9, 'ledger'), []);
+  assert.deepEqual(where(8, 'ledger'), []);
+  assert.deepEqual(where(5, 'ledger'), ['finance']);
+  // робоче слово (2) годиться для 8/10, але не для 9/10
+  assert.deepEqual(where(8, 'forecast'), ['finance']);
+  assert.deepEqual(where(9, 'forecast'), []);
+  assert.deepEqual(where(9, 'accrual'), ['finance']);
+});
+
+// Головна вимога персоналізації: людина, що оцінила себе на 8–10, не
+// отримує базових слів — ні зі своєї сфери, ні з «роботи» чи загальних, хоч
+// би який список подав слово. Рівень слова — найлегший серед УСІХ активних
+// списків, де воно є.
+test('8–10/10 never get a word that any active list rates below their level, on the real lists', () => {
+  const GOALS = [['work'], ['study'], ['work', 'study'], FULL.goals];
+  const fields = profile.FIELDS.filter((f) => f !== 'other');
+  for (const goals of GOALS) {
+    for (const field of fields) {
+      for (const level of [8, 9, 10]) {
+        const raw = { goals, field, level, since: TODAY };
+        const lowest = new Map();
+        for (const key of wordplan.weightsFor(profile.forSchedule(raw, TODAY)).keys()) {
+          for (const w of lexicon.lexicon.topics.get(key).words) {
+            lowest.set(w.norm, Math.min(lowest.get(w.norm) ?? 3, w.level));
+          }
+        }
+        const floor = level >= 9 ? 3 : 2;
+        for (let s = 0; s < 20; s++) {
+          for (const d of schedule(raw, { seed: 'seed' + s, days: 365 })) {
+            const l = lowest.get(lexicon.norm(d.en));
+            const who = `${goals.join('+')} · ${field} · ${level}/10 · seed${s}`;
+            assert.ok(l >= floor, `${who}: «${d.en}» (${d.topic}), а десь — рівень ${l}`);
+          }
+        }
+      }
+    }
   }
 });
 

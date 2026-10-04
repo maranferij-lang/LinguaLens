@@ -74,8 +74,10 @@ export function deviceForgotten(e) {
 }
 
 // ---------- ІДЕНТИЧНІСТЬ ПРИСТРОЮ ----------
-export function apiCreateDevice() {
-  return request('/auth/device', { method: 'POST', body: {} });
+// previous — токен, з яким телефон виходить з акаунта: сервер переносить
+// його лічильники сканів і проби сцени в новий запис (див. auth.startOver).
+export function apiCreateDevice(previous) {
+  return request('/auth/device', { method: 'POST', body: previous ? { previous } : {} });
 }
 // { user, pro: {active, until}, usage: {day, scans, limit, scenes, sceneLimit} }
 // limit/sceneLimit null — Pro, без меж; scenes — сцени за все життя запису.
