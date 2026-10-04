@@ -10,14 +10,17 @@ import { STRINGS, makeT, pluralIndex, uiLang } from '../src/i18n';
 import { formatDate } from '../src/locale';
 import { ACHIEVEMENTS } from '../src/achievements';
 import { COMPARISON, PLANS, PRO_BENEFITS } from '../src/subscription';
+import { FIELDS, GOALS, HEARD, HEARD_BRANDS, STRUGGLES, TOPICS } from '../src/profile';
+import { LANGS as LEARN_LANGS } from '../src/speech';
 
 const ROOT = path.join(__dirname, '..');
 const LANGS = ['en', 'uk', 'de', 'es'];
 // Скільки форм множини в {n|…}: українська — три (1 слово, 2 слова, 5 слів)
 const FORMS = { en: 2, uk: 3, de: 2, es: 2 };
 // Ці рядки капсом свідомо: бейдж слова дня малюється без textTransform,
-// а літери днів тижня — це не текст, а сім підписів під стовпчиками.
-const CAPS_OK = ['wordOfDay', 'dowLetters'];
+// літери днів тижня — це не текст, а сім підписів під стовпчиками, а ІТ —
+// абревіатура, її й VoiceOver читає по літерах.
+const CAPS_OK = ['wordOfDay', 'dowLetters', 'topic_it', 'field_it'];
 
 const PLACEHOLDER = /\{(\w+)(?:\|[^{}]*)?\}/g;
 const PLURAL = /\{(\w+)\|([^{}]*)\}/g;
@@ -66,6 +69,22 @@ function usedKeys() {
   for (const a of ACHIEVEMENTS) add('ach_' + a.id, 'src/achievements.js');
   for (const b of PRO_BENEFITS) add('pro_' + b.id, 'src/subscription.js PRO_BENEFITS');
   for (const r of COMPARISON) add('cmp_' + r.id, 'src/subscription.js COMPARISON');
+  // Персоналізація: ключі збираються з переліків src/profile.js. Тема
+  // «general» на картці не пишеться, але є в підсумку профілю.
+  for (const g of GOALS) add('goal_' + g, 'src/profile.js GOALS');
+  for (const f of FIELDS) add('field_' + f, 'src/profile.js FIELDS');
+  for (const k of TOPICS) add('topic_' + k, 'src/profile.js TOPICS');
+  for (const k of TOPICS.filter((x) => x !== 'general')) add('topicIn_' + k, 'src/profile.js TOPICS');
+  for (const h of HEARD.filter((x) => !HEARD_BRANDS[x])) add('heard_' + h, 'src/profile.js HEARD');
+  for (let i = 1; i <= 10; i++) add('lvl' + i, 'src/LevelSlider.js');
+  // Онбординг 2.0: «що заважає» і рядки плану під кожну відповідь, назва
+  // мови, яку вчать, у реченні-обіцянці — для кожної з 29 мов
+  for (const k of STRUGGLES) {
+    add('struggle_' + k, 'src/profile.js STRUGGLES');
+    add('plan_' + k, 'src/OnboardingParts.js');
+  }
+  for (const l of LEARN_LANGS) add('langAcc_' + l.code, 'src/OnboardingScreen.js');
+  for (let i = 1; i <= 5; i++) add('levelBand' + i, 'src/profile.js levelBand');
   return used;
 }
 

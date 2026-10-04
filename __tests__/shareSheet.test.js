@@ -7,11 +7,14 @@ import { CUTOUT_H, CUTOUT_W, PALETTES, exportPixels } from '../src/share/layout'
 import { captureCard, shareCard } from '../src/share/capture';
 import { shareToStories, storiesAvailable, storiesSupported } from '../src/share/instagram';
 import { makeT } from '../src/i18n';
+import { track } from '../src/analytics';
 
 jest.mock('../src/share/capture', () => ({
   captureCard: jest.fn(async () => 'file:///tmp/card.png'),
   shareCard: jest.fn(async () => {}),
 }));
+// Статистика: перевіряємо, що саме полетіло б у PostHog
+jest.mock('../src/analytics', () => ({ track: jest.fn() }));
 jest.mock('../src/share/instagram', () => ({
   storiesSupported: jest.fn(() => true),
   storiesAvailable: jest.fn(async () => true),
@@ -165,5 +168,28 @@ describe('the cutout template in the system share sheet', () => {
     expect(button(noPhoto, t('shareTplMinimal'))).not.toBeNull();
     expect(button(noPhoto, t('shareTplCutout'))).toBeNull();
     await act(async () => noPhoto.unmount());
+  });
+});
+
+// Статистика: що й куди поділились — лише коди, без самого слова.
+describe('share statistics', () => {
+  test('the system share and Stories are counted with the card kind and template', async () => {
+    const tree = await open();
+    await press(tree, t('shareCta'));
+    expect(track).toHaveBeenLastCalledWith('share', { kind: 'word', target: 'system', template: 'sticker' });
+    await press(tree, t('shareStories'));
+    expect(track).toHaveBeenLastCalledWith('share', { kind: 'word', target: 'stories', template: 'sticker' });
+    expect(JSON.stringify(track.mock.calls)).not.toContain('mug');
+    await act(async () => tree.unmount());
+  });
+
+  test('a failed share is not counted', async () => {
+    shareCard.mockImplementationOnce(async () => {
+      throw Object.assign(new Error('x'), { code: 'SHARE_UNAVAILABLE' });
+    });
+    const tree = await open();
+    await press(tree, t('shareCta'));
+    expect(track).not.toHaveBeenCalled();
+    await act(async () => tree.unmount());
   });
 });

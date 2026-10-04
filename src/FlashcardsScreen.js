@@ -11,6 +11,7 @@ import { PCrown } from './ProIcons';
 import { StickerLarge } from './Sticker';
 import { photoUri } from './photos';
 import WordOfDayCard from './WordOfDayCard';
+import { ProfileTip, WidgetTip } from './LearnTips';
 import { Bar, FadeIn, GradBtn, Pill, Press } from './ui';
 import { UNDER_TAB } from './Chrome';
 
@@ -37,6 +38,20 @@ export default function FlashcardsScreen({
   onQuizDone,
   onOpenPro,
   isPro,
+  // слово дня під людину: тема, «Знаю» і пропозиція підняти рівень (App)
+  wodTopic = '',
+  onKnowWod,
+  wodKnowing = false,
+  wodNote = '',
+  levelUp = null,
+  onLevelUp,
+  onKeepLevel,
+  // підказки: налаштувати профіль і додати віджет (умови вирішує App)
+  profileTip = false,
+  onOpenProfile,
+  onHideProfileTip,
+  widgetTip = false,
+  onHideWidgetTip,
 }) {
   const { C, SHADOW } = useTheme();
   const s = useMemo(() => makeStyles(C), [C]);
@@ -134,7 +149,23 @@ export default function FlashcardsScreen({
           )}
         </View>
 
-        <WordOfDayCard word={wordOfDay} lang={targetLang} saved={wodSaved} onSave={onSaveWod} t={t} />
+        <WordOfDayCard
+          word={wordOfDay}
+          lang={targetLang}
+          saved={wodSaved}
+          onSave={onSaveWod}
+          topic={wodTopic}
+          onKnow={onKnowWod}
+          knowing={wodKnowing}
+          knowNote={wodNote}
+          levelUp={levelUp}
+          onLevelUp={onLevelUp}
+          onKeepLevel={onKeepLevel}
+          t={t}
+        />
+
+        {profileTip ? <ProfileTip onOpen={onOpenProfile} onHide={onHideProfileTip} t={t} /> : null}
+        {widgetTip ? <WidgetTip word={wordOfDay} onHide={onHideWidgetTip} t={t} /> : null}
 
         {!words.length ? (
           <FadeIn delay={45} style={{ alignItems: 'center', paddingVertical: 30 }}>

@@ -23,6 +23,8 @@ import SettingsScreen from './src/SettingsScreen';
 import OnboardingScreen from './src/OnboardingScreen';
 import AchievementToast from './src/AchievementToast';
 import PaywallScreen from './src/PaywallScreen';
+import OnboardingPaywall from './src/OnboardingPaywall';
+import ProfileEditor from './src/ProfileEditor';
 import ShareSheet from './src/share/ShareSheet';
 import { weekStats } from './src/share/layout';
 import {
@@ -44,14 +46,25 @@ import {
 } from './src/storage';
 import { applyPractice, applyReview, dueWords, newSrs } from './src/srs';
 import { LANGS, initAudio } from './src/speech';
-import { makeT } from './src/i18n';
+import { makeT, uiLang } from './src/i18n';
+import { initAnalytics, analyticsAvailable, resetAnalytics, setAnalyticsEnabled, setProps, track } from './src/analytics';
 import { ensureSession, eraseServerData, renewSession } from './src/auth';
 import { clearPersonalData, signInWithApple, signOut as leaveAccount, useAccount } from './src/account';
 import { useSync, useWordStore } from './src/useSync';
 import { touch } from './src/sync';
 import { deletePhoto, persistPhoto } from './src/photos';
 import { addScene, clearScenes, hasWord, loadScenes, persistScenes, removeScene, updateScene } from './src/scene/scenes';
-import { apiMe, deviceForgotten } from './src/api';
+import { apiMe, apiProfile, deviceForgotten } from './src/api';
+import {
+  addKnown,
+  cleanName,
+  cleanProfile,
+  cleanStruggles,
+  levelUpOffer,
+  profileReport,
+  sameProfile,
+  topicName,
+} from './src/profile';
 import { computeMetrics, evaluate, newlyUnlocked } from './src/achievements';
 import { maybeAskForReview } from './src/review';
 import {
@@ -61,18 +74,29 @@ import {
   cancelAll,
   subscribeToNotificationTaps,
   scheduleTrialReminder,
+  canRemind,
+  hasPermission,
   DEFAULT_HOUR,
 } from './src/wordOfDay';
-import { subscribeToWidgetTaps, updateWordWidget } from './src/widgets';
+import { subscribeToWidgetTaps, updateWordWidget, widgetsAvailable } from './src/widgets';
 import { IcBook, IcCards, IcGear, IcScan, IcUser } from './src/icons';
 import { MascotBob } from './src/Mascot';
 import { Material, MaterialEdge } from './src/Chrome';
-import { usePro } from './src/purchases';
+import { planOfProduct, usePro } from './src/purchases';
 
 import { FadeIn } from './src/ui';
 import { F, THEMES, ThemeProvider, resolveThemeKey, type } from './src/theme';
 import { SPRING } from './src/motion';
-import { canSaveWord, canScan, canUseLanguage, freeScansPerDay, loadUsage, saveUsage, scansLeft } from './src/subscription';
+import {
+  canScan,
+  canScene,
+  canUseLanguage,
+  freeScansPerDay,
+  freeScenes,
+  loadUsage,
+  saveUsage,
+  scansLeft,
+} from './src/subscription';
 
 // Порядок вкладок зафіксований і не обговорюється:
 // сканер — по центру, бо це головна дія застосунку і найзручніша точка для
@@ -117,7 +141,8 @@ function defaultSettings() {
     wodEnabled: true,
     wodHour: DEFAULT_HOUR,
     // Профіль локальний: ім'я й аватар живуть на телефоні й не синхронізуються
-    // навіть в акаунті Apple — на сервер іде лише словник.
+    // навіть в акаунті Apple — на сервер іде лише словник. Імʼя питає й
+    // онбординг («Як до тебе звертатися?») — воно те саме, що в профілі.
     profileName: '',
     avatar: 'wave',
     // Згода надсилати кадр на сервер і AI-сервісу (App Review 5.1.2(i)).
@@ -126,6 +151,32 @@ function defaultSettings() {
     // Режим сканера: один предмет або вся сцена. Запам'ятовуємо, як Камера
     // iOS: хто знімає кімнати, не мусить щоразу перемикати.
     scanMode: 'object',
+    // Профіль навчання (src/profile.js): цілі, сфера, рівень. null — слово
+    // дня загальне, як до персоналізації.
+    profile: null,
+    // Англійські поняття, позначені «Знаю» на слові дня (до 500 найновіших),
+    // і скільки «Знаю» поспіль — після трьох пропонуємо вищий рівень.
+    knownWords: [],
+    knowStreak: 0,
+    // Звідки дізнались (онбординг). Разом із профілем іде на сервер;
+    // profileSyncedFor — для якого id вже відправлено ('*' — не слати, доки
+    // відповіді не зміняться: так після «Стерти мої дані» їх не відновлюємо).
+    heardFrom: null,
+    profileSyncedFor: null,
+    // Що заважало вчити мову (онбординг): ключі з STRUGGLES. Лише на
+    // телефоні — з них план онбордингу вибирає, про які функції розповісти.
+    struggles: [],
+    // Разові підказки: мʼякий пейвол після першого скану, віджет, профіль.
+    // onbPaywallShown — пейвол наприкінці онбордингу вже показали: тоді
+    // мʼякий після першого скану не потрібен (він лише запасний).
+    introPaywallShown: false,
+    onbPaywallShown: false,
+    widgetTipShown: false,
+    profileTipOff: false,
+    // «Анонімна статистика» (src/analytics.js): за замовчуванням увімкнена,
+    // вимикається в налаштуваннях. Не скидається стиранням даних — це вибір
+    // людини, як мова чи тема.
+    analytics: true,
   };
 }
 
@@ -150,6 +201,10 @@ export default function App() {
   // зливаються з тим, що є саме зараз, і кожна зміна сама себе зберігає.
   const [words, setWords, wordsRef] = useWordStore();
   const [settings, setSettings] = useState(defaultSettings);
+  // Найсвіжіші налаштування для довгих асинхронних дій («Знаю» чекає на
+  // сервер): замикання бачило б ті, що були на момент тапу.
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
   const [activity, setActivity] = useState({});
   const [stats, setStats] = useState({});
   const [seenAch, setSeenAch] = useState([]);
@@ -165,12 +220,18 @@ export default function App() {
   // Денний облік сканів. Джерело правди — сервер; тут лише кеш, щоб
   // показати пейвол ще ДО зйомки і не гнати кадр, який сервер однаково відхилить.
   const [usage, setUsage] = useState({ scans: 0 });
-  const [paywall, setPaywall] = useState(null); // null | 'scans' | 'words' | 'langs' | 'info'
+  const [paywall, setPaywall] = useState(null); // null | 'scans' | 'scene' | 'langs' | 'info' | 'intro'
+  // Відкритий пейвол для асинхронних дій (покупка, відновлення, статистика)
+  const paywallRef = useRef(null);
+  paywallRef.current = paywall;
+  // Чи зможемо нагадати про кінець пробного періоду (див. PaywallScreen)
+  const [remindOk, setRemindOk] = useState(true);
+  // Редактор «Слово дня під тебе» — власний шар, як пейвол
+  const [profileEdit, setProfileEdit] = useState(false);
+  // «Знаю»: нове слово в дорозі; пояснення, якщо воно не прийшло
+  const [wodKnowing, setWodKnowing] = useState(false);
+  const [wodNote, setWodNote] = useState('');
   const [share, setShare] = useState(null); // payload для картки «поділитись»
-  // Слова, які не влізли в безкоштовний словник (одне зі сканера або решта
-  // сцени). Якщо людина тут же оформить Pro, зберігаємо їх самі — інакше
-  // відскановані предмети просто пропали б.
-  const pendingWords = useRef(null);
   // Онбординг відкрили повторно з налаштувань (див. finishOnboarding).
   const onbReplay = useRef(false);
 
@@ -214,8 +275,21 @@ export default function App() {
       // Збережене перебиває типове лише там, де справді щось збережено:
       // на свіжому встановленні мови вирішує defaultLanguages().
       const merged = mergeSettings(defaultSettings(), st);
+      merged.profile = cleanProfile(merged.profile);
+      merged.knownWords = addKnown(merged.knownWords, '');
+      merged.struggles = cleanStruggles(merged.struggles);
+      // Мʼякий пейвол — «після першого скану». Хто вже сканував до цієї
+      // версії, свій перший скан давно зробив: йому не показуємо.
+      if (st.introPaywallShown === undefined && ob && (w.length || sc.length)) {
+        merged.introPaywallShown = true;
+        persistSettings(merged);
+      }
       setWords(w, { persist: false });
+      settingsRef.current = merged;
       setSettings(merged);
+      // Статистика — до першої події, але після того, як прочитали вибір
+      // людини: вимкнула — клієнта PostHog не буде зовсім.
+      initAnalytics({ enabled: merged.analytics !== false });
       setActivity(a);
       setStats(stt);
       setSeenAch(seen);
@@ -230,12 +304,9 @@ export default function App() {
       if (!session) return;
       setDeviceId(session.userId);
       refreshMe();
-      syncWordOfDay({
-        lang: merged.targetLang,
-        native: merged.nativeLang,
-        enabled: merged.wodEnabled,
-        hour: merged.wodHour,
-      }).then((c) => c && setWod(c));
+      // Не merged, а найсвіжіші: поки сервер відповідав, людина могла вже
+      // пройти онбординг, і слова мають бути під її профіль.
+      syncWordOfDay(wodArgs(settingsRef.current)).then((c) => c && setWod(c));
     })();
   }, []);
 
@@ -256,12 +327,7 @@ export default function App() {
   widgetTap.current = () => {
     setTab('cards');
     if (!deviceId) return;
-    syncWordOfDay({
-      lang: settings.targetLang,
-      native: settings.nativeLang,
-      enabled: settings.wodEnabled,
-      hour: settings.wodHour,
-    }).then((c) => c && setWod(c));
+    syncWordOfDay(wodArgs(settings)).then((c) => c && setWod(c));
   };
   useEffect(() => subscribeToWidgetTaps(() => widgetTap.current()), []);
 
@@ -303,28 +369,45 @@ export default function App() {
     } catch (_) {}
   }
 
-  // limit — денна стеля з сервера (null — Pro). Відповідь без неї (старий
-  // сервер) не стирає вже відому.
+  // limit — денна стеля з сервера (null — Pro); scenes/sceneLimit — сцени за
+  // все життя і їхня безкоштовна стеля (null — Pro). Відповідь без якогось
+  // поля (старий сервер) не стирає вже відоме.
   function updateUsage(next) {
     setUsage((prev) => {
-      const u = { day: next.day, scans: next.scans || 0, limit: next.limit !== undefined ? next.limit : prev.limit };
+      const keep = (k) => (next[k] !== undefined ? next[k] : prev[k]);
+      const u = { day: next.day, scans: next.scans || 0, limit: keep('limit') };
+      if (keep('scenes') !== undefined) u.scenes = keep('scenes');
+      if (keep('sceneLimit') !== undefined) u.sceneLimit = keep('sceneLimit');
       saveUsage(u);
       return u;
     });
   }
 
-  // Сервер відмовив за лімітом (402). Повертає true, якщо той самий кадр
+  // Сервер відмовив за оплатою (402). code — 'SCAN_LIMIT' (денні скани:
+  // used/limit — скани за сьогодні) або 'SCENE_PRO' (безкоштовні сцени:
+  // used/limit — сцени за все життя). Повертає true, якщо той самий кадр
   // можна надіслати ще раз. Pro уже куплено, а сервер ще не знає (вебхук не
   // дійшов) — просимо його перепитати RevenueCat; стелі вже немає — пейвол
   // не потрібен.
-  async function scanLimitReached(data) {
-    if (data?.used != null) updateUsage({ day: localDayKey(), scans: data.used, limit: data.limit });
+  async function scanLimitReached(data, code = 'SCAN_LIMIT') {
+    const scene = code === 'SCENE_PRO';
+    if (data?.used != null) {
+      if (scene) setUsage((prev) => persistUsage({ ...prev, scenes: data.used, sceneLimit: data.limit }));
+      else updateUsage({ day: localDayKey(), scans: data.used, limit: data.limit });
+    }
     if (sub.pro) {
       const me = await refreshMe(true);
-      if (me?.usage && me.usage.limit === null) return true;
+      if (me?.usage && (scene ? me.usage.sceneLimit === null : me.usage.limit === null)) return true;
     }
-    setPaywall('scans');
+    const reason = scene ? 'scene' : 'scans';
+    track('scan_denied', { reason, server: true });
+    openPaywall(reason);
     return false;
+  }
+
+  function persistUsage(u) {
+    saveUsage(u);
+    return u;
   }
 
   const themeKey = resolveThemeKey(settings.theme, systemScheme);
@@ -370,7 +453,9 @@ export default function App() {
 
   // Поки відкритий аркуш скану, вітання чекає: під Modal воно відіграло б
   // невидимим і зникло. Покажемо (і дамо відгук), щойно аркуш закриється.
-  const shownAch = scanSheetOpen ? null : toastAch;
+  // Пейвол і редактор профілю теж його притримують: тост ліг би поверх
+  // хрестика, а закрити пейвол мусить бути легко завжди.
+  const shownAch = scanSheetOpen || paywall || profileEdit ? null : toastAch;
   useEffect(() => {
     if (shownAch) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }, [shownAch]);
@@ -388,50 +473,37 @@ export default function App() {
   }
 
   // Воротар сканера. Викликається ДО зйомки: краще сказати «ні» одразу,
-  // ніж витратити виклик AI і показати відмову після нього.
-  function guardScan() {
-    const deny = canScan({ pro: sub.pro, usage });
+  // ніж витратити виклик AI і показати відмову після нього. Порядок — як на
+  // сервері: спершу денні скани, потім безкоштовна проба сцени.
+  function guardScan(mode = 'object') {
+    const deny = canScan({ pro: sub.pro, usage }) || (mode === 'scene' ? canScene({ pro: sub.pro, usage }) : null);
     if (deny) {
-      setPaywall(deny);
+      track('scan_denied', { reason: deny, mode });
+      openPaywall(deny);
       return false;
     }
     return true;
   }
 
-  // true — слово збережено; false — відмова, відкрито пейвол.
-  function addWord(result) {
-    // Стеля словника. Перевіряємо тут, а не в сканері: слово може прийти
-    // ще й зі «слова дня», і ліміт має діяти однаково.
-    const deny = canSaveWord({ pro: sub.pro, wordCount: words.length });
-    if (deny) {
-      pendingWords.current = [result];
-      setPaywall(deny);
-      return false;
-    }
-    insertWords([result]);
+  // Словник безкоштовний без меж (v1.2): слово зберігається завжди.
+  // Повертає true — так сканер і слово дня знають, що збереження відбулось.
+  function addWord(result, source = 'scan') {
+    insertWords([result], source);
     return true;
   }
 
-  // Слова зі сцени разом. Ті, що вже є в словнику, пропускаємо; зберігаємо
-  // стільки, скільки вміщає безкоштовний словник, а решту відкладаємо до
-  // покупки й відкриваємо пейвол. Повертає, скільки збережено зараз.
-  // Словник беремо з ref: сцена зберігає з довгого замикання, а синхронізація
-  // могла тим часом додати слова з іншого iPhone.
+  // Слова зі сцени разом. Ті, що вже є в словнику, пропускаємо. Повертає,
+  // скільки збережено. Словник беремо з ref: сцена зберігає з довгого
+  // замикання, а синхронізація могла тим часом додати слова з іншого iPhone.
   function addWords(list) {
     const have = wordsRef.current;
     const fresh = [];
     for (const w of list) if (!hasWord(have, w) && !hasWord(fresh, w)) fresh.push(w);
-    let fits = 0;
-    while (fits < fresh.length && !canSaveWord({ pro: sub.pro, wordCount: have.length + fits })) fits++;
-    if (fits) insertWords(fresh.slice(0, fits));
-    if (fits < fresh.length) {
-      pendingWords.current = fresh.slice(fits);
-      setPaywall(canSaveWord({ pro: sub.pro, wordCount: have.length + fits }));
-    }
-    return fits;
+    if (fresh.length) insertWords(fresh, 'scene');
+    return fresh.length;
   }
 
-  function insertWords(list) {
+  function insertWords(list, source = 'scan') {
     const now = Date.now();
     const before = wordsRef.current.length;
     const items = list.map((result) => ({
@@ -447,6 +519,8 @@ export default function App() {
     }));
     const next = setWords((prev) => [...prev, ...items]);
     logActivity(items.length);
+    // Лише лічильники й звідки слово — самі слова в статистику не йдуть
+    track('word_saved', { count: items.length, total: next.length, source });
     // «Нічна сова» і «Ранній птах» — досягнення не про кількість, а про звичку.
     // Позначаємо одноразово, коли слово збережено в характерний час.
     const h = new Date().getHours();
@@ -545,24 +619,39 @@ export default function App() {
       // як обрана у списку «вчу», і безкоштовний ліміт діє так само.
       const deny = canUseLanguage({ pro: sub.pro, words, nextLang: settings.nativeLang });
       if (deny) {
-        setPaywall(deny);
+        openPaywall(deny);
         return;
       }
       patch = { ...patch, targetLang: settings.nativeLang };
     }
     const next = { ...settings, ...patch };
-    setSettings(next);
-    persistSettings(next);
+    commitSettings(next);
     // мови змінились — перезавантажуємо слово дня
     if (patch.targetLang || patch.nativeLang) {
-      syncWordOfDay({
-        lang: next.targetLang,
-        native: next.nativeLang,
-        enabled: next.wodEnabled,
-        hour: next.wodHour,
-        force: true,
-      }).then((c) => c && setWod(c));
+      syncWordOfDay(wodArgs(next, true)).then((c) => c && setWod(c));
     }
+  }
+
+  // Нові налаштування: на екран, у ref для асинхронних дій і в сховище.
+  function commitSettings(next) {
+    settingsRef.current = next;
+    setSettings(next);
+    persistSettings(next);
+  }
+
+  // Усе, що треба syncWordOfDay: мови, сповіщення, профіль, «Знаю» і
+  // перекладач для теми в заголовку сповіщення.
+  function wodArgs(st, force = false) {
+    return {
+      lang: st.targetLang,
+      native: st.nativeLang,
+      enabled: st.wodEnabled,
+      hour: st.wodHour,
+      profile: st.profile,
+      known: st.knownWords,
+      t: makeT(st.nativeLang),
+      force,
+    };
   }
 
   // Безкоштовно — одна мова навчання. Ліміт описаний у MONETIZATION.md і
@@ -570,38 +659,35 @@ export default function App() {
   function setTargetLang(code) {
     const deny = canUseLanguage({ pro: sub.pro, words, nextLang: code });
     if (deny) {
-      setPaywall(deny);
+      openPaywall(deny);
       return;
     }
     saveSetting({ targetLang: code });
   }
 
+  // Системний запит дозволу на сповіщення + статистика відповіді. Уже
+  // дозволено — нічого не питаємо й не рахуємо: запиту не було.
+  async function askPush(source) {
+    if (await hasPermission()) return true;
+    const granted = await requestPermission();
+    track('push_permission', { granted, source });
+    return granted;
+  }
+
   async function toggleWod(value) {
     if (value) {
-      const granted = await requestPermission();
+      const granted = await askPush('settings');
       if (!granted) return; // користувач відмовив — лишаємо вимкненим
     }
-    const next = { ...settings, wodEnabled: value };
-    setSettings(next);
-    persistSettings(next);
-    syncWordOfDay({
-      lang: next.targetLang,
-      native: next.nativeLang,
-      enabled: value,
-      hour: next.wodHour,
-    }).then((c) => c && setWod(c));
+    const next = { ...settingsRef.current, wodEnabled: value };
+    commitSettings(next);
+    syncWordOfDay(wodArgs(next)).then((c) => c && setWod(c));
   }
 
   function setWodHour(h) {
     const next = { ...settings, wodHour: h };
-    setSettings(next);
-    persistSettings(next);
-    syncWordOfDay({
-      lang: next.targetLang,
-      native: next.nativeLang,
-      enabled: next.wodEnabled,
-      hour: h,
-    }).then((c) => c && setWod(c));
+    commitSettings(next);
+    syncWordOfDay(wodArgs(next)).then((c) => c && setWod(c));
   }
 
   // ---------- СЛОВО ДНЯ ----------
@@ -616,6 +702,10 @@ export default function App() {
     () => !!todayWord && words.some((w) => w.word?.toLowerCase() === todayWord.word?.toLowerCase()),
     [todayWord, words]
   );
+  // Тема слова дня для рядка-кепсу («СЛОВО ДНЯ · ФІНАНСИ»); '' — загальне
+  const wodTopic = useMemo(() => topicName(t, todayWord?.topic), [t, todayWord]);
+  // Прийшло інше слово — пояснення про офлайн уже неактуальне
+  useEffect(() => setWodNote(''), [todayWord?.date, todayWord?.word]);
 
   // Віджет іде за тим самим кешем: кожен новий кеш (старт, зміна мов,
   // сповіщень чи години, онбординг, стирання даних) і зміна мови
@@ -628,61 +718,254 @@ export default function App() {
   function saveWordOfDay() {
     if (!todayWord || wodSaved) return;
     // Мови — ті, з якими слово прийшло від сервера, а не поточні з налаштувань.
-    const saved = addWord({
-      word: todayWord.word,
-      ipa: todayWord.ipa || '',
-      translation: todayWord.translation || '',
-      example: todayWord.example || '',
-      exampleTranslation: todayWord.example_translation || '',
-      lang: wod.lang,
-      nativeLang: wod.native,
-    });
-    // Відмова (стеля словника) — не збережене слово: інакше повторні тапи
-    // накручували б досягнення за слово дня.
-    if (!saved) return;
+    addWord(
+      {
+        word: todayWord.word,
+        ipa: todayWord.ipa || '',
+        translation: todayWord.translation || '',
+        example: todayWord.example || '',
+        exampleTranslation: todayWord.example_translation || '',
+        lang: wod.lang,
+        nativeLang: wod.native,
+      },
+      'wod'
+    );
     bumpStat('wordOfDaySeen');
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    // Збережене слово — не «легке»: серія «Знаю» поспіль переривається
+    if (settingsRef.current.knowStreak) commitSettings({ ...settingsRef.current, knowStreak: 0 });
   }
 
+  // ---------- СЛОВО ДНЯ ПІД ЛЮДИНУ ----------
+  // «Знаю»: поняття — у список знайомих, і одразу нове слово з сервера
+  // (сервер знайомих не дає). Офлайн нового не буде — кажемо, що «Знаю»
+  // запамʼятали: підпис кешу вже інший, тож свіжі слова прийдуть із першим
+  // же звʼязком.
+  async function knowWordOfDay() {
+    if (!todayWord || wodKnowing) return;
+    const known = String(todayWord.source || todayWord.word || '').trim();
+    if (!known) return;
+    const cur = settingsRef.current;
+    const next = { ...cur, knownWords: addKnown(cur.knownWords, known), knowStreak: (cur.knowStreak || 0) + 1 };
+    commitSettings(next);
+    track('wod_known', { streak: next.knowStreak, level: cur.profile?.level ?? null });
+    setWodNote('');
+    setWodKnowing(true);
+    const c = await syncWordOfDay(wodArgs(next, true));
+    setWodKnowing(false);
+    if (c) setWod(c);
+    const fresh = c ? todayFrom(c) : null;
+    const same = !fresh || String(fresh.source || fresh.word || '').trim().toLowerCase() === known.toLowerCase();
+    if (same) setWodNote(t('wodKnowOffline'));
+  }
+
+  // Новий профіль (редактор, «підняти рівень»): черга тем починається з
+  // сьогодні, слова — одразу нові, сповіщення й віджет — за ними, сервер
+  // дізнається відповіді (див. ефект нижче).
+  function applyProfile(profile) {
+    const clean = cleanProfile({ ...profile, since: localDayKey() });
+    if (!clean) return;
+    const next = { ...settingsRef.current, profile: clean, knowStreak: 0, profileSyncedFor: null };
+    commitSettings(next);
+    setWodNote('');
+    syncWordOfDay(wodArgs(next, true)).then((c) => c && setWod(c));
+  }
+
+  // Пропозиція після трьох «Знаю» поспіль — лише пропозиція: рівень
+  // піднімається тільки з цієї кнопки, а «Лишити як є» починає лік заново.
+  const levelUp = levelUpOffer(settings.profile, settings.knowStreak);
+  function acceptLevelUp() {
+    if (levelUp) applyProfile({ ...settings.profile, level: levelUp });
+  }
+  function keepLevel() {
+    commitSettings({ ...settingsRef.current, knowStreak: 0 });
+  }
+  // «Налаштуй слово дня під себе» — тим, у кого профілю немає, доки не сховають
+  const profileTip = !settings.profile && !settings.profileTipOff;
+
+  // Відповіді профілю — на сервер (POST /me/profile), щоб власник бачив, хто
+  // ці люди й звідки прийшли. Без мережі — спробуємо з наступним запуском;
+  // з іншим id (вхід через Apple) — відправимо ще раз, уже для акаунта.
+  const report = useMemo(
+    () => JSON.stringify(profileReport(settings.profile, settings.heardFrom)),
+    [settings.profile, settings.heardFrom]
+  );
+  useEffect(() => {
+    const done = settings.profileSyncedFor;
+    if (!ready || !deviceId || done === '*' || done === deviceId || report === '{}') return;
+    let alive = true;
+    apiProfile(JSON.parse(report))
+      .then(() => {
+        const cur = settingsRef.current;
+        if (!alive || JSON.stringify(profileReport(cur.profile, cur.heardFrom)) !== report) return;
+        commitSettings({ ...cur, profileSyncedFor: deviceId });
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [ready, deviceId, report, settings.profileSyncedFor]);
+
   // ---------- ПІДПИСКА ----------
+  // Pro щойно з'явився (наша покупка чи пейвол RevenueCat): пейвол геть,
+  // сервер перепитує RevenueCat (знімає ліміт сканів), відгук. Пробний
+  // період: нагадаємо за 2 дні до списання самі, а не покладаємось лише на
+  // Apple (див. коментар у subscription.js). Таймлайн у пейволі це пообіцяв —
+  // тож якщо про сповіщення ще не питали, питаємо зараз.
+  function proActivated(state) {
+    paywallRef.current = null;
+    setPaywall(null);
+    refreshMe(true);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    if (state?.trial && state.until) {
+      const until = state.until;
+      askPush('trial').then(() => scheduleTrialReminder(until, t('trialEndTitle'), t('trialEndBody')));
+    }
+  }
+
   async function purchasePlan(planId) {
+    const source = paywallRef.current;
+    track('purchase_start', { plan: planId, source });
     const res = await pro.purchase(planId);
     if (res.ok) {
-      savePendingWords();
-      setPaywall(null);
-      refreshMe(true);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      // Пробний період: нагадаємо за 2 дні до списання самі, а не покладаємось
-      // лише на Apple (див. коментар у subscription.js).
-      if (res.state?.trial && res.state.until) {
-        scheduleTrialReminder(res.state.until, t('trialEndTitle'), t('trialEndBody'));
-      }
+      track('purchase_success', { plan: planId, trial: !!res.state?.trial, source, ui: 'custom' });
+      proActivated(res.state);
+    } else {
+      // коди RevenueCat/StoreKit — числа-рядки, без тексту помилки
+      track('purchase_fail', { plan: planId, cancelled: !!res.cancelled, pending: !!res.pending, error: res.error || null, source });
     }
     return res;
   }
 
   async function restorePurchases() {
     const next = await pro.restore();
+    track('restore', { ok: !next?.error, pro: !!next?.pro, error: next?.error || null });
     if (next?.pro) {
-      savePendingWords();
+      // Pro повернувся — пейвол більше не потрібен. Закриваємо його самі,
+      // до того як PaywallScreen покличе onClose: інакше статистика
+      // порахувала б відновлення як «закрили без покупки».
+      paywallRef.current = null;
+      setPaywall(null);
       refreshMe(true);
     }
     return next;
   }
 
-  // Pro оформлено — дописуємо слова, на яких спіткнулись. Ліміт уже не
-  // перевіряємо: sub.pro у цьому замиканні ще старий.
-  function savePendingWords() {
-    const list = pendingWords.current;
-    pendingWords.current = null;
-    if (list?.length) insertWords(list);
+  // Пейвол, зібраний у дашборді RevenueCat (metadata поточної пропозиції
+  // paywall_ui: "revenuecat"), для джерела source ('scans', 'scene', 'info',
+  // 'onboarding'…). → true — його показано (купили, відновили чи просто
+  // закрили); false — він вимкнений, недоступний чи впав, і треба показати
+  // наш PaywallScreen. Покупка в ньому — те саме, що наша: Pro одразу,
+  // сервер перепитує RevenueCat, нагадування про кінець пробного періоду.
+  // view — рахувати показ (пейвол онбордингу вже порахував свій на першому
+  // екрані); step — номер екрана для paywall_close.
+  const rcPaywallOpen = useRef(false);
+  async function showRcPaywall(source, { view = true, step = 0 } = {}) {
+    if (pro.config.ui !== 'revenuecat' || rcPaywallOpen.current) return false;
+    if (view) track('paywall_view', { source, ui: 'revenuecat', offering: pro.offeringId });
+    rcPaywallOpen.current = true;
+    let res;
+    try {
+      res = await pro.presentPaywall();
+    } finally {
+      rcPaywallOpen.current = false;
+    }
+    if (res.fallback) return false;
+    if (res.purchased || res.restored) {
+      const plan = planOfProduct(res.state?.productId);
+      if (res.purchased) track('purchase_success', { plan, trial: !!res.state?.trial, source, ui: 'revenuecat' });
+      else track('restore', { ok: true, pro: !!res.state?.pro, error: null });
+      if (res.state?.pro) proActivated(res.state);
+    } else {
+      track('paywall_close', { source, step, ui: 'revenuecat' });
+    }
+    return true;
   }
 
-  // Пейвол закрили без покупки — відкладені слова більше не чекають, щоб
-  // пізніша покупка з налаштувань не дописала їх поза контекстом.
-  function closePaywall() {
-    pendingWords.current = null;
+  // Єдина точка входу в пейвол застосунку: стіни (скани, сцена, мови),
+  // «Перейти на Pro» і мʼякий пейвол після першого скану. Спершу — пейвол
+  // RevenueCat, якщо пропозиція його просить; ні — наш PaywallScreen.
+  // onlyIfNone — не перебивати пейвол, що вже відкритий (мʼякий пейвол).
+  async function openPaywall(reason, { onlyIfNone = false } = {}) {
+    if (rcPaywallOpen.current || (onlyIfNone && paywallRef.current)) return;
+    if (await showRcPaywall(reason)) return;
+    track('paywall_view', { source: reason, ui: 'custom', offering: pro.offeringId });
+    paywallRef.current = reason;
+    setPaywall(reason);
+  }
+
+  // ---------- МʼЯКИЙ ПЕЙВОЛ ПІСЛЯ ПЕРШОГО СКАНУ ----------
+  // Запасний варіант пейволу онбордингу: лише якщо той ще ні разу не
+  // показали (metadata пропозиції сказала «skip» чи магазин тоді не
+  // відповів). Один раз за все життя застосунку: людина щойно побачила, що
+  // він уміє, — найчесніший момент запропонувати пробний період. Не одразу,
+  // а коли аркуш результату закрився: під нативним Modal пейвол було б не
+  // видно, і слово людина має встигнути зберегти. З Pro — ніколи. У збірці
+  // без магазину (пробний період нема де оформити) — теж ні, і прапорець не
+  // ставимо: пропозиція дочекається збірки, де її можна прийняти.
+  const introArmed = useRef(false);
+  function scanned(res) {
+    if (res?.usage) updateUsage(res.usage);
+    const st = settingsRef.current;
+    if (!st.introPaywallShown && !st.onbPaywallShown && !sub.pro && pro.mode !== 'unavailable') introArmed.current = true;
+  }
+  const sheetWas = useRef(false);
+  useEffect(() => {
+    const was = sheetWas.current;
+    sheetWas.current = scanSheetOpen;
+    if (!was || scanSheetOpen || !introArmed.current) return;
+    introArmed.current = false;
+    commitSettings({ ...settingsRef.current, introPaywallShown: true });
+    if (!sub.pro) openPaywall('intro', { onlyIfNone: true });
+  }, [scanSheetOpen]);
+
+  // Таймлайн пейволу обіцяє нагадування, лише якщо його можна надіслати
+  useEffect(() => {
+    if (paywall) canRemind().then(setRemindOk);
+  }, [paywall]);
+
+  // Пейвол закрили без покупки (хрестик, «Продовжити безкоштовно», жест
+  // «назад» VoiceOver). Після відновлення його закриває сам PaywallScreen —
+  // тоді paywallRef уже порожній, і це не рахується як відмова. step — на
+  // якому екрані пейволу онбордингу закрили (у решти пейволів екран один).
+  function closePaywall(step) {
+    const source = paywallRef.current;
+    const at = Number.isInteger(step) ? step : source === 'onboarding' ? onbPaywallStep.current : 0;
+    if (source) track('paywall_close', { source, step: at, ui: 'custom' });
+    paywallRef.current = null;
     setPaywall(null);
+  }
+
+  // ---------- ПЕЙВОЛ ОНБОРДИНГУ ----------
+  // Крок 12: лише в перший запуск, без Pro, коли магазин відповів тарифами
+  // і metadata поточної пропозиції не каже onboarding_paywall: "skip".
+  // Показуємо поверх вкладки навчання: закрили — людина вже там, де чекає
+  // слово дня під її профіль (крок 13).
+  const onbPaywallStep = useRef(0);
+  function openOnboardingPaywall() {
+    if (sub.pro || pro.mode === 'unavailable' || !pro.plans.length || pro.config.onboardingPaywall === 'skip') return;
+    commitSettings({ ...settingsRef.current, onbPaywallShown: true });
+    onbPaywallStep.current = 0;
+    track('paywall_view', { source: 'onboarding', ui: pro.config.ui, offering: pro.offeringId });
+    paywallRef.current = 'onboarding';
+    setPaywall('onboarding');
+  }
+
+  // Третій екран пейволу онбордингу — пейвол RevenueCat (paywall_ui:
+  // "revenuecat"). Показали — наш шар більше не потрібен; ні — лишаємо свій.
+  async function onboardingRcPaywall() {
+    const shown = await showRcPaywall('onboarding', { view: false, step: 2 });
+    if (shown && paywallRef.current === 'onboarding') {
+      paywallRef.current = null;
+      setPaywall(null);
+    }
+    return shown;
+  }
+
+  // Перемикач «Анонімна статистика»
+  function toggleAnalytics(on) {
+    commitSettings({ ...settingsRef.current, analytics: !!on });
+    setAnalyticsEnabled(!!on);
   }
 
   // «Стерти мої дані»: запис на сервері + усе на телефоні. Кидає помилку,
@@ -695,6 +978,12 @@ export default function App() {
     await clearLocalData();
     await clearPersonalData();
     await cancelAll();
+    // Статистика й так анонімна, але після стирання телефон — нова людина:
+    // новий випадковий id PostHog, старі властивості не тягнуться за ним.
+    resetAnalytics();
+    // «Знаю» — теж про людину. Профіль лишається (як мова й тема), але на
+    // новий запис сервера його не шлемо, доки людина сама його не змінить.
+    commitSettings({ ...settingsRef.current, knownWords: [], knowStreak: 0, profileSyncedFor: '*' });
     // сховище вже порожнє — лише екран
     setWords([], { persist: false });
     setScenes([]);
@@ -775,27 +1064,87 @@ export default function App() {
     onbReplay.current = false;
     setOnboarded(true);
     persistOnboarded();
+    // Перший запуск — на вкладку навчання: там уже слово дня під щойно
+    // складений профіль. Повтор — туди, звідки прийшли, у Параметри.
+    setTab(replay ? 'settings' : 'cards');
+    const cur = settingsRef.current;
+    let next = cur;
     // Онбординг уже спитав про сповіщення — зберігаємо відповідь, щоб не
     // питати вдруге і щоб перемикач у налаштуваннях показував правду.
     // Під час повтору зважаємо лише на явне «так»: «Пропустити» там означає
     // «передивився слайди», а не «вимкни сповіщення, які я колись увімкнув».
     if (result && typeof result.wodEnabled === 'boolean' && (!replay || result.wodEnabled)) {
-      const next = { ...settings, wodEnabled: result.wodEnabled };
-      setSettings(next);
-      persistSettings(next);
-      syncWordOfDay({
-        lang: next.targetLang,
-        native: next.nativeLang,
-        enabled: next.wodEnabled,
-        hour: next.wodHour,
-      }).then((c) => c && setWod(c));
+      next = { ...next, wodEnabled: result.wodEnabled };
     }
+    // Профіль змінився — нова черга тем із сьогодні й нові слова одразу.
+    // Ті самі відповіді (повтор, де все пропустили) нічого не скидають.
+    const profileChanged = !!result && result.profile !== undefined && !sameProfile(result.profile, cur.profile);
+    if (profileChanged) {
+      next = { ...next, profile: cleanProfile(result.profile), knowStreak: 0, profileSyncedFor: null };
+    }
+    if (result?.heardFrom && result.heardFrom !== cur.heardFrom) {
+      next = { ...next, heardFrom: result.heardFrom, profileSyncedFor: null };
+    }
+    // Імʼя й «що заважає» — лише на телефоні: на сервер не йдуть (див.
+    // profileReport), у статистику — тільки «вказав / пропустив».
+    if (typeof result?.name === 'string') {
+      const name = cleanName(result.name);
+      if (name !== (cur.profileName || '')) next = { ...next, profileName: name };
+    }
+    if (Array.isArray(result?.struggles)) {
+      const pains = cleanStruggles(result.struggles);
+      if (pains.join() !== cleanStruggles(cur.struggles).join()) next = { ...next, struggles: pains };
+    }
+    if (next !== cur) {
+      commitSettings(next);
+      syncWordOfDay(wodArgs(next, profileChanged)).then((c) => c && setWod(c));
+    }
+    if (!replay) openOnboardingPaywall();
   }
 
   function replayOnboarding() {
     onbReplay.current = true;
-    setTab('scan');
     setOnboarded(false);
+  }
+
+  // Перший скан в онбордингу («Спробуй зараз»): справжній сканер — зі
+  // згодою на AI і дозволом камери, як завжди, — але без пейволів посеред
+  // знайомства: скан на сьогодні вже витрачено чи сервер відмовив за
+  // оплатою — просто вертаємось в онбординг, а пропозицію Pro людина
+  // побачить наприкінці. level — рівень, який людина щойно обрала.
+  function renderFirstScan({ onSaved, onClose, level }) {
+    return (
+      <ScannerScreen
+        firstScan
+        onExit={onClose}
+        onFirstSaved={onSaved}
+        scanSource="onboarding"
+        targetLang={settings.targetLang}
+        nativeLang={settings.nativeLang}
+        savedWords={words}
+        onSaveWord={(w) => addWord(w, 'onboarding')}
+        onSaveWords={addWords}
+        onGuardScan={() => {
+          if (!canScan({ pro: sub.pro, usage })) return true;
+          track('scan_denied', { reason: 'scans', mode: 'object', source: 'onboarding' });
+          onClose();
+          return false;
+        }}
+        onScanned={(res) => res?.usage && updateUsage(res.usage)}
+        onLimitReached={async (data, code) => {
+          if (data?.used != null && code !== 'SCENE_PRO') updateUsage({ day: localDayKey(), scans: data.used, limit: data.limit });
+          track('scan_denied', { reason: code === 'SCENE_PRO' ? 'scene' : 'scans', server: true, source: 'onboarding' });
+          onClose();
+          return false;
+        }}
+        onSessionLost={renewIdentity}
+        onResultVisible={setScanSheetOpen}
+        aiConsent={!!settings.aiConsent}
+        onAiConsent={() => saveSetting({ aiConsent: true })}
+        level={level ?? settings.profile?.level}
+        t={t}
+      />
+    );
   }
 
   function shareWeek() {
@@ -814,6 +1163,33 @@ export default function App() {
   function shareAchievement(achievement, fresh = false) {
     setShare({ kind: 'achievement', achievement, fresh, stats: { words: words.length, streak } });
   }
+
+  // Підказка про віджет: є лише в iOS-збірці; з третього слова і не разом із
+  // профільною — дві картки поспіль зсунули б самі картки для повторення за
+  // край екрана. Показ рахуємо раз за запуск, щойно людина її побачила.
+  const widgetTip = !profileTip && !settings.widgetTipShown && words.length >= 3 && widgetsAvailable();
+  const widgetTipSeen = useRef(false);
+  useEffect(() => {
+    if (tab !== 'cards' || !widgetTip || widgetTipSeen.current) return;
+    widgetTipSeen.current = true;
+    track('widget_tip', { action: 'shown' });
+  }, [tab, widgetTip]);
+
+  // Властивості людини для статистики: мови, рівень, цілі, Pro. Лише коди —
+  // жодних імен, слів чи id. Перемикач статистики теж у залежностях:
+  // увімкнули знову — властивості доїдуть одразу.
+  useEffect(() => {
+    if (!ready) return;
+    setProps({
+      ui_lang: uiLang(settings.nativeLang),
+      target_lang: settings.targetLang,
+      native_lang: settings.nativeLang,
+      level: settings.profile?.level ?? null,
+      goals: settings.profile?.goals || [],
+      field: settings.profile?.field || null,
+      pro: !!sub.pro,
+    });
+  }, [ready, settings.nativeLang, settings.targetLang, settings.profile, sub.pro, settings.analytics]);
 
   const dueCount = useMemo(() => dueWords(words).length, [words, tab]);
   const profile = { name: settings.profileName, avatar: settings.avatar || 'wave' };
@@ -841,7 +1217,21 @@ export default function App() {
       <ThemeProvider value={theme}>
         <SafeAreaView style={s.safe}>
           <StatusBar style={theme.isDark ? 'light' : 'dark'} />
-          <OnboardingScreen t={t} onDone={finishOnboarding} />
+          <OnboardingScreen
+            t={t}
+            onDone={finishOnboarding}
+            profile={settings.profile}
+            heardFrom={settings.heardFrom}
+            name={settings.profileName}
+            struggles={settings.struggles}
+            targetLang={settings.targetLang}
+            wodHour={settings.wodHour}
+            replay={onbReplay.current}
+            // «Спробуй зараз» — лише вперше, з порожнім словником і коли
+            // безкоштовний скан на сьогодні ще є
+            canWow={!onbReplay.current && words.length === 0 && scansLeft({ pro: sub.pro, usage }) > 0}
+            renderScanner={renderFirstScan}
+          />
         </SafeAreaView>
       </ThemeProvider>
     );
@@ -850,7 +1240,8 @@ export default function App() {
   return (
     <ThemeProvider value={theme}>
       <View style={s.safe}>
-        <StatusBar style={theme.isDark || tab === 'scan' ? 'light' : 'dark'} />
+        {/* Світлий текст над камерою; над пейволом і редактором — тло застосунку */}
+        <StatusBar style={theme.isDark || (tab === 'scan' && !paywall && !profileEdit) ? 'light' : 'dark'} />
         {/* Безпечна зона лише згори: таб-бар сам доходить до низу екрана й
             ховає під собою смугу домашнього індикатора, як у системних
             застосунках. Контент закінчується над індикатором. */}
@@ -864,7 +1255,15 @@ export default function App() {
                 onSaveWord={addWord}
                 onSaveWords={addWords}
                 onGuardScan={guardScan}
-                onScanned={(res) => res.usage && updateUsage(res.usage)}
+                onScanned={scanned}
+                level={settings.profile?.level}
+                // безкоштовну пробу сцени використано — біля «Сцени» значок
+                // PRO, а вибір сцени відкриває пейвол
+                sceneLocked={!!canScene({ pro: sub.pro, usage })}
+                onScenePro={() => {
+                  track('scan_denied', { reason: 'scene', mode: 'scene' });
+                  openPaywall('scene');
+                }}
                 onSceneScanned={sceneScanned}
                 onUpdateScene={changeScene}
                 scanMode={settings.scanMode}
@@ -917,8 +1316,28 @@ export default function App() {
                       maybeAskForReview();
                     }
                   }}
-                  onOpenPro={() => setPaywall('info')}
+                  onOpenPro={() => openPaywall('info')}
                   isPro={sub.pro}
+                  wodTopic={wodTopic}
+                  onKnowWod={knowWordOfDay}
+                  wodKnowing={wodKnowing}
+                  wodNote={wodNote}
+                  levelUp={levelUp}
+                  onLevelUp={acceptLevelUp}
+                  onKeepLevel={keepLevel}
+                  // профілю немає (оновились зі старої версії чи пропустили
+                  // питання) — одна тиха картка, яку можна прибрати
+                  profileTip={profileTip}
+                  onOpenProfile={() => setProfileEdit(true)}
+                  onHideProfileTip={() => commitSettings({ ...settingsRef.current, profileTipOff: true })}
+                  // віджет є лише в iOS-збірці; підказка — з третього слова
+                  // і не разом із профільною: дві картки поспіль зсунули б
+                  // самі картки для повторення за край екрана
+                  widgetTip={widgetTip}
+                  onHideWidgetTip={() => {
+                    track('widget_tip', { action: 'hide' });
+                    commitSettings({ ...settingsRef.current, widgetTipShown: true });
+                  }}
                 />
               </FadeIn>
             ) : null}
@@ -963,7 +1382,7 @@ export default function App() {
                   wodHour={settings.wodHour}
                   onSetWodHour={setWodHour}
                   sub={sub}
-                  onOpenPaywall={() => setPaywall('info')}
+                  onOpenPaywall={() => openPaywall('info')}
                   onManageSub={pro.manage}
                   onRestore={restorePurchases}
                   account={{ available: account.available, signedIn: account.signedIn }}
@@ -971,6 +1390,11 @@ export default function App() {
                   onSignIn={signIn}
                   onSignOut={signOut}
                   onSyncNow={sync.syncNow}
+                  profile={settings.profile}
+                  onEditProfile={() => setProfileEdit(true)}
+                  analyticsAvailable={analyticsAvailable()}
+                  analyticsOn={settings.analytics !== false}
+                  onToggleAnalytics={toggleAnalytics}
                   t={t}
                 />
               </FadeIn>
@@ -995,22 +1419,75 @@ export default function App() {
           ))}
         </Material>
 
-        {/* Пейвол поверх усього. Modal тут не потрібен: власний шар дає
-            повний контроль над анімацією і не конфліктує з таб-баром. */}
-        {paywall ? (
-          <View style={[StyleSheet.absoluteFill, { paddingTop: insets.top, paddingBottom: insets.bottom, backgroundColor: C.bg }]}>
-            <PaywallScreen
-              reason={paywall}
-              plans={pro.plans}
-              freeScans={freeScansPerDay(usage)}
-              unavailable={pro.mode === 'unavailable'}
-              onClose={closePaywall}
-              onPurchase={purchasePlan}
-              onRestore={restorePurchases}
-              onOpen={() => !pro.plans.length && pro.reloadPlans()}
-              lang={settings.nativeLang}
+        {/* Редактор «Слово дня під тебе» — так само власним шаром, а не
+            Modal: з вкладки навчання над ним ще може відкритись пейвол.
+            Для VoiceOver шар — модальний: вкладки під ним не читаються, а
+            жест «назад» (двома пальцями «Z») закриває редактор. */}
+        {profileEdit ? (
+          <View
+            style={[StyleSheet.absoluteFill, { paddingTop: insets.top, paddingBottom: insets.bottom, backgroundColor: C.bg }]}
+            accessibilityViewIsModal
+            onAccessibilityEscape={() => setProfileEdit(false)}
+          >
+            <ProfileEditor
+              profile={settings.profile}
+              targetLang={settings.targetLang}
+              onSave={(p) => {
+                setProfileEdit(false);
+                applyProfile(p);
+              }}
+              onClose={() => setProfileEdit(false)}
               t={t}
             />
+          </View>
+        ) : null}
+
+        {/* Пейвол поверх усього. Modal тут не потрібен: власний шар дає
+            повний контроль над анімацією і не конфліктує з таб-баром.
+            VoiceOver — як і з редактором: модальний шар, «назад» закриває. */}
+        {paywall ? (
+          <View
+            style={[StyleSheet.absoluteFill, { paddingTop: insets.top, paddingBottom: insets.bottom, backgroundColor: C.bg }]}
+            accessibilityViewIsModal
+            onAccessibilityEscape={() => closePaywall()}
+          >
+            {paywall === 'onboarding' ? (
+              <OnboardingPaywall
+                plans={pro.plans}
+                freeScans={freeScansPerDay(usage)}
+                scansLeft={scansLeft({ pro: sub.pro, usage })}
+                unavailable={pro.mode === 'unavailable'}
+                canRemind={remindOk}
+                ui={pro.config.ui}
+                onPresentRc={onboardingRcPaywall}
+                onStep={(i, step) => {
+                  onbPaywallStep.current = i;
+                  track('paywall_step', { i, step, source: 'onboarding' });
+                }}
+                onClose={closePaywall}
+                onPurchase={purchasePlan}
+                onRestore={restorePurchases}
+                onOpen={() => !pro.plans.length && pro.reloadPlans()}
+                lang={settings.nativeLang}
+                t={t}
+              />
+            ) : (
+              <PaywallScreen
+                reason={paywall}
+                plans={pro.plans}
+                freeScans={freeScansPerDay(usage)}
+                freeScenes={freeScenes(usage)}
+                scansLeft={scansLeft({ pro: sub.pro, usage })}
+                unavailable={pro.mode === 'unavailable'}
+                canRemind={remindOk}
+                onClose={() => closePaywall()}
+                onPurchase={purchasePlan}
+                onRestore={restorePurchases}
+                onOpen={() => !pro.plans.length && pro.reloadPlans()}
+                lang={settings.nativeLang}
+                t={t}
+              />
+            )}
           </View>
         ) : null}
 

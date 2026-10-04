@@ -5,6 +5,8 @@ import { act, create } from 'react-test-renderer';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import DictionaryScreen from '../src/DictionaryScreen';
 import WordOfDayCard from '../src/WordOfDayCard';
+import { ProfileTip, WidgetTip } from '../src/LearnTips';
+import { FieldOptions, GoalOptions } from '../src/ProfileSteps';
 import { makeT } from '../src/i18n';
 
 const t = makeT('en');
@@ -54,10 +56,10 @@ test('dictionary row: Listen, Share and Delete are reachable, the word expands t
   await act(async () => tree.unmount());
 });
 
-test('word of the day: Listen and Save are separate from the card', async () => {
+test('word of the day: Listen, I know it and Save are separate from the card', async () => {
   const onSave = jest.fn();
   const word = { word: 'la manzana', translation: 'apple', example: 'Una manzana roja.', example_translation: 'A red apple.' };
-  const tree = await render(<WordOfDayCard word={word} lang="es" saved={false} onSave={onSave} t={t} />);
+  const tree = await render(<WordOfDayCard word={word} lang="es" saved={false} onSave={onSave} onKnow={() => {}} t={t} />);
 
   const row = toggleTarget(tree);
   await act(async () => row.props.onAccessibilityAction({ nativeEvent: { actionName: 'activate' } }));
@@ -66,6 +68,7 @@ test('word of the day: Listen and Save are separate from the card', async () => 
   const save = control(tree, t('saveWord'));
   expect(hiddenInsideAccessible(save)).toBe(false);
   expect(hiddenInsideAccessible(control(tree, t('listen')))).toBe(false);
+  expect(hiddenInsideAccessible(control(tree, t('wodKnowA11y')))).toBe(false);
   await act(async () => tree.unmount());
 });
 
@@ -99,4 +102,38 @@ test('backup nudge: the card and its close button are separate, labelled targets
   );
   expect(plain.root.findAll((n) => n.props.accessibilityLabel === t('syncNudgeHide'))).toHaveLength(0);
   await act(async () => plain.unmount());
+});
+
+test('Learn tab tips: the card and its Hide button are separate, labelled targets', async () => {
+  for (const el of [
+    <ProfileTip onOpen={() => {}} onHide={() => {}} t={t} />,
+    <WidgetTip word={{ word: 'la manzana', translation: 'apple' }} onHide={() => {}} t={t} />,
+  ]) {
+    const tree = await render(el);
+    const hide = control(tree, t('tipHide'));
+    expect(hide.props.accessibilityRole).toBe('button');
+    expect(hiddenInsideAccessible(hide)).toBe(false);
+    await act(async () => tree.unmount());
+  }
+  const tip = await render(<ProfileTip onOpen={() => {}} onHide={() => {}} t={t} />);
+  const open = control(tip, t('pfTipTitle'));
+  expect(open.props.accessibilityRole).toBe('button');
+  expect(open.props.accessibilityHint).toBe(t('pfTipText'));
+  await act(async () => tip.unmount());
+});
+
+test('profile questions: goals are checkboxes, the field is a radio group', async () => {
+  const goals = await render(<GoalOptions value={['work']} onChange={() => {}} t={t} />);
+  const work = control(goals, t('goal_work'));
+  expect(work.props.accessibilityRole).toBe('checkbox');
+  expect(work.props.accessibilityState).toEqual({ checked: true });
+  expect(control(goals, t('goal_travel')).props.accessibilityState).toEqual({ checked: false });
+  await act(async () => goals.unmount());
+
+  const fields = await render(<FieldOptions value="law" onChange={() => {}} t={t} />);
+  expect(fields.root.find((n) => typeof n.type === 'string' && n.props.accessibilityRole === 'radiogroup')).toBeTruthy();
+  const law = control(fields, t('field_law'));
+  expect(law.props.accessibilityRole).toBe('radio');
+  expect(law.props.accessibilityState).toEqual({ checked: true });
+  await act(async () => fields.unmount());
 });

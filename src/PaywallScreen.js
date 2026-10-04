@@ -2,18 +2,30 @@
 //
 // Правила, за якими він побудований:
 //   • Заголовок говорить про людину, не про тариф. Причина відмови приходить
-//     ззовні (скани / словник / мови), і текст під неї підлаштовується —
-//     людина бачить відповідь саме на ту стіну, в яку щойно вперлась.
-//   • Тижневий тариф присутній, але не виділений. Він потрібен як якір:
-//     поруч із $4.99/тиждень річний за $34.99 читається як очевидний вибір.
-//   • Річний обраний за замовчуванням і має пробний тиждень. Ніяких
-//     передвибраних дорогих варіантів — це нечесно і повертається відписками.
+//     ззовні (скани на сьогодні / скан кімнати / мови), і текст під неї
+//     підлаштовується — людина бачить відповідь саме на ту стіну, в яку
+//     щойно вперлась. Словник безкоштовний без меж, тож стіни «словник» немає.
+//   • Тарифи — ті, що прийшли з поточної пропозиції RevenueCat (зазвичай
+//     місяць, рік і «назавжди»). Річний обраний за замовчуванням і має
+//     пробний тиждень. Ніяких передвибраних дорогих варіантів — це нечесно
+//     і повертається відписками.
+//   • «Назавжди» — разова покупка: без «на місяць», без «−N%», і юридичний
+//     рядок під кнопкою прямо каже, що це не підписка.
 //   • Закрити можна завжди, хрестик великий і на своєму місці. Пейвол, з
 //     якого важко вийти, псує оцінку в App Store сильніше, ніж дає виторгу.
+//   • 'intro' — мʼякий пейвол один раз після першого скану: замість таблиці
+//     таймлайн пробного періоду (сьогодні — доступ, день 5 — нагадування,
+//     день 7 — списання) і окрема кнопка «Продовжити безкоштовно». Так
+//     людина знає, що й коли станеться, ще до натиску (App Review 3.1.2).
+//     Без пробного періоду таймлайну немає і «безкоштовно» не обіцяємо.
+//     Скан на сьогодні вже витрачено (перший скан в онбордингу чи щойно
+//     зроблений) — кнопка не обіцяє ще одного сьогодні: «наступний — завтра».
+//   • Наприкінці онбордингу перед цим екраном ще два (OnboardingPaywall.js):
+//     пробний період і таймлайн. Таймлайн і план за замовчуванням — звідси.
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { PRO_BENEFITS, COMPARISON, FREE } from './subscription';
+import { PRO_BENEFITS, COMPARISON, FREE, TRIAL_REMIND_DAYS } from './subscription';
 import { PRIVACY_URL, TERMS_URL } from './config';
 import { purchaseNote, restoreNote } from './purchases';
 import { formatDate } from './locale';
@@ -23,13 +35,24 @@ import { MascotBob } from './Mascot';
 import { FadeIn, GradBtn, Press } from './ui';
 import { CAPS, F, R, type, useTheme } from './theme';
 
-// freeScans — денна стеля з сервера (див. freeScansPerDay у subscription.js).
+// freeScans — денна стеля з сервера (див. freeScansPerDay у subscription.js),
+// freeScenes — скільки сцен безкоштовно за все життя (freeScenes там само).
 // unavailable — збірка без магазину: тарифів немає, купити не можна.
+// canRemind — чи зможемо нагадати про кінець пробного періоду (сповіщення
+// дозволені або ще можна спитати): лише тоді таймлайн це обіцяє.
+// scansLeft — скільки безкоштовних сканів лишилось на сьогодні (0 — «завтра»).
+// compact — третій екран пейволу онбордингу: Lingo, переваги й пробний
+// період людина щойно бачила на двох попередніх, тут — лише тарифи й
+// таймлайн обраного.
 export default function PaywallScreen({
   reason,
   plans,
+  compact = false,
   freeScans = FREE.scansPerDay,
+  freeScenes = FREE.scenes,
+  scansLeft,
   unavailable,
+  canRemind = true,
   onClose,
   onPurchase,
   onRestore,
@@ -48,18 +71,25 @@ export default function PaywallScreen({
     if (onOpen) onOpen();
   }, []);
 
-  // Заголовок під причину: кожна стіна має свій аргумент.
-  const HEAD = {
-    scans: { title: t('pwScansTitle'), text: t('pwScansText', { n: freeScans }) },
-    words: { title: t('pwWordsTitle'), text: t('pwWordsText', { n: FREE.maxWords }) },
-    langs: { title: t('pwLangsTitle'), text: t('pwLangsText') },
-  };
-  const head = HEAD[reason] || { title: t('pwTitle'), text: t('pwText') };
-
   // Ціни приходять з App Store (RevenueCat) у валюті людини. Поки вони
   // вантажаться, список порожній — показуємо індикатор, а не вигадані ціни.
   const list = plans || [];
-  const plan = list.find((p) => p.id === picked) || list.find((p) => p.best) || list[0];
+  const plan = list.find((p) => p.id === picked) || defaultPlan(list);
+  const intro = reason === 'intro';
+  // «Спробуй безкоштовно» і таймлайн — лише коли пробний період є саме в
+  // обраного тарифу (Apple дає його не всім: хто вже пробував, платить
+  // одразу). Обрав місячний без пробного — заголовок не обіцяє «безкоштовно»
+  // над кнопкою, що списує гроші сьогодні (App Review 3.1.2).
+  const timeline = intro && plan?.trialDays > 0;
+
+  // Заголовок під причину: кожна стіна має свій аргумент.
+  const HEAD = {
+    scans: { title: t('pwScansTitle'), text: t('pwScansText', { n: freeScans }) },
+    scene: { title: t('pwSceneTitle'), text: t('pwSceneText', { n: freeScenes }) },
+    langs: { title: t('pwLangsTitle'), text: t('pwLangsText') },
+    intro: timeline ? { title: t('pwIntroTitle'), text: t('pwIntroText') } : null,
+  };
+  const head = compact ? { title: t('pwPlansTitle'), text: '' } : HEAD[reason] || { title: t('pwTitle'), text: t('pwText') };
 
   // Пряма дата, коли спишуться гроші. «Через 7 днів» — розмито;
   // конкретне число прибирає відчуття, що щось приховали.
@@ -91,6 +121,59 @@ export default function PaywallScreen({
     if (url) Linking.openURL(url).catch(() => {});
   }
 
+  // Тарифи з ціною з магазину. У мʼякому пейволі ('intro') вони перші під
+  // заголовком: сума списання — найпомітніша цифра на екрані й видна без
+  // прокрутки (App Review 3.1.2), а таймлайн і переваги — під нею.
+  const plansBlock = (
+    <FadeIn delay={intro ? 45 : 90} style={{ gap: 10, marginTop: compact ? 20 : 26 }}>
+      {!list.length && !unavailable ? <ActivityIndicator color={C.accent} style={{ marginVertical: 30 }} /> : null}
+      {list.map((p) => {
+        const active = plan?.id === p.id;
+        return (
+          <Press
+            key={p.id}
+            onPress={() => {
+              Haptics.selectionAsync();
+              setPicked(p.id);
+            }}
+            style={[s.plan, active && s.planActive, active && SHADOW]}
+          >
+            <View style={[s.radio, active && s.radioOn]}>
+              {active ? <IcCheck size={13} color={C.onAccent} /> : null}
+            </View>
+
+            <View style={{ flex: 1 }}>
+              <View style={s.planTop}>
+                <Text style={[s.planName, active && { color: C.text }]}>{t(p.labelKey)}</Text>
+                {p.best ? (
+                  <View style={s.bestTag}>
+                    <Text style={s.bestTagText}>{t('bestValue')}</Text>
+                  </View>
+                ) : null}
+              </View>
+              <Text style={s.planPer}>
+                {p.lifetime
+                  ? t('lifetimeOnce')
+                  : p.trialDays
+                    ? t('trialDays', { n: p.trialDays })
+                    : t('perMonth', { p: p.perMonth })}
+              </Text>
+            </View>
+
+            <View style={{ alignItems: 'flex-end' }}>
+              <Text style={[s.planPrice, active && { color: C.accent }]}>{p.price}</Text>
+              {p.save ? (
+                <Text style={s.saveText}>{t('saveN', { n: p.save })}</Text>
+              ) : p.saveKey ? (
+                <Text style={s.saveText}>{t(p.saveKey)}</Text>
+              ) : null}
+            </View>
+          </Press>
+        );
+      })}
+    </FadeIn>
+  );
+
   return (
     <View style={s.root}>
       <Pressable style={s.close} onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel={t('close')}>
@@ -103,57 +186,74 @@ export default function PaywallScreen({
         bounces={false}
       >
         <FadeIn style={{ alignItems: 'center' }}>
-          <MascotBob pose="celebrate" size={140} />
+          {compact ? null : <MascotBob pose="celebrate" size={140} />}
           <View style={s.proBadge}>
             <PCrown size={17} color={C.onAccent} />
             <Text style={s.proBadgeText}>PRO</Text>
           </View>
-          <Text style={s.title}>{head.title}</Text>
-          <Text style={s.text}>{head.text}</Text>
+          <Text style={s.title} accessibilityRole="header">
+            {head.title}
+          </Text>
+          {head.text ? <Text style={s.text}>{head.text}</Text> : null}
         </FadeIn>
+
+        {intro ? plansBlock : null}
+
+        {/* Після першого скану — таймлайн пробного періоду замість таблиці:
+            людина щойно побачила, що вміє застосунок, і тепер питання не
+            «що дає Pro», а «що буде, якщо спробую». */}
+        {timeline ? (
+          <FadeIn delay={70}>
+            <TrialTimeline days={plan.trialDays} price={plan.price} lang={lang} canRemind={canRemind} t={t} />
+          </FadeIn>
+        ) : null}
 
         {/* Порівняння. Це головне на екрані: людина має побачити не список
             благ, а свою нинішню ситуацію і те, як вона зміниться. Без лівої
             колонки «зараз» права колонка нічого не означає. */}
-        <FadeIn delay={45} style={s.table}>
-          <View style={s.tableHead}>
-            <View style={{ flex: 1 }} />
-            <Text style={s.colFree}>{t('colFree')}</Text>
-            <View style={s.colProWrap}>
-              <Text style={s.colPro}>PRO</Text>
-            </View>
-          </View>
-
-          {COMPARISON.map((row, i) => {
-            const free = row.id === 'scans' ? String(freeScans) : row.free;
-            return (
-              <View key={row.id} style={[s.tableRow, i > 0 && s.tableRowLine]}>
-                <Text style={s.rowLabel}>{t('cmp_' + row.id)}</Text>
-
-                <View style={s.cellFree}>
-                  {free === true ? (
-                    <IcCheck size={16} color={C.faint} />
-                  ) : (
-                    <Text style={s.cellFreeText}>{free}</Text>
-                  )}
-                </View>
-
-                <View style={s.cellPro}>
-                  {row.pro === true ? (
-                    <IcCheck size={16} color={C.accent} />
-                  ) : (
-                    <Text style={s.cellProText}>{row.pro}</Text>
-                  )}
-                </View>
+        {timeline || compact ? null : (
+          <FadeIn delay={45} style={s.table}>
+            <View style={s.tableHead}>
+              <View style={{ flex: 1 }} />
+              <Text style={s.colFree}>{t('colFree')}</Text>
+              <View style={s.colProWrap}>
+                <Text style={s.colPro}>PRO</Text>
               </View>
-            );
-          })}
-        </FadeIn>
+            </View>
+
+            {COMPARISON.map((row, i) => {
+              // стелі — з сервера, а не з довідника
+              const free = row.id === 'scans' ? String(freeScans) : row.id === 'scene' ? String(freeScenes) : row.free;
+              return (
+                <View key={row.id} style={[s.tableRow, i > 0 && s.tableRowLine]}>
+                  <Text style={s.rowLabel}>{t('cmp_' + row.id)}</Text>
+
+                  <View style={s.cellFree}>
+                    {free === true ? (
+                      <IcCheck size={16} color={C.faint} />
+                    ) : (
+                      <Text style={s.cellFreeText}>{free}</Text>
+                    )}
+                  </View>
+
+                  <View style={s.cellPro}>
+                    {row.pro === true ? (
+                      <IcCheck size={16} color={C.accent} />
+                    ) : (
+                      <Text style={s.cellProText}>{row.pro}</Text>
+                    )}
+                  </View>
+                </View>
+              );
+            })}
+          </FadeIn>
+        )}
 
         {/* Те, чого немає в таблиці. Лише правда: наліпки й колекція
-            безкоштовні для всіх, тож тут їх немає (App Review 3.1.2). */}
+            безкоштовні для всіх, тож тут їх немає (App Review 3.1.2). З
+            таймлайном таблиці немає — тоді тут і самі переваги Pro. */}
         <FadeIn delay={70} style={s.benefits}>
-          {PRO_BENEFITS.filter((b) => b.id === 'support').map((b) => (
+          {PRO_BENEFITS.filter((b) => !compact && (timeline || b.id === 'support')).map((b) => (
             <View key={b.id} style={s.benefitRow}>
               <View style={s.benefitIcon}>
                 <ProIcon name={b.icon} size={20} color={C.accent} />
@@ -163,66 +263,34 @@ export default function PaywallScreen({
           ))}
         </FadeIn>
 
-        {/* Тарифи */}
-        <FadeIn delay={90} style={{ gap: 10, marginTop: 26 }}>
-          {!list.length && !unavailable ? <ActivityIndicator color={C.accent} style={{ marginVertical: 30 }} /> : null}
-          {list.map((p) => {
-            const active = plan?.id === p.id;
-            return (
-              <Press
-                key={p.id}
-                onPress={() => {
-                  Haptics.selectionAsync();
-                  setPicked(p.id);
-                }}
-                style={[s.plan, active && s.planActive, active && SHADOW]}
-              >
-                <View style={[s.radio, active && s.radioOn]}>
-                  {active ? <IcCheck size={13} color={C.onAccent} /> : null}
-                </View>
-
-                <View style={{ flex: 1 }}>
-                  <View style={s.planTop}>
-                    <Text style={[s.planName, active && { color: C.text }]}>{t(p.labelKey)}</Text>
-                    {p.best ? (
-                      <View style={s.bestTag}>
-                        <Text style={s.bestTagText}>{t('bestValue')}</Text>
-                      </View>
-                    ) : null}
-                  </View>
-                  <Text style={s.planPer}>
-                    {p.trialDays ? t('trialDays', { n: p.trialDays }) : t('perMonth', { p: p.perMonth })}
-                  </Text>
-                </View>
-
-                <View style={{ alignItems: 'flex-end' }}>
-                  <Text style={[s.planPrice, active && { color: C.accent }]}>{p.price}</Text>
-                  {p.save ? (
-                    <Text style={s.saveText}>{t('saveN', { n: p.save })}</Text>
-                  ) : p.saveKey ? (
-                    <Text style={s.saveText}>{t(p.saveKey)}</Text>
-                  ) : null}
-                </View>
-              </Press>
-            );
-          })}
-        </FadeIn>
+        {intro ? null : plansBlock}
       </ScrollView>
 
       {/* Дія притиснута донизу — під великий палець */}
       <View style={[s.footer, SHADOW_LG]}>
         <GradBtn
-          title={plan?.trialDays ? t('startTrial') : t('subscribe')}
+          title={plan?.trialDays ? t('startTrial') : plan?.lifetime ? t('buyLifetime') : t('subscribe')}
           onPress={buy}
           disabled={busy || !plan || unavailable}
         />
         {/* Без магазину кажемо це одразу, а не після марного тапу */}
         {unavailable || note ? <Text style={s.note}>{unavailable ? t('purchasesUnavailable') : note}</Text> : null}
         <Text style={s.legal}>
-          {plan?.trialDays
-            ? t(plan.legalKey, { p: plan.price, d: chargeDate(plan.trialDays) })
-            : t('renewLegal')}
+          {plan?.lifetime
+            ? t('lifetimeLegal')
+            : plan?.trialDays
+              ? t(plan.legalKey, { p: plan.price, d: chargeDate(plan.trialDays) })
+              : t('renewLegal')}
         </Text>
+        {/* Вихід без покупки — повноцінна кнопка з тим, що лишається
+            безкоштовним, а не сірий дрібний текст, який треба шукати. */}
+        {intro ? (
+          <Pressable style={s.freeBtn} onPress={onClose} accessibilityRole="button">
+            <Text style={s.freeBtnText}>
+              {scansLeft === 0 ? t('pwContinueFreeTomorrow') : t('pwContinueFree', { n: freeScans })}
+            </Text>
+          </Pressable>
+        ) : null}
         <View style={s.legalRow}>
           <Pressable hitSlop={8} onPress={restore}>
             <Text style={s.legalLink}>{t('restore')}</Text>
@@ -241,6 +309,57 @@ export default function PaywallScreen({
           ) : null}
         </View>
       </View>
+    </View>
+  );
+}
+
+// План, обраний за замовчуванням: річний (у нього пробний тиждень), інакше
+// позначений «найвигідніше», інакше перший. Ніяких передвибраних дорожчих.
+export function defaultPlan(list) {
+  const all = list || [];
+  return all.find((p) => p.id === 'year') || all.find((p) => p.best) || all[0] || null;
+}
+
+// Таймлайн пробного періоду: сьогодні → нагадування за 2 дні до кінця →
+// списання. Дні рахуються від сьогодні, дати — конкретні числа: «8 жовтня»
+// чесніше за «через тиждень». Нагадування — лише якщо зможемо його
+// надіслати (див. canRemind) і якщо до нього лишається хоч день. День
+// нагадування — той самий, що ставить scheduleTrialReminder (wordOfDay.js).
+export function TrialTimeline({ days, price, lang, canRemind, t }) {
+  const { C } = useTheme();
+  const s = useMemo(() => makeStyles(C), [C]);
+  const date = (n) => formatDate(Date.now() + n * 86400000, lang);
+  const rows = [
+    { key: 'today', label: t('tlToday'), text: t('tlTodayText') },
+    ...(canRemind && days > TRIAL_REMIND_DAYS
+      ? [
+          {
+            key: 'remind',
+            label: t('tlDay', { n: days - TRIAL_REMIND_DAYS }),
+            date: date(days - TRIAL_REMIND_DAYS),
+            text: t('tlRemindText'),
+          },
+        ]
+      : []),
+    { key: 'charge', label: t('tlDay', { n: days }), date: date(days), text: t('tlChargeText', { p: price }) },
+  ];
+  return (
+    <View style={s.timeline}>
+      {rows.map((r, i) => (
+        <View key={r.key} style={s.tlRow} accessible>
+          <View style={s.tlRail}>
+            <View style={[s.tlDot, i === 0 && s.tlDotNow]} />
+            {i < rows.length - 1 ? <View style={s.tlLine} /> : null}
+          </View>
+          <View style={s.tlBody}>
+            <Text style={s.tlLabel}>
+              {r.label}
+              {r.date ? <Text style={s.tlDate}>{'  ·  ' + r.date}</Text> : null}
+            </Text>
+            <Text style={s.tlText}>{r.text}</Text>
+          </View>
+        </View>
+      ))}
     </View>
   );
 }
@@ -364,9 +483,11 @@ const makeStyles = (C) =>
       borderTopLeftRadius: R.xl,
       borderTopRightRadius: R.xl,
     },
+    // Юридичний рядок — частина розкриття умов (App Review 3.1.2): дрібний,
+    // але читабельний — dim, а не faint (у темній темі faint ледь видно).
     legal: {
-      color: C.faint,
-      ...type(11, F.reg),
+      color: C.dim,
+      ...type(12, F.reg),
       textAlign: 'center',
       marginTop: 10,
     },
@@ -374,4 +495,33 @@ const makeStyles = (C) =>
     legalRow: { flexDirection: 'row', justifyContent: 'center', gap: 8, marginTop: 6 },
     legalLink: { color: C.dim, ...type(12, F.semi, { noLead: true }) },
     legalDot: { color: C.faint },
+    freeBtn: {
+      marginTop: 10,
+      minHeight: 46,
+      borderRadius: R.lg,
+      backgroundColor: C.card2,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+    },
+    freeBtnText: { color: C.text, ...type(15, F.bold), textAlign: 'center' },
+
+    timeline: {
+      marginTop: 24,
+      backgroundColor: C.card,
+      borderRadius: R.lg,
+      paddingHorizontal: 18,
+      paddingTop: 18,
+      paddingBottom: 6,
+    },
+    tlRow: { flexDirection: 'row', gap: 14 },
+    tlRail: { width: 16, alignItems: 'center' },
+    tlDot: { width: 14, height: 14, borderRadius: 7, borderWidth: 3, borderColor: C.accent, backgroundColor: C.card, marginTop: 3 },
+    tlDotNow: { backgroundColor: C.accent },
+    tlLine: { flex: 1, width: 2, borderRadius: 1, backgroundColor: C.accentSoft, marginVertical: 4 },
+    tlBody: { flex: 1, paddingBottom: 16 },
+    tlLabel: { color: C.text, ...type(16, F.extra) },
+    tlDate: { color: C.faint, ...type(14, F.semi) },
+    tlText: { color: C.dim, ...type(14, F.reg), marginTop: 2 },
   });

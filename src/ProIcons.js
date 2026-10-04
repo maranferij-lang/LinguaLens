@@ -21,12 +21,13 @@ const PScan = ({ size, color }) => (
   </Svg>
 );
 
-// Словник без стелі — книга з висхідною стрілкою.
-const PBook = ({ size, color }) => (
+// Скан цілої кімнати — видошукач із кількома предметами всередині.
+const PRoom = ({ size, color }) => (
   <Svg {...box(size)}>
-    <Path d="M4 5.2A1.2 1.2 0 0 1 5.2 4H13a2 2 0 0 1 2 2v10H6a2 2 0 0 0-2 2z" {...S(color)} />
-    <Path d="M4 18.2A2.2 2.2 0 0 0 6.2 20.4H15" {...S(color)} />
-    <Path d="M17.5 12V4.8M14.6 7.4l2.9-2.9 2.9 2.9" {...S(color)} />
+    <Path d="M3 8.5V6a3 3 0 0 1 3-3h2.5M15.5 3H18a3 3 0 0 1 3 3v2.5M21 15.5V18a3 3 0 0 1-3 3h-2.5M8.5 21H6a3 3 0 0 1-3-3v-2.5" {...S(color)} />
+    <Rect x="7" y="7.4" width="4.2" height="4.2" rx="1.1" {...S(color, 1.5)} />
+    <Circle cx="15.3" cy="9.5" r="2.1" {...S(color, 1.5)} />
+    <Path d="M7.4 16.6h9.2M10.2 16.6l1.8-2.6 1.8 2.6" {...S(color, 1.5)} />
   </Svg>
 );
 
@@ -72,7 +73,7 @@ export const PCrown = ({ size = 28, color }) => (
 
 const MAP = {
   scan: PScan,
-  book: PBook,
+  room: PRoom,
   globe: PGlobe,
   sticker: PSticker,
   export: PExport,

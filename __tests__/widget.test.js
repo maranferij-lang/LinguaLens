@@ -113,6 +113,20 @@ describe('buildWordTimeline', () => {
     expect(de.props).toMatchObject({ caption: 'Deutsch · word of the day', example: '„Die Tasse ist voll.“' });
   });
 
+  test('a personal word names its topic in the caption and for VoiceOver; a general word does not', () => {
+    const entries = buildWordTimeline(
+      cache([day(1, 'liquidity', { topic: 'finance' }), day(2, 'harbour', { topic: 'general' }), day(3, 'anchor', { topic: 'nope' })]),
+      opts()
+    );
+    expect(entries[0].props).toMatchObject({
+      caption: 'English · Фінанси',
+      topic: 'Фінанси',
+      a11y: 'Слово дня, Фінанси, liquidity, liquidity-tr',
+    });
+    for (const e of entries.slice(1, 3)) expect(e.props).toMatchObject({ caption: 'English · слово дня', topic: '' });
+    expect(entries.at(-1).props.topic).toBe(''); // «відкрий застосунок» — той самий набір ключів
+  });
+
   test('a long example is cut at a word boundary inside the quotes', () => {
     const long = 'The old lighthouse at the end of the harbour has guided fishing boats home through storms for more than a century.';
     const [first] = buildWordTimeline(cache([day(1, 'lighthouse', { example: long })]), opts());
@@ -157,6 +171,16 @@ describe('updateWordWidget', () => {
     const instance = createWidget.mock.results[0].value;
     expect(instance.updateTimeline).toHaveBeenCalledTimes(2);
     expect(instance.updateTimeline.mock.calls[0][0]).toEqual(buildWordTimeline(c, opts()));
+  });
+
+  // Підказка «додай віджет» на вкладці навчання — лише там, де він є
+  test('widgetsAvailable: an iOS build with the native part only', () => {
+    expect(isolated((w) => w.widgetsAvailable())).toBe(true);
+    expect(isolated((w) => w.widgetsAvailable(), 'android')).toBe(false);
+    createWidget.mockImplementationOnce(() => {
+      throw new Error("Cannot find native module 'ExpoWidgets'");
+    });
+    expect(isolated((w) => w.widgetsAvailable())).toBe(false);
   });
 
   test('does nothing on Android', () => {

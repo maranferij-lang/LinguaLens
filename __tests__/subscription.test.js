@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { canSaveWord, canScan, canUseLanguage, FREE, freeScansPerDay, loadUsage, PLANS, scansLeft } from '../src/subscription';
+import * as subscription from '../src/subscription';
+import { canScan, canScene, canUseLanguage, COMPARISON, FREE, freeScansPerDay, freeScenes, loadUsage, PLANS, PRO_BENEFITS, scansLeft, scenesLeft, SIMULATED_PLANS } from '../src/subscription';
 import { localDayKey } from '../src/storage';
 
 const today = localDayKey();
@@ -15,10 +16,60 @@ test('the free daily limit opens the scans paywall', () => {
   expect(scansLeft({ pro: true, usage: {} })).toBe(Infinity);
 });
 
-test('dictionary ceiling', () => {
-  expect(canSaveWord({ pro: false, wordCount: FREE.maxWords })).toBe('words');
-  expect(canSaveWord({ pro: false, wordCount: FREE.maxWords - 1 })).toBeNull();
-  expect(canSaveWord({ pro: true, wordCount: 10000 })).toBeNull();
+// v1.2: «словник безкоштовний, скани платні» — стелі словника більше немає
+test('the dictionary has no ceiling and no “words” wall', () => {
+  expect(subscription.canSaveWord).toBeUndefined();
+  expect(FREE.maxWords).toBeUndefined();
+  expect(COMPARISON.map((r) => r.id)).not.toContain('words');
+  expect(PRO_BENEFITS.map((b) => b.id)).not.toContain('words');
+});
+
+test('one free scan a day and one free scene for life, by default', () => {
+  expect(FREE).toEqual({ scansPerDay: 1, scenes: 1, languagePairs: 1 });
+  expect(canScan({ pro: false, usage: { day: today, scans: 1 } })).toBe('scans');
+});
+
+test('the comparison: scans, scenes and languages first, then what stays free', () => {
+  expect(COMPARISON).toEqual([
+    { id: 'scans', free: '1', pro: '∞' },
+    { id: 'scene', free: '1', pro: '∞' },
+    { id: 'langs', free: '1', pro: '29' },
+    { id: 'wod', free: true, pro: true },
+    { id: 'srs', free: true, pro: true },
+    { id: 'speech', free: true, pro: true },
+  ]);
+  expect(PRO_BENEFITS.map((b) => b.id)).toEqual(['scans', 'scene', 'langs', 'support']);
+});
+
+describe('scenes (a whole room in one shot)', () => {
+  test('the free scene is gone once the server says so', () => {
+    expect(canScene({ pro: false, usage: { scenes: 0, sceneLimit: 1 } })).toBeNull();
+    expect(scenesLeft({ pro: false, usage: { scenes: 0, sceneLimit: 1 } })).toBe(1);
+    expect(canScene({ pro: false, usage: { scenes: 1, sceneLimit: 1 } })).toBe('scene');
+    expect(scenesLeft({ pro: false, usage: { scenes: 3, sceneLimit: 1 } })).toBe(0);
+  });
+
+  test('Pro, or sceneLimit null from the server, means no ceiling', () => {
+    expect(canScene({ pro: true, usage: { scenes: 9, sceneLimit: 1 } })).toBeNull();
+    expect(canScene({ pro: false, usage: { scenes: 9, sceneLimit: null } })).toBeNull();
+    expect(scenesLeft({ pro: false, usage: { scenes: 9, sceneLimit: null } })).toBe(Infinity);
+  });
+
+  test('without a count from the server the client blocks nothing — the server decides', () => {
+    expect(canScene({ pro: false, usage: { day: today, scans: 0, limit: 1 } })).toBeNull();
+    expect(canScene({ pro: false, usage: undefined })).toBeNull();
+  });
+
+  test('the paywall shows the server’s free scene count', () => {
+    expect(freeScenes({ sceneLimit: 2 })).toBe(2);
+    expect(freeScenes({ sceneLimit: null })).toBe(FREE.scenes);
+    expect(freeScenes(undefined)).toBe(FREE.scenes);
+  });
+
+  test('a new day resets the daily scans but not the lifetime scenes', async () => {
+    await AsyncStorage.setItem('ll_usage_v1', JSON.stringify({ day: '2000-01-01', scans: 1, limit: 1, scenes: 1, sceneLimit: 1 }));
+    expect(await loadUsage()).toEqual({ day: today, scans: 0, limit: 1, scenes: 1, sceneLimit: 1 });
+  });
 });
 
 test('one learning language for free, switching back is always allowed', () => {
@@ -58,6 +109,13 @@ test('a new day resets the counter but keeps the server limit', async () => {
   expect(await loadUsage()).toEqual({ day: today, scans: 0, limit: 1000 });
 });
 
-test('every trial plan has a renewal line for its own period', () => {
-  expect(PLANS.map((p) => p.legalKey)).toEqual(['trialLegalWeek', 'trialLegalMonth', 'trialLegalQuarter', 'trialLegalYear']);
+test('every plan has a legal line for its own period; lifetime says it is not a subscription', () => {
+  expect(PLANS.map((p) => p.legalKey)).toEqual(['trialLegalWeek', 'trialLegalMonth', 'trialLegalQuarter', 'trialLegalYear', 'lifetimeLegal']);
+  const life = PLANS.find((p) => p.id === 'lifetime');
+  expect(life).toMatchObject({ lifetime: true, labelKey: 'planLifetime' });
+  expect(life.trialDays).toBeUndefined();
+});
+
+test('the simulated store shows the same grid as the default offering', () => {
+  expect(SIMULATED_PLANS.map((p) => p.id)).toEqual(['month', 'year', 'lifetime']);
 });

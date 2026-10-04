@@ -45,3 +45,45 @@ jest.mock('expo-widgets', () => ({
 // пакет через jest.requireActual (__tests__/widget.test.js).
 jest.mock('@expo/ui/swift-ui', () => ({}));
 jest.mock('@expo/ui/swift-ui/modifiers', () => ({}));
+
+// Анонімна статистика (src/analytics.js): нативних модулів PostHog у jest
+// немає, а мережі — тим паче. Заглушка повторює методи, якими користується
+// обгортка; instances — щоб тести бачили створений клієнт і його виклики.
+jest.mock('posthog-react-native', () => {
+  const instances = [];
+  function PostHog(apiKey, options) {
+    this.apiKey = apiKey;
+    this.options = options;
+    this.capture = jest.fn();
+    this.setPersonProperties = jest.fn();
+    this.optIn = jest.fn(async () => {});
+    this.optOut = jest.fn(async () => {});
+    this.reset = jest.fn();
+    this.identify = jest.fn();
+    this.getFeatureFlag = jest.fn(() => undefined);
+    this.onFeatureFlags = jest.fn(() => () => {});
+    instances.push(this);
+  }
+  PostHog.instances = instances;
+  return { __esModule: true, default: PostHog, PostHog };
+});
+
+// Пейвол і Customer Center від RevenueCat (react-native-purchases-ui): нативна
+// частина є лише в iOS-збірці. Типово пейвол «закрили без покупки»; тести,
+// яким потрібне інше, перевизначають через mockResolvedValueOnce.
+jest.mock('react-native-purchases-ui', () => {
+  const PAYWALL_RESULT = {
+    NOT_PRESENTED: 'NOT_PRESENTED',
+    ERROR: 'ERROR',
+    CANCELLED: 'CANCELLED',
+    PURCHASED: 'PURCHASED',
+    RESTORED: 'RESTORED',
+  };
+  const RevenueCatUI = {
+    PAYWALL_RESULT,
+    presentPaywall: jest.fn(async () => PAYWALL_RESULT.CANCELLED),
+    presentPaywallIfNeeded: jest.fn(async () => PAYWALL_RESULT.NOT_PRESENTED),
+    presentCustomerCenter: jest.fn(async () => {}),
+  };
+  return { __esModule: true, default: RevenueCatUI, PAYWALL_RESULT };
+});

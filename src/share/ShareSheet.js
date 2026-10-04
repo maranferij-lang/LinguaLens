@@ -21,6 +21,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import { track } from '../analytics';
 import { IcStories } from '../icons';
 import { DUR, EASE, useReducedMotion } from '../motion';
 import { useSafeAreaInsets } from '../SafeArea';
@@ -168,6 +169,11 @@ function Sheet({ payload, onClose, t }) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     try {
       await action();
+      // Статистика: що й куди поділились. Чи людина справді надіслала
+      // картку з системного меню, iOS не каже — рахуємо відкрите меню.
+      if (!closing.current) {
+        track('share', { kind: payload.kind, target: kind === 'stories' ? 'stories' : 'system', template: templates[pageRef.current] });
+      }
     } catch (e) {
       setError(t(ERRORS[e?.code] || 'shareError'));
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});

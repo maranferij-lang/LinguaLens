@@ -17,6 +17,8 @@ const ENV = {
   PRIVACY_URL: clean(process.env.EXPO_PUBLIC_PRIVACY_URL),
   SUPPORT_EMAIL: clean(process.env.EXPO_PUBLIC_SUPPORT_EMAIL),
   FACEBOOK_APP_ID: clean(process.env.EXPO_PUBLIC_FACEBOOK_APP_ID),
+  POSTHOG_KEY: clean(process.env.EXPO_PUBLIC_POSTHOG_KEY),
+  POSTHOG_HOST: clean(process.env.EXPO_PUBLIC_POSTHOG_HOST),
 };
 const isDev = typeof __DEV__ !== 'undefined' && __DEV__;
 
@@ -50,10 +52,17 @@ export const SERVER_SOURCE = ENV.SERVER_URL ? 'env' : DEV_URL ? 'auto' : 'missin
 // «від випадкових»: він лежить у бінарнику. Можна лишити порожнім.
 export const APP_TOKEN = ENV.APP_TOKEN;
 
-// Публічний iOS-ключ RevenueCat (appl_…). Без нього покупки вимкнені:
-// у розробці пейвол імітує покупку, у релізі кнопка чесно каже, що недоступно.
+// Публічний iOS-ключ RevenueCat. У розробці (локальний .env і середовища EAS
+// development/preview) — ключ Test Store (test_…): покупки йдуть через
+// симульоване вікно RevenueCat, без справжніх грошей. У production — ключ
+// App Store (appl_…): з тестовим ключем RevenueCat забороняє подавати збірку,
+// тож production-збірку з ним зупиняє scripts/check-release-env.js.
+// Без ключа покупки вимкнені: у розробці пейвол імітує покупку, у релізі
+// кнопка чесно каже, що недоступно.
 export const REVENUECAT_IOS_KEY = ENV.REVENUECAT_IOS_KEY;
-export const PRO_ENTITLEMENT = 'pro';
+// Ідентифікатор entitlement у RevenueCat — той самий, що REVENUECAT_ENTITLEMENT
+// на сервері: за ним і застосунок, і сервер вирішують, чи людина має Pro.
+export const PRO_ENTITLEMENT = 'lingualens_pro';
 
 // Юридичні посилання — обов'язкові в пейволі (App Store Guideline 3.1.2).
 // Terms: стандартна ліцензія Apple (EULA) — її можна використовувати як є.
@@ -67,5 +76,12 @@ export const SUPPORT_EMAIL = ENV.SUPPORT_EMAIL;
 // приймає «поділитись у Stories» лише з ним; без нього кнопки Instagram
 // немає, а картки йдуть через звичайне системне меню.
 export const FACEBOOK_APP_ID = ENV.FACEBOOK_APP_ID;
+
+// Анонімна статистика PostHog (src/analytics.js). Ключ проєкту (phc_…)
+// публічний за задумом PostHog — він лише приймає події. Без ключа вся
+// статистика мовчки нічого не робить: тести, локальна розробка, Expo Go.
+// Сервер — європейський: дані людей з Європи не виїжджають за її межі.
+export const POSTHOG_KEY = ENV.POSTHOG_KEY;
+export const POSTHOG_HOST = ENV.POSTHOG_HOST || 'https://eu.i.posthog.com';
 
 export const IS_DEV = isDev;

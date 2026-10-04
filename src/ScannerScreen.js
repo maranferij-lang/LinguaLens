@@ -8,6 +8,7 @@ import {
   PanResponder,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -17,6 +18,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { recognizeImage, recognizeScene } from './api';
+import { track } from './analytics';
 import { captureScene, createCutter, cropToObject, objectJpeg } from './cutout';
 import { speak } from './speech';
 import { IcClose, IcShare, IcSpeaker } from './icons';
@@ -31,7 +33,7 @@ import { useSafeAreaInsets } from './SafeArea';
 import { UNDER_TAB } from './Chrome';
 import { FadeIn, GradBtn, Press, SecBtn } from './ui';
 import { EASE, SPRING, layoutNext, useReducedMotion } from './motion';
-import { F, R, useTheme } from './theme';
+import { CAPS, F, R, useTheme } from './theme';
 
 // Пресети зуму. Точної кратності тут не буде: iOS рахує зум як
 // maxZoom^value, а maxZoom залежить від моделі телефону. Тому показуємо лише
@@ -45,6 +47,10 @@ const MAX_ZOOM = 0.6;
 // Режими сканера — як у Камері iOS: підписи над затвором, свайп по
 // видошукачу перемикає. Сцена — уся кімната чи стіл одним кадром.
 const MODES = ['object', 'scene'];
+
+// Відмови сервера за оплатою (402): денні скани скінчились або безкоштовна
+// сцена вже використана. Це не помилки, а пейвол — його відкриває App.
+const PAYWALL_CODES = ['SCAN_LIMIT', 'SCENE_PRO'];
 
 // Поки модель шукає предмети сцени (5–12 с), рядок статусу міняється:
 // мовчазне очікування здається довшим, ніж є.
@@ -69,6 +75,24 @@ export default function ScannerScreen({
   scanMode = 'object',
   onScanModeChange,
   scansLeft,
+  // рівень людини 1–10 з профілю (undefined — профілю немає): від нього
+  // сервер робить приклад простішим чи багатшим і додає «Ще вирази»
+  level,
+  // Сцена — функція Pro, і безкоштовну пробу вже використано: на перемикачі
+  // режиму біля «Сцени» маленький значок PRO, а вибір сцени відкриває
+  // пейвол (onScenePro) замість режиму, який однаково не спрацює.
+  sceneLocked = false,
+  onScenePro,
+  // звідки скан — для статистики: 'app' або 'onboarding' (перший скан у
+  // онбордингу)
+  scanSource = 'app',
+  // Перший скан в онбордингу («Спробуй зараз»): лише один предмет, без
+  // перемикача режимів і лічильника сканів, з хрестиком, що вертає в
+  // онбординг (onExit). Щойно слово збережено — аркуш закривається, і
+  // онбординг іде далі вже зі словом (onFirstSaved(слово)).
+  firstScan = false,
+  onExit,
+  onFirstSaved,
   t,
 }) {
   const { C } = useTheme();
@@ -90,7 +114,9 @@ export default function ScannerScreen({
   // рахуються видошукач сцени й заморожений кадр.
   const [rootH, setRootH] = useState(win.height - insets.top - insets.bottom);
 
-  const mode = MODES.includes(scanMode) ? scanMode : 'object';
+  // Перший скан — завжди один предмет: сцена довша (5–12 с) і в
+  // безкоштовному рівні разова; вау-момент має бути швидким.
+  const mode = firstScan ? 'object' : MODES.includes(scanMode) ? scanMode : 'object';
   const sceneMode = mode === 'scene';
   // Сцена: заморожений кадр, поки модель думає, і готовий результат.
   const [frozen, setFrozen] = useState(null);
@@ -99,7 +125,16 @@ export default function ScannerScreen({
   const [statusIdx, setStatusIdx] = useState(0);
   // Таймер, що прибирає заморожений кадр після закриття сцени (див. closeScene)
   const thaw = useRef(null);
-  useEffect(() => () => clearTimeout(thaw.current), []);
+  // Перший скан: «Збережено» видно мить, потім аркуш їде вниз і онбординг
+  // продовжується
+  const firstDone = useRef([]);
+  useEffect(
+    () => () => {
+      clearTimeout(thaw.current);
+      firstDone.current.forEach(clearTimeout);
+    },
+    []
+  );
 
   // Промінь розгортки: рівномірний хід згори вниз. Тут linear доречний —
   // він читається як робота приладу, а не як «оживлення» інтерфейсу.
@@ -199,6 +234,11 @@ export default function ScannerScreen({
 
   function switchMode(next) {
     if (next === mode || busy.current) return;
+    if (next === 'scene' && sceneLocked && onScenePro) {
+      Haptics.selectionAsync();
+      onScenePro();
+      return;
+    }
     Haptics.selectionAsync();
     // видошукач і підказка плавно перебудовуються під новий режим
     layoutNext();
@@ -228,8 +268,9 @@ export default function ScannerScreen({
       return;
     }
     // Ліміт перевіряємо до зйомки: інакше витратимо виклик AI і покажемо
-    // відмову вже після нього — це виглядає як обман. Сцена коштує один скан.
-    if (onGuardScan && !onGuardScan()) return;
+    // відмову вже після нього — це виглядає як обман. Сцена коштує один скан
+    // і ще одну безкоштовну пробу сцени, тож воротар має знати режим.
+    if (onGuardScan && !onGuardScan(mode)) return;
     busy.current = true;
     setError('');
     clearTimeout(thaw.current);
@@ -257,12 +298,15 @@ export default function ScannerScreen({
         setJustSaved(false);
       }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      track('scan', { mode, ok: true, source: scanSource });
     } catch (e) {
       setFrozen(null);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       // Ліміт вичерпано — це не помилка, а пейвол (сервер навіть не кликав
       // AI). Його вже відкрив App, коли recognize спитав, що робити.
-      if (e.message === 'SCAN_LIMIT' && onLimitReached) return;
+      if (PAYWALL_CODES.includes(e.message) && onLimitReached) return;
+      // Код помилки — з api.js (SCAN_TIMEOUT, SCAN_EMPTY…), а не текст
+      track('scan', { mode, ok: false, source: scanSource, error: /^[A-Z_]+$/.test(e?.message || '') ? e.message : 'OTHER' });
       // Сервер не впізнав пристрій — тихо беремо нову ідентичність.
       if (e.message === 'SCAN_AUTH' && onSessionLost) onSessionLost();
       // Коди з api.js перетворюємо на людські фрази. Кожна каже, ЩО робити,
@@ -313,16 +357,17 @@ export default function ScannerScreen({
     return true;
   }
 
-  // Сервер відмовив за лімітом (402). App або відкриває пейвол (false), або —
-  // Pro щойно куплено, сервер перепитав RevenueCat і зняв стелю (true) —
-  // тоді той самий кадр іде ще раз, і людині не треба знімати вдруге.
+  // Сервер відмовив за оплатою (402: SCAN_LIMIT чи SCENE_PRO). App або
+  // відкриває пейвол (false), або — Pro щойно куплено, сервер перепитав
+  // RevenueCat і зняв стелю (true) — тоді той самий кадр іде ще раз, і
+  // людині не треба знімати вдруге.
   async function recognize(fn, base64) {
     try {
-      return await fn(base64, targetLang, nativeLang);
+      return await fn(base64, targetLang, nativeLang, level);
     } catch (e) {
-      if (e.message !== 'SCAN_LIMIT' || !onLimitReached || !(await onLimitReached(e.data))) throw e;
+      if (!PAYWALL_CODES.includes(e.message) || !onLimitReached || !(await onLimitReached(e.data, e.message))) throw e;
     }
-    return fn(base64, targetLang, nativeLang);
+    return fn(base64, targetLang, nativeLang, level);
   }
 
   // Камера стояла на паузі, поки була відкрита сцена, і запускається не
@@ -340,9 +385,10 @@ export default function ScannerScreen({
   }
 
   // Слово з результату скану в тому вигляді, в якому його зберігає словник.
-  // usage — службове поле відповіді сервера, у словник воно не йде.
+  // usage — службове поле відповіді сервера, extras — підказка до цього
+  // скану: у словник вони не йдуть.
   function resultWord() {
-    const { usage, ...word } = result;
+    const { usage, extras, ...word } = result;
     return { ...word, lang: targetLang, nativeLang };
   }
 
@@ -357,6 +403,15 @@ export default function ScannerScreen({
     }
     setJustSaved(true);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    if (firstScan && onFirstSaved && !firstDone.current.length) {
+      const word = resultWord();
+      firstDone.current.push(
+        setTimeout(() => {
+          closeResult();
+          firstDone.current.push(setTimeout(() => onFirstSaved(word), FIRST_SHEET_MS));
+        }, FIRST_SAVED_MS)
+      );
+    }
   }
 
   function share() {
@@ -386,6 +441,7 @@ export default function ScannerScreen({
     const denied = !permission.canAskAgain;
     return (
       <View style={s.center}>
+        {firstScan && onExit ? <ExitButton onPress={onExit} t={t} s={s} dark={false} C={C} /> : null}
         <FadeIn>
           <View style={{ alignItems: 'center' }}>
             <MascotBob pose="wave" size={150} />
@@ -467,14 +523,14 @@ export default function ScannerScreen({
         </Text>
         {/* Скільки сканів лишилось. Показуємо лише коли реально мало —
             постійний лічильник над камерою тисне і псує враження. */}
-        {Number.isFinite(scansLeft) && scansLeft <= 3 && !loading ? (
+        {Number.isFinite(scansLeft) && scansLeft <= 3 && !loading && !firstScan ? (
           <Text style={s.scansLeft}>{t('scansLeftN', { n: scansLeft })}</Text>
         ) : null}
       </View>
 
       {/* Зум */}
       {frozen ? null : (
-        <View style={s.zoomRow}>
+        <View style={[s.zoomRow, firstScan && { bottom: ZOOM_BOTTOM - FIRST_LIFT - MODE_H - 10 }]}>
           {ZOOM_PRESETS.map((p) => {
             const active = Math.abs(zoom - p.value) < 0.015;
             return (
@@ -490,10 +546,13 @@ export default function ScannerScreen({
         </View>
       )}
 
-      <ModePicker mode={mode} onChange={switchMode} disabled={loading} reduced={reduced} s={s} t={t} />
+      {firstScan ? null : (
+        <ModePicker mode={mode} onChange={switchMode} disabled={loading} locked={sceneLocked} reduced={reduced} s={s} t={t} />
+      )}
 
-      {/* Затвор як в Apple Camera: біле кільце + біле коло */}
-      <View style={s.shutterWrap}>
+      {/* Затвор як в Apple Camera: біле кільце + біле коло. Без таб-бара
+          (перший скан в онбордингу) — ближче до низу, під великий палець. */}
+      <View style={[s.shutterWrap, firstScan && { bottom: SHUTTER_BOTTOM - FIRST_LIFT }]}>
         <Press
           onPress={scan}
           disabled={loading}
@@ -508,8 +567,10 @@ export default function ScannerScreen({
         </Press>
       </View>
 
+      {firstScan && onExit ? <ExitButton onPress={onExit} t={t} s={s} dark C={C} /> : null}
+
       {error ? (
-        <FadeIn style={s.errorWrap}>
+        <FadeIn style={[s.errorWrap, firstScan && { bottom: ZOOM_BOTTOM - FIRST_LIFT + 40 + 14 - MODE_H - 10 }]}>
           <Text style={s.errorText}>{error}</Text>
           <Pressable
             onPress={() => setError('')}
@@ -525,57 +586,85 @@ export default function ScannerScreen({
       <Modal visible={!!result} transparent animationType="slide" onRequestClose={backFromResult}>
         {/* Тло — лише для пальця; VoiceOver закриває аркуш кнопкою або жестом виходу */}
         <Pressable style={s.modalBackdrop} onPress={closeResult} accessible={false} />
-        <View style={s.sheet} onAccessibilityEscape={backFromResult}>
+        {/* Від 7/10 під прикладом ще кілька виразів — і на маленькому
+            iPhone аркуш може не влізти. Тоді він гортається, а не обрізається. */}
+        <View style={[s.sheet, { maxHeight: win.height - insets.top - 8 }]} onAccessibilityEscape={backFromResult}>
           <View style={s.sheetHandle} />
-          {result ? (
-            <>
-              {result.photo ? (
-                <View style={{ alignItems: 'center', marginBottom: 14 }}>
-                  <StickerLarge uri={result.photo} shape={result.shape} outline={result.outline} box={result.box} size={150} pop />
-                </View>
-              ) : null}
-              <FadeIn dy={14}>
-                <View style={s.wordRow}>
-                  <Text style={s.word}>{result.word}</Text>
-                  <Press style={s.speakBtn} onPress={() => speak(result.word, targetLang)} accessibilityLabel={t('listen')}>
-                    <IcSpeaker size={20} color={C.accent} />
-                  </Press>
-                </View>
-                {result.ipa ? <Text style={s.ipa}>{result.ipa}</Text> : null}
-                <Text style={s.translation}>{result.translation}</Text>
-              </FadeIn>
-
-              {result.example ? (
-                <FadeIn delay={45}>
-                  <Press style={s.exampleBox} onPress={() => speak(result.example, targetLang)}>
-                    <View style={s.exampleSpeaker}>
-                      <IcSpeaker size={15} color={C.dim} />
-                    </View>
-                    <Text style={s.example}>“{result.example}”</Text>
-                    <Text style={s.exampleTr}>{result.exampleTranslation}</Text>
-                  </Press>
-                </FadeIn>
-              ) : null}
-
-              <FadeIn delay={90} style={s.sheetBtns}>
-                <View style={s.btnRow}>
-                  <View style={{ flex: 1 }}>
-                    {alreadySaved || justSaved ? (
-                      <View style={s.savedBadge}>
-                        <Text style={s.savedBadgeText}>{t('saved')}</Text>
-                      </View>
-                    ) : (
-                      <GradBtn title={t('save')} onPress={save} />
-                    )}
+          <ScrollView style={s.sheetScroll} bounces={false} showsVerticalScrollIndicator={false}>
+            {result ? (
+              <>
+                {result.photo ? (
+                  <View style={{ alignItems: 'center', marginBottom: 14 }}>
+                    <StickerLarge uri={result.photo} shape={result.shape} outline={result.outline} box={result.box} size={150} pop />
                   </View>
-                  <Press style={s.shareBtn} onPress={share} accessibilityLabel={t('share')}>
-                    <IcShare size={22} color={C.accent} />
-                  </Press>
-                </View>
-                <SecBtn title={t('scanAgain')} onPress={closeResult} />
-              </FadeIn>
-            </>
-          ) : null}
+                ) : null}
+                <FadeIn dy={14}>
+                  <View style={s.wordRow}>
+                    <Text style={s.word}>{result.word}</Text>
+                    <Press style={s.speakBtn} onPress={() => speak(result.word, targetLang)} accessibilityLabel={t('listen')}>
+                      <IcSpeaker size={20} color={C.accent} />
+                    </Press>
+                  </View>
+                  {result.ipa ? <Text style={s.ipa}>{result.ipa}</Text> : null}
+                  <Text style={s.translation}>{result.translation}</Text>
+                </FadeIn>
+
+                {result.example ? (
+                  <FadeIn delay={45}>
+                    <Press style={s.exampleBox} onPress={() => speak(result.example, targetLang)}>
+                      <View style={s.exampleSpeaker}>
+                        <IcSpeaker size={15} color={C.dim} />
+                      </View>
+                      <Text style={s.example}>“{result.example}”</Text>
+                      <Text style={s.exampleTr}>{result.exampleTranslation}</Text>
+                    </Press>
+                  </FadeIn>
+                ) : null}
+
+                {/* «Ще вирази»: колокації, ідіоми й фразові дієслова зі словом —
+                    для тих, кому сам іменник уже нічого не дає. Тап — озвучити. */}
+                {result.extras?.length ? (
+                  <FadeIn delay={70} style={s.extras}>
+                    <Text style={s.extrasTitle}>{t('moreExpr')}</Text>
+                    {result.extras.map((x, i) => (
+                      <Press
+                        key={x.phrase}
+                        style={[s.extraRow, i > 0 && s.extraLine]}
+                        onPress={() => speak(x.phrase, targetLang)}
+                        scaleTo={0.98}
+                        accessibilityLabel={x.translation ? `${x.phrase}, ${x.translation}` : x.phrase}
+                        accessibilityHint={t('listen')}
+                      >
+                        <View style={{ flex: 1 }}>
+                          <Text style={s.extraPhrase}>{x.phrase}</Text>
+                          {x.translation ? <Text style={s.extraTr}>{x.translation}</Text> : null}
+                        </View>
+                        <IcSpeaker size={15} color={C.dim} />
+                      </Press>
+                    ))}
+                  </FadeIn>
+                ) : null}
+
+                <FadeIn delay={90} style={s.sheetBtns}>
+                  <View style={s.btnRow}>
+                    <View style={{ flex: 1 }}>
+                      {alreadySaved || justSaved ? (
+                        <View style={s.savedBadge}>
+                          <Text style={s.savedBadgeText}>{t('saved')}</Text>
+                        </View>
+                      ) : (
+                        <GradBtn title={t('save')} onPress={save} />
+                      )}
+                    </View>
+                    <Press style={s.shareBtn} onPress={share} accessibilityLabel={t('share')}>
+                      <IcShare size={22} color={C.accent} />
+                    </Press>
+                  </View>
+                  <SecBtn title={t('scanAgain')} onPress={closeResult} />
+                </FadeIn>
+              </>
+            ) : null}
+          </ScrollView>
         </View>
         {/* Картка «поділитись» живе всередині цього ж Modal: iOS не покаже
             другий нативний Modal поверх уже відкритого. */}
@@ -599,12 +688,32 @@ export default function ScannerScreen({
   );
 }
 
+// Хрестик першого скану: назад в онбординг без слова. Над камерою — темне
+// напівпрозоре коло з білим хрестиком, як у системній Камері; на екрані
+// дозволу камери — звичайне, у кольорах застосунку.
+function ExitButton({ onPress, t, s, dark, C }) {
+  return (
+    <Pressable
+      style={[s.exit, dark ? s.exitDark : { backgroundColor: C.card2 }]}
+      onPress={onPress}
+      hitSlop={10}
+      accessibilityRole="button"
+      accessibilityLabel={t('close')}
+    >
+      <IcClose size={20} color={dark ? '#fff' : C.dim} />
+    </Pressable>
+  );
+}
+
 // ─── Перемикач режимів ─────────────────────────────────────────────────────
 // Як у Камері iOS: рядок підписів капсом над затвором, обраний — жовтий і
 // стоїть по центру; їде весь рядок, а не підсвічування стрибає між словами.
-function ModePicker({ mode, onChange, disabled, reduced, s, t }) {
+// locked — сцена лише в Pro: біля підпису маленький значок PRO, і VoiceOver
+// теж про це каже.
+function ModePicker({ mode, onChange, disabled, locked, reduced, s, t }) {
   const [widths, setWidths] = useState({});
   const labels = { object: t('modeObject'), scene: t('modeScene') };
+  const pro = (m) => locked && m === 'scene';
   const idx = MODES.indexOf(mode);
   const measured = MODES.every((m) => widths[m]);
   const total = measured ? MODES.reduce((sum, m) => sum + widths[m], 0) : 0;
@@ -635,12 +744,21 @@ function ModePicker({ mode, onChange, disabled, reduced, s, t }) {
                 setWidths((prev) => (prev[m] === w ? prev : { ...prev, [m]: w }));
               }}
               accessibilityRole="tab"
-              accessibilityLabel={labels[m]}
+              accessibilityLabel={pro(m) ? t('modeScenePro') : labels[m]}
               accessibilityState={{ selected: active, disabled }}
             >
-              <Text style={[s.modeText, active && s.modeTextActive]} maxFontSizeMultiplier={1.2}>
-                {labels[m]}
-              </Text>
+              <View style={s.modeInner}>
+                <Text style={[s.modeText, active && s.modeTextActive]} maxFontSizeMultiplier={1.2}>
+                  {labels[m]}
+                </Text>
+                {pro(m) ? (
+                  <View style={s.modePro}>
+                    <Text style={s.modeProText} maxFontSizeMultiplier={1.2}>
+                      PRO
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
             </Pressable>
           );
         })}
@@ -715,6 +833,11 @@ function viewfinder(scene, width, rootH) {
 
 const FRAME = 240;
 const SHUTTER_BOTTOM = UNDER_TAB + 12;
+// Перший скан в онбордингу: таб-бара немає — затвор і зум нижче на стільки
+const FIRST_LIFT = UNDER_TAB - 22;
+// Перший скан: скільки видно «Збережено» і скільки їде вниз аркуш
+export const FIRST_SAVED_MS = 650;
+export const FIRST_SHEET_MS = 320;
 // Перемикач режимів — одразу над затвором, зум — над перемикачем.
 const MODE_BOTTOM = SHUTTER_BOTTOM + 78 + 10;
 const MODE_H = 28;
@@ -807,6 +930,11 @@ const makeStyles = (C) =>
       textShadowOffset: { width: 0, height: 1 },
     },
     modeTextActive: { color: '#FFD60A' },
+    modeInner: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+    // Значок PRO біля «Сцени»: маленька пігулка кольору акценту, як бейдж
+    // PRO в пейволі, — щоб людина впізнала його там, куди він веде.
+    modePro: { backgroundColor: C.accent, borderRadius: R.pill, paddingHorizontal: 5, paddingVertical: 1.5 },
+    modeProText: { color: C.onAccent, fontSize: 9, fontFamily: F.extra, letterSpacing: 0.8 },
 
     // Таб-бар лежить поверх камери, тож затвор стоїть над ним, а не під ним.
     shutterWrap: { position: 'absolute', bottom: SHUTTER_BOTTOM, width: '100%', alignItems: 'center' },
@@ -841,6 +969,18 @@ const makeStyles = (C) =>
     },
     errorText: { color: '#fff', fontSize: 14, textAlign: 'center', lineHeight: 20, fontFamily: F.reg },
     errorClose: { position: 'absolute', top: 8, right: 10, padding: 4 },
+    exit: {
+      position: 'absolute',
+      top: 12,
+      left: 14,
+      zIndex: 20,
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    exitDark: { backgroundColor: 'rgba(0,0,0,0.45)' },
 
     modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
     sheet: {
@@ -886,6 +1026,15 @@ const makeStyles = (C) =>
     exampleSpeaker: { position: 'absolute', top: 10, right: 10 },
     example: { color: C.text, fontSize: 15, lineHeight: 22, paddingRight: 20, fontFamily: F.reg },
     exampleTr: { color: C.dim, fontSize: 13, marginTop: 6, lineHeight: 19, fontFamily: F.reg },
+    // не тягнеться понад вміст: аркуш лишається внизу, а гортається лише
+    // тоді, коли впирається в maxHeight
+    sheetScroll: { flexGrow: 0, flexShrink: 1 },
+    extras: { marginTop: 14, backgroundColor: C.card2, borderRadius: R.md, paddingHorizontal: 14, paddingTop: 12, paddingBottom: 4 },
+    extrasTitle: { color: C.faint, ...CAPS, marginBottom: 4 },
+    extraRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 9 },
+    extraLine: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.sep },
+    extraPhrase: { color: C.text, fontSize: 15, lineHeight: 20, fontFamily: F.bold },
+    extraTr: { color: C.dim, fontSize: 13, lineHeight: 18, marginTop: 1, fontFamily: F.reg },
     sheetBtns: { marginTop: 22, gap: 10 },
     btnRow: { flexDirection: 'row', gap: 10, alignItems: 'stretch' },
     shareBtn: {
