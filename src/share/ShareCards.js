@@ -24,8 +24,6 @@ import {
   CARD_W,
   COLLAGE_H,
   CONTENT_W,
-  CUTOUT_H,
-  CUTOUT_W,
   PAD_BOTTOM,
   PAD_TOP,
   PAD_X,
@@ -49,8 +47,8 @@ import { SceneCard } from './SceneCards';
 
 // Фото слова може бути відносним шляхом у Documents ('stickers/x.jpg') або
 // повним URI свіжого скану. data: (веб-прев'ю) віддаємо як є — photoUri
-// приклеїв би до нього шлях Documents.
-function resolvePhoto(photo) {
+// приклеїв би до нього шлях Documents. Бере й Stickers.js.
+export function resolvePhoto(photo) {
   if (!photo) return null;
   if (String(photo).startsWith('data:')) return photo;
   try {
@@ -253,8 +251,10 @@ function Stats({ items, pal, locale, style }) {
   );
 }
 
-// ─── Слово: «Наліпка» ──────────────────────────────────────────────────────
-// Головний шаблон: вирізаний предмет великим планом і слово під ним.
+// ─── Слово: «Предмет» ──────────────────────────────────────────────────────
+// Головна картка: вирізаний предмет великим планом і слово під ним. Ключ
+// шаблону лишився 'sticker', підпис — «Предмет»: «Наліпка» тепер окремий
+// режим аркуша з прозорими наліпками (Stickers.js).
 function WordSticker({ word, pal, t, locale }) {
   return (
     <>
@@ -355,54 +355,6 @@ function WordMinimal({ word, pal, t }) {
       </View>
       <Footer pal={pal} t={t} center />
     </>
-  );
-}
-
-// ─── Слово: «Без тла» ──────────────────────────────────────────────────────
-// Вирізаний предмет і табличка «слово · переклад», наче наліпка з підписом.
-// Знімається не картка, а лише цей блок (cardRef) — прозорий PNG без тла:
-// у Stories його рухають пальцем, в iMessage й Telegram він лягає стікером.
-// Колір палітри видно тільки в прев'ю — тим самим кольором Instagram
-// заллє тло Stories. Табличка — кольори плитки: вона виділяється на тлі
-// палітри (≥ 3:1), а текст на ній читається (≥ 4.5:1) — див. тест палітр.
-function WordCutout({ word, pal, cardRef }) {
-  const size = fontSizeForWord(word.word, { max: 28, min: 16, width: CUTOUT_W - 76 });
-  return (
-    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-      <View ref={cardRef} collapsable={false} style={{ width: CUTOUT_W, height: CUTOUT_H, alignItems: 'center' }}>
-        <Art word={word} pal={pal} size={290} tilt={-2} />
-        <View
-          style={{
-            marginTop: -38,
-            maxWidth: CUTOUT_W - 24,
-            backgroundColor: pal.tile,
-            borderRadius: 18,
-            paddingHorizontal: 20,
-            paddingVertical: 10,
-            alignItems: 'center',
-            transform: [{ rotate: '2deg' }],
-            shadowColor: '#3B2F22',
-            shadowOpacity: 0.2,
-            shadowRadius: 6,
-            shadowOffset: { width: 0, height: 3 },
-          }}
-        >
-          <Txt
-            numberOfLines={1}
-            adjustsFontSizeToFit
-            minimumFontScale={0.7}
-            style={{ color: pal.onTile, fontFamily: F.extra, fontSize: size, lineHeight: Math.round(size * 1.2), letterSpacing: -size * 0.015 }}
-          >
-            {word.word}
-          </Txt>
-          {word.translation ? (
-            <Txt numberOfLines={1} style={{ color: pal.onTile, fontFamily: F.semi, fontSize: 16, lineHeight: 21 }}>
-              {word.translation}
-            </Txt>
-          ) : null}
-        </View>
-      </View>
-    </View>
   );
 }
 
@@ -574,8 +526,8 @@ function WeekCard({ payload, pal, t, locale }) {
   );
 }
 
-// Одна картка в повному розмірі 360×640. cardRef — на кореневий View (у
-// «без тла» — на блок наліпки), саме його знімає capture.js.
+// Одна картка в повному розмірі 360×640. cardRef — на кореневий View, саме
+// його знімає capture.js.
 export function ShareCard({ payload, template, pal, t, locale, cardRef }) {
   // Сцена — фото на весь кадр, без полів звичайної картки
   if (SCENE_TEMPLATES.includes(template)) {
@@ -586,12 +538,10 @@ export function ShareCard({ payload, template, pal, t, locale, cardRef }) {
   if (template === 'sticker') body = <WordSticker word={payload.word} {...props} />;
   else if (template === 'entry') body = <WordEntry word={payload.word} {...props} />;
   else if (template === 'minimal') body = <WordMinimal word={payload.word} {...props} />;
-  else if (template === 'cutout') body = <WordCutout word={payload.word} pal={pal} cardRef={cardRef} />;
   else if (template === 'achievement') body = <AchievementCard payload={payload} {...props} />;
   else if (template === 'week') body = <WeekCard payload={payload} {...props} />;
-  // «Без тла» знімає лише наліпку (cardRef усередині), рамка — тільки для прев'ю
   return (
-    <Frame pal={pal} cardRef={template === 'cutout' ? undefined : cardRef}>
+    <Frame pal={pal} cardRef={cardRef}>
       {body}
     </Frame>
   );

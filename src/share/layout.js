@@ -1,8 +1,9 @@
-// Чиста геометрія й форматування для карток «поділитись».
+// Чиста геометрія й форматування для карток і наліпок «поділитись».
 //
-// Тут немає ні React, ні react-native: усе, що вирішує, як картка виглядає
-// (кегль слова, висоти стовпчиків, колаж, дати), перевіряється jest-ом без
-// моків. Компоненти в ShareCards.js лише розкладають готові числа.
+// Тут немає ні React, ні react-native: усе, що вирішує, як картка чи
+// наліпка виглядає (кегль слова, висоти стовпчиків, колаж, фішки сцени,
+// дати, які кнопки показати), перевіряється jest-ом без моків. Компоненти
+// в ShareCards.js, Stickers.js і ShareSheet.js лише розкладають готові числа.
 
 // Логічний розмір картки — 9:16, як Stories. Верстаємо завжди в цих точках,
 // а в PNG віддаємо рівно 1080×1920: це рідний розмір Instagram Stories,
@@ -100,13 +101,12 @@ export function tierColor(palette, tier) {
 // підписами або вставкою з пронумерованим списком (див. SceneCards.js).
 export const SCENE_TEMPLATES = ['sceneStickers', 'sceneLabels', 'sceneFrame'];
 
-// Які шаблони має сенс гортати для цього payload. Слово — три вигляди (і
-// четвертий, «без тла», коли є вирізана наліпка), досягнення й тиждень — по
-// одному: там композиція одна-єдина правильна.
+// Які картки 9:16 має сенс гортати для цього payload. Слово — три вигляди,
+// досягнення й тиждень — по одному: там композиція одна-єдина правильна.
+// Колишній четвертий вигляд слова, «Без тла», став окремим режимом
+// «Наліпка» (stickerStylesFor нижче) і з карток пішов.
 export function templatesFor(payload) {
-  if (payload?.kind === 'word' && payload.word) {
-    return payload.word.photo ? ['sticker', 'entry', 'minimal', 'cutout'] : ['sticker', 'entry', 'minimal'];
-  }
+  if (payload?.kind === 'word' && payload.word) return ['sticker', 'entry', 'minimal'];
   if (payload?.kind === 'scene' && payload.scene) return SCENE_TEMPLATES;
   if (payload?.kind === 'achievement' && payload.achievement) return ['achievement'];
   if (payload?.kind === 'week' && payload.stats) return ['week'];
@@ -394,17 +394,10 @@ export function pickCollage(stickers, n = 6, box = { w: CONTENT_W, h: COLLAGE_H 
 
 // ─── Експорт і прев'ю ──────────────────────────────────────────────────────
 
-// «Без тла» знімає не всю картку 9:16, а лише наліпку з табличкою — блок
-// CUTOUT_W×CUTOUT_H у центрі картки. Прозорий PNG у тому ж масштабі, що й
-// картки (×3): у Stories це рухома наліпка, в iMessage й Telegram — стікер.
-export const CUTOUT_W = 300;
-export const CUTOUT_H = 350;
-
-// Пікселі PNG для шаблону.
-export function exportPixels(template) {
-  if (template !== 'cutout') return { w: EXPORT_W, h: EXPORT_H };
-  const k = EXPORT_W / CARD_W;
-  return { w: CUTOUT_W * k, h: CUTOUT_H * k };
+// Пікселі PNG картки. Усі картки — повний кадр Stories; прозорі наліпки
+// мають свій розмір (stickerPixels).
+export function exportPixels() {
+  return { w: EXPORT_W, h: EXPORT_H };
 }
 
 // Розмір знімка для captureRef. На iOS view-shot міряє width/height у
@@ -431,10 +424,198 @@ export function toFileUri(uri) {
 export const SHEET_MAX_W = 520;
 export const STORIES_ROW = 60;
 
-export function previewScale({ width, height, top = 0, bottom = 0, multi = true, stories = false }) {
-  const chrome = (multi ? 340 : 300) + (stories ? STORIES_ROW : 0);
-  const byH = (height - top - bottom - chrome) / CARD_H;
+// chrome — готова висота хрому аркуша (cardChrome нижче), якщо задана;
+// min — найменший масштаб: у режимі «Картка» з плитками на iPhone SE
+// картка мусить поступитися, інакше панель залізе під статус-бар.
+export function previewScale({ width, height, top = 0, bottom = 0, multi = true, stories = false, chrome, min = 0.36 }) {
+  const c = chrome ?? (multi ? 340 : 300) + (stories ? STORIES_ROW : 0);
+  const byH = (height - top - bottom - c) / CARD_H;
   const byW = (Math.min(width, SHEET_MAX_W) - 96) / CARD_W;
   const s = Math.min(byH, byW, 0.8);
-  return Math.max(0.36, Math.floor(s * 1000) / 1000);
+  return Math.max(min, Math.floor(s * 1000) / 1000);
+}
+
+// ─── Аркуш v1.3: ряди хрому ────────────────────────────────────────────────
+// Висоти рядів аркуша «Поділитися» (з відступом над кожним), з яких
+// рахується, скільки місця лишається прев'ю. Ті самі числа бере стиль
+// ShareSheet.js, тож розрахунок і верстка не розходяться.
+//   top — ручка й поле над заголовком; title — заголовок;
+//   segment — перемикач «Наліпка · Картка»; style — крапки з назвою вигляду;
+//   cta — головна кнопка; link — «або обрати фото з галереї» під нею;
+//   tiles — ряд плиток із підписами; toast — рядок стану (резерв, щоб поява
+//   «Скопійовано…» не виштовхнула аркуш під виріз); close — «Закрити»;
+//   gap — зазор між аркушем і статус-баром.
+export const SHEET_ROWS = {
+  top: 20,
+  title: 24,
+  segment: 46,
+  style: 26,
+  cta: 64,
+  link: 32,
+  tiles: 86,
+  toast: 76,
+  close: 44,
+  bottom: 8,
+  gap: 10,
+  swatches: 56,
+};
+
+// Невисокий екран (iPhone SE, 8): під рядок стану місця не резервуємо —
+// він з'являється поверх заголовка й перемикача, а прев'ю лишається більшим.
+// На високих — під плитками, як на макеті.
+export const COMPACT_H = 700;
+export function isCompact({ height, top = 0, bottom = 0 }) {
+  return height - top - bottom < COMPACT_H;
+}
+
+// Хром режиму «Картка» з плитками: заголовок, перемикач (крім тижня),
+// крапки шаблонів, кольори, головна кнопка, плитки, рядок стану, «Закрити».
+export function cardChrome({ multi = true, segment = true, toast = true } = {}) {
+  const r = SHEET_ROWS;
+  return (
+    r.top + r.title + (segment ? r.segment : 0) + 12 + (multi ? r.style : 0) + r.swatches + r.cta + r.tiles + (toast ? r.toast : 0) + r.close + r.bottom + r.gap
+  );
+}
+
+// ─── Наліпки без тла ───────────────────────────────────────────────────────
+// Наліпка — PNG, у якому прозоре все, крім предмета й таблички. Корінь
+// знімка — View завширшки STICKER_W без тла; поле STICKER_PAD усередині
+// кореня тримає тіні й нахилені кути (знімок обрізає все за межами
+// кореня). У PNG — ×3 від логічного розміру на будь-якому iPhone: 300 pt →
+// 900 px, з запасом чітко й після масштабування пальцями в Stories.
+export const STICKER_W = 300;
+export const STICKER_PAD = 12;
+export const STICKER_SCALE = 3;
+// Найменші висоти видів. Корінь росте за вмістом (дворядковий переклад),
+// а знімок бере справжню висоту з onLayout.
+export const STICKER_MIN_H = { object: 372, word: 236, badge: 290 };
+
+// Плитка «Stories» без фото: наліпка на фірмовому градієнті іконки.
+// Instagram без кольорів залив би тло сірим #222222.
+export const STORIES_GRADIENT = ['#5380FF', '#5F58E2'];
+
+// Які наліпки має сенс показати для payload: слово з фото — предмет із
+// табличкою або лише табличка (для тла «фото скану», де предмет уже є);
+// без фото — лише табличка; сцена — набір фішок; досягнення — медаль.
+// Тижня немає: його природна форма — картка.
+export function stickerStylesFor(payload) {
+  if (payload?.kind === 'word' && payload.word) return payload.word.photo ? ['object', 'word'] : ['word'];
+  if (payload?.kind === 'scene' && payload.scene?.objects?.length) return ['scene'];
+  if (payload?.kind === 'achievement' && payload.achievement) return ['badge'];
+  return [];
+}
+
+// Пікселі PNG наліпки висотою h точок.
+export function stickerPixels(h, w = STICKER_W) {
+  return { w: Math.round(w * STICKER_SCALE), h: Math.round(h * STICKER_SCALE) };
+}
+
+// ─── Наліпка сцени: набір фішок ────────────────────────────────────────────
+// До SCENE_SET_MAX фішок «слово / переклад» по дві в ряд, далі «і ще N».
+// Розкладка — чиста функція без flex-wrap: висота детермінована (її
+// перевіряє тест), а перенесення рядків не залежить від рушія верстки.
+export const SCENE_SET_MAX = 6;
+// maxW: дві найширші фішки з проміжком і запасом на нахил і тінь не
+// виходять за поле кореня (2 × 128 + 8 = 264 з 276)
+export const SCENE_CHIP = { word: 19, sub: 13, lineW: 24, lineS: 17, padX: 12, padY: 6, maxW: 128, minW: 66, gap: 8, rowGap: 9 };
+export const SCENE_HEAD_H = 34;
+export const SCENE_MORE_H = 26;
+const SCENE_TILTS = [-3, 2.5, -1.5, 3, -2.5, 1.5];
+
+export function sceneSetLayout(objects, { width = STICKER_W } = {}) {
+  const c = SCENE_CHIP;
+  const list = (Array.isArray(objects) ? objects : []).filter((o) => o && String(o.word || '').trim());
+  const shown = list.slice(0, SCENE_SET_MAX);
+  const more = list.length - shown.length;
+  const inner = c.maxW - c.padX * 2;
+  const sized = shown.map((o, i) => {
+    const word = String(o.word).trim();
+    const tr = String(o.translation || '').trim();
+    const wordSize = fontSizeForWord(word, { max: c.word, min: 11, width: inner });
+    const subSize = tr ? fontSizeForWord(tr, { max: c.sub, min: 9, width: inner, tracking: 0 }) : 0;
+    const textW = Math.max(textEm(word) * wordSize, tr ? textEm(tr, 0) * subSize : 0);
+    // +6: бокові відступи гліфів і волосяна рамка
+    const w = Math.round(Math.min(c.maxW, Math.max(c.minW, textW + c.padX * 2 + 6)));
+    const h = c.padY * 2 + c.lineW + (tr ? c.lineS : 0) + 2;
+    return { key: o.key ?? String(i), word, translation: tr, wordSize, subSize, w, h, rotate: SCENE_TILTS[i % SCENE_TILTS.length] };
+  });
+  // Згори — поле, запас під нахил шапки, сама шапка й відступ до фішок
+  let y = STICKER_PAD + 6 + SCENE_HEAD_H + 12;
+  const chips = [];
+  for (let r = 0; r < sized.length; r += 2) {
+    const row = sized.slice(r, r + 2);
+    const total = row.reduce((sum, ch) => sum + ch.w, 0) + c.gap * (row.length - 1);
+    let x = Math.round((width - total) / 2);
+    const rowH = Math.max(...row.map((ch) => ch.h));
+    for (const ch of row) {
+      // нижча фішка (без перекладу) стає по центру ряду
+      chips.push({ ...ch, x, y: y + Math.round((rowH - ch.h) / 2) });
+      x += ch.w + c.gap;
+    }
+    y += rowH + c.rowGap;
+  }
+  if (chips.length) y -= c.rowGap;
+  const moreY = more > 0 ? y + 10 : null;
+  if (more > 0) y += 10 + SCENE_MORE_H;
+  // знизу — запас під тіні й нахил і поле кореня
+  const height = y + 8 + STICKER_PAD;
+  return { chips, more, moreY, height };
+}
+
+// ─── Прев'ю наліпки в аркуші ───────────────────────────────────────────────
+// Поле прев'ю — шахівниця висотою до STICKER_PREVIEW_MAX (як на макеті).
+// Решту висоти екрана забирає хром аркуша (SHEET_ROWS): з резервом під
+// рядок стану панель не вилазить під виріз і на iPhone SE.
+export const STICKER_PREVIEW_MAX = 292;
+export const STICKER_PREVIEW_MIN = 160;
+// Рядок підпису «Без тла: ляже на будь-яке фото» внизу поля прев'ю
+export const STICKER_HINT_H = 30;
+
+export function stickerChrome({ styles = 1, link = true, toast = true } = {}) {
+  const r = SHEET_ROWS;
+  return (
+    r.top + r.title + r.segment + 12 + (styles > 1 ? r.style : 0) + r.cta + (link ? r.link : 0) + r.tiles + (toast ? r.toast : 0) + r.close + r.bottom + r.gap
+  );
+}
+
+export function stickerPreviewH({ height, top = 0, bottom = 0, styles = 1, link = true }) {
+  const toast = !isCompact({ height, top, bottom });
+  const free = height - top - bottom - stickerChrome({ styles, link, toast });
+  return Math.max(STICKER_PREVIEW_MIN, Math.min(STICKER_PREVIEW_MAX, Math.floor(free)));
+}
+
+// Масштаб наліпки всередині поля прев'ю w×h: уся наліпка видна, над
+// підписом унизу лишається повітря; більше за натуральний розмір не росте.
+export function stickerFit(boxW, boxH, stickerH, stickerW = STICKER_W) {
+  const byW = (boxW - 16) / stickerW;
+  const byH = (boxH - STICKER_HINT_H - 8) / Math.max(1, stickerH);
+  const s = Math.min(1, byW, byH);
+  return Math.max(0.2, Math.floor(s * 1000) / 1000);
+}
+
+// ─── Дії аркуша ────────────────────────────────────────────────────────────
+// Головна кнопка режиму «Наліпка» (share.md §5.2):
+//   Instagram є, є тло з payload (кадр свіжого скану, фото сцени) →
+//     «Stories з цим фото» (під нею — «або обрати фото з галереї»);
+//   Instagram є, тла немає, а вибір фото є → «Stories з твоїм фото»;
+//   Instagram немає, а буфер є → «Копіювати наліпку»;
+//   інакше → системне меню.
+// Режим «Картка»: Instagram → картка тлом на весь екран, інакше — меню.
+export function primaryAction({ mode = 'sticker', stories = false, backdrop = false, pick = false, copy = false }) {
+  if (mode === 'card') return stories ? 'stories_card' : 'system';
+  if (stories && backdrop) return 'stories_photo';
+  if (stories && pick) return 'stories_gallery';
+  if (copy) return 'copy';
+  return 'system';
+}
+
+// Плитки під головною кнопкою. Немає в середовищі — немає плитки, жодних
+// порожніх місць; дія головної кнопки плиткою не дублюється.
+export function tilesFor({ mode = 'sticker', primary, stories = false, copy = false, save = false }) {
+  const out = [];
+  if (mode === 'sticker' && stories) out.push('stories_plain');
+  if (copy && primary !== 'copy') out.push('copy');
+  if (save) out.push('save');
+  if (primary !== 'system') out.push('system');
+  return out;
 }
