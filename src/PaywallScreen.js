@@ -61,19 +61,20 @@ export default function PaywallScreen({
   const list = plans || [];
   const plan = list.find((p) => p.id === picked) || list.find((p) => p.best) || list[0];
   const intro = reason === 'intro';
-  // «Спробуй безкоштовно» — лише якщо пробний період справді є хоч на одному
-  // тарифі (Apple дає його не всім: хто вже пробував, платить одразу).
-  const anyTrial = list.some((p) => p.trialDays > 0);
+  // «Спробуй безкоштовно» і таймлайн — лише коли пробний період є саме в
+  // обраного тарифу (Apple дає його не всім: хто вже пробував, платить
+  // одразу). Обрав місячний без пробного — заголовок не обіцяє «безкоштовно»
+  // над кнопкою, що списує гроші сьогодні (App Review 3.1.2).
+  const timeline = intro && plan?.trialDays > 0;
 
   // Заголовок під причину: кожна стіна має свій аргумент.
   const HEAD = {
     scans: { title: t('pwScansTitle'), text: t('pwScansText', { n: freeScans }) },
     words: { title: t('pwWordsTitle'), text: t('pwWordsText', { n: FREE.maxWords }) },
     langs: { title: t('pwLangsTitle'), text: t('pwLangsText') },
-    intro: anyTrial ? { title: t('pwIntroTitle'), text: t('pwIntroText') } : null,
+    intro: timeline ? { title: t('pwIntroTitle'), text: t('pwIntroText') } : null,
   };
   const head = HEAD[reason] || { title: t('pwTitle'), text: t('pwText') };
-  const timeline = intro && plan?.trialDays > 0;
 
   // Пряма дата, коли спишуться гроші. «Через 7 днів» — розмито;
   // конкретне число прибирає відчуття, що щось приховали.

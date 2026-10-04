@@ -194,12 +194,15 @@ export function HeardOptions({ value, onChange, t }) {
 }
 
 // ─── Рівень: слайдер і що з нього випливає ─────────────────────────────────
-export function LevelBody({ value, onChange, t }) {
+// lang — мова, яку вчать: VoiceOver чує її в назві слайдера («Твій рівень:
+// English»), а не лише в пігулці над заголовком, яку легко проминути.
+export function LevelBody({ value, onChange, lang, t }) {
   const { C } = useTheme();
   const s = useMemo(() => makeStyles(C), [C]);
+  const label = lang ? t('pfLevelLabel', { lang: nameFor(lang) }) : t('pfLevelTitle');
   return (
     <View>
-      <LevelSlider value={value} onChange={onChange} label={t('pfLevelTitle')} t={t} />
+      <LevelSlider value={value} onChange={onChange} label={label} t={t} />
       {/* «8/10 · B2+ — пропускаємо базові слова…»: людина одразу бачить,
           що її відповідь щось міняє. VoiceOver оголосить сам рядок. */}
       <View style={s.result}>

@@ -15,6 +15,8 @@ import ShareSheet from '../src/share/ShareSheet';
 import { recognizeImage, recognizeScene } from '../src/api';
 import { makeT } from '../src/i18n';
 import { CameraView } from 'expo-camera';
+import * as Speech from 'expo-speech';
+import PaywallScreen from '../src/PaywallScreen';
 
 // Камера віддає кадр 3:4 (1200×1600) і вміє його «звільнити», як PictureRef.
 const shots = [];
@@ -56,6 +58,9 @@ jest.mock('expo-image-manipulator', () => {
   };
   return { ImageManipulator: { manipulate }, SaveFormat: { JPEG: 'jpeg' } };
 });
+
+// Озвучка: перевіряємо, що саме прозвучало б («Ще вирази» — тап озвучує вираз)
+jest.mock('expo-speech', () => ({ speak: jest.fn(), stop: jest.fn(async () => {}) }));
 
 jest.mock('../src/api', () => ({
   ...jest.requireActual('../src/api'),
@@ -363,6 +368,139 @@ describe('scene mode', () => {
     await press(tree, () => shutter(tree).props.onPress());
     expect(onSessionLost).toHaveBeenCalledTimes(1);
     expect(texts(tree)).toContain(t('scanErrAuth'));
+    await act(async () => tree.unmount());
+  });
+});
+
+// ---------- скан під рівень ----------
+describe('scan by level', () => {
+  const EXTRAS = [
+    { phrase: 'una taza de café', translation: 'a cup of coffee' },
+    { phrase: 'llenar la taza', translation: 'fill the cup' },
+  ];
+  const resultSheet = (tree) =>
+    tree.root.findAllByType(Modal).find((m) => m.parent?.type !== ConsentSheet && m.parent?.type !== SceneView);
+
+  test('the level from the profile goes with the frame, in both modes', async () => {
+    const tree = await render(scanner({ level: 8 }));
+    await press(tree, () => shutter(tree).props.onPress());
+    expect(recognizeImage).toHaveBeenCalledWith('b64', 'es', 'en', 8);
+    await act(async () => tree.unmount());
+
+    const scene = await render(scanner({ level: 2, scanMode: 'scene' }));
+    await press(scene, () => shutter(scene).props.onPress());
+    expect(recognizeScene).toHaveBeenCalledWith('b64', 'es', 'en', 2);
+    await act(async () => scene.unmount());
+  });
+
+  test('“More phrases” under the example: phrase and translation, a tap speaks the phrase', async () => {
+    recognizeImage.mockImplementation(async () => ({ ...RESULT, example: 'Bebo té en mi taza.', extras: EXTRAS }));
+    const onSaveWord = jest.fn(() => true);
+    const tree = await render(scanner({ level: 8, onSaveWord }));
+    await press(tree, () => shutter(tree).props.onPress());
+    expect(resultSheet(tree).props.visible).toBe(true);
+    const all = texts(tree);
+    expect(all).toEqual(expect.arrayContaining([t('moreExpr'), 'una taza de café', 'a cup of coffee', 'llenar la taza']));
+    // заголовок блоку — після прикладу
+    expect(all.indexOf(t('moreExpr'))).toBeGreaterThan(all.findIndex((x) => typeof x === 'string' && x.includes('Bebo té')));
+
+    const phrase = tree.root.findAll(
+      (n) => n.props.accessibilityLabel === 'una taza de café, a cup of coffee' && typeof n.props.onPress === 'function'
+    )[0];
+    expect(phrase.props.accessibilityHint).toBe(t('listen'));
+    Speech.speak.mockClear();
+    await press(tree, () => phrase.props.onPress());
+    expect(Speech.speak).toHaveBeenCalledWith('una taza de café', expect.objectContaining({ language: expect.stringMatching(/^es/) }));
+
+    // у словник іде саме слово — вирази лишаються підказкою до цього скану
+    const save = tree.root.findAll((n) => n.props.title === t('save') && typeof n.props.onPress === 'function')[0];
+    await press(tree, () => save.props.onPress());
+    expect(onSaveWord).toHaveBeenCalledTimes(1);
+    expect(onSaveWord.mock.calls[0][0]).not.toHaveProperty('extras');
+    expect(onSaveWord.mock.calls[0][0]).toMatchObject({ word: 'la taza', lang: 'es', nativeLang: 'en' });
+    await act(async () => tree.unmount());
+  });
+
+  test('no phrases from the server — no block', async () => {
+    recognizeImage.mockImplementation(async () => ({ ...RESULT, extras: [] }));
+    const tree = await render(scanner());
+    await press(tree, () => shutter(tree).props.onPress());
+    expect(resultSheet(tree).props.visible).toBe(true);
+    expect(texts(tree)).not.toContain(t('moreExpr'));
+    await act(async () => tree.unmount());
+  });
+
+  test('App passes the level of the saved profile to the scanner', async () => {
+    await AsyncStorage.setItem('ll_onboarded_v1', '1');
+    const profile = { goals: ['work'], field: 'it', level: 8, since: '2026-09-01' };
+    await AsyncStorage.setItem('ll_settings_v1', JSON.stringify({ nativeLang: 'en', targetLang: 'es', aiConsent: true, profile }));
+    const tree = await render(<App />);
+    await press(tree, () => shutter(tree).props.onPress());
+    expect(recognizeImage).toHaveBeenCalledWith('b64', 'es', 'en', 8);
+    await act(async () => tree.unmount());
+  });
+});
+
+// ---------- мʼякий пейвол після першого скану ----------
+describe('intro paywall after the first scan', () => {
+  const resultSheet = (tree) =>
+    tree.root.findAllByType(Modal).find((m) => m.parent?.type !== ConsentSheet && m.parent?.type !== SceneView);
+  const paywall = (tree) => tree.root.findAllByType(PaywallScreen)[0] || null;
+  const storedSettings = async () => JSON.parse(await AsyncStorage.getItem('ll_settings_v1'));
+
+  async function scanAndClose(tree) {
+    await press(tree, () => shutter(tree).props.onPress());
+    expect(resultSheet(tree).props.visible).toBe(true);
+    // поки аркуш відкритий, пейвол чекає: під нативним Modal його не видно
+    expect(paywall(tree)).toBeNull();
+    await press(tree, () => resultSheet(tree).props.onRequestClose());
+  }
+
+  test('opens once ever, after the result sheet closes', async () => {
+    await AsyncStorage.setItem('ll_onboarded_v1', '1');
+    await AsyncStorage.setItem('ll_settings_v1', JSON.stringify({ nativeLang: 'en', targetLang: 'es', aiConsent: true }));
+    const tree = await render(<App />);
+    await scanAndClose(tree);
+    expect(paywall(tree).props.reason).toBe('intro');
+    expect((await storedSettings()).introPaywallShown).toBe(true);
+
+    await press(tree, () => paywall(tree).props.onClose());
+    await scanAndClose(tree);
+    expect(paywall(tree)).toBeNull();
+    await act(async () => tree.unmount());
+
+    // і після перезапуску — теж ні
+    const again = await render(<App />);
+    await scanAndClose(again);
+    expect(paywall(again)).toBeNull();
+    await act(async () => again.unmount());
+  });
+
+  test('a scene counts as the first scan too', async () => {
+    await AsyncStorage.setItem('ll_onboarded_v1', '1');
+    await AsyncStorage.setItem(
+      'll_settings_v1',
+      JSON.stringify({ nativeLang: 'en', targetLang: 'es', aiConsent: true, scanMode: 'scene' })
+    );
+    const tree = await render(<App />);
+    await press(tree, () => shutter(tree).props.onPress());
+    expect(paywall(tree)).toBeNull();
+    await press(tree, () => sceneView(tree).props.onClose());
+    expect(paywall(tree).props.reason).toBe('intro');
+    await act(async () => tree.unmount());
+  });
+
+  test('people who scanned before this version already had their first scan', async () => {
+    await AsyncStorage.setItem('ll_onboarded_v1', '1');
+    await AsyncStorage.setItem('ll_settings_v1', JSON.stringify({ nativeLang: 'en', targetLang: 'es', aiConsent: true }));
+    await AsyncStorage.setItem(
+      'll_words_v1',
+      JSON.stringify([{ id: 'a', word: 'el libro', translation: 'book', lang: 'es', addedAt: 1, srs: { box: 0, due: 0 } }])
+    );
+    const tree = await render(<App />);
+    await scanAndClose(tree);
+    expect(paywall(tree)).toBeNull();
+    expect((await storedSettings()).introPaywallShown).toBe(true);
     await act(async () => tree.unmount());
   });
 });

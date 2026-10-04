@@ -63,7 +63,7 @@ export default function ProfileEditor({ profile, targetLang, onSave, onClose, t 
         text={t('pfLevelText')}
         footer={<GradBtn title={action} onPress={next} />}
       >
-        <LevelBody value={level} onChange={setLevel} t={t} />
+        <LevelBody value={level} onChange={setLevel} lang={targetLang} t={t} />
       </StepFrame>
     );
   }

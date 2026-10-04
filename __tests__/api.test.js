@@ -1,4 +1,4 @@
-import { apiMe, apiWordOfDay, deviceForgotten, recognizeImage, recognizeScene, setSessionToken } from '../src/api';
+import { apiMe, apiProfile, apiWordOfDay, cleanExtras, deviceForgotten, recognizeImage, recognizeScene, setSessionToken } from '../src/api';
 import { localDayKey } from '../src/storage';
 
 function respond(status, body) {
@@ -192,4 +192,64 @@ describe('recognizeScene', () => {
     });
     await expect(recognizeScene('b64')).rejects.toThrow('SCAN_OFFLINE');
   });
+});
+
+// ---------- персоналізація ----------
+const sent = () => JSON.parse(global.fetch.mock.calls[0][1].body);
+
+test('the level from the profile goes with a scan only when it is a real 1–10', async () => {
+  for (const [level, want] of [
+    [8, 8],
+    [1, 1],
+    [undefined, undefined],
+    [null, undefined],
+    [0, undefined],
+    [11, undefined],
+    [7.5, undefined],
+    ['8', undefined],
+  ]) {
+    respond(200, { word: 'mug' });
+    await recognizeImage('b64', 'en', 'uk', level);
+    expect([level, sent().level]).toEqual([level, want]);
+    expect('level' in sent()).toBe(want !== undefined); // старий сервер не бачить зайвого поля
+  }
+  respond(200, { mode: 'scene', objects: [] });
+  await recognizeScene('b64', 'en', 'uk', 3).catch(() => {});
+  expect(sent()).toMatchObject({ mode: 'scene', level: 3 });
+});
+
+test('“more phrases” from the server: trimmed, no repeats, at most three, junk dropped', async () => {
+  const long = 'x'.repeat(100);
+  respond(200, {
+    word: 'mug',
+    extras: [
+      { phrase: ' a mug of tea ', translation: ' кружка чаю ' },
+      { phrase: 'A MUG OF TEA', translation: 'повтор' },
+      null,
+      { phrase: 42, translation: 'не рядок' },
+      { phrase: '', translation: 'порожньо' },
+      { phrase: long, translation: long },
+      { phrase: 'travel mug' },
+      { phrase: 'fourth one', translation: 'зайвий' },
+    ],
+  });
+  const r = await recognizeImage('b64', 'en', 'uk', 8);
+  expect(r.extras).toEqual([
+    { phrase: 'a mug of tea', translation: 'кружка чаю' },
+    { phrase: 'x'.repeat(60), translation: 'x'.repeat(80) },
+    { phrase: 'travel mug', translation: '' },
+  ]);
+  expect(cleanExtras('nope')).toEqual([]);
+  respond(200, { word: 'mug' });
+  expect((await recognizeImage('b64')).extras).toEqual([]);
+});
+
+test('onboarding answers go to POST /me/profile as given', async () => {
+  respond(200, { ok: true });
+  setSessionToken('tok');
+  await apiProfile({ goals: ['work'], field: 'it', level: 7, heardFrom: 'tiktok' });
+  const [url, init] = global.fetch.mock.calls[0];
+  expect(new URL(url).pathname).toBe('/me/profile');
+  expect(init.method).toBe('POST');
+  expect(JSON.parse(init.body)).toEqual({ goals: ['work'], field: 'it', level: 7, heardFrom: 'tiktok' });
 });

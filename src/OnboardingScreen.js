@@ -193,7 +193,7 @@ export default function OnboardingScreen({ t, onDone, profile = null, heardFrom 
           text={t('pfLevelText')}
           footer={<GradBtn title={t('obNext')} onPress={acceptLevel} />}
         >
-          <LevelBody value={level ?? DEFAULT_LEVEL} onChange={setLevel} t={t} />
+          <LevelBody value={level ?? DEFAULT_LEVEL} onChange={setLevel} lang={targetLang} t={t} />
         </StepFrame>
       );
     }

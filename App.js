@@ -729,6 +729,8 @@ export default function App() {
   function keepLevel() {
     commitSettings({ ...settingsRef.current, knowStreak: 0 });
   }
+  // «Налаштуй слово дня під себе» — тим, у кого профілю немає, доки не сховають
+  const profileTip = !settings.profile && !settings.profileTipOff;
 
   // Відповіді профілю — на сервер (POST /me/profile), щоб власник бачив, хто
   // ці люди й звідки прийшли. Без мережі — спробуємо з наступним запуском;
@@ -793,11 +795,13 @@ export default function App() {
   // Один раз за все життя застосунку: людина щойно побачила, що він уміє, —
   // найчесніший момент запропонувати пробний період. Не одразу, а коли
   // аркуш результату закрився: під нативним Modal пейвол було б не видно,
-  // і слово людина має встигнути зберегти. З Pro — ніколи.
+  // і слово людина має встигнути зберегти. З Pro — ніколи. У збірці без
+  // магазину (пробний період нема де оформити) — теж ні, і прапорець не
+  // ставимо: пропозиція дочекається збірки, де її можна прийняти.
   const introArmed = useRef(false);
   function scanned(res) {
     if (res?.usage) updateUsage(res.usage);
-    if (!settingsRef.current.introPaywallShown && !sub.pro) introArmed.current = true;
+    if (!settingsRef.current.introPaywallShown && !sub.pro && pro.mode !== 'unavailable') introArmed.current = true;
   }
   const sheetWas = useRef(false);
   useEffect(() => {
@@ -1082,11 +1086,13 @@ export default function App() {
                   onKeepLevel={keepLevel}
                   // профілю немає (оновились зі старої версії чи пропустили
                   // питання) — одна тиха картка, яку можна прибрати
-                  profileTip={!settings.profile && !settings.profileTipOff}
+                  profileTip={profileTip}
                   onOpenProfile={() => setProfileEdit(true)}
                   onHideProfileTip={() => commitSettings({ ...settingsRef.current, profileTipOff: true })}
                   // віджет є лише в iOS-збірці; підказка — з третього слова
-                  widgetTip={!settings.widgetTipShown && words.length >= 3 && widgetsAvailable()}
+                  // і не разом із профільною: дві картки поспіль зсунули б
+                  // самі картки для повторення за край екрана
+                  widgetTip={!profileTip && !settings.widgetTipShown && words.length >= 3 && widgetsAvailable()}
                   onHideWidgetTip={() => commitSettings({ ...settingsRef.current, widgetTipShown: true })}
                 />
               </FadeIn>

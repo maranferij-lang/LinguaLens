@@ -145,17 +145,50 @@ export function profileFromAnswers({ goals, field, level }, previous = null, tod
   return next;
 }
 
-// Головна тема профілю — та, про яку варто сказати людині («нове слово з
-// фінансів»). Порядок той самий, що у вагах сервера: сфера найважливіша.
-export function primaryTopic(profile) {
+// Скільки днів із циклу дістається кожній темі — ті самі правила, що в
+// server/wordplan.js (weightsFor): робота зі сферою — сфера 4, робоча
+// лексика 2, загальні 1; навчання — академічні 3 (+ сфера 1) і так далі.
+// Тема з кількох цілей бере більшу вагу, загальні слова є завжди.
+// Без профілю — лише загальні, як у v1.
+export function topicWeights(profile) {
   const p = cleanProfile(profile);
-  if (!p) return null;
-  if (p.field && p.field !== 'other') return p.field;
-  if (p.goals.includes('work')) return 'workplace';
-  if (p.goals.includes('study')) return 'academic';
-  if (p.goals.includes('relocation')) return 'relocation';
-  if (p.goals.includes('travel')) return 'travel';
-  return null;
+  const w = {};
+  const add = (key, n) => {
+    w[key] = Math.max(w[key] || 0, n);
+  };
+  const field = p && p.field && p.field !== 'other' ? p.field : null;
+  for (const goal of p ? p.goals : []) {
+    if (goal === 'work') {
+      if (field) {
+        add(field, 4);
+        add('workplace', 2);
+        add('general', 1);
+      } else {
+        add('workplace', 4);
+        add('general', 2);
+      }
+    } else if (goal === 'study') {
+      add('academic', 3);
+      if (field) add(field, 1);
+    } else if (goal === 'travel') add('travel', 2);
+    else if (goal === 'relocation') add('relocation', 2);
+    else if (goal === 'self') add('general', 2);
+  }
+  add('general', 1);
+  return w;
+}
+
+// Головна тема профілю — та, з якої приходитиме найбільше слів і про яку
+// чесно сказати «нове слово з фінансів». Студентові ІТ це «навчання» (3 дні
+// з 5), а не «ІТ» (1 з 5). Нічия — на користь названої теми: сфера, робота,
+// навчання, переїзд, подорожі. null — переважають загальні слова.
+export function primaryTopic(profile) {
+  const w = topicWeights(profile);
+  let best = null;
+  for (const key of [...FIELDS, 'workplace', 'academic', 'relocation', 'travel']) {
+    if (w[key] && (!best || w[key] > w[best])) best = key;
+  }
+  return best && w[best] >= w.general ? best : null;
 }
 
 // Назва теми слова дня («Фінанси») або '' для загальних слів і невідомих
@@ -165,11 +198,13 @@ export function topicName(t, key) {
   return t('topic_' + key);
 }
 
-// Підсумок для рядка в Параметрах: «Фінанси · B2+», «Подорожі · A2».
+// Підсумок для рядка в Параметрах: «Фінанси · B2+», «Подорожі · A2». Тут —
+// те, що людина обрала: сфера, якщо вона є, хай навіть слів із неї менше.
 export function profileSummary(profile, t) {
   const p = cleanProfile(profile);
   if (!p) return t('pfNotSet');
-  const topic = primaryTopic(p);
+  const field = p.field && p.field !== 'other' ? p.field : null;
+  const topic = field || primaryTopic(p);
   const head = topic ? t('topic_' + topic) : t('goal_' + p.goals[0]);
   return `${head} · ${cefrFor(p.level)}`;
 }
