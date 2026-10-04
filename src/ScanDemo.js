@@ -228,7 +228,14 @@ function SceneLayers({ tv, ov, pair, t, onReplay, final }) {
 
       {/* Чипи: «Мої слова · N» і вогник серії */}
       <Animated.View style={[styles.chipTL, { transform: [{ scale: v.bumpScale }] }]} pointerEvents="none">
-        <Animated.View style={[styles.chip, styles.chipRow, { opacity: v.count0 }]}>
+        {/* Невидимий найширший чип задає ширину: накладені поверх не
+            переносять «· 1» на другий рядок */}
+        <View style={[styles.chip, styles.chipRow, { opacity: 0 }]}>
+          <MiniMug size={18} />
+          <T style={styles.chipText}>{`${t('obDemoWords')} · 1`}</T>
+          <T style={styles.chipText}>+1</T>
+        </View>
+        <Animated.View style={[styles.chip, styles.chipRow, styles.chipOver, { opacity: v.count0 }]}>
           <IcBook size={15} color="#FFFFFF" />
           <T style={styles.chipText}>{`${t('obDemoWords')} · 0`}</T>
         </Animated.View>
@@ -249,11 +256,11 @@ function SceneLayers({ tv, ov, pair, t, onReplay, final }) {
           </View>
           <T style={styles.chipText}>0</T>
         </Animated.View>
-        <Animated.View style={[styles.chip, styles.chipRow, styles.chipOverR, styles.chipWarm, { opacity: v.lit1 }]}>
+        <Animated.View style={[styles.chip, styles.chipRow, styles.chipOverR, styles.chipLit, { opacity: v.lit1 }]}>
           <View style={styles.chipFlame}>
             <Flame n={1} size={13} breathe={false} />
           </View>
-          <T style={styles.chipText}>1</T>
+          <T style={[styles.chipText, styles.chipLitText]}>1</T>
         </Animated.View>
       </View>
 
@@ -502,7 +509,10 @@ const styles = StyleSheet.create({
   chipOver: { position: 'absolute', left: 0, top: 0 },
   chipAccent: { backgroundColor: 'rgba(91,79,214,0.94)' },
   chipOverR: { position: 'absolute', right: 0, top: 0 },
-  chipWarm: { backgroundColor: 'rgba(224,160,46,0.94)' },
+  // Запалена серія: тло те саме, що в чипа «0» — тепле тіло вогника першого
+  // дня на теплому тлі зливалось; горить сам вогник, обвідка й число
+  chipLit: { borderWidth: 1, borderColor: 'rgba(255,194,77,0.95)', paddingHorizontal: 10, paddingVertical: 5 },
+  chipLitText: { color: '#FFD15C' },
   chipText: { color: '#FFFFFF', fontFamily: F.extra, fontSize: 13, lineHeight: 17 },
   chipFlame: { width: 13, height: 16, alignItems: 'center', justifyContent: 'center' },
   chipTL: { position: 'absolute', left: 12, top: 12 },
