@@ -3,7 +3,7 @@
 // паралельні потоки не правили один SettingsScreen.js. Екран лишився тим
 // самим: секції в тому ж порядку, діагностика — за сімома дотиками, а
 // футер тепер показує справжню іконку застосунку й слоган без повтору назви.
-import { Text } from 'react-native';
+import { Alert, Text } from 'react-native';
 import { act, create } from 'react-test-renderer';
 
 import SettingsScreen from '../src/SettingsScreen';
@@ -111,25 +111,27 @@ describe('footer', () => {
     await act(async () => tree.unmount());
   });
 
-  test('seven taps open the diagnostics, seven more hide them', async () => {
+  // Онбординг 3.0 (W3): у розробці секція «Розробка» видна одразу, без семи
+  // дотиків, і «Почати з нуля» питає підтвердження; у релізі сім дотиків, як
+  // і раніше, відкривають лише діагностику (devSection.test.js).
+  test('in development the «Розробка» section is there from the start; seven taps leave it be', async () => {
     const onDevReset = jest.fn();
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
     const tree = await render({ onDevReset });
     const tap = async (n) => {
       for (let i = 0; i < n; i++) await act(async () => footer(tree).props.onPress());
     };
-    await tap(6);
-    expect(strings(tree)).not.toContain('Діагностика');
-    await tap(1);
-    expect(strings(tree)).toContain('Діагностика');
+    expect(strings(tree)).toContain('Розробка · лише __DEV__');
     expect(strings(tree)).toContain(uk('checkConn'));
-    // у розробці там і «Почати з нуля»
-    const reset = tree.root.findAll((n) => n.props.children === 'Почати з нуля: онбординг, дані, новий пристрій')[0];
-    let btn = reset;
-    while (typeof btn.props.onPress !== 'function') btn = btn.parent;
-    await act(async () => btn.props.onPress());
+    const reset = tree.root.findAll((n) => n.props.testID === 'dev-reset' && typeof n.props.onPress === 'function')[0];
+    await act(async () => reset.props.onPress());
+    expect(onDevReset).not.toHaveBeenCalled();
+    const [, , buttons] = alert.mock.calls[0];
+    await act(async () => buttons.find((b) => b.style === 'destructive').onPress());
     expect(onDevReset).toHaveBeenCalledTimes(1);
     await tap(7);
-    expect(strings(tree)).not.toContain('Діагностика');
+    expect(strings(tree)).toContain('Розробка · лише __DEV__');
+    alert.mockRestore();
     await act(async () => tree.unmount());
   });
 });

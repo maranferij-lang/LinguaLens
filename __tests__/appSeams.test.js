@@ -91,7 +91,8 @@ describe('settings', () => {
   test('sections get App’s settings functions, the paywall and settingsExtra', async () => {
     const { tree, screen } = await settingsScreen({ nativeLang: 'en', targetLang: 'es' });
     const props = screen().props;
-    expect(props.extra).toEqual({});
+    // поля додають потоки v1.3 (W2: слова на день, віджети)
+    expect(props.extra).toEqual(expect.any(Object));
     expect(typeof props.openPaywall).toBe('function');
     await act(async () => props.saveSetting({ widgetHideTranslation: false }));
     expect(JSON.parse(await AsyncStorage.getItem('ll_settings_v1'))).toMatchObject({ widgetHideTranslation: false });
