@@ -114,13 +114,13 @@ describe('first launch', () => {
   test('a Ukrainian phone: the very first onboarding frame is Ukrainian', async () => {
     phone('uk-UA');
     const tree = await renderApp();
-    expect(texts(tree)).toContain(uk('obHookTitle'));
+    expect(texts(tree)).toContain(uk('ob3HookTitle'));
   });
 
   test('[ru, uk] → Ukrainian interface (the first we speak); translations stay in Russian', async () => {
     phone('ru-RU', 'uk-UA');
     const tree = await renderApp();
-    expect(texts(tree)).toContain(uk('obHookTitle'));
+    expect(texts(tree)).toContain(uk('ob3HookTitle'));
     await run(() => one(tree, OnboardingScreen).props.onDone({ wodEnabled: false }));
     expect(await stored('ll_settings_v1')).toMatchObject({ nativeLang: 'ru', targetLang: 'en' });
     expect(tabLabels(tree)).toEqual(TABS(uk));
@@ -129,7 +129,7 @@ describe('first launch', () => {
   test('a French phone: English interface, French translations', async () => {
     phone('fr-FR');
     const tree = await renderApp();
-    expect(texts(tree)).toContain(en('obHookTitle'));
+    expect(texts(tree)).toContain(en('ob3HookTitle'));
     await run(() => one(tree, OnboardingScreen).props.onDone({ wodEnabled: false }));
     expect(await stored('ll_settings_v1')).toMatchObject({ nativeLang: 'fr' });
     expect(tabLabels(tree)).toEqual(TABS(en));
@@ -140,7 +140,7 @@ describe('first launch', () => {
     await AsyncStorage.setItem('ll_settings_v1', JSON.stringify({ nativeLang: 'de', targetLang: 'en' }));
     const tree = await renderApp();
     expect(one(tree, OnboardingScreen).props.t('obStart')).toBe(uk('obStart'));
-    expect(texts(tree)).toContain(uk('obHookTitle'));
+    expect(texts(tree)).toContain(uk('ob3HookTitle'));
   });
 });
 

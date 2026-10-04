@@ -9,6 +9,11 @@
 // Пробного періоду в тарифі за замовчуванням немає — (а) і (б) були б
 // неправдою: одразу (в), без таймлайну. Хрестик — на кожному екрані.
 //
+// Онбординг 3.0 (onboarding.md §5.13): firstWord — слово, яке людина щойно
+// зберегла першим сканом. Тоді на (а) замість Lingo — її власна наліпка, а
+// текст — «Твій безкоштовний скан — уже в словнику. З Pro скануй скільки
+// хочеш.»: пейвол продовжує мить, а не перебиває її.
+//
 // App Review 3.1.2: ціни на (а) і (б) немає взагалі, на (в) найпомітніша
 // цифра — сума списання в рядку тарифу; тривалість пробного періоду, що
 // буде після нього й як скасувати, видно до натиску.
@@ -28,6 +33,8 @@ import { PRO_BENEFITS } from './subscription';
 import { ProIcon, PCrown } from './ProIcons';
 import { IcBell, IcCheck, IcClose } from './icons';
 import { MascotBob } from './Mascot';
+import { StickerLarge } from './Sticker';
+import { photoUri } from './photos';
 import { FadeIn, GradBtn } from './ui';
 import { stagger, useScreenReader } from './motion';
 import { CAPS, F, R, type, useTheme } from './theme';
@@ -63,6 +70,7 @@ export default function OnboardingPaywall({
   onPurchase,
   onRestore,
   onOpen,
+  firstWord = null,
   lang,
   t,
 }) {
@@ -139,6 +147,8 @@ export default function OnboardingPaywall({
   }
 
   const trial = step === 'trial';
+  // Наліпка людини — лише якщо слово справді з фото (слово дня його не має)
+  const sticker = firstWord ? photoUri(firstWord.photo) : null;
   // Без нагадування дзвоник обіцяв би те, від чого текст щойно відмовився:
   // тоді галочка «усе прозоро»
   const Glyph = canRemind ? IcBell : IcCheck;
@@ -158,7 +168,19 @@ export default function OnboardingPaywall({
         <FadeIn key={step} style={{ alignItems: 'center' }}>
           {trial ? (
             <>
-              <MascotBob pose="celebrate" size={short ? 100 : 150} />
+              {sticker ? (
+                <StickerLarge
+                  uri={sticker}
+                  shape={firstWord.shape}
+                  outline={firstWord.outline}
+                  box={firstWord.box}
+                  size={short ? 104 : 132}
+                  pop
+                  style={{ transform: [{ rotate: '-4deg' }] }}
+                />
+              ) : (
+                <MascotBob pose="celebrate" size={short ? 100 : 150} />
+              )}
               <View style={s.proBadge}>
                 <PCrown size={17} color={C.onAccent} />
                 <Text style={s.proBadgeText}>PRO</Text>
@@ -177,7 +199,7 @@ export default function OnboardingPaywall({
                 : t('opwNoRemindTitle')}
           </Text>
           <Text style={s.text}>
-            {trial ? t('pwIntroText') : canRemind ? t('opwRemindText') : t('opwNoRemindText')}
+            {trial ? t(firstWord ? 'opwFirstWordText' : 'pwIntroText') : canRemind ? t('opwRemindText') : t('opwNoRemindText')}
           </Text>
         </FadeIn>
 

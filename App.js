@@ -124,6 +124,11 @@ import { slotHours, wodPerDay as wodPerDayOf } from './src/wordOfDay';
 import { useWodSlots } from './src/WordOfDayCard';
 // </v13:W2>
 // <v13:W3>
+// Онбординг 3.0 і «Розробка»: скидання віджетів і наліпок у «Почати з нуля»,
+// перемикач «Онбординг на кожному старті».
+import * as Widgets from './src/widgets';
+import { Directory, Paths } from 'expo-file-system';
+import { loadDevOnbAlways, persistDevOnbAlways } from './src/storage';
 // </v13:W3>
 // <v13:W4>
 // </v13:W4>
@@ -375,8 +380,12 @@ export default function App() {
       setUsage(u);
       startTab.current.usage = u;
       setScenes(sc);
+      // Розробка: «Онбординг на кожному старті» — ніби онбординг ще не
+      // пройдено, нічого не стираючи (для зйомки екранів)
+      const devAlways = IS_DEV && ob && (await loadDevOnbAlways());
+      if (devAlways) onbDevForce.current = true;
       onbDraft.current = ob ? null : draft;
-      setOnboarded(ob);
+      setOnboarded(ob && !devAlways);
       setReady(true);
 
       // Мережа — у фоні: перший екран не чекає на сервер.
@@ -1081,8 +1090,13 @@ export default function App() {
   // Показуємо поверх вкладки навчання: закрили — людина вже там, де чекає
   // слово дня під її профіль (крок 13).
   const onbPaywallStep = useRef(0);
-  function openOnboardingPaywall() {
+  // firstWord — слово, збережене першим сканом в онбордингу: на першому
+  // екрані пейвола замість Lingo — наліпка людини (onboarding.md §5.13).
+  // onboarding_paywall: "skip" — одразу застосунок, а пейвол людина побачить
+  // на наступній спробі скану (стіна scans).
+  function openOnboardingPaywall({ firstWord = null } = {}) {
     if (sub.pro || pro.mode === 'unavailable' || !pro.plans.length || pro.config.onboardingPaywall === 'skip') return;
+    setOnbFirstWord(firstWord || null);
     commitSettings({ ...settingsRef.current, onbPaywallShown: true });
     onbPaywallStep.current = 0;
     track('paywall_view', { source: 'onboarding', ui: pro.config.ui, offering: pro.offeringId });
@@ -1217,6 +1231,7 @@ export default function App() {
   function finishOnboarding(result) {
     const replay = onbReplay.current;
     onbReplay.current = false;
+    onbDevForce.current = false;
     setOnboarded(true);
     persistOnboarded();
     // Відповіді вже йдуть у налаштування — чернетка більше не потрібна
@@ -1233,6 +1248,16 @@ export default function App() {
     // «передивився слайди», а не «вимкни сповіщення, які я колись увімкнув».
     if (result && typeof result.wodEnabled === 'boolean' && (!replay || result.wodEnabled)) {
       next = { ...next, wodEnabled: result.wodEnabled };
+    }
+    // Година сповіщень з кроку «Коли тобі зручно вчитись?» — і після «ні»:
+    // увімкне сповіщення пізніше — прийдуть о цій годині
+    if (Number.isInteger(result?.wodHour) && result.wodHour !== cur.wodHour) {
+      next = { ...next, wodHour: result.wodHour };
+    }
+    // Перше слово зберегли в онбордингу — там уже було свято «Серія
+    // почалась»: сьогоднішнє свято першої дії вдруге не показуємо (план S12)
+    if (!replay && result?.scanned) {
+      next = { ...next, streakSeen: { ...(cur.streakSeen || {}), celebrated: localDayKey() } };
     }
     // Профіль змінився — нова черга тем із сьогодні й нові слова одразу.
     // Ті самі відповіді (повтор, де все пропустили) нічого не скидають.
@@ -1257,21 +1282,37 @@ export default function App() {
       commitSettings(next);
       syncWordOfDay(wodArgs(next, profileChanged)).then((c) => c && setWod(c));
     }
-    if (!replay) openOnboardingPaywall();
+    if (!replay) openOnboardingPaywall({ firstWord: result?.firstWord });
   }
 
   function replayOnboarding() {
     onbReplay.current = true;
+    onbDevForce.current = false;
     setOnboarded(false);
   }
 
   // Лише в розробці: стерти все на телефоні й ідентичність і перезапустити
   // JS — наступний старт такий самий, як після чистого встановлення
-  // (повний онбординг, новий запис на сервері). Сервер не чіпаємо.
+  // (повний онбординг, новий запис на сервері, новий безкоштовний скан).
+  // Сервер не чіпаємо. Стирає й те, що переживає «Стерти мої дані»: фото
+  // наліпок, сцени, віджети, сповіщення, вхід Apple, Keychain (токен і
+  // carry), id PostHog. У релізі не робить нічого.
   async function devReset() {
+    if (!IS_DEV) return;
     sync.stop();
     await cancelAll().catch(() => {});
-    await forgetIdentityForDev();
+    try {
+      await Widgets.resetWidgets?.(t);
+    } catch (_) {}
+    wordsRef.current.forEach((w) => deletePhoto(w.photo));
+    try {
+      const dir = new Directory(Paths.document, 'stickers');
+      if (dir.exists) dir.delete();
+    } catch (_) {}
+    await clearScenes().catch(() => {});
+    await clearPersonalData().catch(() => {});
+    await forgetIdentityForDev().catch(() => {});
+    resetAnalytics();
     await AsyncStorage.clear().catch(() => {});
     DevSettings.reload();
   }
@@ -1281,12 +1322,15 @@ export default function App() {
   // знайомства: безкоштовний скан уже витрачено (скажімо, до перевстановлення
   // — сервер памʼятає запис) чи сервер відмовив за оплатою — просто
   // вертаємось в онбординг, а пропозицію Pro людина побачить наприкінці.
-  // level — рівень, який людина щойно обрала.
-  function renderFirstScan({ onSaved, onClose, level }) {
+  // level — рівень, який людина щойно обрала. onExit(reason): 'closed'
+  // (хрестик), 'camera_denied' (відмова в камері) — від сканера; 'limit'
+  // (скан уже витрачено чи сервер відмовив за оплатою) — звідси.
+  function renderFirstScan({ onSaved, onExit, level }) {
+    const exit = (reason) => onExit(typeof reason === 'string' ? reason : 'closed');
     return (
       <ScannerScreen
         firstScan
-        onExit={onClose}
+        onExit={exit}
         onFirstSaved={onSaved}
         scanSource="onboarding"
         targetLang={settings.targetLang}
@@ -1297,14 +1341,14 @@ export default function App() {
         onGuardScan={() => {
           if (!canScan({ pro: sub.pro, usage })) return true;
           track('scan_denied', { reason: 'scans', mode: 'object', source: 'onboarding' });
-          onClose();
+          exit('limit');
           return false;
         }}
         onScanned={(res) => res?.usage && updateUsage(res.usage)}
         onLimitReached={async (data, code) => {
           if (data?.used != null && code !== 'SCENE_PRO') updateUsage({ scans: data.used, limit: data.limit });
           track('scan_denied', { reason: code === 'SCENE_PRO' ? 'scene' : 'scans', server: true, source: 'onboarding' });
-          onClose();
+          exit('limit');
           return false;
         }}
         onSessionLost={renewIdentity}
@@ -1633,6 +1677,59 @@ export default function App() {
   });
   // </v13:W2>
   // <v13:W3>
+  // ---------- ОНБОРДИНГ 3.0 ----------
+  // Мови з кроку «Яку мову вчиш?» — одразу в налаштування: план, слово дня
+  // й перший скан ідуть уже обраною парою. Слів на цьому кроці ще немає, тож
+  // ліміт мов не діє; а якщо слова є (онбординг у розробці поверх даних),
+  // безкоштовна мова вже зайнята — іншу дав би лише пейвол, тому лишаємо її.
+  function onbLanguages({ targetLang, nativeLang } = {}) {
+    const cur = settingsRef.current;
+    const ok = (c) => LANGS.some((l) => l.code === c);
+    const next = { ...cur };
+    if (ok(nativeLang)) next.nativeLang = nativeLang;
+    if (ok(targetLang) && !(wordsRef.current.length && canUseLanguage({ pro: sub.pro, words: wordsRef.current, nextLang: targetLang }))) {
+      next.targetLang = targetLang;
+    }
+    if (next.targetLang === next.nativeLang) return;
+    if (next.targetLang === cur.targetLang && next.nativeLang === cur.nativeLang) return;
+    commitSettings(next);
+  }
+
+  // План онбордингу: зберегти щойно складений профіль і взяти слово дня під
+  // нього — справжнє, те саме, що чекатиме в «Навчанні» (onboarding.md §5.5).
+  // → слово на сьогодні або null (офлайн, сервер не встиг, інша пара мов).
+  async function prepareWod(p) {
+    const next = { ...settingsRef.current, profile: cleanProfile(p), knowStreak: 0, profileSyncedFor: null };
+    commitSettings(next);
+    const c = await syncWordOfDay(wodArgs(next, true)).catch(() => null);
+    if (c) setWod(c);
+    return c && c.lang === next.targetLang && c.native === next.nativeLang ? todayFrom(c) : null;
+  }
+
+  // Розробка: онбординг як для нового (без стирання) — з кроками сповіщень і
+  // віджетів навіть там, де їх зазвичай немає (дозвіл уже вирішено, Expo Go).
+  const onbDevForce = useRef(false);
+  const [onbFirstWord, setOnbFirstWord] = useState(null);
+  function devOnboarding() {
+    if (!IS_DEV) return;
+    clearOnboardingDraft();
+    onbDraft.current = null;
+    onbReplay.current = false;
+    onbDevForce.current = true;
+    setOnboarded(false);
+  }
+  const [devOnbAlways, setDevOnbAlwaysState] = useState(false);
+  useEffect(() => {
+    if (IS_DEV) loadDevOnbAlways().then(setDevOnbAlwaysState);
+  }, []);
+  function setDevOnbAlways(on) {
+    if (!IS_DEV) return;
+    setDevOnbAlwaysState(!!on);
+    persistDevOnbAlways(!!on);
+  }
+  // Що буде після обіцянки — для статистики онбордингу
+  const onbPaywallMode =
+    sub.pro || pro.mode === 'unavailable' || !pro.plans.length ? 'none' : pro.config.onboardingPaywall === 'skip' ? 'skip' : 'show';
   // </v13:W3>
   // <v13:W4>
   // </v13:W4>
@@ -1689,6 +1786,9 @@ export default function App() {
     widgetsAvailable: widgetsOn,
     // </v13:W2>
     // <v13:W3>
+    devOnboarding,
+    devOnbAlways,
+    onDevOnbAlways: setDevOnbAlways,
     // </v13:W3>
     // <v13:W4>
     // </v13:W4>
@@ -1714,26 +1814,34 @@ export default function App() {
           <StatusBar style={theme.isDark ? 'light' : 'dark'} />
           <OnboardingScreen
             t={t}
+            uiLang={ui}
             onDone={finishOnboarding}
-            profile={settings.profile}
-            heardFrom={settings.heardFrom}
-            name={settings.profileName}
-            struggles={settings.struggles}
+            // Перший запуск нічого не підставляє з налаштувань (там може
+            // лежати перерваний запуск); повтор показує поточні відповіді
+            profile={onbReplay.current ? settings.profile : null}
+            heardFrom={onbReplay.current ? settings.heardFrom : null}
+            name={onbReplay.current ? settings.profileName : ''}
+            struggles={onbReplay.current ? settings.struggles : []}
             targetLang={settings.targetLang}
-            // мову навчання онбординг зберігає одразу: перший скан і план
-            // уже беруть її з налаштувань (під час повтору — не чіпаємо).
-            // Безкоштовна мова вже зайнята словом (скан «Спробуй зараз», до
-            // якого повернулись назад): іншу дав би лише пейвол, а посеред
-            // знайомства його не видно — вибір зник би мовчки. Тоді пігулка —
-            // просто підпис; змінити мову можна в Параметрах.
-            onSetLang={onbReplay.current || (!sub.pro && words.length > 0) ? undefined : setTargetLang}
             nativeLang={settings.nativeLang}
+            // «Перекладати на» стартує з мови телефона
+            phoneNative={defaultLanguages().nativeLang}
+            onLanguages={onbLanguages}
+            prepareWod={prepareWod}
+            todayWord={todayWord}
             wodHour={settings.wodHour}
             replay={onbReplay.current}
-            // «Спробуй зараз» — лише вперше, з порожнім словником і коли
+            // «Спробувати» — лише вперше, з порожнім словником і коли
             // безкоштовний скан ще не витрачено
             canWow={!onbReplay.current && words.length === 0 && scansLeft({ pro: sub.pro, usage }) > 0}
+            scanUsed={!sub.pro && scansLeft({ pro: sub.pro, usage }) === 0}
             renderScanner={renderFirstScan}
+            aiConsent={!!settings.aiConsent}
+            onAiConsent={() => saveSetting({ aiConsent: true })}
+            widgets={widgetsAvailable()}
+            hasWords={words.length > 0}
+            dev={onbDevForce.current ? { forcePush: true, forceWidgets: true } : null}
+            paywall={onbPaywallMode}
             draft={onbReplay.current ? null : onbDraft.current}
             onDraft={persistOnboardingDraft}
           />
@@ -2017,6 +2125,7 @@ export default function App() {
                 onPurchase={purchasePlan}
                 onRestore={restorePurchases}
                 onOpen={() => !pro.plans.length && pro.reloadPlans()}
+                firstWord={onbFirstWord}
                 lang={ui}
                 t={t}
               />

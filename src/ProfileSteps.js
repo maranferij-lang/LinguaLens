@@ -52,7 +52,13 @@ const STRUGGLE_ICONS = { forget: IcCards, time: IcClock, boring: IcBook, start: 
 // прокрученим, з обрізаним заголовком. Вміст не вміщається — смужка
 // прокрутки один раз мигає, а над кнопкою лежить згасання: видно, що
 // внизу є ще.
-export function StepFrame({ stepKey, progress, onBack, right, header, title, text, children, footer, t }) {
+//
+// progress — { step, total } (одна смужка, редактор профілю) або { acts:
+// [f0, f1, f2] } — три сегменти онбордингу («Ти» / «Як це працює» /
+// «Спробуй»), кожен заповнений часткою кроків своєї дії. direction —
+// 'forward' | 'back': новий крок заїжджає справа чи зліва (онбординг);
+// без нього — мʼяко зʼявляється знизу, як і раніше.
+export function StepFrame({ stepKey, progress, onBack, right, header, title, text, children, footer, direction, t }) {
   const { C } = useTheme();
   const s = useMemo(() => makeStyles(C), [C]);
   const titleRef = useRef(null);
@@ -86,7 +92,8 @@ export function StepFrame({ stepKey, progress, onBack, right, header, title, tex
       scrollRef.current?.flashScrollIndicators?.();
     } catch (_) {}
   }, [over, stepKey]);
-  const label = progress ? `${t('obStepOf', { n: progress.step, m: progress.total })}. ${title}` : undefined;
+  const label = progress?.total ? `${t('obStepOf', { n: progress.step, m: progress.total })}. ${title}` : undefined;
+  const dx = direction === 'back' ? -SLIDE : direction === 'forward' ? SLIDE : 0;
   return (
     <View style={s.frame}>
       <View style={s.bar}>
@@ -105,7 +112,13 @@ export function StepFrame({ stepKey, progress, onBack, right, header, title, tex
         ) : (
           <View style={s.barBtn} />
         )}
-        {progress ? <Progress {...progress} s={s} /> : <View style={{ flex: 1 }} />}
+        {progress?.acts ? (
+          <ActsProgress acts={progress.acts} s={s} />
+        ) : progress ? (
+          <Progress {...progress} s={s} />
+        ) : (
+          <View style={{ flex: 1 }} />
+        )}
         <View style={s.barRight}>{right}</View>
       </View>
 
@@ -122,13 +135,15 @@ export function StepFrame({ stepKey, progress, onBack, right, header, title, tex
         scrollEventThrottle={32}
       >
         {/* key — новий крок мʼяко зʼявляється, а не підміняється миттєво */}
-        <FadeIn key={stepKey} dy={10}>
+        <FadeIn key={stepKey} dy={10} dx={dx}>
           {header}
-          <Text ref={titleRef} style={s.title} accessibilityRole="header" accessibilityLabel={label}>
-            {title}
-          </Text>
+          {title ? (
+            <Text ref={titleRef} style={s.title} accessibilityRole="header" accessibilityLabel={label}>
+              {title}
+            </Text>
+          ) : null}
           {text ? <Text style={s.text}>{text}</Text> : null}
-          <View style={{ marginTop: 22 }}>{children}</View>
+          <View style={{ marginTop: title ? 22 : 0 }}>{children}</View>
         </FadeIn>
       </ScrollView>
 
@@ -139,6 +154,9 @@ export function StepFrame({ stepKey, progress, onBack, right, header, title, tex
     </View>
   );
 }
+
+// На скільки новий крок заїжджає збоку (онбординг: уперед — справа)
+const SLIDE = 24;
 
 // Згасання над кнопкою: вміст іде під неї, а не обрізається рівною лінією
 const FADE = 16;
@@ -185,6 +203,37 @@ function Progress({ step, total, s }) {
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
     >
+      <Animated.View style={[s.progressFill, { transform: [{ scaleX: a }], transformOrigin: 'left' }]} />
+    </View>
+  );
+}
+
+// Три дії онбордингу — три сегменти. Сегмент доливається, коли людина
+// йде вперед, і так само мʼяко спадає, коли повертається. Порожні — тим
+// самим кольором доріжки: видно, скільки розділів ще попереду.
+function ActsProgress({ acts, s }) {
+  return (
+    <View style={s.acts} testID="onb-progress" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+      {acts.map((f, i) => (
+        <Segment key={i} value={f} s={s} testID={'onb-act-' + i} />
+      ))}
+    </View>
+  );
+}
+
+function Segment({ value, s, testID }) {
+  const v = Math.max(0, Math.min(1, value || 0));
+  const reduced = useReducedMotion();
+  const a = useRef(new Animated.Value(v)).current;
+  useEffect(() => {
+    if (reduced) {
+      a.setValue(v);
+      return;
+    }
+    Animated.timing(a, { toValue: v, duration: DUR.panel, easing: EASE.out, useNativeDriver: true }).start();
+  }, [v, reduced]);
+  return (
+    <View style={s.segment} testID={testID}>
       <Animated.View style={[s.progressFill, { transform: [{ scaleX: a }], transformOrigin: 'left' }]} />
     </View>
   );
@@ -406,6 +455,8 @@ const makeStyles = (C) =>
     barRight: { minWidth: 44, alignItems: 'flex-end', justifyContent: 'center' },
     progress: { flex: 1, height: 4, borderRadius: 2, backgroundColor: C.card3, overflow: 'hidden', marginHorizontal: 6 },
     progressFill: { height: 4, width: '100%', borderRadius: 2, backgroundColor: C.accent },
+    acts: { flex: 1, flexDirection: 'row', gap: 6, marginHorizontal: 6 },
+    segment: { flex: 1, height: 4, borderRadius: 2, backgroundColor: C.card3, overflow: 'hidden' },
     skip: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 8 },
     // dim, а не faint: «Пропустити» — єдиний вихід з непотрібного питання,
     // і він мусить читатися (≥ 4.5:1 в обох темах)

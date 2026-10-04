@@ -140,9 +140,12 @@ export function SecBtn({ title, onPress, style }) {
 // Поява елемента.
 // Без перельоту: елемент просто з'явився, його ніхто не кидав. Зсув маленький —
 // 12 px достатньо, щоб око зчитало напрямок. При reduced motion зсуву немає.
-export function FadeIn({ children, style, delay = 0, dy = 12 }) {
+// dx — зсув по горизонталі (кроки онбордингу: уперед новий вміст заїжджає
+// справа, назад — зліва); тоді вертикального немає.
+export function FadeIn({ children, style, delay = 0, dy = 12, dx = 0, testID }) {
   const a = useRef(new Animated.Value(0)).current;
-  const shift = travel(dy);
+  const shiftX = travel(dx);
+  const shift = shiftX ? 0 : travel(dy);
 
   useEffect(() => {
     Animated.timing(a, {
@@ -154,18 +157,13 @@ export function FadeIn({ children, style, delay = 0, dy = 12 }) {
     }).start();
   }, []);
 
+  const transform = shiftX
+    ? [{ translateX: a.interpolate({ inputRange: [0, 1], outputRange: [shiftX, 0] }) }]
+    : shift
+      ? [{ translateY: a.interpolate({ inputRange: [0, 1], outputRange: [shift, 0] }) }]
+      : [];
   return (
-    <Animated.View
-      style={[
-        style,
-        {
-          opacity: a,
-          transform: shift
-            ? [{ translateY: a.interpolate({ inputRange: [0, 1], outputRange: [shift, 0] }) }]
-            : [],
-        },
-      ]}
-    >
+    <Animated.View style={[style, { opacity: a, transform }]} testID={testID}>
       {children}
     </Animated.View>
   );

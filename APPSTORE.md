@@ -965,7 +965,33 @@ Pro "words of the day": with LinguaLens Pro a person can get 3 or 5 words of the
 
 ## v1.3 · W3 Онбординг 3.0 і скидання для розробки
 
-_Заповнює потік W3._
+**Нотатки для рецензента.** На злитті (C6) блок `ONBOARDING (...)` у Review
+Notes вище замінюється цим текстом; решта нотаток не змінюється.
+
+```
+ONBOARDING (first launch, about 2 minutes; every optional question has Skip, and Back works on the question and explanation steps):
+1. "Which language are you learning?" — the translation language is preselected from the device language and can be changed; the learning language is picked from 29 languages (search included).
+2. Optional questions: what to call you (the name stays on the device and is never sent anywhere), goals, field (only for work or study), level on a 1–10 slider, what gets in the way, and where you heard about us. The app then shows a personal plan with today's word of the day.
+3. "How it works": an interactive streak preview (no data is created), a notification pre-permission screen with a single "Next" button that opens the iOS prompt (shown only if iOS has not asked yet; if declined, one screen explains how to turn notifications on later), and — on devices that support widgets — a preview of the Home Screen widgets with how to add them.
+4. "Try it": a short animated demo of a scan (no camera, drawn in the app; Reduce Motion shows three still frames). "Try it" opens the real camera: before the first scan the app explains that the photo is sent to our server and to a third-party AI service (Google Gemini or Anthropic) only to recognise the object, and asks for permission (Allow / Not now); nothing is uploaded before Allow, and only then iOS asks for camera access. "Later" skips the scan. If the camera is not allowed, onboarding simply continues.
+5. After a scan: a short celebration with the person's own sticker, then a commitment screen: press and hold the ring for 1.5 s (with VoiceOver or Reduce Motion, a single tap works).
+6. Subscription offer (only for people without Pro): three short screens — the free trial (with the sticker the person just made), a timeline with a reminder 2 days before the trial ends, then the plan picker with prices from the App Store, the billed amount, trial terms, Terms of Use, Privacy Policy and Restore Purchases. Every screen has a close (X) button, and "Continue for free" goes to the app without purchase.
+Settings → "Go through the intro again" replays onboarding without the subscription offer.
+```
+
+- Перед системним запитом сповіщень — екран із єдиною кнопкою «Далі»
+  (не «Дозволити»): так вимагає 5.1.1(iv) / HIG для пре-пермішн екранів.
+  Відмова нічого не ламає: є екран «Гаразд, без нагадувань».
+- Згода на AI (5.1.2(i)) — до камери й до будь-якого завантаження, як і
+  в v1.2; кнопка «Не зараз» лишає людину на демо.
+- Секція «Розробка» («Почати з нуля», «Онбординг як новий», «Онбординг
+  на кожному старті») існує лише в `__DEV__`: у збірці для App Store її
+  немає, і код стирання там нічого не робить. У нотатках її не згадуємо.
+- **Скріншоти.** Демо скану (стіл, чашка, наліпка, табличка «mug —
+  чашка», вогник) і свято першого слова з наліпкою — найсильніші кадри
+  для 2–3 скріншота: це справжні екрани застосунку, без макетів.
+  Перемикач «Онбординг на кожному старті» в dev build дає пройти кадри
+  кілька разів поспіль без стирання даних.
 
 ## v1.3 · W4 Наліпки без тла: Stories, «Копіювати», «Зберегти»
 

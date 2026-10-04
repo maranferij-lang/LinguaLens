@@ -460,43 +460,43 @@ describe('where the app opens', () => {
 });
 
 // ─── app-04: мова навчання з онбордингу ────────────────────────────────────
+// Онбординг 3.0: мову питає окремий крок «Яку мову вчиш?» (onLanguages), а
+// не пігулка на кроці рівня.
 describe('onboarding gets the language setter', () => {
-  test('first run: a setter that saves the language at once; replay: none', async () => {
+  test('first run: the languages are saved at once, the translation language starts from the phone', async () => {
     const tree = await renderApp();
     const onb = one(tree, OnboardingScreen);
-    expect(onb.props.nativeLang).toBe('en');
-    expect(typeof onb.props.onSetLang).toBe('function');
-    await press(() => onb.props.onSetLang('de'));
+    expect(onb.props.phoneNative).toBe('en');
+    expect(typeof onb.props.onLanguages).toBe('function');
+    await press(() => onb.props.onLanguages({ targetLang: 'de', nativeLang: 'en' }));
     expect((await stored('ll_settings_v1')).targetLang).toBe('de');
     expect(one(tree, OnboardingScreen).props.targetLang).toBe('de');
-    await press(() => one(tree, OnboardingScreen).props.onDone({ wodEnabled: false }));
-
-    await openTab(tree, 'settings');
-    await press(() => one(tree, SettingsScreen).props.onReplayOnb());
-    expect(one(tree, OnboardingScreen).props.onSetLang).toBeUndefined();
-    await act(async () => tree.unmount());
-  });
-
-  test('after the “Try it now” word a free plan keeps its language: the pill is a label, no paywall mid-onboarding', async () => {
-    const tree = await renderApp();
-    const onb = one(tree, OnboardingScreen);
-    expect(typeof onb.props.onSetLang).toBe('function');
-    // перший скан онбордингу зберігає слово мовою, яку вгадав телефон
-    const first = onb.props.renderScanner({ onSaved: jest.fn(), onClose: jest.fn(), level: 5 });
-    await press(() => first.props.onSaveWord({ ...RESULT, lang: onb.props.targetLang, nativeLang: 'en' }));
-    expect(await stored('ll_words_v1')).toHaveLength(1);
-    // людина вертається на крок рівня — іншу мову дав би лише пейвол, якого
-    // тут не видно, тож вибору мови немає зовсім, а не мовчазної відмови
-    expect(one(tree, OnboardingScreen).props.onSetLang).toBeUndefined();
+    // мова перекладу міняється окремо, не чіпаючи мови навчання
+    await press(() => one(tree, OnboardingScreen).props.onLanguages({ nativeLang: 'pl' }));
+    expect(await stored('ll_settings_v1')).toMatchObject({ targetLang: 'de', nativeLang: 'pl' });
     expect(one(tree, PaywallScreen)).toBeNull();
     await act(async () => tree.unmount());
   });
 
-  test('Pro: the pill still changes the language with a word saved', async () => {
+  test('a word already saved on a free plan keeps its language: no paywall mid-onboarding', async () => {
+    const tree = await renderApp();
+    const onb = one(tree, OnboardingScreen);
+    // перший скан онбордингу зберігає слово мовою, яку вже обрали
+    const first = onb.props.renderScanner({ onSaved: jest.fn(), onExit: jest.fn(), level: 5 });
+    await press(() => first.props.onSaveWord({ ...RESULT, lang: onb.props.targetLang, nativeLang: 'en' }));
+    expect(await stored('ll_words_v1')).toHaveLength(1);
+    await press(() => one(tree, OnboardingScreen).props.onLanguages({ targetLang: 'de', nativeLang: 'en' }));
+    expect(one(tree, OnboardingScreen).props.targetLang).toBe(onb.props.targetLang);
+    expect((await stored('ll_settings_v1'))?.targetLang).not.toBe('de');
+    expect(one(tree, PaywallScreen)).toBeNull();
+    await act(async () => tree.unmount());
+  });
+
+  test('Pro: the language still changes with a word saved', async () => {
     await AsyncStorage.setItem('ll_sub_v1', JSON.stringify({ planId: 'year', until: Date.now() + 30 * 86400000 }));
     await AsyncStorage.setItem('ll_words_v1', JSON.stringify([{ id: 'a', word: 'la taza', translation: 'mug', lang: 'es', nativeLang: 'en' }]));
     const tree = await renderApp();
-    await press(() => one(tree, OnboardingScreen).props.onSetLang('de'));
+    await press(() => one(tree, OnboardingScreen).props.onLanguages({ targetLang: 'de', nativeLang: 'en' }));
     expect((await stored('ll_settings_v1')).targetLang).toBe('de');
     expect(one(tree, PaywallScreen)).toBeNull();
     await act(async () => tree.unmount());

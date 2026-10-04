@@ -75,23 +75,67 @@ export async function persistOnboarded() {
 // просто вивантажує його з пам'яті), — і людина, повернувшись, мусила б
 // відповідати на все спочатку. Тож поки онбординг не скінчився, його стан
 // лежить тут. Лише на телефоні: нікуди не надсилається.
-export async function loadOnboardingDraft() {
+//
+// Але лише на чверть години (онбординг 3.0, onboarding.md §10.1): людина,
+// яку система вибила посеред знайомства, повертається за хвилину-дві й
+// продовжує; а «відкрила завтра» — це новий старт, з першого екрана й з
+// порожніми відповідями. Чернетка старшого формату (без v: 3) — теж новий
+// старт: її кроки належать іншому потоку.
+export const DRAFT_VERSION = 3;
+export const DRAFT_TTL_MS = 15 * 60 * 1000;
+
+// Чи ще жива чернетка: формат v3 і не старша за 15 хвилин
+export function draftFresh(d, now = Date.now()) {
+  if (!d || typeof d !== 'object' || d.v !== DRAFT_VERSION) return false;
+  const at = Number(d.at);
+  return Number.isFinite(at) && now - at >= 0 && now - at <= DRAFT_TTL_MS;
+}
+
+// → чернетка або null. Прострочену чи чужого формату одразу стираємо:
+// наступний старт її вже не побачить.
+export async function loadOnboardingDraft(now = Date.now()) {
+  let d = null;
   try {
     const raw = await AsyncStorage.getItem(ONB_DRAFT_KEY);
-    const d = raw ? JSON.parse(raw) : null;
-    return d && typeof d === 'object' ? d : null;
+    d = raw ? JSON.parse(raw) : null;
   } catch (_) {
+    d = null;
+  }
+  if (!d || typeof d !== 'object') return null;
+  if (!draftFresh(d, now)) {
+    await clearOnboardingDraft();
     return null;
   }
+  return d;
 }
+// Кожен запис отримує формат і час — від нього рахуються 15 хвилин.
 export async function persistOnboardingDraft(draft) {
   try {
-    await AsyncStorage.setItem(ONB_DRAFT_KEY, JSON.stringify(draft));
+    await AsyncStorage.setItem(ONB_DRAFT_KEY, JSON.stringify({ ...draft, v: DRAFT_VERSION, at: Date.now() }));
   } catch (_) {}
 }
 export async function clearOnboardingDraft() {
   try {
     await AsyncStorage.removeItem(ONB_DRAFT_KEY);
+  } catch (_) {}
+}
+
+// ---- розробка: «Онбординг на кожному старті» ----
+// Перемикач секції «Розробка» в Параметрах (лише dev-збірка): на старті
+// застосунок поводиться так, ніби онбординг ще не пройдено, нічого не
+// стираючи, — для зйомки екранів. Читає й пише його лише App у __DEV__.
+const DEV_ONB_KEY = 'll_dev_onb_always';
+export async function loadDevOnbAlways() {
+  try {
+    return (await AsyncStorage.getItem(DEV_ONB_KEY)) === '1';
+  } catch (_) {
+    return false;
+  }
+}
+export async function persistDevOnbAlways(on) {
+  try {
+    if (on) await AsyncStorage.setItem(DEV_ONB_KEY, '1');
+    else await AsyncStorage.removeItem(DEV_ONB_KEY);
   } catch (_) {}
 }
 
