@@ -82,6 +82,9 @@ export default function FlashcardsScreen({
   onOpenPaywall,
   unlockSeen = null,
   onUnlockSeen,
+  // поверх екрана зараз свято серії: «Відкрито!» дочекається, поки воно
+  // закриється, — інакше момент відіграв би під ним
+  holdMoments = false,
   // App тримає свято серії й тости, поки йде сесія карток чи квізу
   onSessionChange,
   // серія: { n, doneToday, phase, lastActiveKey } — чип і вечірній банер;
@@ -120,7 +123,7 @@ export default function FlashcardsScreen({
   const timers = useRef([]);
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
   useEffect(() => {
-    if (mode !== 'hub' || !unlockSeen || !onUnlockSeen) return;
+    if (mode !== 'hub' || !unlockSeen || !onUnlockSeen || holdMoments) return;
     const fresh = [];
     if (words.length && !unlockSeen.cards) fresh.push('cards');
     if (quizReady && !unlockSeen.quiz) fresh.push('quiz');
@@ -132,7 +135,7 @@ export default function FlashcardsScreen({
       onUnlockSeen(card);
     }
     timers.current.push(setTimeout(() => setUnlocking({ cards: false, quiz: false }), UNLOCK_MS));
-  }, [mode, words.length, quizReady, unlockSeen?.cards, unlockSeen?.quiz]);
+  }, [mode, words.length, quizReady, unlockSeen?.cards, unlockSeen?.quiz, holdMoments]);
 
   // Тап по закритій картці: вона хитається, «Увага» хаптикою, а шлях до
   // відкриття на мить підсвічується — блок «Як отримати» (L0), «Зберегти» на
@@ -141,6 +144,10 @@ export default function FlashcardsScreen({
   const shakeQuiz = useRef(new Animated.Value(0)).current;
   const [glow, setGlow] = useState(null);
   const glowTimer = useRef(null);
+  // На низькому екрані (SE) блок «Як отримати» буває під таб-баром: тап по
+  // закритій картці докручує до нього, щоб підсвічене було видно
+  const hubScroll = useRef(null);
+  const hubView = useRef({ h: 0, howY: 0, howH: 0, top: 0 });
   useEffect(() => () => clearTimeout(glowTimer.current), []);
   const lockText = (card) =>
     card === 'cards' ? t('learnLockedCards') : level === 0 ? t('learnLockedQuiz', { n: progress.need }) : t('learnQuizLeft', { k: left });
@@ -157,6 +164,9 @@ export default function FlashcardsScreen({
       ).start();
     }
     setGlow(level === 0 ? 'how' : wordOfDay && !wodSaved ? 'wod' : 'tip');
+    const v = hubView.current;
+    const need = v.howY + v.howH + UNDER_TAB + 16 - v.h;
+    if (level === 0 && v.howH && need > v.top) hubScroll.current?.scrollTo?.({ y: need, animated: !reduced });
     clearTimeout(glowTimer.current);
     glowTimer.current = setTimeout(() => setGlow(null), GLOW_MS);
   }
@@ -247,9 +257,13 @@ export default function FlashcardsScreen({
     const quizHint = level === 2 ? t('quizHint') : level === 0 ? t('learnLockedQuiz', { n: progress.need }) : t('learnQuizLeft', { k: left });
     return (
       <ScrollView
+        ref={hubScroll}
         style={s.hubRoot}
         contentContainerStyle={{ padding: 20, paddingBottom: UNDER_TAB + 14 }}
         showsVerticalScrollIndicator={false}
+        onLayout={(e) => (hubView.current.h = e.nativeEvent.layout.height)}
+        onScroll={(e) => (hubView.current.top = e.nativeEvent.contentOffset.y)}
+        scrollEventThrottle={64}
       >
         <View style={s.hubHead}>
           <Text style={[T.largeTitle, { flexShrink: 1 }]} accessibilityRole="header" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
@@ -341,18 +355,25 @@ export default function FlashcardsScreen({
         </FadeIn>
 
         {level === 0 ? (
-          <FadeIn delay={135}>
-            <HowToGetWord
-              wordOfDay={wordOfDay}
-              wodSaved={wodSaved}
-              onSaveWod={onSaveWod}
-              canScan={canScan}
-              onGoScan={onGoScan}
-              onScanPro={onOpenPaywall ? () => onOpenPaywall('scans') : onOpenPro}
-              glow={glow === 'how'}
-              t={t}
-            />
-          </FadeIn>
+          <View
+            onLayout={(e) => {
+              hubView.current.howY = e.nativeEvent.layout.y;
+              hubView.current.howH = e.nativeEvent.layout.height;
+            }}
+          >
+            <FadeIn delay={135}>
+              <HowToGetWord
+                wordOfDay={wordOfDay}
+                wodSaved={wodSaved}
+                onSaveWod={onSaveWod}
+                canScan={canScan}
+                onGoScan={onGoScan}
+                onScanPro={onOpenPaywall ? () => onOpenPaywall('scans') : onOpenPro}
+                glow={glow === 'how'}
+                t={t}
+              />
+            </FadeIn>
+          </View>
         ) : level === 1 ? (
           <FadeIn delay={135}>
             <View style={[s.tip, glow === 'tip' && s.tipGlow]} testID="learn-tip">
@@ -556,7 +577,9 @@ function HubCard({ Icon, title, hint, locked, unlocking, badge = 0, progress, on
           <View style={s.hubIconWrap}>
             <View style={[StyleSheet.absoluteFill, s.hubIconLocked]} />
             <Animated.View style={[StyleSheet.absoluteFill, s.hubIconOpen, { opacity: tint }]} />
-            <Icon size={26} color={locked && !flying ? C.faint : C.accent} />
+            <View>
+              <Icon size={26} color={locked && !flying ? C.faint : C.accent} />
+            </View>
             {unlocking ? (
               <>
                 <View style={s.sparkA} pointerEvents="none">

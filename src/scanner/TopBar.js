@@ -86,8 +86,10 @@ export function Status({ status, onPro, t }) {
         accessibilityLabel={t('scanProBadgeA11y')}
         testID="scan-status-pro"
       >
+        {/* корона лавандова, підпис кремовий: над світлою стіною лавандовий
+            текст на склі не читається */}
         <PCrown size={14} color={CAM.accent} />
-        <Text style={{ color: CAM.accent, fontSize: 12, fontFamily: F.extra, letterSpacing: 1.2 }} maxFontSizeMultiplier={CAM_FONT}>
+        <Text style={{ color: CAM.text, fontSize: 12, fontFamily: F.extra, letterSpacing: 1.2 }} maxFontSizeMultiplier={CAM_FONT}>
           PRO
         </Text>
       </CamGlass>

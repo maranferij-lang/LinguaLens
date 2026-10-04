@@ -15,7 +15,7 @@
 //     немає, «Продовжити» є завжди;
 //   • «Менше руху»: лише проявлення за 160 мс.
 import { useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import { AccessibilityInfo, Animated, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import Svg, { Defs, Line, RadialGradient, Rect, Stop } from 'react-native-svg';
 import Flame from './Flame';
@@ -33,8 +33,9 @@ import { F, R, type, useTheme } from '../theme';
 
 // Скільки звичайний день лишається на екрані
 export const CELEBRATE_MS = 2600;
-const FLAME = 124;
-const NUM_H = 78;
+// Звичайний і низький екран (iPhone SE): на SE вогник і число менші, а
+// Lingo віх не показуємо — інакше «Поділитися» не вміщалось би
+const SIZES = { full: { flame: 124, num: 78, font: 68 }, compact: { flame: 92, num: 64, font: 56 } };
 
 export function isMilestone(n) {
   return MILESTONES.includes(n);
@@ -139,6 +140,8 @@ export default function StreakCelebration({ data, activeDays, onDone, onShare, t
   const insets = useSafeAreaInsets();
   const reduced = useReducedMotion();
   const reader = useScreenReader();
+  const compact = useWindowDimensions().height < 760;
+  const { flame: FLAME, num: NUM_H, font: NUM_FONT } = compact ? SIZES.compact : SIZES.full;
   // Показуємо копію data: App прибирає своє, лише коли ми вже згасли
   const [shown, setShown] = useState(null);
   const fade = useRef(new Animated.Value(0)).current;
@@ -251,9 +254,9 @@ export default function StreakCelebration({ data, activeDays, onDone, onShare, t
 
       <View
         pointerEvents="box-none"
-        style={{ flex: 1, paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24, paddingHorizontal: 28, justifyContent: 'center' }}
+        style={{ flex: 1, paddingTop: insets.top + (compact ? 12 : 24), paddingBottom: insets.bottom + (compact ? 16 : 24), paddingHorizontal: 28 }}
       >
-        <View pointerEvents="none" style={{ alignItems: 'center' }}>
+        <View pointerEvents="none" style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
           <View style={{ width: 240, height: FLAME * 1.2 + 24, alignItems: 'center', justifyContent: 'center' }}>
             {lit ? (
               <>
@@ -287,14 +290,14 @@ export default function StreakCelebration({ data, activeDays, onDone, onShare, t
           <View style={{ height: NUM_H, overflow: 'hidden', alignSelf: 'stretch', alignItems: 'center', marginTop: 4 }}>
             {from !== to && !reduced ? (
               <Animated.Text
-                style={[s.num(C), { position: 'absolute', opacity: roll.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }), transform: [{ translateY: roll.interpolate({ inputRange: [0, 1], outputRange: [0, -NUM_H] }) }] }]}
+                style={[s.num(C, NUM_H, NUM_FONT), { position: 'absolute', opacity: roll.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }), transform: [{ translateY: roll.interpolate({ inputRange: [0, 1], outputRange: [0, -NUM_H] }) }] }]}
               >
                 {String(from)}
               </Animated.Text>
             ) : null}
             <Animated.Text
               testID="celebration-number"
-              style={[s.num(C), reduced ? null : { transform: [{ translateY: roll.interpolate({ inputRange: [0, 1], outputRange: [NUM_H, 0] }) }] }]}
+              style={[s.num(C, NUM_H, NUM_FONT), reduced ? null : { transform: [{ translateY: roll.interpolate({ inputRange: [0, 1], outputRange: [NUM_H, 0] }) }] }]}
             >
               {String(to)}
             </Animated.Text>
@@ -305,21 +308,21 @@ export default function StreakCelebration({ data, activeDays, onDone, onShare, t
           </Text>
           {sub ? <Text style={{ color: C.dim, ...type(15, F.reg), textAlign: 'center', marginTop: 8, maxWidth: 320 }}>{sub}</Text> : null}
 
-          <View style={{ marginTop: 22 }}>
+          <View style={{ marginTop: compact ? 16 : 22 }}>
             <WeekDots activeDays={activeDays} pop={pop} C={C} t={t} />
           </View>
 
           {ach ? (
-            <View style={s.chip(C)} testID="celebration-achievement">
+            <View style={[s.chip(C), compact && { marginTop: 14 }]} testID="celebration-achievement">
               <IcMedal size={16} color={C.accent} />
               <Text style={{ color: C.accent, ...type(14, F.bold, { noLead: true }) }}>{t('streakAchChip', { a: t('ach_' + ach.id) })}</Text>
             </View>
           ) : null}
-          {lit ? <Mascot pose="celebrate" size={84} style={{ marginTop: 14 }} /> : null}
+          {lit && !compact ? <Mascot pose="celebrate" size={84} style={{ marginTop: 14 }} /> : null}
         </View>
 
         {waits ? (
-          <View style={{ marginTop: 28, gap: 10 }}>
+          <View style={{ marginTop: compact ? 14 : 24, gap: 10 }}>
             <GradBtn title={t('streakContinue')} onPress={close} />
             {ach && onShare ? (
               <Press
@@ -343,7 +346,7 @@ export default function StreakCelebration({ data, activeDays, onDone, onShare, t
 }
 
 const s = {
-  num: (C) => ({ color: C.text, fontSize: 68, lineHeight: NUM_H, fontFamily: F.extra, letterSpacing: -1.5, fontVariant: ['tabular-nums'] }),
+  num: (C, h, size) => ({ color: C.text, fontSize: size, lineHeight: h, fontFamily: F.extra, letterSpacing: -1.5, fontVariant: ['tabular-nums'] }),
   chip: (C) => ({
     flexDirection: 'row',
     alignItems: 'center',

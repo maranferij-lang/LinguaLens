@@ -117,7 +117,11 @@ export default function Shutter({ state = 'lens', onPress, reduced = false, t })
               <Circle cx={DISC / 2} cy={DISC / 2} r={DISC / 2} fill="url(#shutterLens)" />
             </Svg>
           )}
-          {pro ? <PCrown size={30} color={CAM.violet} /> : busy ? <Spinner reduced={reduced} /> : state === 'room' ? <IcRoom size={30} color="#FFFFFF" /> : <Lens />}
+          {/* гліф у власному View — над градієнтом і на вебі, де абсолютні
+              шари малюються поверх звичайних */}
+          <View>
+            {pro ? <PCrown size={30} color={CAM.violet} /> : busy ? <Spinner reduced={reduced} /> : state === 'room' ? <IcRoom size={30} color="#FFFFFF" /> : <Lens />}
+          </View>
         </View>
       </View>
     </APressable>

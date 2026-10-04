@@ -1403,6 +1403,11 @@ export default function App() {
     commitSettings({ ...cur, streakSeen: { ...seen, best, ...(fresh ? { celebrated: streakLive.todayKey } : null) } });
     if (fresh && !first && onboarded) setCelebration({ from: Math.max(0, streakLive.n - 1), to: streakLive.n });
   }, [ready, streakLive]);
+  // Свято вже вирішене, але ефект вище ще не встиг його поставити (той самий
+  // кадр): «Навчання» має знати це одразу, щоб «Відкрито!» не відіграло під ним.
+  const celebrating =
+    !!celebration ||
+    (ready && onboarded && streakStarted.current && streakLive.doneToday && settings.streakSeen?.celebrated !== streakLive.todayKey);
 
   // ---------- ЧЕРГА ОВЕРЛЕЇВ (план §5.13) ----------
   // Тост досягнення й свято серії показуються лише тоді, коли нічого не
@@ -1659,6 +1664,7 @@ export default function App() {
                   onOpenPaywall={openPaywall}
                   unlockSeen={unlockKnown ? settings.unlockSeen || {} : null}
                   onUnlockSeen={markUnlockSeen}
+                  holdMoments={celebrating}
                   onSessionChange={setLearnSession}
                   // серія: чип у шапці й вечірній банер
                   streak={streakLive}

@@ -109,6 +109,19 @@ test('a tap on a locked card lights up the way to unlock it for a moment', async
   await act(async () => tree.unmount());
 });
 
+test('on a small phone the tap scrolls the how-to block out from under the tab bar', async () => {
+  const { ScrollView } = require('react-native');
+  const tree = await render({});
+  const scroll = tree.root.findByType(ScrollView);
+  // екран 560 pt, блок «Як отримати» починається на 600 — під таб-баром
+  await act(async () => scroll.props.onLayout({ nativeEvent: { layout: { height: 560 } } }));
+  const how = tree.root.findAll((n) => n.type === 'View' && typeof n.props.onLayout === 'function' && n.findAll((x) => x.props.testID === 'learn-how').length)[0];
+  await act(async () => how.props.onLayout({ nativeEvent: { layout: { y: 600, height: 220 } } }));
+  await press(() => card(tree, 'hub-cards').props.onPress());
+  expect(scroll.instance.scrollTo).toHaveBeenCalledWith(expect.objectContaining({ y: 600 + 220 + 78 + 16 - 560 }));
+  await act(async () => tree.unmount());
+});
+
 // 2 ───────────────────────────────────────────────────────────────────────
 describe('how to get the first word', () => {
   test('the word of the day and a scan, side by side', async () => {
@@ -196,6 +209,12 @@ describe('“Unlocked!” exactly once', () => {
     await press(() => tree.root.findAll((n) => n.props.tb?.key === 'cards')[0].props.onPress());
     expect(tree.root.findByType(FlashcardsScreen).props.unlockSeen).toEqual({ cards: false, quiz: false });
     await press(() => byTitle(tree, t('learnSaveWod')).props.onPress());
+    // перше слово — це й перша дія дня: спершу свято серії, а «Відкрито!»
+    // чекає, поки воно закриється (інакше відіграло б під ним)
+    const celebration = tree.root.findByType(require('../src/streak/StreakCelebration').default);
+    expect(celebration.props.data).toMatchObject({ to: 1 });
+    expect(texts(tree.root)).not.toContain(t('learnUnlocked'));
+    await press(() => celebration.props.onDone());
     expect(texts(tree.root)).toContain(t('learnUnlocked'));
     expect(JSON.parse(await AsyncStorage.getItem('ll_settings_v1')).unlockSeen).toEqual({ cards: true, quiz: false });
     await act(async () => tree.unmount());
