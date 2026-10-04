@@ -105,6 +105,12 @@ export default function DictionaryScreen({
   onUpdateScene,
   onDeleteScene,
   onSceneVisible,
+  // Відкрити аркуш слова за id (App.openWord: наліпка останнього слова в
+  // сканері, віджети). Один раз на кожен новий id; onOpenWordDone каже App,
+  // що запит виконано, — тоді той самий id можна попросити знову.
+  // Видаленого слова немає — лишається просто вкладка.
+  openWordId = null,
+  onOpenWordDone,
   t,
 }) {
   const { C, T, SHADOW_SM } = useTheme();
@@ -163,6 +169,16 @@ export default function DictionaryScreen({
     setSheetWord(item);
   }, []);
   const closeSheet = useCallback(() => setSheetWord(null), []);
+
+  useEffect(() => {
+    if (!openWordId) return;
+    const item = words.find((w) => w.id === openWordId);
+    if (item) {
+      setSceneId(null);
+      setSheetWord(item);
+    }
+    onOpenWordDone?.();
+  }, [openWordId]);
 
   function switchView(next) {
     if (next === view) return;

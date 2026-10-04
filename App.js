@@ -106,6 +106,19 @@ import {
   scansLeft,
 } from './src/subscription';
 
+// ── v1.3: імпорти потоків. Кожен потік пише лише між своїми маркерами
+// (план §5.6), тож гілки зливаються без конфліктів. ──
+// <v13:W1>
+// </v13:W1>
+// <v13:W2>
+// </v13:W2>
+// <v13:W3>
+// </v13:W3>
+// <v13:W4>
+// </v13:W4>
+// <v13:W5>
+// </v13:W5>
+
 // Порядок вкладок зафіксований і не обговорюється:
 // сканер — по центру, бо це головна дія застосунку і найзручніша точка для
 // великого пальця; профіль — крайній лівий, налаштування — крайні праві.
@@ -186,6 +199,24 @@ function defaultSettings() {
     // вимикається в налаштуваннях. Не скидається стиранням даних — це вибір
     // людини, як мова чи тема.
     analytics: true,
+    // ── v1.3 (план §5.2). Старі налаштування не мігруємо: відсутній ключ —
+    // це значення звідси (mergeSettings). ──
+    // Палітра Pro: 'chalk' (фірмова «Крейда») | 'ocean' | 'berry' |
+    // 'graphite' | 'cocoa'. Світла / темна / авто — як і раніше, у theme.
+    palette: 'chalk',
+    // Скільки слів дня на день: 1, а в Pro — 3 або 5 (src/flags.js).
+    wodPerDay: 1,
+    // Години слів дня по слотах; null — один слот о wodHour.
+    wodHours: null,
+    // Віджет ховає переклад до дотику (на екрані блокування видно завжди).
+    widgetHideTranslation: true,
+    // Нагадування о 20:00, якщо серія під загрозою.
+    streakRemind: true,
+    // Свято серії: celebrated — день ('YYYY-MM-DD'), коли вже святкували
+    // (і онбординг, щоб не святкувати двічі); best — рекорд серії.
+    streakSeen: { celebrated: null, best: 0 },
+    // «Відкрито!» на картках і квізі — показано один раз.
+    unlockSeen: { cards: false, quiz: false },
   };
 }
 
@@ -1288,6 +1319,47 @@ export default function App() {
     if (appReady) SplashScreen.hideAsync().catch(() => {});
   }, [appReady]);
 
+  // ---------- ВІДКРИТИ СЛОВО ----------
+  // Слово в словнику за id — з наліпки останнього слова в сканері й з
+  // віджетів (lingualens://word/<id>). Вкладка «Слова» відкриває його аркуш
+  // один раз; видаленого слова вже немає — лишається просто вкладка.
+  const [openWordId, setOpenWordId] = useState(null);
+  function openWord(id) {
+    startTab.current.moved = true;
+    setTab('dict');
+    setOpenWordId(id ? String(id) : null);
+  }
+
+  // ---------- v1.3: ПОТОКИ ----------
+  // Нові хуки, стан і функції кожен потік пише лише між своїми маркерами
+  // (план §5.6): між вставками різних гілок лишаються незмінені рядки, і
+  // git зливає їх без конфліктів. Усе тут — до першого return.
+  // <v13:W1>
+  // </v13:W1>
+  // <v13:W2>
+  // </v13:W2>
+  // <v13:W3>
+  // </v13:W3>
+  // <v13:W4>
+  // </v13:W4>
+  // <v13:W5>
+  // </v13:W5>
+
+  // Додаткове для секцій Параметрів (src/settings/*: ({ ctx, extra })) —
+  // кожен потік додає свої поля між своїми маркерами.
+  const settingsExtra = {
+    // <v13:W1>
+    // </v13:W1>
+    // <v13:W2>
+    // </v13:W2>
+    // <v13:W3>
+    // </v13:W3>
+    // <v13:W4>
+    // </v13:W4>
+    // <v13:W5>
+    // </v13:W5>
+  };
+
   // ---------- РЕНДЕР ----------
   if (!appReady) {
     return (
@@ -1393,6 +1465,9 @@ export default function App() {
                   onUpdateScene={changeScene}
                   onDeleteScene={deleteScene}
                   onSceneVisible={setScanSheetOpen}
+                  // openWord(id): аркуш цього слова — один раз
+                  openWordId={openWordId}
+                  onOpenWordDone={() => setOpenWordId(null)}
                   t={t}
                 />
               </FadeIn>
@@ -1501,6 +1576,12 @@ export default function App() {
                   analyticsAvailable={analyticsAvailable()}
                   analyticsOn={settings.analytics !== false}
                   onToggleAnalytics={toggleAnalytics}
+                  // секції src/settings/* (ctx і extra)
+                  settings={settings}
+                  saveSetting={saveSetting}
+                  commitSettings={commitSettings}
+                  openPaywall={openPaywall}
+                  extra={settingsExtra}
                   t={t}
                 />
               </FadeIn>
