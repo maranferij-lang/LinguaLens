@@ -16,7 +16,7 @@ import * as AppleAuthentication from 'expo-apple-authentication';
 import * as Haptics from 'expo-haptics';
 import { checkServer } from './api';
 import { accountErrorKey, syncErrorKey } from './account';
-import { PRIVACY_URL, SERVER_SOURCE, SERVER_URL, SUPPORT_EMAIL, TERMS_URL } from './config';
+import { IS_DEV, PRIVACY_URL, SERVER_SOURCE, SERVER_URL, SUPPORT_EMAIL, TERMS_URL } from './config';
 import { formatDate } from './locale';
 import { uiLang } from './i18n';
 import { restoreNote } from './purchases';
@@ -266,6 +266,7 @@ export default function SettingsScreen({
   onClearAll,
   onEraseEverything,
   onReplayOnb,
+  onDevReset,
   wodEnabled,
   onToggleWod,
   wodHour,
@@ -643,6 +644,15 @@ export default function SettingsScreen({
           <>
             <Text style={s.sectionLabel}>Діагностика</Text>
             <Glass>
+              {/* Лише в розробці: у релізі це дарувало б новий безкоштовний скан. */}
+              {IS_DEV && onDevReset ? (
+                <>
+                  <Press style={s.dangerBtn} onPress={onDevReset} accessibilityRole="button">
+                    <Text style={s.dangerText}>Почати з нуля: онбординг, дані, новий пристрій</Text>
+                  </Press>
+                  <View style={s.sepInner} />
+                </>
+              ) : null}
               <Text style={s.serverUrl}>
                 {SERVER_URL} · {SERVER_SOURCE}
               </Text>

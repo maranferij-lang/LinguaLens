@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { ActivityIndicator, Animated, DevSettings, Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { IS_DEV } from './src/config';
 // SafeAreaView з react-native застарів. Наша обгортка бере контекстну версію,
 // якщо пакет встановлений, і падає на ручні відступи, якщо ні.
 import { SafeAreaView, useSafeAreaInsets } from './src/SafeArea';
@@ -51,7 +53,7 @@ import { applyPractice, applyReview, dueWords, newSrs } from './src/srs';
 import { LANGS, initAudio } from './src/speech';
 import { makeT, uiLang } from './src/i18n';
 import { initAnalytics, analyticsAvailable, resetAnalytics, setAnalyticsEnabled, setProps, track } from './src/analytics';
-import { ensureSession, eraseServerData, renewSession } from './src/auth';
+import { ensureSession, eraseServerData, forgetIdentityForDev, renewSession } from './src/auth';
 import { clearPersonalData, signInWithApple, signOut as leaveAccount, useAccount } from './src/account';
 import { useSync, useWordStore } from './src/useSync';
 import { touch } from './src/sync';
@@ -1140,6 +1142,17 @@ export default function App() {
     setOnboarded(false);
   }
 
+  // Лише в розробці: стерти все на телефоні й ідентичність і перезапустити
+  // JS — наступний старт такий самий, як після чистого встановлення
+  // (повний онбординг, новий запис на сервері). Сервер не чіпаємо.
+  async function devReset() {
+    sync.stop();
+    await cancelAll().catch(() => {});
+    await forgetIdentityForDev();
+    await AsyncStorage.clear().catch(() => {});
+    DevSettings.reload();
+  }
+
   // Перший скан в онбордингу («Спробуй зараз»): справжній сканер — зі
   // згодою на AI і дозволом камери, як завжди, — але без пейволів посеред
   // знайомства: безкоштовний скан уже витрачено (скажімо, до перевстановлення
@@ -1416,6 +1429,7 @@ export default function App() {
                   onClearAll={clearAll}
                   onEraseEverything={eraseEverything}
                   onReplayOnb={replayOnboarding}
+                  onDevReset={IS_DEV ? devReset : undefined}
                   wodEnabled={settings.wodEnabled}
                   onToggleWod={toggleWod}
                   wodHour={settings.wodHour}

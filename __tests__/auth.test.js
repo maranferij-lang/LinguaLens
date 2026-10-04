@@ -15,7 +15,7 @@ jest.mock('expo-secure-store', () => {
 });
 
 const { keychain } = require('expo-secure-store');
-const { ensureSession, eraseServerData, renewSession, startOver } = require('../src/auth');
+const { ensureSession, eraseServerData, forgetIdentityForDev, renewSession, startOver } = require('../src/auth');
 
 const USER_KEY = 'll_device_v1';
 
@@ -155,4 +155,19 @@ test('erasing carries the counters the server returned, even past a failed new i
   // лише лічильники — токена стертого запису сервер більше не бачить
   expect(deviceBodies()).toEqual([{ previous: 'carry-1' }]);
   expect([...keychain.keys()]).toEqual(['ll_token']);
+});
+
+// «Почати з нуля» в діагностиці (лише розробка): наступний старт — як після
+// чистого встановлення, без старого токена й без недонесеного carry.
+test('dev reset forgets the token, the pending carry and the id: next launch is a brand-new device', async () => {
+  keychain.set('ll_token', 'old');
+  keychain.set('ll_carry', 'acct-token');
+  await AsyncStorage.setItem(USER_KEY, 'u1');
+  await forgetIdentityForDev();
+  expect(keychain.has('ll_token')).toBe(false);
+  expect(keychain.has('ll_carry')).toBe(false);
+  expect(await AsyncStorage.getItem(USER_KEY)).toBeNull();
+  server({ 'POST /auth/device': NEW_DEVICE });
+  expect(await ensureSession()).toEqual({ token: 'new', userId: 'u2' });
+  expect(deviceBodies()).toEqual([{}]);
 });

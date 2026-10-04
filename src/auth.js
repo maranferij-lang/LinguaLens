@@ -147,6 +147,16 @@ export async function adoptSession(token, userId) {
   return { token, userId };
 }
 
+// Лише для розробки («Почати з нуля» в діагностиці): телефон забуває свою
+// ідентичність і недонесений carry, тож наступний старт — новий запис на
+// сервері з нульовими лічильниками, як після чистого встановлення.
+export async function forgetIdentityForDev() {
+  await writeToken('');
+  await writeSecret(CARRY_KEY, '');
+  await AsyncStorage.removeItem(USER_KEY).catch(() => {});
+  setSessionToken('');
+}
+
 // Вихід з акаунта Apple або стирання: забуваємо поточний токен і беремо
 // нову анонімну ідентичність. Старий токен прибираємо ДО запиту: інакше
 // збій мережі лишив би телефон в акаунті, з якого людина щойно вийшла, —
