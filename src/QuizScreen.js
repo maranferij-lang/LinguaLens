@@ -120,6 +120,10 @@ export function SessionClose({ onPress, label }) {
   );
 }
 
+// onQuizDone(perfect, correct) — квіз пройдено до кінця: чи без жодної
+// помилки і скільки правильних відповідей. Помилки вже пішли в onMiss
+// кожна окремо, тож App дописує в активність дня лише правильні — так
+// серія триває й у того, хто того дня лише повторював.
 export default function QuizScreen({ words, t, onExit, onQuizDone, onMiss }) {
   const { C } = useTheme();
   const s = useMemo(() => makeStyles(C), [C]);
@@ -192,7 +196,7 @@ export default function QuizScreen({ words, t, onExit, onQuizDone, onMiss }) {
       if (idx + 1 >= questions.length) {
         const finalScore = score + (correct ? 1 : 0);
         setFinished(true);
-        if (onQuizDone) onQuizDone(finalScore === questions.length);
+        if (onQuizDone) onQuizDone(finalScore === questions.length, finalScore);
       } else setIdx(idx + 1);
     }, 900);
   }

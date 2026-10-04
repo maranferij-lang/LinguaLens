@@ -79,8 +79,9 @@ export function deviceForgotten(e) {
 export function apiCreateDevice(previous) {
   return request('/auth/device', { method: 'POST', body: previous ? { previous } : {} });
 }
-// { user, pro: {active, until}, usage: {day, scans, limit, scenes, sceneLimit} }
-// limit/sceneLimit null — Pro, без меж; scenes — сцени за все життя запису.
+// { user, pro: {active, until}, usage: {day, scans, limit, scenes, sceneLimit, period} }
+// scans і scenes — за все життя запису (period: 'lifetime'), не за день;
+// limit/sceneLimit — безкоштовні стелі, null — Pro, без меж.
 // refresh — одразу після покупки: сервер перепитає RevenueCat без кешу.
 export function apiMe(refresh = false) {
   return request(refresh ? '/me?refresh=1' : '/me');
@@ -115,16 +116,16 @@ const SCAN_TIMEOUT = 25000;
 // SCAN_AUTH — лише «пристрій забуто» (див. deviceForgotten); 401/403 з іншої
 // причини — звичайна помилка сервера.
 const SCAN_ERRORS = {
-  402: 'SCAN_LIMIT', // безкоштовні скани на сьогодні вичерпано — сервер не кликав AI
+  402: 'SCAN_LIMIT', // безкоштовний скан уже витрачено — сервер не кликав AI
   422: 'SCAN_EMPTY', // сервер дійшов до AI, але чіткого предмета в кадрі немає
   429: 'SCAN_RATE',
   504: 'SCAN_TIMEOUT',
 };
 
 // 402 буває двох видів, і сервер називає який у тілі { error, limit, used }:
-// SCAN_LIMIT — денні скани вичерпано (used/limit — скани за сьогодні);
+// SCAN_LIMIT — безкоштовні скани вичерпано (used/limit — скани за все життя);
 // SCENE_PRO — безкоштовні сцени вичерпано (used/limit — сцени за все життя).
-// Решта (старий сервер, кривий JSON) — як і раніше, денний ліміт.
+// Решта (старий сервер, кривий JSON) — як і раніше, ліміт сканів.
 function paymentCode(data) {
   return data?.error === 'SCENE_PRO' ? 'SCENE_PRO' : 'SCAN_LIMIT';
 }

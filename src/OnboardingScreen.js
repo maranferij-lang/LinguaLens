@@ -64,8 +64,8 @@ export const COMMIT_PAUSE_MS = 900;
 
 // Кроки в порядку показу. variant — 'control' | 'short'; replay — повтор із
 // Параметрів; wow — чи є що показати на «Спробуй зараз» (перший запуск,
-// словник порожній, скан на сьогодні лишився); push — чи про сповіщення ще
-// не питали.
+// словник порожній, безкоштовний скан ще не витрачено); push — чи про
+// сповіщення ще не питали.
 export function onboardingFlow({ variant = 'control', goals = [], replay = false, wow = false, push = false } = {}) {
   const field = needsField(goals) ? ['field'] : [];
   if (replay) return ['name', 'goals', ...field, 'level', 'struggles', 'plan', ...(push ? ['push'] : [])];
@@ -193,7 +193,7 @@ export default function OnboardingScreen({
   }, []);
 
   // З чернетки — той самий крок. «Спробуй зараз», якого вже не буде (слово
-  // є чи скан на сьогодні витрачено), — крок перед ним, план.
+  // є чи безкоштовний скан витрачено), — крок перед ним, план.
   const [phase, setPhase] = useState(() => {
     if (replay) return 'name';
     if (!saved) return 'welcome';

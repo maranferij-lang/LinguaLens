@@ -29,11 +29,12 @@
 // Пробний період задається в App Store Connect; без нього вся механіка
 // (таймлайн, «спробуй безкоштовно») зникає сама.
 //
-// ЛОГІКА ЛІМІТІВ (v1.2: «словник безкоштовний, скани платні»)
-// Обмежуємо лише те, що коштує нам грошей, — виклики AI: один скан на день і
-// одну пробу скану цілої кімнати за все життя. Словник, картки, слово дня,
-// віджет і вимова — без меж: саме вони вертають людину щодня, і застосунок,
-// «марний, доки не заплатиш», — скарга номер один у цій категорії.
+// ЛОГІКА ЛІМІТІВ (v1.3: «словник безкоштовний, скан — один на пробу»)
+// Обмежуємо лише те, що коштує нам грошей, — виклики AI: один безкоштовний
+// скан за все життя (не на день: кожен виклик AI — це гроші) і одну пробу
+// скану цілої кімнати, яка теж займає цей скан. Словник, картки, квіз, слово
+// дня, віджет і вимова — без меж: саме вони вертають людину щодня, і
+// застосунок, «марний, доки не заплатиш», — скарга номер один у цій категорії.
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // legalKey — рядок «безкоштовно до…, потім ціна за період»: пробний період
@@ -101,46 +102,39 @@ export const SIMULATED_PLANS = PLANS.filter((p) => ['month', 'year', 'lifetime']
 // число звідси — обіцянка й дія не можуть розійтись.
 export const TRIAL_REMIND_DAYS = 2;
 
-// Що дає безкоштовний рівень. Стелі задає сервер (FREE_SCANS_PER_DAY,
-// FREE_SCENES) і віддає разом із лічильниками; тут — запасні значення на
-// випадок, коли сервер ще не відповідав.
+// Що дає безкоштовний рівень. Стелі задає сервер (FREE_SCANS, FREE_SCENES)
+// і віддає разом із лічильниками; тут — запасні значення на випадок, коли
+// сервер ще не відповідав. Обидві — за все життя запису (анонімного
+// пристрою чи акаунта Apple), а не на день.
 export const FREE = {
-  scansPerDay: 1,
+  // один скан на пробу — далі Pro
+  scans: 1,
   // скан цілої кімнати — функція Pro, але одну сцену за все життя можна
-  // спробувати безкоштовно (вона ще й займає денний скан)
+  // спробувати безкоштовно (вона ще й займає безкоштовний скан)
   scenes: 1,
   languagePairs: 1,
 };
 
-// Кеш денного лічильника сканів. Рахує сервер (за id пристрою), тут лише
-// його остання відповідь — щоб показати пейвол ще ДО зйомки. Стан підписки
-// живе в src/purchases.js (RevenueCat).
+// Кеш лічильника сканів за все життя. Рахує сервер (за записом пристрою чи
+// акаунта), тут лише його остання відповідь — щоб показати пейвол ще ДО
+// зйомки. Стан підписки живе в src/purchases.js (RevenueCat).
+// Ключ лишився з часів денного ліміту, і це безпечно: старий кеш тримає
+// скани ОДНОГО дня, а їх не буває більше, ніж за все життя. Тож він або
+// блокує по праву, або недораховує — тоді сервер відмовить 402 без виклику
+// AI, а /me при старті однаково перепише кеш свіжими числами.
 const K_USAGE = 'll_usage_v1';
 
-function today() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
 // ── Облік сканів ────────────────────────────────────────────────────────────
+// Лічильник довічний: новий день його не обнуляє — кеш, збережений учора,
+// блокує і сьогодні, доки сервер не скаже інакше.
 export async function loadUsage() {
   try {
     const raw = await AsyncStorage.getItem(K_USAGE);
     const u = raw ? JSON.parse(raw) : null;
-    // новий день — денний лічильник з нуля; стеля — та сама, що казав
-    // сервер; сцени довічні — їх новий день не обнуляє
-    if (!u || u.day !== today()) return { day: today(), scans: 0, limit: u?.limit, ...sceneFields(u) };
-    return u;
+    return u && typeof u === 'object' ? u : { scans: 0 };
   } catch (_) {
-    return { day: today(), scans: 0 };
+    return { scans: 0 };
   }
-}
-
-function sceneFields(u) {
-  const out = {};
-  if (u && u.scenes !== undefined) out.scenes = u.scenes;
-  if (u && u.sceneLimit !== undefined) out.sceneLimit = u.sceneLimit;
-  return out;
 }
 
 export async function saveUsage(usage) {
@@ -152,40 +146,38 @@ export async function saveUsage(usage) {
 // ── Воротар ─────────────────────────────────────────────────────────────────
 // Повертає null, якщо дію можна робити, або причину відмови.
 // Причина — це рядок, за яким пейвол розуміє, ЯКИЙ саме аргумент показати:
-// людині, що вичерпала скани на сьогодні, і людині, що хоче сканувати
+// людині, що вже витратила безкоштовний скан, і людині, що хоче сканувати
 // кімнати, треба різне.
 
-// Скільки сканів витрачено СЬОГОДНІ. Стан `usage` вантажиться при старті і
-// живе, поки застосунок відкритий, — якщо його не закривали з учорашнього
-// вечора, там лежить учорашній лічильник, і без цієї перевірки людина
-// вранці впиралась би у вчорашній ліміт.
-function usedToday(usage) {
-  return usage && usage.day === today() ? usage.scans || 0 : 0;
+// Скільки сканів витрачено за все життя запису. Дня тут немає свідомо:
+// завтра безкоштовних сканів не додасться.
+function usedScans(usage) {
+  return (usage && usage.scans) || 0;
 }
 
-// Денну стелю задає сервер (FREE_SCANS_PER_DAY) і віддає разом із лічильником:
-// для тестів її піднімають до тисячі, і клієнт не має різати на одному.
+// Стелю задає сервер (FREE_SCANS) і віддає разом із лічильником: для тестів
+// її піднімають до тисячі, і клієнт не має різати на одному.
 // null — сервер бачить Pro, стелі немає. Старий кеш без поля — FREE.
-function dailyLimit(usage) {
-  return usage && usage.limit !== undefined ? usage.limit : FREE.scansPerDay;
+function scanLimit(usage) {
+  return usage && usage.limit !== undefined ? usage.limit : FREE.scans;
 }
 
-// Скільки безкоштовних сканів на день показувати в пейволі й таблиці.
-export function freeScansPerDay(usage) {
-  return usage?.limit ?? FREE.scansPerDay;
+// Скільки безкоштовних сканів показувати в пейволі й таблиці.
+export function freeScans(usage) {
+  return usage?.limit ?? FREE.scans;
 }
 
 export function canScan({ pro, usage }) {
   if (pro) return null;
-  const limit = dailyLimit(usage);
-  if (limit !== null && usedToday(usage) >= limit) return 'scans';
+  const limit = scanLimit(usage);
+  if (limit !== null && usedScans(usage) >= limit) return 'scans';
   return null;
 }
 
 export function scansLeft({ pro, usage }) {
-  const limit = dailyLimit(usage);
+  const limit = scanLimit(usage);
   if (pro || limit === null) return Infinity;
-  return Math.max(0, limit - usedToday(usage));
+  return Math.max(0, limit - usedScans(usage));
 }
 
 // ── Сцени (скан цілої кімнати) ──────────────────────────────────────────────
@@ -237,7 +229,7 @@ export const PRO_BENEFITS = [
 // Нижні рядки з галочками з обох боків — теж аргумент: безкоштовне лишається
 // безкоштовним, Pro нічого в людини не забирає.
 export const COMPARISON = [
-  { id: 'scans', free: String(FREE.scansPerDay), pro: '∞' },
+  { id: 'scans', free: String(FREE.scans), pro: '∞' },
   { id: 'scene', free: String(FREE.scenes), pro: '∞' },
   { id: 'langs', free: String(FREE.languagePairs), pro: '29' },
   { id: 'wod', free: true, pro: true },

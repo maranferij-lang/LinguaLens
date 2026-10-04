@@ -1,4 +1,6 @@
-import { QUIZ_MIN, buildQuestions, isQuizReady } from '../src/QuizScreen';
+import { act, create } from 'react-test-renderer';
+import QuizScreen, { QUIZ_MIN, buildQuestions, isQuizReady } from '../src/QuizScreen';
+import { makeT } from '../src/i18n';
 
 // Озвучка тягне expo-audio, якому в jest бракує нативного модуля. Логіка квізу
 // від неї не залежить — підміняємо заглушкою.
@@ -107,5 +109,38 @@ describe('buildQuestions', () => {
     const qs = buildQuestions(many, { rand: seeded(11) });
     const sets = new Set(qs.map((q) => q.options.filter((_, i) => i !== q.answer).sort().join()));
     expect(sets.size).toBeGreaterThan(5);
+  });
+});
+
+// Безкоштовний скан один на все життя, і серію тримає навчання: App пише в
+// активність дня кожну відповідь квізу. Помилки йдуть через onMiss одразу,
+// правильні — числом у onQuizDone, коли квіз пройдено до кінця.
+describe('QuizScreen', () => {
+  afterEach(() => jest.useRealTimers());
+
+  test('a finished quiz reports whether it was flawless and how many answers were right', async () => {
+    jest.useFakeTimers();
+    const deck = [w('cup', 'чашка'), w('table', 'стіл'), w('chair', 'стілець'), w('lamp', 'лампа')];
+    const onQuizDone = jest.fn();
+    const onMiss = jest.fn();
+    let tree;
+    await act(async () => {
+      tree = create(<QuizScreen words={deck} t={makeT('en')} onExit={() => {}} onQuizDone={onQuizDone} onMiss={onMiss} />);
+    });
+    const shown = () => deck.find((x) => tree.root.findAll((n) => n.props.children === x.word).length);
+    const tap = async (text) => {
+      const hit = tree.root.findAll((n) => typeof n.props.onPress === 'function' && n.findAll((c) => c.props.children === text).length);
+      await act(async () => hit.at(-1).props.onPress());
+      await act(async () => jest.advanceTimersByTime(900));
+    };
+    for (let i = 0; i < deck.length; i++) {
+      const q = shown();
+      // перше питання — навмисна помилка, решта — правильно
+      await tap(i === 0 ? deck.find((x) => x !== q).translation : q.translation);
+    }
+    expect(onMiss).toHaveBeenCalledTimes(1);
+    expect(onQuizDone).toHaveBeenCalledTimes(1);
+    expect(onQuizDone).toHaveBeenCalledWith(false, 3);
+    await act(async () => tree.unmount());
   });
 });

@@ -2,8 +2,8 @@
 //
 // Правила, за якими він побудований:
 //   • Заголовок говорить про людину, не про тариф. Причина відмови приходить
-//     ззовні (скани на сьогодні / скан кімнати / мови), і текст під неї
-//     підлаштовується — людина бачить відповідь саме на ту стіну, в яку
+//     ззовні (безкоштовний скан витрачено / скан кімнати / мови), і текст під
+//     неї підлаштовується — людина бачить відповідь саме на ту стіну, в яку
 //     щойно вперлась. Словник безкоштовний без меж, тож стіни «словник» немає.
 //   • Тарифи — ті, що прийшли з поточної пропозиції RevenueCat (зазвичай
 //     місяць, рік і «назавжди»). Річний обраний за замовчуванням і має
@@ -18,8 +18,9 @@
 //     день 7 — списання) і окрема кнопка «Продовжити безкоштовно». Так
 //     людина знає, що й коли станеться, ще до натиску (App Review 3.1.2).
 //     Без пробного періоду таймлайну немає і «безкоштовно» не обіцяємо.
-//     Скан на сьогодні вже витрачено (перший скан в онбордингу чи щойно
-//     зроблений) — кнопка не обіцяє ще одного сьогодні: «наступний — завтра».
+//     Безкоштовний скан один на все життя, і його вже витрачено (перший
+//     скан в онбордингу чи щойно зроблений) — кнопка не обіцяє ще одного ні
+//     сьогодні, ні завтра, а каже, що лишається: словник і картки.
 //   • Наприкінці онбордингу перед цим екраном ще два (OnboardingPaywall.js):
 //     пробний період і таймлайн. Таймлайн і план за замовчуванням — звідси.
 import { useEffect, useMemo, useState } from 'react';
@@ -35,15 +36,15 @@ import { MascotBob } from './Mascot';
 import { FadeIn, GradBtn, Press, SecBtn } from './ui';
 import { CAPS, F, R, type, useTheme } from './theme';
 
-// freeScans — денна стеля з сервера (див. freeScansPerDay у subscription.js),
-// freeScenes — скільки сцен безкоштовно за все життя (freeScenes там само).
+// freeScans — скільки сканів безкоштовно за все життя, стеля з сервера (див.
+// freeScans у subscription.js), freeScenes — те саме для сцен.
 // unavailable — збірка без магазину: тарифів немає, купити не можна.
 // plansFailed — магазин не віддав тарифів (офлайн, збій App Store чи
 // RevenueCat): замість вічного індикатора — коротке пояснення й «Спробувати
 // ще раз» (onRetry). Кнопка покупки без тарифу так і лишається вимкненою.
 // canRemind — чи зможемо нагадати про кінець пробного періоду (сповіщення
 // дозволені або ще можна спитати): лише тоді таймлайн це обіцяє.
-// scansLeft — скільки безкоштовних сканів лишилось на сьогодні (0 — «завтра»).
+// scansLeft — скільки безкоштовних сканів ще лишилось (0 — більше не буде).
 // compact — третій екран пейволу онбордингу: Lingo, переваги й пробний
 // період людина щойно бачила на двох попередніх, тут — лише тарифи й
 // таймлайн обраного.
@@ -51,7 +52,7 @@ export default function PaywallScreen({
   reason,
   plans,
   compact = false,
-  freeScans = FREE.scansPerDay,
+  freeScans = FREE.scans,
   freeScenes = FREE.scenes,
   scansLeft,
   unavailable,
@@ -86,10 +87,14 @@ export default function PaywallScreen({
   // одразу). Обрав місячний без пробного — заголовок не обіцяє «безкоштовно»
   // над кнопкою, що списує гроші сьогодні (App Review 3.1.2).
   const timeline = intro && plan?.trialDays > 0;
+  // «Продовжити безкоштовно»: скільки безкоштовних сканів ЛИШИЛОСЬ (а не
+  // скільки їх було на старті); жодного — що лишається без сканів. Лічильник
+  // невідомий (екран без App) — стеля.
+  const freeLeft = Number.isFinite(scansLeft) ? scansLeft : freeScans;
 
   // Заголовок під причину: кожна стіна має свій аргумент.
   const HEAD = {
-    scans: { title: t('pwScansTitle'), text: t('pwScansText', { n: freeScans }) },
+    scans: { title: t('pwScansTitle', { n: freeScans }), text: t('pwScansText', { n: freeScans }) },
     scene: { title: t('pwSceneTitle'), text: t('pwSceneText', { n: freeScenes }) },
     langs: { title: t('pwLangsTitle'), text: t('pwLangsText') },
     intro: timeline ? { title: t('pwIntroTitle'), text: t('pwIntroText') } : null,
@@ -306,7 +311,7 @@ export default function PaywallScreen({
         {intro ? (
           <Pressable style={s.freeBtn} onPress={onClose} accessibilityRole="button">
             <Text style={s.freeBtnText}>
-              {scansLeft === 0 ? t('pwContinueFreeTomorrow') : t('pwContinueFree', { n: freeScans })}
+              {freeLeft > 0 ? t('pwContinueFree', { n: freeLeft }) : t('pwContinueFreeNoScans')}
             </Text>
           </Pressable>
         ) : null}
