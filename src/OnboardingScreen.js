@@ -51,8 +51,9 @@ import {
   StepFrame,
   StruggleOptions,
 } from './ProfileSteps';
-import { FirstWord, PlanBody, PushPreview, WowHero } from './OnboardingParts';
+import { FirstWord, HERO, PlanBody, PushPreview, WowHero, hourLabel } from './OnboardingParts';
 import HoldToCommit from './HoldToCommit';
+import LangSheet from './LangSheet';
 import { flag, track } from './analytics';
 import { F, R, type, useTheme } from './theme';
 
@@ -115,6 +116,11 @@ export function restoreDraft(d) {
 // — справжній сканер у режимі першого скану (його збирає App).
 // draft — чернетка з минулого запуску: знайомство продовжується з того
 // самого кроку; onDraft(чернетка) — на кожному кроці, App її зберігає.
+// onSetLang(code) — змінити мову, яку вчать, просто на кроці рівня (мову
+// за замовчуванням ми лише вгадали з телефону); App зберігає її, і нова
+// targetLang приходить сюди ж — у пігулку, план, обіцянку й перший скан.
+// Без onSetLang (і в повторі) пігулка — просто підпис. nativeLang — мова
+// перекладів: у переліку мов її немає.
 // onDone({ profile, heardFrom, name?, struggles?, wodEnabled?, scanned, flow }).
 export default function OnboardingScreen({
   t,
@@ -124,6 +130,8 @@ export default function OnboardingScreen({
   name = '',
   struggles = [],
   targetLang = 'en',
+  nativeLang = null,
+  onSetLang = null,
   wodHour = DEFAULT_HOUR,
   replay = false,
   canWow = false,
@@ -131,7 +139,7 @@ export default function OnboardingScreen({
   draft = null,
   onDraft = null,
 }) {
-  const { C } = useTheme();
+  const { C, isDark } = useTheme();
   const s = useMemo(() => makeStyles(C), [C]);
   const startedAt = useRef(Date.now());
   // Чернетка — лише для першого знайомства: повтор починається з того, що
@@ -200,6 +208,9 @@ export default function OnboardingScreen({
     return saved.phase === 'wow' && !(canWow && renderScanner) ? 'plan' : saved.phase;
   });
   const [scannerOpen, setScannerOpen] = useState(false);
+  // Аркуш «Яку мову вчиш?» з кроку рівня
+  const [langOpen, setLangOpen] = useState(false);
+  const canSetLang = !replay && typeof onSetLang === 'function';
   const [firstWord, setFirstWord] = useState(null);
   const firstWordRef = useRef(null);
   // Крок, над яким показуємо «Перше слово вже у словнику» (той, що після скану)
@@ -379,6 +390,11 @@ export default function OnboardingScreen({
     else go('pushDenied');
   }
 
+  function pickLang(code) {
+    setLangOpen(false);
+    if (code !== targetLang) onSetLang(code);
+  }
+
   function openSettings() {
     Haptics.selectionAsync();
     try {
@@ -437,7 +453,7 @@ export default function OnboardingScreen({
         <LogoRow size={28} style={s.logo} />
         <View style={s.hero}>
           <FadeIn style={{ alignItems: 'center' }}>
-            <Image source={require('../assets/onb-1.png')} style={s.heroImg} accessibilityIgnoresInvertColors />
+            <Image source={isDark ? HERO.dark : HERO.light} style={s.heroImg} accessibilityIgnoresInvertColors />
             <Text style={s.heroTitle} accessibilityRole="header">
               {t('obHookTitle')}
             </Text>
@@ -504,7 +520,9 @@ export default function OnboardingScreen({
   } else if (phase === 'level') {
     title = t('pfLevelTitle');
     text = t('pfLevelText');
-    frame.header = frame.header || <LangPill code={targetLang} />;
+    frame.header = frame.header || (
+      <LangPill code={targetLang} onPress={canSetLang ? () => setLangOpen(true) : undefined} t={t} />
+    );
     body = <LevelBody value={level ?? DEFAULT_LEVEL} onChange={setLevel} lang={targetLang} t={t} />;
     // «Далі» — згода з тим, що на слайдері, навіть якщо його не чіпали
     footer = (
@@ -524,7 +542,7 @@ export default function OnboardingScreen({
     footer = <GradBtn title={nextTitle} onPress={() => next(pains)} disabled={!pains.length} />;
   } else if (phase === 'plan') {
     title = shownName ? t('obPlanTitleName', { name: shownName }) : t('obPlanTitle');
-    body = <PlanBody profile={profileNow} struggles={flow.includes('struggles') ? pains : []} t={t} />;
+    body = <PlanBody profile={profileNow} struggles={flow.includes('struggles') ? pains : []} lang={targetLang} t={t} />;
     footer = <GradBtn title={nextTitle} onPress={() => next()} />;
   } else if (phase === 'wow') {
     title = t('obWowTitle');
@@ -548,7 +566,8 @@ export default function OnboardingScreen({
   } else if (phase === 'push') {
     const topic = topicName(t, primaryTopic(profileNow));
     const key = primaryTopic(profileNow);
-    const hour = String(wodHour).padStart(2, '0') + ':00';
+    // як покаже сам iPhone: «10:00» чи «10:00 AM» — за мовою телефону
+    const hour = hourLabel(wodHour);
     title = t('obPushTitle');
     text = key ? t('notifTextTopic', { h: hour, topic: t('topicIn_' + key) }) : t('notifText');
     body = <PushPreview topic={topic} hour={hour} t={t} />;
@@ -562,11 +581,13 @@ export default function OnboardingScreen({
         <MascotBob pose="think" size={170} />
       </View>
     );
+    // Людина щойно сказала «ні» — не виштовхуємо її в Параметри посеред
+    // знайомства: головна дія — далі, Параметри — тихий другий варіант.
     footer = (
-      <View style={{ gap: 10 }}>
-        <GradBtn title={t('openSettings')} onPress={openSettings} />
-        <Pressable style={s.later} onPress={() => next()} accessibilityRole="button">
-          <Text style={s.laterText}>{nextTitle}</Text>
+      <View style={{ gap: 4 }}>
+        <GradBtn title={nextTitle} onPress={() => next()} />
+        <Pressable style={s.later} onPress={openSettings} accessibilityRole="button">
+          <Text style={s.laterText}>{t('openSettings')}</Text>
         </Pressable>
       </View>
     );
@@ -587,6 +608,7 @@ export default function OnboardingScreen({
             label={t('obCommitA11y')}
             holdHint={t('obCommitHold')}
             tapHint={t('obCommitTap')}
+            longerHint={t('holdLonger')}
             doneText={t('obCommitDone')}
           />
         </View>
@@ -599,6 +621,16 @@ export default function OnboardingScreen({
       <StepFrame {...frame} title={title} text={text} footer={footer}>
         {body}
       </StepFrame>
+      {canSetLang ? (
+        <LangSheet
+          visible={langOpen && phase === 'level'}
+          current={targetLang}
+          native={nativeLang}
+          onPick={pickLang}
+          onClose={() => setLangOpen(false)}
+          t={t}
+        />
+      ) : null}
     </KeyboardAvoidingView>
   );
 }

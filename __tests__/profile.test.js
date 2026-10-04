@@ -193,8 +193,12 @@ describe('what the person is told', () => {
     expect(profileSummary(null, uk)).toBe(uk('pfNotSet'));
   });
 
+  // Число й CEFR великі над слайдером — рядок під ним каже лише, що з
+  // цього випливає, з великої літери.
   test('the line under the slider', () => {
-    expect(levelResult(8, uk)).toBe('8/10 · B2+ — пропускаємо базові слова, починаємо зі складніших');
+    expect(levelResult(8, uk)).toBe('Пропускаємо базові слова, починаємо зі складніших');
+    expect(levelResult(5, en)).toBe('We’ll skip words you could easily guess');
+    expect(levelResult(99, uk)).toBe('Лише складна лексика й тонкощі');
     expect([1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(cefrFor)).toEqual(['A1', 'A1', 'A2', 'A2+', 'B1', 'B1+', 'B2', 'B2+', 'C1', 'C2']);
   });
 

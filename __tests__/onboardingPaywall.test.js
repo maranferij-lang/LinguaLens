@@ -157,14 +157,18 @@ test('a plan that arrives later does not throw the person back to the first scre
 });
 
 // Тарифи не завантажились: третій екран — той самий PaywallScreen, тож і
-// тут коротке пояснення та «Спробувати ще раз» замість вічного індикатора.
-test('prices that did not load: a note and “Try again” on the plans screen', async () => {
+// тут пояснення, підказка та «Спробувати ще раз» у підвалі замість вічного
+// індикатора й мовчазної вимкненої кнопки покупки.
+test('prices that did not load: a note, a hint and “Try again” on the plans screen', async () => {
   const onRetry = jest.fn();
   const { tree } = await render({ plans: [], plansFailed: true, onRetry });
   expect(has(tree, t('pricesFailed'))).toBe(true);
+  expect(has(tree, t('pricesFailedHint'))).toBe(true);
   await press(tree, t('pricesRetry'));
   expect(onRetry).toHaveBeenCalledTimes(1);
-  expect(tree.root.findAll((n) => n.props.title === t('subscribe'))[0].props.disabled).toBe(true);
+  expect(tree.root.findAll((n) => n.props.title === t('subscribe'))).toHaveLength(0);
+  // вихід без покупки лишається
+  expect(has(tree, t('pwContinueFreeNoScans'))).toBe(true);
 });
 
 // VoiceOver: «Далі» на (а) і (б) — та сама кнопка на тому самому місці, і
