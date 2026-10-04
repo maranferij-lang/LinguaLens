@@ -21,39 +21,42 @@
 <body>
 <main>
   <h1>LinguaLens</h1>
-  <p class="muted">Privacy Policy · Політика приватності · Last updated / Оновлено: 1 October 2026</p>
+  <p class="muted">Privacy Policy · Політика приватності · Last updated / Оновлено: 4 October 2026</p>
   <nav><a href="#uk">Українською</a> · <a href="#en">English</a> · <a href="/support">Support / Підтримка</a></nav>
 
   <section class="lang" id="uk" lang="uk">
     <h2>Коротко</h2>
-    <p>LinguaLens не збирає ім’я, пошту чи контакти, не показує рекламу і не відстежує тебе між застосунками. Без входу слова, прогрес і фото наліпок зберігаються лише на твоєму телефоні. Вхід через Apple необов’язковий: він потрібен лише для того, щоб словник мав резервну копію й був однаковий на всіх твоїх iPhone.</p>
+    <p>LinguaLens не збирає ім’я, пошту чи контакти, не показує рекламу і не відстежує тебе між застосунками. Без входу слова, прогрес і фото наліпок зберігаються лише на твоєму телефоні. Вхід через Apple необов’язковий: він потрібен лише для того, щоб словник мав резервну копію й був однаковий на всіх твоїх iPhone. Анонімну статистику використання можна вимкнути в Параметрах.</p>
 
     <h2>Що ми обробляємо</h2>
     <ul>
       <li><b>Анонімний ідентифікатор пристрою.</b> При першому запуску наш сервер створює випадковий id. Він потрібен, щоб рахувати безкоштовні скани за день, підбирати «слово дня» і зв’язати підписку з пристроєм. Без входу через Apple він не пов’язаний ні з твоїм ім’ям, ні з Apple ID.</li>
       <li><b>Вхід через Apple (за бажанням).</b> Якщо ти входиш, Apple передає нам постійний ідентифікатор твого Apple ID для нашого застосунку. Ми зберігаємо лише його знеособлений хеш, щоб упізнати твій акаунт на іншому iPhone, — ніколи не ім’я чи пошту (ми їх і не просимо). Ще ми зберігаємо токен від Apple, щоб відкликати вхід, коли ти зітреш акаунт.</li>
       <li><b>Синхронізований словник (лише після входу).</b> Слова, транскрипція, переклади, приклади, мови й розклад повторень, а також кількість дій за днями, лічильники досягнень і список уже показаних досягнень зберігаються на нашому сервері (Google Cloud), щоб ними користуватися на всіх твоїх iPhone. Фото наліпок, ім’я та аватар у профілі не залишають телефон. Коли ти видаляєш слово, сервер до 60 днів тримає лише позначку з його внутрішнім id і часом — щоб видалення дійшло до інших iPhone.</li>
-      <li><b>Лічильник сканів</b> за поточний день і <b>статус підписки Pro</b> (дата завершення).</li>
-      <li><b>Навчальний профіль</b> з відповідей у застосунку — цілі, сфера, рівень і звідки ти про нас знаєш (без особистих даних): щоб підбирати слова дня й рахувати, звідки приходять люди; стирається кнопкою «Стерти всі мої дані».</li>
+      <li><b>Лічильники сканів</b> — скільки сканів за сьогодні й скільки сканів цілої кімнати за весь час (для безкоштовної спроби) — і <b>статус підписки Pro</b> (дата завершення).</li>
+      <li><b>Навчальний профіль</b> з відповідей у застосунку — цілі, сфера, рівень і звідки ти про нас знаєш (без особистих даних): щоб підбирати слова дня й рахувати, звідки приходять люди; стирається кнопкою «Стерти всі мої дані». Список слів, позначених «Знаю», застосунок надсилає разом із запитом слова дня, щоб їх пропустити; сервер цей список не зберігає.</li>
       <li><b>Кадр із камери</b> під час сканування. Зменшене фото надсилається на наш сервер і далі постачальнику штучного інтелекту (Google Gemini API або Anthropic API) лише для того, щоб розпізнати предмет. Ми не зберігаємо ці фото. Постачальник AI може тимчасово зберігати запит, щоб виявляти зловживання, і не використовує його для навчання моделей. Фото надходить йому без нашого ідентифікатора. Вирізана наліпка лишається тільки на твоєму пристрої.</li>
-      <li><b>Покупки.</b> Оплату проводить Apple. Статус підписки ми отримуємо через RevenueCat — сервіс керування підписками. Дані картки нам недоступні.</li>
+      <li><b>Покупки.</b> Оплату проводить Apple. Статус підписки ми отримуємо через RevenueCat — сервіс керування підписками. Дані картки нам недоступні. Якщо ти встановив застосунок із реклами Apple Ads, RevenueCat отримує від Apple позначку кампанії (атрибуцію Apple Ads) — без рекламного ідентифікатора й без відстеження в інших застосунках.</li>
+      <li><b>Анонімна статистика використання.</b> Щоб розуміти, що в застосунку допомагає, а що заважає, він надсилає в PostHog (сервери в ЄС, Франкфурт) короткі події: які кроки знайомства пройдено і що обрано з готових варіантів (цілі, сфера, рівень, що заважає вчитися, звідки ти про нас дізнався), чи відкривався екран підписки й чи почалася покупка, чи вдався скан, скільки слів збережено, чим поділився, а також відкриття й згортання застосунку. До подій додаються мова інтерфейсу, мова, яку вчиш, рівень, чи є Pro, мова й часовий пояс телефону, розмір екрана, версія застосунку й випадковий id установки, який створює сам PostHog. Цей id не пов’язаний ні з нашим id пристрою, ні з Apple ID, ні з покупками. Ім’я, пошту, фото й слова з твого словника в статистику ми не передаємо. IP-адресу PostHog не зберігає, країну й місто за нею не визначає, запису екрана немає. Події зберігаються до 1 року. Вимкнути: Параметри → «Анонімна статистика».</li>
     </ul>
 
     <h2>Що НЕ збираємо</h2>
     <ul>
-      <li>Ім’я, пошту, телефон, контакти, геолокацію.</li>
-      <li>Рекламні ідентифікатори та дані для відстеження.</li>
-      <li>Без входу через Apple — твій словник і статистику: вони не залишають телефон. Фото наліпок, ім’я та аватар у профілі завжди зберігаються лише локально.</li>
+      <li>Ім’я, пошту, телефон, контакти, геолокацію. Ім’я, яке ти вказуєш під час знайомства («Як до тебе звертатися?»), лишається тільки на телефоні.</li>
+      <li>Рекламні ідентифікатори (IDFA) та дані для відстеження. Реклами в застосунку немає, і ми не передаємо дані рекламним мережам чи брокерам даних.</li>
+      <li>Записи екрана й IP-адресу в статистиці.</li>
+      <li>Без входу через Apple — твій словник і прогрес (серія днів, досягнення): вони не залишають телефон. Фото наліпок, ім’я та аватар у профілі завжди зберігаються лише локально.</li>
     </ul>
 
     <h2>Сторонні сервіси</h2>
     <ul>
-      <li>Google Cloud (хостинг сервера й база даних), Google Gemini API або Anthropic API (розпізнавання зображення), RevenueCat та Apple (підписки), Apple (вхід через Apple).</li>
+      <li>Google Cloud (хостинг сервера й база даних), Google Gemini API або Anthropic API (розпізнавання зображення), RevenueCat та Apple (підписки), Apple (вхід через Apple), PostHog (анонімна статистика, сервери в ЄС).</li>
     </ul>
 
     <h2>Як видалити дані</h2>
-    <p>Параметри → Дані → «Стерти всі мої дані». Це видаляє запис на сервері (лічильник і статус) і всі дані на телефоні. Якщо ти користуєшся входом через Apple, разом із ним зникають акаунт і синхронізований словник на сервері, а вхід через Apple ми відкликаємо. Інші твої iPhone збережуть те, що вже мають, але перестануть синхронізуватися. Підписку скасовують у налаштуваннях Apple ID.</p>
+    <p>Параметри → Дані → «Стерти всі мої дані». Це видаляє запис на сервері (лічильники й статус) і всі дані на телефоні. Якщо ти користуєшся входом через Apple, разом із ним зникають акаунт і синхронізований словник на сервері, а вхід через Apple ми відкликаємо. Інші твої iPhone збережуть те, що вже мають, але перестануть синхронізуватися. Підписку скасовують у налаштуваннях Apple ID.</p>
     <p>«Вийти» в Параметрах → Акаунт очищає лише цей телефон: словник лишається в акаунті й повернеться, коли ти знову ввійдеш.</p>
+    <p>Анонімну статистику вимикає перемикач «Анонімна статистика» в Параметрах: після цього застосунок нічого не надсилає в PostHog. Уже надіслані події не пов’язані з тобою, тож ми не можемо знайти серед них саме твої.</p>
 
     <h2>Діти</h2>
     <p>Ми свідомо не збираємо персональні дані дітей.</p>
@@ -64,34 +67,37 @@
 
   <section class="lang" id="en" lang="en">
     <h2>In short</h2>
-    <p>LinguaLens doesn’t collect your name, email or contacts, shows no ads and doesn’t track you across apps. Without signing in, your words, progress and sticker photos stay on your phone. Sign in with Apple is optional: it only gives your word list a backup and keeps it the same on all your iPhones.</p>
+    <p>LinguaLens doesn’t collect your name, email or contacts, shows no ads and doesn’t track you across apps. Without signing in, your words, progress and sticker photos stay on your phone. Sign in with Apple is optional: it only gives your word list a backup and keeps it the same on all your iPhones. Anonymous usage statistics can be turned off in Settings.</p>
 
     <h2>What we process</h2>
     <ul>
       <li><b>An anonymous device identifier.</b> On first launch our server creates a random id. It is used to count free daily scans, pick your word of the day and link a subscription to the device. Unless you sign in with Apple, it isn’t tied to your name or Apple ID.</li>
       <li><b>Sign in with Apple (optional).</b> If you sign in, Apple gives us a stable identifier for your Apple ID in our app. We store only an anonymised hash of it, to recognise your account on your other iPhones — never your name or email (we don’t ask for them). We also keep a token from Apple so we can revoke the sign-in when you erase your account.</li>
       <li><b>Your synced word list (only when signed in).</b> Your words, transcriptions, translations, examples, languages and review schedule, plus daily activity counts, achievement counters and which achievements you’ve already seen, are stored on our server (Google Cloud) so you can use them on all your iPhones. Sticker photos and the name and avatar in your profile never leave the phone. When you delete a word, the server keeps only a marker with its internal id and time for up to 60 days, so the deletion reaches your other iPhones.</li>
-      <li><b>Today’s scan count</b> and your <b>Pro subscription status</b> (expiry date).</li>
-      <li><b>Your learning profile</b> from your answers in the app — goals, field, level and where you heard about us (no personal data): used to pick your words of the day and to count where people come from; “Erase all my data” deletes it.</li>
+      <li><b>Scan counts</b> — how many scans you made today and how many whole-room scans you have made in total (for the free try) — and your <b>Pro subscription status</b> (expiry date).</li>
+      <li><b>Your learning profile</b> from your answers in the app — goals, field, level and where you heard about us (no personal data): used to pick your words of the day and to count where people come from; “Erase all my data” deletes it. The list of words you marked “I know it” is sent with each word-of-the-day request so they can be skipped; the server doesn’t store it.</li>
       <li><b>The camera frame</b> when you scan. A downscaled photo is sent to our server and on to an AI provider (Google Gemini API or Anthropic API) only to recognise the object. We don’t store these photos. The AI provider may keep the request for a limited time to detect abuse and doesn’t use it to train its models. It receives the photo without our identifier. The cut-out sticker stays on your device only.</li>
-      <li><b>Purchases.</b> Payments are processed by Apple. We receive the subscription status via RevenueCat, a subscription management service. We never see your card details.</li>
+      <li><b>Purchases.</b> Payments are processed by Apple. We receive the subscription status via RevenueCat, a subscription management service. We never see your card details. If you installed the app from an Apple Ads ad, RevenueCat receives the campaign from Apple (Apple Ads attribution) — without any advertising identifier and without tracking you across apps.</li>
+      <li><b>Anonymous usage statistics.</b> To understand what helps and what gets in the way, the app sends short events to PostHog (EU servers, Frankfurt): which onboarding steps were completed and which options were picked from fixed lists (goals, field, level, what gets in the way of learning, where you heard about us), whether the subscription screen was shown and a purchase started, whether a scan worked, how many words were saved, what was shared, and when the app was opened or sent to the background. Events include the app language, the language you’re learning, your level, whether you have Pro, the phone’s language and time zone, screen size, app version and a random install id created by PostHog itself. That id isn’t linked to our device id, your Apple ID or your purchases. We never send your name, email, photos or the words in your dictionary to analytics. PostHog doesn’t store your IP address or derive your country or city from it, and there is no screen recording. Events are kept for up to 1 year. To turn it off: Settings → Anonymous statistics.</li>
     </ul>
 
     <h2>What we don’t collect</h2>
     <ul>
-      <li>Name, email, phone number, contacts, location.</li>
-      <li>Advertising identifiers or tracking data.</li>
-      <li>Without Sign in with Apple, your word list and statistics — they never leave your phone. Sticker photos and the name and avatar in your profile always stay on the device.</li>
+      <li>Name, email, phone number, contacts, location. The name you enter during onboarding (“What should we call you?”) stays on your phone.</li>
+      <li>Advertising identifiers (IDFA) or tracking data. There are no ads in the app, and we don’t share data with ad networks or data brokers.</li>
+      <li>Screen recordings, or your IP address in analytics.</li>
+      <li>Without Sign in with Apple, your word list and progress (streaks, achievements) — they never leave your phone. Sticker photos and the name and avatar in your profile always stay on the device.</li>
     </ul>
 
     <h2>Third parties</h2>
     <ul>
-      <li>Google Cloud (server hosting and database), Google Gemini API or Anthropic API (image recognition), RevenueCat and Apple (subscriptions), Apple (Sign in with Apple).</li>
+      <li>Google Cloud (server hosting and database), Google Gemini API or Anthropic API (image recognition), RevenueCat and Apple (subscriptions), Apple (Sign in with Apple), PostHog (anonymous usage statistics, EU servers).</li>
     </ul>
 
     <h2>Deleting your data</h2>
-    <p>Settings → Data → “Erase all my data”. This deletes the record on our server (scan count and status) and everything on the phone. If you signed in with Apple, it also deletes your account and the synced word list from our server, and we revoke the Sign in with Apple authorization. Your other iPhones keep what’s already on them but stop syncing. Subscriptions are cancelled in your Apple ID settings.</p>
+    <p>Settings → Data → “Erase all my data”. This deletes the record on our server (scan counts and status) and everything on the phone. If you signed in with Apple, it also deletes your account and the synced word list from our server, and we revoke the Sign in with Apple authorization. Your other iPhones keep what’s already on them but stop syncing. Subscriptions are cancelled in your Apple ID settings.</p>
     <p>“Sign out” in Settings → Account clears only this phone: your word list stays in your account and comes back when you sign in again.</p>
+    <p>The “Anonymous statistics” switch in Settings turns analytics off: after that the app sends nothing to PostHog. Events already sent aren’t linked to you, so we can’t pick out yours among them.</p>
 
     <h2>Children</h2>
     <p>We don’t knowingly collect personal information from children.</p>
