@@ -44,6 +44,15 @@ export function isQuizReady(words) {
   return new Set(withTranslation(words).map((w) => norm(w.translation))).size >= QUIZ_MIN;
 }
 
+// Скільки бракує до квізу — для рисочок «1 / 4» на закритій картці квізу
+// («Навчання» до першого слова, core.md B.1). Та сама логіка, що й
+// isQuizReady: рахуються РІЗНІ переклади, тож «чашка» двома мовами — одне.
+// have не більше за need: зайві слова рисочок не додають.
+export function quizProgress(words) {
+  const have = new Set(withTranslation(words).map((w) => norm(w.translation))).size;
+  return { have: Math.min(have, QUIZ_MIN), need: QUIZ_MIN };
+}
+
 // Питання квізу: { word, options: [4 різні переклади], answer: індекс правильного }.
 // Чиста функція — rand передається ззовні, щоб тести були детермінованими.
 export function buildQuestions(words, { count = Q_COUNT, rand = Math.random } = {}) {
