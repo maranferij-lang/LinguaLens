@@ -300,3 +300,101 @@ export function IcCompass({ size = 24, color = DIM }) {
     </Svg>
   );
 }
+
+// ─── v1.3: сканер, наліпки, «Навчання» ─────────────────────────────────────
+// IcEye (вище) уже є — «Показати переклад» бере його.
+
+// Ліхтарик: блискавка, як у Камері iOS. off — перекреслена (ліхтарик
+// вимкнено), щоб стан читався не лише кольором.
+export function IcBolt({ size = 22, color = DIM, off = false }) {
+  return (
+    <Svg {...box(size)}>
+      <Path d="M13.2 2.8 5.4 13.2h6.2l-1 8 8-10.4h-6.2z" {...S(color)} />
+      {off ? <Path d="M4 4 20 20" {...S(color)} /> : null}
+    </Svg>
+  );
+}
+
+// Замок: закрита картка чи квіз, Pro-палітра.
+export function IcLock({ size = 20, color = DIM }) {
+  return (
+    <Svg {...box(size)}>
+      <Rect x="4.5" y="10.5" width="15" height="10" rx="3" {...S(color)} />
+      <Path d="M8 10.5V8a4 4 0 0 1 8 0v2.5M12 14.5v2" {...S(color)} />
+    </Svg>
+  );
+}
+
+// Іскра: «Відкрито!», нове. Велика зірка й мала поруч.
+export function IcSparkle({ size = 20, color = DIM }) {
+  return (
+    <Svg {...box(size)}>
+      <Path d="M10.5 3.5c.6 4 2.5 5.9 6.5 6.5-4 .6-5.9 2.5-6.5 6.5-.6-4-2.5-5.9-6.5-6.5 4-.6 5.9-2.5 6.5-6.5z" {...S(color)} />
+      <Path d="M18.5 15c.3 1.6 1 2.2 2.5 2.5-1.5.3-2.2 1-2.5 2.5-.3-1.5-1-2.2-2.5-2.5 1.5-.3 2.2-.9 2.5-2.5z" {...S(color, 1.5)} />
+    </Svg>
+  );
+}
+
+// Попередження: трикутник зі знаком оклику (помилка скану, серія під загрозою).
+export function IcWarn({ size = 20, color = DIM }) {
+  return (
+    <Svg {...box(size)}>
+      <Path d="M10.3 4.4a2 2 0 0 1 3.4 0l7.5 13a2 2 0 0 1-1.7 3H4.5a2 2 0 0 1-1.7-3z" {...S(color)} />
+      <Path d="M12 9.5v4.2" {...S(color)} />
+      <Path d="M12 17.1h.01" {...S(color, 2.4)} />
+    </Svg>
+  );
+}
+
+// Копіювати: два аркуші стосом.
+export function IcCopy({ size = 20, color = DIM }) {
+  return (
+    <Svg {...box(size)}>
+      <Rect x="8.5" y="8.5" width="12" height="12" rx="3" {...S(color)} />
+      <Path d="M15.5 8.5V6A2.5 2.5 0 0 0 13 3.5H6A2.5 2.5 0 0 0 3.5 6v7A2.5 2.5 0 0 0 6 15.5h2.5" {...S(color)} />
+    </Svg>
+  );
+}
+
+// Зберегти у «Фото»: стрілка вниз у лоток.
+export function IcDownload({ size = 20, color = DIM }) {
+  return (
+    <Svg {...box(size)}>
+      <Path d="M12 3.5v11M7.5 10l4.5 4.5 4.5-4.5" {...S(color)} />
+      <Path d="M4.5 15.5V18A2.5 2.5 0 0 0 7 20.5h10a2.5 2.5 0 0 0 2.5-2.5v-2.5" {...S(color)} />
+    </Svg>
+  );
+}
+
+// Ще: три крапки. Крапки — штрихи нульової довжини з круглими кінцями,
+// тож правило «без заливок» тримається.
+export function IcMore({ size = 20, color = DIM }) {
+  return (
+    <Svg {...box(size)}>
+      <Path d="M5.5 12h.01M12 12h.01M18.5 12h.01" {...S(color, 2.8)} />
+    </Svg>
+  );
+}
+
+// Фото з галереї: рамка, сонце й пагорби.
+export function IcPhoto({ size = 20, color = DIM }) {
+  return (
+    <Svg {...box(size)}>
+      <Rect x="3.5" y="4.5" width="17" height="15" rx="3" {...S(color)} />
+      <Circle cx="9" cy="9.8" r="1.8" {...S(color)} />
+      <Path d="M3.8 16.6 8.6 12.4l3.4 3 4.1-3.9 4.1 4" {...S(color)} />
+    </Svg>
+  );
+}
+
+// Сцена на затворі: кілька предметів кімнати (як PRoom у пейволі, але без
+// кутів видошукача — рамкою тут є сам затвор).
+export function IcRoom({ size = 24, color = DIM }) {
+  return (
+    <Svg {...box(size)}>
+      <Rect x="4" y="4.5" width="7" height="7" rx="2" {...S(color)} />
+      <Circle cx="16.5" cy="8" r="3.5" {...S(color)} />
+      <Path d="M4 19.5h16M9 19.5l3-4.6 3 4.6" {...S(color)} />
+    </Svg>
+  );
+}

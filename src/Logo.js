@@ -1,8 +1,45 @@
 // Лого LinguaLens — «лінза, що говорить»:
 // спіч-бабл, всередині якого об'єктив камери зі спалахом-крапкою.
+// LogoMark — одноколірний знак для наліпок і карток; AppIcon — справжня
+// іконка застосунку (футер Параметрів, вітання онбордингу).
 import Svg, { Circle, Path } from 'react-native-svg';
-import { Text, View } from 'react-native';
+import { Image, Text, View } from 'react-native';
 import { F, useTheme } from './theme';
+
+// Іконка застосунку — той самий PNG, що на головному екрані (assets/icon.png,
+// зменшений до 192 px скриптом tools/export-app-icon.mjs), у формі iOS:
+// радіус 22,37 % сторони й «неперервна» крива кута, як у системних іконок.
+// Однакова в обох темах — як на головному екрані. Тінь — у кольорі іконки.
+export const APP_ICON_RADIUS = 0.2237;
+
+export function AppIcon({ size = 64, style }) {
+  return (
+    <View
+      testID="app-icon"
+      style={[
+        {
+          width: size,
+          height: size,
+          borderRadius: size * APP_ICON_RADIUS,
+          borderCurve: 'continuous',
+          shadowColor: '#535AE6',
+          shadowOpacity: 0.28,
+          shadowRadius: size / 8,
+          shadowOffset: { width: 0, height: size * 0.09 },
+        },
+        style,
+      ]}
+      // назву поруч прочитає VoiceOver, сама картинка нічого не додає
+      accessible={false}
+      importantForAccessibility="no-hide-descendants"
+    >
+      <Image
+        source={require('../assets/app-icon-192.png')}
+        style={{ width: size, height: size, borderRadius: size * APP_ICON_RADIUS, borderCurve: 'continuous' }}
+      />
+    </View>
+  );
+}
 
 // Знак. color = колір бабла, fg = колір лінзи всередині
 export function LogoMark({ size = 40, color, fg = '#FFFFFF' }) {
