@@ -440,7 +440,7 @@ export function usePro(appUserID) {
   // 'RESTORED', 'CANCELLED' чи 'NOT_PRESENTED' (значення PAYWALL_RESULT).
   // Після закриття стан Pro перечитуємо: купили — Pro діє одразу.
   async function presentPaywall() {
-    const RCUI = revenueCatUI();
+    const RCUI = rcUiAvailable() ? revenueCatUI() : null;
     if (paywallConfig().ui !== 'revenuecat' || !RCUI) return { fallback: true };
     if (!(await identify())) return { fallback: true };
     let result;

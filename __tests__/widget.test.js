@@ -183,6 +183,27 @@ describe('updateWordWidget', () => {
     expect(isolated((w) => w.widgetsAvailable())).toBe(false);
   });
 
+  // В Expo Go модуля ExpoWidgets немає, а лінивий require Metro не віддає в
+  // наш catch: помилка йде в reportFatalError — червоний екран на старті.
+  // Тож у Expo Go модуль віджета навіть не підтягуємо.
+  test('Expo Go: no widgets and the widget module is never required', () => {
+    let loaded = false;
+    jest.isolateModules(() => {
+      jest.doMock('../src/widgets/WordOfDayWidget', () => {
+        loaded = true;
+        throw new Error("Cannot find native module 'ExpoWidgets'");
+      });
+      require('expo-constants').default.executionEnvironment = 'storeClient';
+      require('react-native').Platform.OS = 'ios';
+      const w = require('../src/widgets');
+      expect(w.widgetsAvailable()).toBe(false);
+      expect(w.updateWordWidget(c, opts())).toBe(false);
+    });
+    jest.dontMock('../src/widgets/WordOfDayWidget');
+    expect(loaded).toBe(false);
+    expect(createWidget).not.toHaveBeenCalled();
+  });
+
   test('does nothing on Android', () => {
     expect(isolated((w) => w.updateWordWidget(c, opts()), 'android')).toBe(false);
     expect(createWidget).not.toHaveBeenCalled();

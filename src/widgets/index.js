@@ -9,6 +9,7 @@
 // Нативна частина є лише в iOS-збірці (не в Expo Go, не на Android, не в
 // jest без заглушки), тому все тут тихо нічого не робить, якщо її немає, і
 // ніколи не кидає помилок у застосунок.
+import Constants from 'expo-constants';
 import { Linking, Platform } from 'react-native';
 import { localDayKey } from '../storage';
 import { nameFor } from '../speech';
@@ -30,10 +31,13 @@ let widget;
 // Модуль віджета підтягуємо ліниво: на iOS без нативної частини (Expo Go)
 // expo-widgets кидає вже під час імпорту. createWidget заодно кладе розмітку
 // в App Group — без цього розширення віджета не знає, що малювати.
+// Expo Go відсіюємо ДО require: лінивий require поза ініціалізацією модулів
+// Metro загортає сам і віддає помилку в reportFatalError (червоний екран),
+// а не в наш catch. try лишається для збірок, де модуля немає з інших причин.
 function getWidget() {
   if (widget !== undefined) return widget;
   widget = null;
-  if (Platform.OS !== 'ios') return null;
+  if (Platform.OS !== 'ios' || Constants.executionEnvironment === 'storeClient') return null;
   try {
     widget = require('./WordOfDayWidget').default || null;
   } catch (_) {}
