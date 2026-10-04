@@ -12,15 +12,15 @@
 // App Review 3.1.2: ціни на (а) і (б) немає взагалі, на (в) найпомітніша
 // цифра — сума списання в рядку тарифу; тривалість пробного періоду, що
 // буде після нього й як скасувати, видно до натиску.
-import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { AccessibilityInfo, ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import PaywallScreen, { TrialTimeline, defaultPlan } from './PaywallScreen';
 import { PRO_BENEFITS } from './subscription';
 import { ProIcon, PCrown } from './ProIcons';
 import { IcBell, IcClose } from './icons';
 import { MascotBob } from './Mascot';
 import { FadeIn, GradBtn } from './ui';
-import { stagger } from './motion';
+import { stagger, useScreenReader } from './motion';
 import { CAPS, F, R, type, useTheme } from './theme';
 
 // Номер екрана для статистики (paywall_step / paywall_close) — завжди той
@@ -42,6 +42,8 @@ const TRIAL_BENEFITS = PRO_BENEFITS.filter((b) => ['scans', 'scene', 'langs'].in
 export default function OnboardingPaywall({
   plans,
   unavailable,
+  plansFailed,
+  onRetry,
   canRemind = true,
   freeScans,
   scansLeft,
@@ -69,6 +71,18 @@ export default function OnboardingPaywall({
   useEffect(() => {
     if (onStep) onStep(PAYWALL_STEP_INDEX[step], step);
   }, [step]);
+
+  // «Далі» лишається на місці, тож VoiceOver стояв би на ньому й мовчав:
+  // незряча людина не почула б ні нового екрана, ні таймлайну з ціною й
+  // датою списання. Як у StepFrame — на кожному екрані фокус на заголовок.
+  const titleRef = useRef(null);
+  const reader = useScreenReader();
+  useEffect(() => {
+    if (!reader || !titleRef.current) return;
+    try {
+      AccessibilityInfo.sendAccessibilityEvent?.(titleRef.current, 'focus');
+    } catch (_) {}
+  }, [step, reader]);
 
   useEffect(() => {
     if (step !== 'plans' || rc !== 'idle') return;
@@ -98,6 +112,8 @@ export default function OnboardingPaywall({
         freeScans={freeScans}
         scansLeft={scansLeft}
         unavailable={unavailable}
+        plansFailed={plansFailed}
+        onRetry={onRetry}
         canRemind={canRemind}
         onClose={close}
         onPurchase={onPurchase}
@@ -132,7 +148,7 @@ export default function OnboardingPaywall({
               <IcBell size={46} color={C.accent} />
             </View>
           )}
-          <Text style={s.title} accessibilityRole="header">
+          <Text ref={titleRef} style={s.title} accessibilityRole="header">
             {trial
               ? t('opwTrialTitle', { n: plan.trialDays })
               : canRemind

@@ -29,8 +29,10 @@ import ShareSheet from './src/share/ShareSheet';
 import { weekStats } from './src/share/layout';
 import {
   clearLocalData,
+  clearOnboardingDraft,
   loadActivity,
   loadOnboarded,
+  loadOnboardingDraft,
   loadSeenAchievements,
   loadSettings,
   loadStats,
@@ -40,6 +42,7 @@ import {
   mergeSettings,
   persistActivity,
   persistOnboarded,
+  persistOnboardingDraft,
   persistSeenAchievements,
   persistSettings,
   persistStats,
@@ -234,6 +237,9 @@ export default function App() {
   const [share, setShare] = useState(null); // payload для картки «поділитись»
   // Онбординг відкрили повторно з налаштувань (див. finishOnboarding).
   const onbReplay = useRef(false);
+  // Чернетка недопройденого онбордингу з минулого запуску (див.
+  // loadOnboardingDraft): знайомство продовжується з того ж кроку.
+  const onbDraft = useRef(null);
 
   // Підписка: RevenueCat (або імітація в розробці без ключа). id пристрою —
   // це appUserID, тож сервер бачить ту саму покупку.
@@ -261,7 +267,7 @@ export default function App() {
   useEffect(() => {
     initAudio();
     (async () => {
-      const [w, st, a, ob, stt, seen, wodCache, u, sc] = await Promise.all([
+      const [w, st, a, ob, stt, seen, wodCache, u, sc, draft] = await Promise.all([
         loadWords(),
         loadSettings(),
         loadActivity(),
@@ -271,6 +277,7 @@ export default function App() {
         loadWod(),
         loadUsage(),
         loadScenes(),
+        loadOnboardingDraft(),
       ]);
       // Збережене перебиває типове лише там, де справді щось збережено:
       // на свіжому встановленні мови вирішує defaultLanguages().
@@ -296,6 +303,7 @@ export default function App() {
       setWod(wodCache);
       setUsage(u);
       setScenes(sc);
+      onbDraft.current = ob ? null : draft;
       setOnboarded(ob);
       setReady(true);
 
@@ -1067,6 +1075,9 @@ export default function App() {
     onbReplay.current = false;
     setOnboarded(true);
     persistOnboarded();
+    // Відповіді вже йдуть у налаштування — чернетка більше не потрібна
+    onbDraft.current = null;
+    clearOnboardingDraft();
     // Перший запуск — на вкладку навчання: там уже слово дня під щойно
     // складений профіль. Повтор — туди, звідки прийшли, у Параметри.
     setTab(replay ? 'settings' : 'cards');
@@ -1234,6 +1245,8 @@ export default function App() {
             // безкоштовний скан на сьогодні ще є
             canWow={!onbReplay.current && words.length === 0 && scansLeft({ pro: sub.pro, usage }) > 0}
             renderScanner={renderFirstScan}
+            draft={onbReplay.current ? null : onbDraft.current}
+            onDraft={persistOnboardingDraft}
           />
         </SafeAreaView>
       </ThemeProvider>
@@ -1460,6 +1473,8 @@ export default function App() {
                 freeScans={freeScansPerDay(usage)}
                 scansLeft={scansLeft({ pro: sub.pro, usage })}
                 unavailable={pro.mode === 'unavailable'}
+                plansFailed={pro.plansStatus === 'failed'}
+                onRetry={pro.reloadPlans}
                 canRemind={remindOk}
                 ui={pro.config.ui}
                 onPresentRc={onboardingRcPaywall}
@@ -1482,6 +1497,8 @@ export default function App() {
                 freeScenes={freeScenes(usage)}
                 scansLeft={scansLeft({ pro: sub.pro, usage })}
                 unavailable={pro.mode === 'unavailable'}
+                plansFailed={pro.plansStatus === 'failed'}
+                onRetry={pro.reloadPlans}
                 canRemind={remindOk}
                 onClose={() => closePaywall()}
                 onPurchase={purchasePlan}

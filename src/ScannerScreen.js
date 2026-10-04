@@ -114,13 +114,21 @@ export default function ScannerScreen({
   // рахуються видошукач сцени й заморожений кадр.
   const [rootH, setRootH] = useState(win.height - insets.top - insets.bottom);
 
-  // Перший скан — завжди один предмет: сцена довша (5–12 с) і в
-  // безкоштовному рівні разова; вау-момент має бути швидким.
-  const mode = firstScan ? 'object' : MODES.includes(scanMode) ? scanMode : 'object';
-  const sceneMode = mode === 'scene';
   // Сцена: заморожений кадр, поки модель думає, і готовий результат.
   const [frozen, setFrozen] = useState(null);
   const [scene, setScene] = useState(null);
+  // Перший скан — завжди один предмет: сцена довша (5–12 с) і в
+  // безкоштовному рівні разова; вау-момент має бути швидким.
+  // Сцена закрита для людини (безкоштовну пробу використано чи Pro
+  // скінчився), а збережений режим — досі сцена: тоді сканер стоїть на
+  // предметі, інакше кожен тап затвора відкривав би пейвол замість скану,
+  // що ще лишився. Збережений вибір не чіпаємо — з Pro сцена повернеться
+  // сама; обрати її знову — той самий пейвол через onScenePro. Поки кадр
+  // сцени ще в роботі чи вже на екрані, режим не міняється: лічильник
+  // сцен оновлюється саме тоді.
+  const sceneShut = scanMode === 'scene' && sceneLocked && !scene && !frozen;
+  const mode = firstScan || sceneShut ? 'object' : MODES.includes(scanMode) ? scanMode : 'object';
+  const sceneMode = mode === 'scene';
   const [sceneCutter, setSceneCutter] = useState(null);
   const [statusIdx, setStatusIdx] = useState(0);
   // Таймер, що прибирає заморожений кадр після закриття сцени (див. closeScene)
@@ -439,18 +447,27 @@ export default function ScannerScreen({
     // одразу повертає «ні», і кнопка виглядала б мертвою. Тоді ведемо в
     // Параметри — це єдиний спосіб увімкнути камеру.
     const denied = !permission.canAskAgain;
+    // Поки системного запиту ще не було, наш екран — лише пояснення перед
+    // ним (App Review 5.1.1(iv)): єдина кнопка — нейтральне «Далі», без
+    // «Дозволити» і без хрестика, яким запит можна відкласти. Хрестик —
+    // лише після відмови.
+    // Перший скан в онбордингу після відмови в Параметри не веде: зміна
+    // доступу до камери там змушує iOS вбити застосунок, і людина
+    // повернулась би на початок знайомства. Головна кнопка просто веде
+    // онбординг далі, а камеру можна увімкнути потім.
+    const later = denied && firstScan && !!onExit;
     return (
       <View style={s.center}>
-        {firstScan && onExit ? <ExitButton onPress={onExit} t={t} s={s} dark={false} C={C} /> : null}
+        {later ? <ExitButton onPress={onExit} t={t} s={s} dark={false} C={C} /> : null}
         <FadeIn>
           <View style={{ alignItems: 'center' }}>
             <MascotBob pose="wave" size={150} />
           </View>
           <Text style={s.permTitle}>{t('permTitle')}</Text>
-          <Text style={s.permText}>{denied ? t('permDeniedText') : t('permText')}</Text>
+          <Text style={s.permText}>{later ? t('permDeniedLater') : denied ? t('permDeniedText') : t('permText')}</Text>
           <GradBtn
-            title={denied ? t('openSettings') : t('allowCam')}
-            onPress={denied ? () => Linking.openSettings() : requestPermission}
+            title={denied && !later ? t('openSettings') : t('obNext')}
+            onPress={later ? onExit : denied ? () => Linking.openSettings() : requestPermission}
           />
         </FadeIn>
       </View>

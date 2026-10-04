@@ -4,7 +4,7 @@
 //   • 402 після свіжої покупки Pro: той самий кадр іде ще раз, без пейволу;
 //   • режим «Сцена»: перемикач, кадр 9:16, екран сцени, наліпки з повного кадру.
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Image, Modal } from 'react-native';
+import { Image, Linking, Modal } from 'react-native';
 import { act, create } from 'react-test-renderer';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import App from '../App';
@@ -19,9 +19,11 @@ import * as Speech from 'expo-speech';
 import PaywallScreen from '../src/PaywallScreen';
 
 // Камера віддає кадр 3:4 (1200×1600) і вміє його «звільнити», як PictureRef.
-// Дозвіл камери можна підмінити в тесті (mockCamPerm).
+// Дозвіл камери можна підмінити в тесті (mockCamPerm); mockAskCam — системний
+// запит дозволу.
 const shots = [];
 let mockCamPerm = { granted: true, canAskAgain: true };
+const mockAskCam = jest.fn();
 jest.mock('expo-camera', () => {
   const React = require('react');
   const { View } = require('react-native');
@@ -35,7 +37,7 @@ jest.mock('expo-camera', () => {
     }));
     return React.createElement(View, null);
   });
-  return { CameraView, useCameraPermissions: () => [mockCamPerm, jest.fn()] };
+  return { CameraView, useCameraPermissions: () => [mockCamPerm, mockAskCam] };
 });
 
 // Записуємо кожен ланцюжок ImageManipulator: що різали і до якого розміру.
@@ -84,6 +86,8 @@ const t = makeT('en');
 beforeEach(async () => {
   await AsyncStorage.clear();
   mockCamPerm = { granted: true, canAskAgain: true };
+  mockAskCam.mockClear();
+  Linking.openSettings.mockClear?.();
   shots.length = 0;
   chains.length = 0;
   recognizeImage.mockReset();
@@ -250,6 +254,51 @@ describe('scene is Pro once the free one is used', () => {
     const tree = await render(scanner({ scanMode: 'scene', onGuardScan }));
     await press(tree, () => shutter(tree).props.onPress());
     expect(onGuardScan).toHaveBeenCalledWith('scene');
+    await act(async () => tree.unmount());
+  });
+
+  // Сцену збережено як режим, а безкоштовну пробу вже використано (чи Pro
+  // скінчився): сканер стоїть на предметі, і затвор сканує, а не відкриває
+  // пейвол. Сцену можна обрати знову — тоді пейвол, як і раніше.
+  test('a saved scene mode that is now locked falls back to objects', async () => {
+    const onGuardScan = jest.fn(() => true);
+    const onScenePro = jest.fn();
+    const onScanModeChange = jest.fn();
+    const tree = await render(scanner({ scanMode: 'scene', sceneLocked: true, onGuardScan, onScenePro, onScanModeChange }));
+    expect(tab(tree, t('modeObject')).props.accessibilityState.selected).toBe(true);
+    expect(tab(tree, t('modeScenePro')).props.accessibilityState.selected).toBe(false);
+    expect(shutter(tree).props.accessibilityLabel).toBe(t('scanShutter'));
+    await press(tree, () => shutter(tree).props.onPress());
+    expect(onGuardScan).toHaveBeenCalledWith('object');
+    expect(recognizeImage).toHaveBeenCalledTimes(1);
+    expect(recognizeScene).not.toHaveBeenCalled();
+    // збережений вибір не чіпаємо: з Pro сцена повернеться сама
+    expect(onScanModeChange).not.toHaveBeenCalled();
+    await press(tree, () => tab(tree, t('modeScenePro')).props.onPress());
+    expect(onScenePro).toHaveBeenCalledTimes(1);
+    await act(async () => tree.unmount());
+  });
+
+  // Остання безкоштовна сцена: лічильник оновлюється, поки вона ще на
+  // екрані, — режим лишається сценою, доки її не закрили.
+  test('the free scene that just locked it stays a scene until it is closed', async () => {
+    const onGuardScan = jest.fn(() => true);
+    const element = (locked) => scanner({ scanMode: 'scene', sceneLocked: locked, onGuardScan });
+    let tree;
+    await act(async () => {
+      tree = create(<SafeAreaProvider initialMetrics={metrics}>{element(false)}</SafeAreaProvider>);
+    });
+    await settle();
+    await press(tree, () => shutter(tree).props.onPress());
+    expect(recognizeScene).toHaveBeenCalledTimes(1);
+    await act(async () => tree.update(<SafeAreaProvider initialMetrics={metrics}>{element(true)}</SafeAreaProvider>));
+    expect(sceneView(tree).props.scene).not.toBeNull();
+    expect(tab(tree, t('modeScenePro')).props.accessibilityState.selected).toBe(true);
+    await press(tree, () => sceneView(tree).props.onClose());
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 500));
+    });
+    expect(tab(tree, t('modeObject')).props.accessibilityState.selected).toBe(true);
     await act(async () => tree.unmount());
   });
 });
@@ -630,9 +679,68 @@ describe('first-scan mode (onboarding)', () => {
     await act(async () => tree.unmount());
   });
 
+  // App Review 5.1.1(iv): наш екран перед системним запитом камери — лише
+  // пояснення. Кнопка нейтральна («Далі», не «Дозволити»), і відкласти
+  // запит хрестиком не можна: людина завжди доходить до системного вікна.
+  test('before the system prompt: one neutral “Next”, no “Allow”, no way to put it off', async () => {
+    mockCamPerm = { granted: false, canAskAgain: true };
+    const onExit = jest.fn();
+    const tree = await render(scanner({ firstScan: true, onExit }));
+    const buttons = tree.root.findAll((n) => typeof n.props.title === 'string' && typeof n.props.onPress === 'function');
+    expect(buttons.map((b) => b.props.title)).toEqual([t('obNext')]);
+    expect(JSON.stringify(texts(tree))).not.toMatch(/Allow/);
+    expect(tree.root.findAll((n) => n.props.accessibilityLabel === t('close') && typeof n.props.onPress === 'function')).toHaveLength(0);
+    await press(tree, () => buttons[0].props.onPress());
+    expect(mockAskCam).toHaveBeenCalledTimes(1);
+    expect(onExit).not.toHaveBeenCalled();
+    await act(async () => tree.unmount());
+  });
+
+  // Після відмови посеред онбордингу в Параметри не ведемо: зміна доступу
+  // до камери там змушує iOS вбити застосунок, і людина опинилась би на
+  // початку знайомства. «Далі» веде онбординг далі, камера — потім.
+  test('refused inside onboarding: “Next” moves on, Settings can wait', async () => {
+    mockCamPerm = { granted: false, canAskAgain: false };
+    const onExit = jest.fn();
+    const tree = await render(scanner({ firstScan: true, onExit }));
+    expect(texts(tree)).toContain(t('permDeniedLater'));
+    expect(texts(tree)).not.toContain(t('openSettings'));
+    const next = tree.root.findAll((n) => n.props.title === t('obNext') && typeof n.props.onPress === 'function')[0];
+    await press(tree, () => next.props.onPress());
+    expect(onExit).toHaveBeenCalledTimes(1);
+    expect(Linking.openSettings).not.toHaveBeenCalled();
+    expect(mockAskCam).not.toHaveBeenCalled();
+    await act(async () => tree.unmount());
+  });
+
   test('the regular scanner has no exit button', async () => {
     const tree = await render(scanner());
     expect(tree.root.findAll((n) => n.props.accessibilityLabel === t('close') && typeof n.props.onPress === 'function')).toHaveLength(0);
+    await act(async () => tree.unmount());
+  });
+});
+
+// Звичайна вкладка сканера: те саме правило перед системним запитом, а
+// після відмови — Параметри, єдиний спосіб увімкнути камеру.
+describe('camera permission on the Scan tab', () => {
+  const buttons = (tree) => tree.root.findAll((n) => typeof n.props.title === 'string' && typeof n.props.onPress === 'function');
+
+  test('not asked yet: a neutral “Next” that brings up the system prompt', async () => {
+    mockCamPerm = { granted: false, canAskAgain: true };
+    const tree = await render(scanner());
+    expect(buttons(tree).map((b) => b.props.title)).toEqual([t('obNext')]);
+    await press(tree, () => buttons(tree)[0].props.onPress());
+    expect(mockAskCam).toHaveBeenCalledTimes(1);
+    await act(async () => tree.unmount());
+  });
+
+  test('refused: Settings', async () => {
+    mockCamPerm = { granted: false, canAskAgain: false };
+    const tree = await render(scanner());
+    expect(texts(tree)).toContain(t('permDeniedText'));
+    expect(buttons(tree).map((b) => b.props.title)).toEqual([t('openSettings')]);
+    await press(tree, () => buttons(tree)[0].props.onPress());
+    expect(Linking.openSettings).toHaveBeenCalledTimes(1);
     await act(async () => tree.unmount());
   });
 });

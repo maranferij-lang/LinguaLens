@@ -7,7 +7,7 @@
 import { AppState, Linking, Text } from 'react-native';
 import { act, create } from 'react-test-renderer';
 import * as Haptics from 'expo-haptics';
-import OnboardingScreen, { COMMIT_PAUSE_MS, onboardingFlow } from '../src/OnboardingScreen';
+import OnboardingScreen, { COMMIT_PAUSE_MS, onboardingFlow, restoreDraft } from '../src/OnboardingScreen';
 import { permissionStatus, requestPermission } from '../src/wordOfDay';
 import { flag, track } from '../src/analytics';
 import { localDayKey } from '../src/storage';
@@ -627,6 +627,131 @@ describe('replay from Settings', () => {
     expect(onDone.mock.calls[0][0]).toMatchObject({
       profile: { goals: ['work'], field: 'law', level: 4, since: TODAY },
       wodEnabled: true,
+    });
+  });
+});
+
+// Чернетка: iOS може вбити застосунок посеред знайомства (змінили доступ до
+// камери в Параметрах, забракло пам'яті). Крок, варіант і відповіді йдуть
+// у чернетку на кожному кроці, і наступний запуск продовжує з того ж місця,
+// а не з вітання.
+describe('draft', () => {
+  const Scanner = () => <Text>camera</Text>;
+  const renderScanner = () => <Scanner />;
+  const roundTrip = (d) => JSON.parse(JSON.stringify(d));
+
+  test('saved on every step; the next launch carries on from the same step with the same answers', async () => {
+    const onDraft = jest.fn();
+    const first = await render({ onDraft, canWow: true, renderScanner });
+    expect(onDraft).not.toHaveBeenCalled(); // вітання — ще нічого
+    await start(first.tree);
+    await typeName(first.tree, 'Олена');
+    await tap(first.tree, t('obNext'));
+    await tap(first.tree, t('goal_work'));
+    await tap(first.tree, t('obNext'));
+    await tap(first.tree, t('field_finance'));
+    await tap(first.tree, t('obNext'));
+    await bump(first.tree, 3);
+    await tap(first.tree, t('obNext'));
+    await tap(first.tree, t('struggle_time'));
+    await tap(first.tree, t('obNext'));
+    await tap(first.tree, t('obNext'));
+    expect(title(first.tree)).toBe(t('obWowTitle'));
+    expect(onDraft.mock.calls.map(([d]) => d.phase)).toEqual(['name', 'goals', 'field', 'level', 'struggles', 'plan', 'wow']);
+    const draft = roundTrip(onDraft.mock.calls.at(-1)[0]);
+    expect(draft).toEqual({
+      phase: 'wow',
+      variant: 'control',
+      name: 'Олена',
+      goals: ['work'],
+      field: 'finance',
+      level: 8,
+      struggles: ['time'],
+      heard: null,
+    });
+
+    // iOS вбив застосунок — холодний старт із чернеткою
+    await act(async () => first.tree.unmount());
+    mounted.length = 0;
+    flag.mockClear();
+    const { tree, onDone } = await render({ draft, onDraft: jest.fn(), canWow: true, renderScanner });
+    expect(title(tree)).toBe(t('obWowTitle'));
+    // варіант той самий, прапорець не перепитуємо
+    expect(flag).not.toHaveBeenCalled();
+    await tap(tree, t('pfBack'));
+    expect(title(tree)).toBe('Олена, here’s your plan');
+    await tap(tree, t('obNext'));
+    await tap(tree, t('obWowLater'));
+    await tap(tree, t('obNext')); // сповіщення
+    await tap(tree, 'TikTok');
+    await tap(tree, t('obNext'));
+    await promise(tree);
+    expect(onDone).toHaveBeenCalledWith({
+      profile: { goals: ['work'], field: 'finance', level: 8, since: TODAY },
+      heardFrom: 'tiktok',
+      name: 'Олена',
+      struggles: ['time'],
+      wodEnabled: true,
+      scanned: false,
+      flow: 'control',
+    });
+  });
+
+  test('the variant from the draft stays, even back on the welcome screen', async () => {
+    flag.mockImplementation(async () => 'control');
+    const { tree } = await render({ draft: { phase: 'goals', variant: 'short', goals: [] }, onDraft: jest.fn() });
+    expect(title(tree)).toBe(t('pfGoalsTitle'));
+    expect(flag).not.toHaveBeenCalled();
+    await tap(tree, t('pfBack'));
+    expect(has(tree, t('obHookTitle'))).toBe(true);
+    await start(tree);
+    // короткий варіант — без імені
+    expect(title(tree)).toBe(t('pfGoalsTitle'));
+  });
+
+  test('“Try it now” that is no longer possible: back on the plan', async () => {
+    const { tree } = await render({ draft: { phase: 'wow', variant: 'control', goals: ['travel'] }, canWow: false, renderScanner });
+    expect(title(tree)).toBe(t('obPlanTitle'));
+    await tap(tree, t('obNext'));
+    expect(title(tree)).toBe(t('obPushTitle'));
+  });
+
+  // Про сповіщення вже спитали до того, як застосунок закрився: кроку в
+  // потоці більше немає, але «Далі» веде на наступний, а не у фінал.
+  test('a push step the system has already answered still leads on, not to the end', async () => {
+    permissionStatus.mockImplementation(async () => 'denied');
+    const { tree, onDone } = await render({ draft: { phase: 'pushDenied', variant: 'control', goals: [], push: false } });
+    expect(title(tree)).toBe(t('obPushDeniedTitle'));
+    await tap(tree, t('obNext'));
+    expect(title(tree)).toBe(t('pfHeardTitle'));
+    expect(onDone).not.toHaveBeenCalled();
+    await tap(tree, t('obSkip'));
+    await promise(tree);
+    expect(onDone.mock.calls[0][0].wodEnabled).toBe(false);
+  });
+
+  test('a replay neither reads nor writes a draft', async () => {
+    const onDraft = jest.fn();
+    const { tree } = await render({ replay: true, draft: { phase: 'heard', variant: 'control', goals: ['self'] }, onDraft });
+    expect(title(tree)).toBe(t('obNameTitle'));
+    await tap(tree, t('obSkip'));
+    expect(onDraft).not.toHaveBeenCalled();
+  });
+
+  test('a broken or foreign draft starts from the welcome screen', () => {
+    for (const bad of [null, 'x', {}, { phase: 'welcome' }, { phase: 'nope' }, { phase: 'field', goals: ['travel'] }]) {
+      expect(restoreDraft(bad)).toBeNull();
+    }
+    expect(restoreDraft({ phase: 'level', goals: ['work', 'zzz'], field: 'zzz', level: 42, struggles: ['x', 'time'], heard: 'zzz' })).toEqual({
+      phase: 'level',
+      variant: 'control',
+      name: '',
+      goals: ['work'],
+      field: null,
+      level: 10,
+      struggles: ['time'],
+      heard: null,
+      push: undefined,
     });
   });
 });

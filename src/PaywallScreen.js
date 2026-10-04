@@ -32,12 +32,15 @@ import { formatDate } from './locale';
 import { ProIcon, PCrown } from './ProIcons';
 import { IcCheck, IcClose } from './icons';
 import { MascotBob } from './Mascot';
-import { FadeIn, GradBtn, Press } from './ui';
+import { FadeIn, GradBtn, Press, SecBtn } from './ui';
 import { CAPS, F, R, type, useTheme } from './theme';
 
 // freeScans — денна стеля з сервера (див. freeScansPerDay у subscription.js),
 // freeScenes — скільки сцен безкоштовно за все життя (freeScenes там само).
 // unavailable — збірка без магазину: тарифів немає, купити не можна.
+// plansFailed — магазин не віддав тарифів (офлайн, збій App Store чи
+// RevenueCat): замість вічного індикатора — коротке пояснення й «Спробувати
+// ще раз» (onRetry). Кнопка покупки без тарифу так і лишається вимкненою.
 // canRemind — чи зможемо нагадати про кінець пробного періоду (сповіщення
 // дозволені або ще можна спитати): лише тоді таймлайн це обіцяє.
 // scansLeft — скільки безкоштовних сканів лишилось на сьогодні (0 — «завтра»).
@@ -52,6 +55,8 @@ export default function PaywallScreen({
   freeScenes = FREE.scenes,
   scansLeft,
   unavailable,
+  plansFailed = false,
+  onRetry,
   canRemind = true,
   onClose,
   onPurchase,
@@ -121,12 +126,26 @@ export default function PaywallScreen({
     if (url) Linking.openURL(url).catch(() => {});
   }
 
+  function retry() {
+    Haptics.selectionAsync();
+    if (onRetry) onRetry();
+  }
+
   // Тарифи з ціною з магазину. У мʼякому пейволі ('intro') вони перші під
   // заголовком: сума списання — найпомітніша цифра на екрані й видна без
   // прокрутки (App Review 3.1.2), а таймлайн і переваги — під нею.
   const plansBlock = (
     <FadeIn delay={intro ? 45 : 90} style={{ gap: 10, marginTop: compact ? 20 : 26 }}>
-      {!list.length && !unavailable ? <ActivityIndicator color={C.accent} style={{ marginVertical: 30 }} /> : null}
+      {!list.length && !unavailable ? (
+        plansFailed ? (
+          <View style={s.failed}>
+            <Text style={s.failedText}>{t('pricesFailed')}</Text>
+            <SecBtn title={t('pricesRetry')} onPress={retry} />
+          </View>
+        ) : (
+          <ActivityIndicator color={C.accent} style={{ marginVertical: 30 }} />
+        )
+      ) : null}
       {list.map((p) => {
         const active = plan?.id === p.id;
         return (
@@ -492,6 +511,8 @@ const makeStyles = (C) =>
       marginTop: 10,
     },
     note: { color: C.red, ...type(13, F.semi), textAlign: 'center', marginTop: 10 },
+    failed: { gap: 14, marginVertical: 18 },
+    failedText: { color: C.dim, ...type(15, F.semi), textAlign: 'center' },
     legalRow: { flexDirection: 'row', justifyContent: 'center', gap: 8, marginTop: 6 },
     legalLink: { color: C.dim, ...type(12, F.semi, { noLead: true }) },
     legalDot: { color: C.faint },

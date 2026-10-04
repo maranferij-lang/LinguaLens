@@ -9,6 +9,7 @@ const ONBOARDED_KEY = 'll_onboarded_v1';
 const STATS_KEY = 'll_stats_v1';
 const SEEN_ACH_KEY = 'll_seen_ach_v1';
 const WOD_KEY = 'll_wod_v1';
+const ONB_DRAFT_KEY = 'll_onb_draft_v1';
 
 // ---- лічильники для досягнень (квізи, слово дня тощо) ----
 export async function loadStats() {
@@ -66,6 +67,31 @@ export async function loadOnboarded() {
 export async function persistOnboarded() {
   try {
     await AsyncStorage.setItem(ONBOARDED_KEY, '1');
+  } catch (_) {}
+}
+
+// ---- чернетка онбордингу: крок, відповіді й варіант ----
+// iOS вбиває застосунок, коли в Параметрах міняють доступ до камери (чи
+// просто вивантажує його з пам'яті), — і людина, повернувшись, мусила б
+// відповідати на все спочатку. Тож поки онбординг не скінчився, його стан
+// лежить тут. Лише на телефоні: нікуди не надсилається.
+export async function loadOnboardingDraft() {
+  try {
+    const raw = await AsyncStorage.getItem(ONB_DRAFT_KEY);
+    const d = raw ? JSON.parse(raw) : null;
+    return d && typeof d === 'object' ? d : null;
+  } catch (_) {
+    return null;
+  }
+}
+export async function persistOnboardingDraft(draft) {
+  try {
+    await AsyncStorage.setItem(ONB_DRAFT_KEY, JSON.stringify(draft));
+  } catch (_) {}
+}
+export async function clearOnboardingDraft() {
+  try {
+    await AsyncStorage.removeItem(ONB_DRAFT_KEY);
   } catch (_) {}
 }
 
@@ -141,13 +167,13 @@ export async function persistSettings(settings) {
   } catch (_) {}
 }
 
-// «Стерти все»: слова, статистика, досягнення, кеш слова дня, лічильник
-// і сцени разом із їхніми фото. Налаштування (мова, тема) й позначку
-// онбордингу лишаємо — людина не просила знову проходити знайомство з
-// застосунком.
+// «Стерти все»: слова, статистика, досягнення, кеш слова дня, лічильник,
+// чернетка онбордингу (у ній імʼя й відповіді) і сцени разом із їхніми
+// фото. Налаштування (мова, тема) й позначку онбордингу лишаємо — людина
+// не просила знову проходити знайомство з застосунком.
 export async function clearLocalData() {
   try {
-    await AsyncStorage.multiRemove([WORDS_KEY, ACTIVITY_KEY, STATS_KEY, SEEN_ACH_KEY, WOD_KEY, 'll_usage_v1']);
+    await AsyncStorage.multiRemove([WORDS_KEY, ACTIVITY_KEY, STATS_KEY, SEEN_ACH_KEY, WOD_KEY, ONB_DRAFT_KEY, 'll_usage_v1']);
   } catch (_) {}
   await clearScenes();
 }

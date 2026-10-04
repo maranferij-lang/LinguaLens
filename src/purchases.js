@@ -260,8 +260,11 @@ async function activateSimulated(planId) {
 }
 
 // ── Хук для App.js ──────────────────────────────────────────────────────────
-// Повертає { state, plans, ready, purchase(planId), restore(), manage(),
-// presentPaywall(), refresh(), reloadPlans(), mode, config, offeringId }.
+// Повертає { state, plans, ready, plansStatus, purchase(planId), restore(),
+// manage(), presentPaywall(), refresh(), reloadPlans(), mode, config,
+// offeringId }. plansStatus — 'loading' | 'ready' | 'failed': чи вантажаться
+// тарифи, чи вже є, чи магазин їх не віддав (тоді пейвол каже це й дає
+// спробувати ще раз, а не крутить індикатор без кінця).
 // purchase → { ok, cancelled?, pending?, error?, uncharged?, state }, де
 // uncharged — відмова ще до оплати (див. BEFORE_PAYMENT).
 export function usePro(appUserID) {
@@ -271,6 +274,7 @@ export function usePro(appUserID) {
   // які не можна купити, — неправда.
   const [plans, setPlans] = useState(MODE === 'simulated' ? SIMULATED_PLANS : []);
   const [ready, setReady] = useState(MODE === 'simulated');
+  const [plansStatus, setPlansStatus] = useState(MODE === 'simulated' ? 'ready' : 'loading');
   const configured = useRef(false);
 
   // Налаштовуємо SDK один раз. Якщо id пристрою ще немає (сервер не
@@ -289,6 +293,7 @@ export function usePro(appUserID) {
     } catch (_) {
       // Невалідний ключ або немає нативного модуля — застосунок працює далі
       // без покупок, а не падає.
+      setPlansStatus('failed');
       return;
     }
     // Атрибуція Apple Ads: RevenueCat сам забирає токен AdServices і
@@ -307,13 +312,16 @@ export function usePro(appUserID) {
   }, []);
 
   // Пакети з магазину. Якщо перша спроба не вдалась (офлайн при старті),
-  // пейвол перепитає їх, коли відкриється.
+  // пейвол перепитає їх, коли відкриється, — і ще раз, коли людина натисне
+  // «Спробувати ще раз» під повідомленням, що ціни не завантажились.
   async function loadPlans() {
     if (MODE !== 'revenuecat' || !configured.current) return;
+    setPlansStatus('loading');
     try {
       const o = await Purchases.getOfferings();
       if (!o.current) {
         setReady(false);
+        setPlansStatus('failed');
         return;
       }
       currentOffering = o.current;
@@ -330,8 +338,10 @@ export function usePro(appUserID) {
       }
       setPlans(plansFromOffering(o.current, eligibility));
       setReady(true);
+      setPlansStatus('ready');
     } catch (_) {
       setReady(false);
+      setPlansStatus('failed');
     }
   }
 
@@ -479,6 +489,7 @@ export function usePro(appUserID) {
     state,
     plans,
     ready,
+    plansStatus,
     purchase,
     restore,
     manage,
