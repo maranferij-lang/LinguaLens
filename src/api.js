@@ -12,8 +12,8 @@ export function setSessionToken(t) {
 function headers(token) {
   return {
     'content-type': 'application/json',
-    // День людини, а не сервера: ліміт сканів і слово дня скидаються опівночі
-    // за її годинником.
+    // День людини, а не сервера: слово дня змінюється опівночі за її
+    // годинником. На ліміт сканів дата не впливає — він на все життя.
     'x-local-date': localDayKey(),
     ...(APP_TOKEN ? { 'x-app-token': APP_TOKEN } : {}),
     ...(token ? { authorization: 'Bearer ' + token } : {}),
