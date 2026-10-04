@@ -227,3 +227,27 @@ test('the default plan is never a pricier pre-selection', () => {
   expect(defaultPlan(PLANS.filter((p) => p.id !== 'year')).best).toBeFalsy();
   expect(defaultPlan([])).toBeNull();
 });
+
+// Онбординг 3.0 (onboarding.md §5.13): на першому екрані — наліпка, яку
+// людина щойно зробила першим сканом, і «Твій безкоштовний скан — уже в
+// словнику». Без слова (пропустили скан) — Lingo й звичайний текст.
+describe('the person’s own sticker on the trial screen', () => {
+  const WORD = { word: 'mug', translation: 'чашка', lang: 'en', photo: 'stickers/mug.jpg', shape: null, outline: null, box: null };
+  const stickers = (tree) => tree.root.findAll((n) => n.props.uri && n.props.size && n.props.pop !== undefined);
+
+  test('a first word: its sticker instead of Lingo and the “already in your list” line', async () => {
+    const { tree } = await render({ firstWord: WORD });
+    expect(stickers(tree)).toHaveLength(1);
+    expect(stickers(tree)[0].props.uri).toMatch(/stickers\/mug\.jpg$/);
+    expect(has(tree, t('opwFirstWordText'))).toBe(true);
+    expect(has(tree, t('pwIntroText'))).toBe(false);
+  });
+
+  test('no word (scan skipped) or a word without a photo: Lingo, and the line only with a word', async () => {
+    for (const firstWord of [null, { ...WORD, photo: null }]) {
+      const { tree } = await render({ firstWord });
+      expect(stickers(tree)).toHaveLength(0);
+      expect(has(tree, t('opwFirstWordText'))).toBe(!!firstWord);
+    }
+  });
+});

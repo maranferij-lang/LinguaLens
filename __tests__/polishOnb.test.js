@@ -1,20 +1,19 @@
-// Полірування онбордингу й пейволу: мову, яку вчать, можна змінити просто на
-// кроці рівня; тарифи з ціною — першими на кожному пейволі, хрестик над
+// Полірування онбордингу й пейволу: мову, яку вчать, обирають на окремому
+// кроці (онбординг 3.0); тарифи з ціною — першими на кожному пейволі, хрестик над
 // прокруткою; ціни, що не завантажились, пояснюють себе; підвал коротший, а
 // посилання в ньому — справжні цілі; покупка й відновлення показують, що
 // йдуть; «Тримай довше» замість мовчазного кільця.
-import * as RN from 'react-native';
 import { Alert, ActivityIndicator, AccessibilityInfo, Linking, ScrollView, StyleSheet } from 'react-native';
 import { act, create } from 'react-test-renderer';
 import * as Haptics from 'expo-haptics';
 import fs from 'fs';
 import path from 'path';
-import OnboardingScreen, { onboardingFlow } from '../src/OnboardingScreen';
+import OnboardingScreen from '../src/OnboardingScreen';
 import OnboardingPaywall from '../src/OnboardingPaywall';
 import PaywallScreen, { TrialTimeline } from '../src/PaywallScreen';
-import LangSheet, { langOptions } from '../src/LangSheet';
+import { langOptions } from '../src/LangSheet';
 import HoldToCommit, { HOLD_MS, NUDGE_MS } from '../src/HoldToCommit';
-import { HERO, PlanBody, PushPreview, hourLabel } from '../src/OnboardingParts';
+import { PlanBody, PushPreview, hourLabel } from '../src/OnboardingParts';
 import { GoalOptions, LevelBody, SkipButton, StepFrame } from '../src/ProfileSteps';
 import { GradBtn } from '../src/ui';
 import { LANGS } from '../src/speech';
@@ -91,81 +90,46 @@ async function tap(tree, text) {
 }
 const style = (n) => StyleSheet.flatten(n.props.style) || {};
 
-// ─── onb-01: мова, яку вчать, — кнопка на кроці рівня ───────────────────────
-describe('the language you learn can be changed on the level step', () => {
+// ─── onb-01: мова, яку вчать, — окремий перший крок (онбординг 3.0) ────────
+// На кроці рівня мова лишилась підписом-пігулкою: обирають її раніше, на
+// кроці «Яку мову вчиш?» (докладно — onboarding.test.js).
+describe('the language you learn', () => {
   async function toLevel(props = {}) {
+    jest.useFakeTimers();
     const onDone = jest.fn();
-    const tree = await mount(<OnboardingScreen t={t} onDone={onDone} targetLang="es" nativeLang="en" {...props} />);
+    const onLanguages = jest.fn();
+    const tree = await mount(
+      <OnboardingScreen t={t} uiLang="en" onDone={onDone} targetLang="es" nativeLang="en" phoneNative="en" onLanguages={onLanguages} {...props} />
+    );
     await tap(tree, t('obStart'));
+    await act(async () => control(tree, 'Español, Spanish').props.onPress());
+    await act(async () => jest.advanceTimersByTime(300));
     await tap(tree, t('obSkip')); // імʼя
     await tap(tree, t('goal_travel'));
     await tap(tree, t('obNext'));
-    return { tree, onDone };
+    jest.useRealTimers();
+    return { tree, onDone, onLanguages };
   }
   const pill = (tree) => hosts(tree, (n) => n.props.accessibilityRole === 'button' && /^Language you’re learning:/.test(n.props.accessibilityLabel || ''))[0];
 
-  test('a button with the flag, the endonym and “change”; the sheet sets the language and closes', async () => {
-    const onSetLang = jest.fn();
-    const { tree } = await toLevel({ onSetLang });
-    const b = pill(tree);
-    expect(b).toBeTruthy();
-    expect(b.props.accessibilityLabel).toBe('Language you’re learning: Español. Change');
-    expect(has(tree, 'Español')).toBe(true);
-    expect(has(tree, t('obLangChange'))).toBe(true);
-    // ціль не менша за 44 pt
-    expect(style(b).minHeight).toBeGreaterThanOrEqual(44);
-
-    await act(async () => b.props.onClick?.() ?? control(tree, b.props.accessibilityLabel).props.onPress());
-    expect(has(tree, t('obLangSheetTitle'))).toBe(true);
-    const radios = hosts(tree, (n) => n.props.accessibilityRole === 'radio');
-    // поточна — першою й обрана; мови перекладів (англійської) немає
-    expect(radios[0].props.accessibilityLabel).toBe('Español');
-    expect(radios[0].props.accessibilityState).toEqual({ checked: true });
-    expect(radios.map((r) => r.props.accessibilityLabel)).not.toContain('English');
-    expect(radios).toHaveLength(LANGS.length - 1);
-
-    await tap(tree, 'Deutsch');
-    expect(onSetLang).toHaveBeenCalledWith('de');
-    expect(has(tree, t('obLangSheetTitle'))).toBe(false);
-  });
-
-  test('the new language shows in the pill, the plan card and the promise; still the same steps', async () => {
-    const onSetLang = jest.fn();
-    const onDone = jest.fn();
-    const tree = await mount(<OnboardingScreen t={t} onDone={onDone} targetLang="es" nativeLang="en" onSetLang={onSetLang} />);
-    await tap(tree, t('obStart'));
-    await tap(tree, t('obSkip'));
-    await tap(tree, t('goal_travel'));
-    await tap(tree, t('obNext'));
-    // App зберіг вибір — нова мова приходить пропсом
-    await act(async () => tree.update(<OnboardingScreen t={t} onDone={onDone} targetLang="de" nativeLang="en" onSetLang={onSetLang} />));
-    expect(pill(tree).props.accessibilityLabel).toBe('Language you’re learning: Deutsch. Change');
-    await tap(tree, t('obNext')); // рівень
-    await tap(tree, t('obSkip')); // що заважає
-    expect(has(tree, 'Deutsch')).toBe(true); // шапка плану
-    await tap(tree, t('obNext'));
-    await tap(tree, t('obNext')); // сповіщення (відмова)
-    await tap(tree, t('obNext'));
-    await tap(tree, t('obSkip')); // звідки
-    expect(has(tree, 'I will learn German every day — one word at a time')).toBe(true);
-    // кроків стільки ж, скільки було
-    expect(onboardingFlow({ goals: ['work'], wow: true, push: true })).toEqual([
-      'welcome', 'name', 'goals', 'field', 'level', 'struggles', 'plan', 'wow', 'push', 'heard', 'commit',
-    ]);
-  });
-
-  test('without onSetLang (until App wires it) and in a replay the pill stays a plain label', async () => {
-    const { tree } = await toLevel();
+  test('picked on its own step and saved through onLanguages; on the level step it is a plain label', async () => {
+    const { tree, onLanguages } = await toLevel();
+    expect(onLanguages).toHaveBeenCalledWith({ targetLang: 'es', nativeLang: 'en' });
+    expect(has(tree, t('pfLevelTitle'))).toBe(true);
     expect(pill(tree)).toBeUndefined();
     expect(has(tree, 'Español')).toBe(true);
     expect(has(tree, t('obLangChange'))).toBe(false);
+  });
 
+  test('a replay with words skips the language step and keeps the label', async () => {
     const replay = await mount(
-      <OnboardingScreen t={t} onDone={() => {}} replay targetLang="es" onSetLang={() => {}} profile={{ goals: ['travel'], level: 5 }} />
+      <OnboardingScreen t={t} onDone={() => {}} replay hasWords targetLang="es" profile={{ goals: ['travel'], level: 5 }} />
     );
+    expect(has(replay, t('obNameTitle'))).toBe(true);
     await tap(replay, t('obNext')); // імʼя (повтор показує поточне)
     await tap(replay, t('obNext')); // цілі
     expect(pill(replay)).toBeUndefined();
+    expect(has(replay, 'Español')).toBe(true);
   });
 
   test('the sheet order: current first, the language of translations hidden', () => {
@@ -512,13 +476,21 @@ test('“Try it now” says the first scan is on us, in every language', () => {
   expect(STRINGS.es.obWowText).toMatch(/Tu primer escaneo va por nuestra cuenta\.$/);
 });
 
-// ─── onb-11: темна ілюстрація ──────────────────────────────────────────────
-describe('the hero in dark mode', () => {
-  test('welcome uses the dark art in dark mode and the light one otherwise', async () => {
-    const img = (tree) => tree.root.findAllByType(RN.Image)[0].props.source;
-    expect(img(await mount(<OnboardingScreen t={t} onDone={() => {}} />))).toBe(HERO.light);
-    expect(img(await mount(dark(<OnboardingScreen t={t} onDone={() => {}} />)))).toBe(HERO.dark);
-    expect(HERO.dark).not.toBe(HERO.light);
+// ─── onb-11: вітання в темній темі ─────────────────────────────────────────
+// Онбординг 3.0: замість картинки — справжня іконка, Lingo на мʼякому колі
+// й три предмети з табличками різними мовами; усе з теми, тож темна тема не
+// світить білим квадратом.
+describe('the welcome screen', () => {
+  test('the app icon, Lingo and the three stickers — the same in dark mode', async () => {
+    for (const el of [<OnboardingScreen t={t} onDone={() => {}} />, dark(<OnboardingScreen t={t} onDone={() => {}} />)]) {
+      const tree = await mount(el);
+      expect(hosts(tree, (n) => n.props.testID === 'app-icon')).toHaveLength(1);
+      expect(hosts(tree, (n) => n.props.testID === 'welcome-hero')).toHaveLength(1);
+      expect(has(tree, t('ob3HookTitle'))).toBe(true);
+      expect(has(tree, t('ob3Hello'))).toBe(true);
+      // наліпки — ілюстрація: VoiceOver їх не читає, але на екрані вони є
+      for (const w of ['mug', 'planta', 'Schlüssel']) expect(hosts(tree, (n) => n.props.children === w).length).toBeGreaterThan(0);
+    }
   });
 
   test('the dark asset ships next to the light one', () => {
@@ -530,11 +502,16 @@ describe('the hero in dark mode', () => {
 
 // ─── onb-12: після відмови від сповіщень — далі, а не в Параметри ───────────
 test('declined notifications: the big button moves on, Settings is a quiet second option', async () => {
+  jest.useFakeTimers();
   const spy = jest.spyOn(Linking, 'openSettings').mockImplementation(async () => {});
-  const tree = await mount(<OnboardingScreen t={t} onDone={() => {}} />);
+  const tree = await mount(<OnboardingScreen t={t} uiLang="en" onDone={() => {}} nativeLang="uk" phoneNative="uk" />);
   await tap(tree, t('obStart'));
-  for (let i = 0; i < 4; i++) await tap(tree, t('obSkip'));
+  await act(async () => control(tree, 'English').props.onPress());
+  await act(async () => jest.advanceTimersByTime(300));
+  for (let i = 0; i < 5; i++) await tap(tree, t('obSkip'));
+  await act(async () => jest.advanceTimersByTime(1300)); // «складаємо план»
   await tap(tree, t('obNext')); // план
+  await tap(tree, t('obNext')); // серія
   await tap(tree, t('obNext')); // сповіщення → «ні»
   expect(has(tree, 'Okay, no reminders')).toBe(true);
   const buttons = tree.root.findAll((n) => n.type === GradBtn);
@@ -542,8 +519,9 @@ test('declined notifications: the big button moves on, Settings is a quiet secon
   await tap(tree, t('openSettings'));
   expect(spy).toHaveBeenCalledTimes(1);
   await act(async () => buttons[0].props.onPress());
-  expect(has(tree, t('pfHeardTitle'))).toBe(true);
+  expect(has(tree, t('obDemoTitle'))).toBe(true);
   spy.mockRestore();
+  jest.useRealTimers();
 });
 
 // ─── onb-13: тарифи на місці, підписи без повторів ─────────────────────────
