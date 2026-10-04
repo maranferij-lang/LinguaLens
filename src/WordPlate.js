@@ -39,11 +39,12 @@ export const PLATE_STYLE = {
 };
 
 // Розміри за видом. maxW — найширша табличка (наліпка 300 pt мінус поля);
-// word — кегль слова в межах [min, max] за довжиною (fontSizeForWord).
+// word — кегль слова в межах [max, min] за довжиною (fontSizeForWord): мінімум
+// низький, щоб і «Geschwindigkeitsbegrenzung» влізло цілим, а не з «…».
 const SIZES = {
-  sm: { radius: 14, padX: 12, padTop: 6, padBottom: 7, lang: 8, flag: 9, word: [22, 15], tr: 13, ipa: 11, maxW: 170 },
-  md: { radius: 20, padX: 20, padTop: 8, padBottom: 10, lang: 9.5, flag: 11, word: [30, 20], tr: 17, ipa: 13, maxW: 236 },
-  lg: { radius: 26, padX: 26, padTop: 12, padBottom: 16, lang: 9.5, flag: 11, word: [40, 24], tr: 19, ipa: 15, maxW: 260 },
+  sm: { radius: 14, padX: 12, padTop: 6, padBottom: 7, lang: 8, flag: 9, word: [22, 11], tr: 13, ipa: 11, maxW: 170 },
+  md: { radius: 20, padX: 20, padTop: 8, padBottom: 10, lang: 9.5, flag: 11, word: [30, 13], tr: 17, ipa: 13, maxW: 236 },
+  lg: { radius: 26, padX: 26, padTop: 12, padBottom: 16, lang: 9.5, flag: 11, word: [40, 14], tr: 19, ipa: 15, maxW: 260 },
 };
 
 const T = (p) => <Text allowFontScaling={false} {...p} />;
@@ -94,6 +95,9 @@ export default function WordPlate({ word, size = 'md', tilt = 0, ipa = size === 
       {word?.lang ? <LangLine code={word.lang} size={m.lang} flag={m.flag} /> : null}
       <T
         numberOfLines={1}
+        // запас на випадок, коли оцінка ширини гліфів промахнулась (iOS)
+        adjustsFontSizeToFit
+        minimumFontScale={0.8}
         style={{ color: PLATE.accent, fontFamily: F.extra, fontSize: fs, lineHeight: Math.round(fs * 1.2), letterSpacing: -fs * 0.02, marginTop: 1 }}
       >
         {text}

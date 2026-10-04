@@ -8,6 +8,7 @@ import { Path } from 'react-native-svg';
 
 import { APP_ICON_RADIUS, AppIcon } from '../src/Logo';
 import WordPlate, { PLATE } from '../src/WordPlate';
+import { textEm } from '../src/share/layout';
 import * as icons from '../src/icons';
 import * as flags from '../src/flags';
 import { THEMES, ThemeProvider } from '../src/theme';
@@ -81,7 +82,9 @@ describe('WordPlate', () => {
     const [long] = await size('Geschwindigkeitsbegrenzung');
     expect(short).toBe(40);
     expect(long).toBeLessThan(40);
-    expect(long).toBeGreaterThanOrEqual(24);
+    expect(long).toBeGreaterThanOrEqual(14);
+    // довге німецьке слово вміщується цілим (табличка lg: 260 − 2 × 26)
+    expect(long * textEm('Geschwindigkeitsbegrenzung')).toBeLessThanOrEqual(208);
     expect(tilt).toEqual([{ rotate: '-2deg' }]);
   });
 
