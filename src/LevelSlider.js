@@ -275,7 +275,8 @@ const makeStyles = (C) =>
       position: 'absolute',
       width: MARK_W,
       textAlign: 'center',
-      color: C.faint,
+      // A1…C2 несуть зміст, тож dim (≥ 4,5:1), а не faint
+      color: C.dim,
       ...type(12, F.bold, { noLead: true }),
     },
     markOn: { color: C.accent },

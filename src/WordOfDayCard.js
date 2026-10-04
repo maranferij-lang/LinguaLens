@@ -15,12 +15,15 @@ import { IcCheck, IcChevron, IcSpeaker } from './icons';
 import { Mascot } from './Mascot';
 import { FadeIn, Press } from './ui';
 import { layoutNext } from './motion';
+import { cefrFor } from './profile';
 import { CAPS, F, R, type, useTheme } from './theme';
 
 // topic — назва теми ('' — загальні слова); onKnow — «Знаю» (App шукає нове
 // слово); knowing — нове слово ще в дорозі; knowNote — пояснення, якщо нове
-// не прийшло (офлайн); levelUp — до якого рівня запропонувати піднятись
-// (null — не пропонуємо), onLevelUp / onKeepLevel — відповіді на пропозицію.
+// не прийшло (офлайн); levelUp — до якого рівня (1–10) запропонувати
+// піднятись (null — не пропонуємо), onLevelUp / onKeepLevel — відповіді на
+// пропозицію. Людині рівень називаємо за CEFR («Підняти до B2+»), як у
+// Параметрах: число зі слайдера нічого б їй не сказало.
 export default function WordOfDayCard({
   word,
   lang,
@@ -64,6 +67,7 @@ export default function WordOfDayCard({
   const title = t('wordOfDay');
   const caps = topic ? `${title.toLocaleUpperCase()} · ${topic}` : title.toLocaleUpperCase();
   const capsLabel = topic ? `${title}, ${topic}` : title;
+  const levelName = levelUp ? cefrFor(levelUp) : '';
 
   return (
     <FadeIn>
@@ -167,11 +171,11 @@ export default function WordOfDayCard({
 
           {levelUp ? (
             <FadeIn dy={6} style={s.offer}>
-              <Text style={s.offerText}>{t('wodLevelUp', { n: levelUp })}</Text>
+              <Text style={s.offerText}>{t('wodLevelUp', { n: levelName })}</Text>
               <View style={s.offerBtns}>
                 <Press style={[s.offerBtn, s.offerYes]} onPress={onLevelUp}>
                   <Text style={[s.offerBtnText, { color: C.onAccent }]} numberOfLines={1}>
-                    {t('wodLevelUpYes', { n: levelUp })}
+                    {t('wodLevelUpYes', { n: levelName })}
                   </Text>
                 </Press>
                 <Press style={s.offerBtn} onPress={onKeepLevel}>

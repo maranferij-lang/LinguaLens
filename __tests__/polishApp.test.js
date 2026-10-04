@@ -540,6 +540,48 @@ describe('word of the day card', () => {
   });
 });
 
+// ─── app-07: пропозиція підняти рівень називає рівень за CEFR ──────────────
+describe('the level-up offer names a CEFR level, not a slider step', () => {
+  const word = { date: '2026-10-04', word: 'la manzana', translation: 'apple', example: '' };
+
+  test.each([
+    ['uk', 8, 'Схоже, це для тебе легко. Підняти рівень до B2+?', 'Підняти до B2+'],
+    ['en', 8, 'Looks like these are easy for you. Raise your level to B2+?', 'Raise to B2+'],
+    ['de', 5, 'Das scheint dir leicht zu fallen. Niveau auf B1 anheben?', 'Auf B1 anheben'],
+    ['es', 10, 'Parece que te resultan fáciles. ¿Subir tu nivel a C2?', 'Subir a C2'],
+  ])('%s', async (lang, levelUp, text, yes) => {
+    const tl = makeT(lang);
+    const tree = await render(
+      <WordOfDayCard word={word} lang="es" saved={false} onSave={() => {}} levelUp={levelUp} onLevelUp={() => {}} onKeepLevel={() => {}} t={tl} />
+    );
+    const all = texts(tree.root);
+    expect(all).toContain(text);
+    expect(all).toContain(yes);
+    await act(async () => tree.unmount());
+  });
+
+  test('App: the offer applies the level it names; from 1 (A1) it offers A2, not A1 again', async () => {
+    for (const [from, to, name] of [
+      [7, 8, 'B2+'],
+      [1, 3, 'A2'],
+    ]) {
+      await AsyncStorage.clear();
+      await returning({
+        settings: { nativeLang: 'en', targetLang: 'es', profile: { goals: ['travel'], level: from }, knowStreak: 3 },
+        wod: { lang: 'es', native: 'en', words: [{ date: localDayKey(), word: 'la manzana', translation: 'apple' }] },
+      });
+      const tree = await renderApp();
+      await openTab(tree, 'cards');
+      const card = one(tree, WordOfDayCard);
+      expect(card.props.levelUp).toBe(to);
+      expect(texts(card)).toContain(t('wodLevelUpYes', { n: name }));
+      await press(() => card.props.onLevelUp());
+      expect((await stored('ll_settings_v1')).profile.level).toBe(to);
+      await act(async () => tree.unmount());
+    }
+  });
+});
+
 // ─── app-06: словник ───────────────────────────────────────────────────────
 describe('dictionary on a small phone', () => {
   const words = (langs) =>

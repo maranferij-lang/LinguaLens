@@ -66,6 +66,7 @@ import {
   cleanName,
   cleanProfile,
   cleanStruggles,
+  cefrFor,
   levelUpOffer,
   profileReport,
   sameProfile,
@@ -837,7 +838,11 @@ export default function App() {
 
   // Пропозиція після трьох «Знаю» поспіль — лише пропозиція: рівень
   // піднімається тільки з цієї кнопки, а «Лишити як є» починає лік заново.
-  const levelUp = levelUpOffer(settings.profile, settings.knowStreak);
+  // Картка називає рівень за CEFR («Підняти до B2+»), а 1 і 2 на шкалі —
+  // обидва A1: людині з A1 «Підняти до A1» нічого б не сказало, тож з
+  // першого пропонуємо одразу A2.
+  const offer = levelUpOffer(settings.profile, settings.knowStreak);
+  const levelUp = offer && cefrFor(offer) === cefrFor(offer - 1) ? offer + 1 : offer;
   function acceptLevelUp() {
     if (levelUp) applyProfile({ ...settings.profile, level: levelUp });
   }

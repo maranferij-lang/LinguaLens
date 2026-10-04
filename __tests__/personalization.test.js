@@ -246,7 +246,8 @@ describe('“I know it” on the word of the day', () => {
     expect(wodPosts().at(-1).body.known).toEqual(['liquidity', 'accrual', 'ledger']);
     expect(cards(tree).props.wordOfDay.source).toBe('equity');
     expect(cards(tree).props.levelUp).toBe(7);
-    expect(strings(one(tree, WordOfDayCard))).toContain(t('wodLevelUp', { n: 7 }));
+    // картка називає рівень за CEFR, а не числом зі слайдера
+    expect(strings(one(tree, WordOfDayCard))).toContain(t('wodLevelUp', { n: 'B2' }));
     // рівень сам не піднімається
     expect((await stored('ll_settings_v1')).profile.level).toBe(6);
 
@@ -337,9 +338,9 @@ describe('the card itself', () => {
     const onLevelUp = jest.fn();
     const onKeepLevel = jest.fn();
     const tree = await card({ onKnow: () => {}, levelUp: 9, onLevelUp, onKeepLevel });
-    expect(strings(tree.root)).toEqual(expect.arrayContaining([t('wodLevelUp', { n: 9 }), t('wodLevelUpYes', { n: 9 }), t('wodLevelUpNo')]));
+    expect(strings(tree.root)).toEqual(expect.arrayContaining([t('wodLevelUp', { n: 'C1' }), t('wodLevelUpYes', { n: 'C1' }), t('wodLevelUpNo')]));
     expect(onLevelUp).not.toHaveBeenCalled();
-    await act(async () => control(tree.root, t('wodLevelUpYes', { n: 9 })).props.onPress());
+    await act(async () => control(tree.root, t('wodLevelUpYes', { n: 'C1' })).props.onPress());
     expect(onLevelUp).toHaveBeenCalledTimes(1);
     await act(async () => control(tree.root, t('wodLevelUpNo')).props.onPress());
     expect(onKeepLevel).toHaveBeenCalledTimes(1);
