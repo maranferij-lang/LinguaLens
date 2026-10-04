@@ -55,7 +55,7 @@ jest.mock('posthog-react-native', () => {
     this.apiKey = apiKey;
     this.options = options;
     this.capture = jest.fn();
-    this.setPersonProperties = jest.fn();
+    this.register = jest.fn(async () => {});
     this.optIn = jest.fn(async () => {});
     this.optOut = jest.fn(async () => {});
     this.reset = jest.fn();

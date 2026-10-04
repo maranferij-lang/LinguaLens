@@ -209,7 +209,7 @@ describe('anonymous statistics', () => {
     await returning({ settings: { nativeLang: 'uk', targetLang: 'en', profile: { goals: ['work'], field: 'finance', level: 8, since: '2026-09-01' } } });
     await renderApp();
     expect(PostHog.instances).toHaveLength(1);
-    expect(ph().setPersonProperties).toHaveBeenLastCalledWith({
+    expect(ph().register).toHaveBeenLastCalledWith({
       ui_lang: 'uk',
       target_lang: 'en',
       native_lang: 'uk',
@@ -317,11 +317,11 @@ describe('anonymous statistics', () => {
     await act(async () => mounted.pop().unmount());
     const again = await renderApp();
     ph().capture.mockClear();
-    ph().setPersonProperties.mockClear();
+    ph().register.mockClear();
     await openTab(again, 'settings');
     expect(one(again, SettingsScreen).props.analyticsOn).toBe(false);
     await run(() => one(again, SettingsScreen).props.onOpenPaywall());
     expect(ph().capture).not.toHaveBeenCalled();
-    expect(ph().setPersonProperties).not.toHaveBeenCalled();
+    expect(ph().register).not.toHaveBeenCalled();
   });
 });

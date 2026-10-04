@@ -90,13 +90,16 @@ export function track(event, props) {
   safe(() => client.capture(event, clean(props)));
 }
 
-// Властивості людини ($set): мова інтерфейсу, мови, рівень, цілі, Pro.
-// Без змін — без запиту (PostHog сам пропускає повтор).
+// Мова інтерфейсу, мови, рівень, цілі, Pro — як супервластивості
+// (register): PostHog чіпляє їх до кожної події, тож розбивки у воронках
+// працюють. Не $set: властивості людини змусили б PostHog завести профіль
+// людини (personProfiles: 'identified_only' це й вимикає) — ми лишаємось
+// повністю анонімними, і так дешевше.
 export function setProps(props) {
   if (!isEnabled()) return;
   const p = clean(props);
   if (!p || !Object.keys(p).length) return;
-  safe(() => client.setPersonProperties(p));
+  safe(() => client.register(p));
 }
 
 // «Стерти мої дані»: новий анонімний id, старі властивості — геть.

@@ -144,7 +144,7 @@ test('first run: answers saved, the name stays on the phone, Learn tab under the
   expect(calls.some((c) => c.body.includes('Олена') || c.url.includes(encodeURIComponent('Олена')))).toBe(false);
   expect(calls.some((c) => c.body.includes('struggles'))).toBe(false);
   expect(JSON.stringify(ph().capture.mock.calls)).not.toMatch(/Олена/);
-  expect(JSON.stringify(ph().setPersonProperties.mock.calls)).not.toMatch(/Олена/);
+  expect(JSON.stringify(ph().register.mock.calls)).not.toMatch(/Олена/);
   expect(ph().identify).not.toHaveBeenCalled();
 
   // закрили на першому екрані — людина на вкладці навчання

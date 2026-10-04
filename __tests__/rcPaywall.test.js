@@ -34,6 +34,7 @@ jest.mock('react-native-purchases', () => ({
     purchasePackage: jest.fn(),
     restorePurchases: jest.fn(),
     showManageSubscriptions: jest.fn(async () => {}),
+    trackCustomPaywallImpression: jest.fn(async () => {}),
   },
 }));
 
@@ -173,6 +174,22 @@ test('with paywall_ui left at custom, our paywall shows and RevenueCat’s does 
   expect(one(tree, PaywallScreen).props.reason).toBe('info');
   // тарифи — з пропозиції: рік і назавжди
   expect(one(tree, PaywallScreen).props.plans.map((p) => p.id)).toEqual(['year', 'lifetime']);
+  // показ нашого пейволу RevenueCat бачить — інакше Experiments нема з чим порівнювати
+  expect(sdk.trackCustomPaywallImpression).toHaveBeenCalledTimes(1);
+  expect(sdk.trackCustomPaywallImpression.mock.calls[0][0]).toMatchObject({ paywallId: 'custom_info', offering: { identifier: 'default' } });
+});
+
+test('the RevenueCat paywall is not reported as a custom impression; its fallback is', async () => {
+  const tree = await renderApp();
+  await openTab(tree, 'settings');
+  await run(() => one(tree, SettingsScreen).props.onOpenPaywall());
+  expect(RevenueCatUI.presentPaywall).toHaveBeenCalled();
+  expect(sdk.trackCustomPaywallImpression).not.toHaveBeenCalled();
+
+  RevenueCatUI.presentPaywall.mockImplementationOnce(async () => 'ERROR');
+  await run(() => one(tree, SettingsScreen).props.onOpenPaywall());
+  expect(one(tree, PaywallScreen).props.reason).toBe('info');
+  expect(sdk.trackCustomPaywallImpression).toHaveBeenCalledTimes(1);
 });
 
 test('Pro users manage it in the Customer Center; restore stays for those without Pro', async () => {

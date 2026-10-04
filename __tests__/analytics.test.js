@@ -64,7 +64,7 @@ describe('with a key', () => {
     a.track('scan', { error: 'x'.repeat(200) });
     expect(a.client().capture.mock.calls[1][1].error).toHaveLength(64);
     a.setProps({ ui_lang: 'uk', level: 8, goals: ['work'], pro: false });
-    expect(a.client().setPersonProperties).toHaveBeenCalledWith({ ui_lang: 'uk', level: 8, goals: ['work'], pro: false });
+    expect(a.client().register).toHaveBeenCalledWith({ ui_lang: 'uk', level: 8, goals: ['work'], pro: false });
     expect(a.client().identify).not.toHaveBeenCalled();
   });
 
@@ -75,7 +75,7 @@ describe('with a key', () => {
     c.capture.mockImplementation(() => {
       throw new Error('boom');
     });
-    c.setPersonProperties.mockImplementation(() => Promise.reject(new Error('boom')));
+    c.register.mockImplementation(() => Promise.reject(new Error('boom')));
     c.getFeatureFlag.mockImplementation(() => {
       throw new Error('boom');
     });
@@ -100,7 +100,7 @@ describe('with a key', () => {
     a.track('scan', { ok: true });
     a.setProps({ pro: true });
     expect(a.client().capture).not.toHaveBeenCalled();
-    expect(a.client().setPersonProperties).not.toHaveBeenCalled();
+    expect(a.client().register).not.toHaveBeenCalled();
     a.setAnalyticsEnabled(true);
     expect(a.client().optIn).toHaveBeenCalled();
     a.track('scan', { ok: true });

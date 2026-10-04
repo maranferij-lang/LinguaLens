@@ -159,6 +159,18 @@ export function currentOfferingId() {
   return currentOffering?.identifier || null;
 }
 
+// Показ НАШОГО пейволу (не шаблону RevenueCat). Без цього Experiments і
+// графіки конверсії в RevenueCat не бачать, що пейвол узагалі показували, і
+// порівняти «наш проти шаблону» було б нічим. Шаблон RevenueCat рахує себе
+// сам. Збій тут нікому не заважає — мовчимо.
+export function trackPaywallImpression(paywallId) {
+  if (MODE !== 'revenuecat' || typeof Purchases?.trackCustomPaywallImpression !== 'function') return;
+  try {
+    const p = Purchases.trackCustomPaywallImpression({ paywallId, ...(currentOffering ? { offering: currentOffering } : null) });
+    if (p && typeof p.catch === 'function') p.catch(() => {});
+  } catch (_) {}
+}
+
 // Продукт із CustomerInfo → наш план ('year', 'lifetime'…) за пакетами
 // поточної пропозиції. Для статистики покупок із пейволу RevenueCat, де
 // тариф обирає не наш код. Невідомий продукт — null.

@@ -82,7 +82,7 @@ import { subscribeToWidgetTaps, updateWordWidget, widgetsAvailable } from './src
 import { IcBook, IcCards, IcGear, IcScan, IcUser } from './src/icons';
 import { MascotBob } from './src/Mascot';
 import { Material, MaterialEdge } from './src/Chrome';
-import { planOfProduct, usePro } from './src/purchases';
+import { planOfProduct, trackPaywallImpression, usePro } from './src/purchases';
 
 import { FadeIn } from './src/ui';
 import { F, THEMES, ThemeProvider, resolveThemeKey, type } from './src/theme';
@@ -890,6 +890,7 @@ export default function App() {
     if (rcPaywallOpen.current || (onlyIfNone && paywallRef.current)) return;
     if (await showRcPaywall(reason)) return;
     track('paywall_view', { source: reason, ui: 'custom', offering: pro.offeringId });
+    trackPaywallImpression('custom_' + reason);
     paywallRef.current = reason;
     setPaywall(reason);
   }
@@ -947,6 +948,8 @@ export default function App() {
     commitSettings({ ...settingsRef.current, onbPaywallShown: true });
     onbPaywallStep.current = 0;
     track('paywall_view', { source: 'onboarding', ui: pro.config.ui, offering: pro.offeringId });
+    // з paywall_ui: "revenuecat" третій екран — шаблон, він порахує себе сам
+    if (pro.config.ui === 'custom') trackPaywallImpression('custom_onboarding');
     paywallRef.current = 'onboarding';
     setPaywall('onboarding');
   }
