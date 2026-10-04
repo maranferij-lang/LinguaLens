@@ -119,15 +119,17 @@ npm run submit:ios                                  # → App Store Connect → 
 | **Українська** | Україна | українські ключі | наш ринок №1, ніша тонка: лідери «англійських слів» мають 1,5–3,2 тис. оцінок проти десятків і сотень тисяч у США |
 | **English (U.K.)** | Україна, Польща, Німеччина й інші стори з en-GB за замовчуванням | другий англійський набір: англійська для українців і європейців, «learn ukrainian» для тих, хто вчить українську | без неї в Україні працювала б американська сторінка; українців у Польщі й Німеччині українські ключі не знайдуть — там індексуються лише місцева мова й en-GB |
 | **Español (México)** | США, Мексика, Латинська Америка | справжня іспанська: «vocabulario inglés», «aprender» | іспаномовні в США, які вчать англійську; інтерфейс іспанською в нас уже є. Іспанія (es-ES) у США не індексується |
-| **Russian** | США й Україна | **рішення за тобою**, див. нижче | за замовчуванням — лише англійські ключі без жодного російського слова |
 | **French** | США (і Франція) | англійські ключі — «банк» для США | так робить розробник із відео («US matrix»); людям із французькою мовою iPhone і так показався б англійський текст |
-| арабська, китайські, корейська, португальська (Бразилія), в'єтнамська | США | на старті не чіпаємо | розробник із відео радить почати з 2–3 локалей і додавати за даними. Корейська — запасний «банк», якщо відмовишся від російської |
+| **Korean** | США (в Україні не індексується) | англійські ключі — другий «банк» для США: тексти колишнього варіанта А з російської локалі, див. нижче | людям із корейською мовою iPhone і так показався б англійський текст |
+| Russian | США й Україна | **не використовуємо** (рішення 4 жовтня 2026) | ні російських слів, ні англійського «банку»: український стор заповнюють uk і en-GB |
+| арабська, китайські, португальська (Бразилія), в'єтнамська | США | на старті не чіпаємо | розробник із відео радить почати з 2–3 локалей і додавати за даними |
 | Deutsch | Німеччина | пізніше, коли буде німецький трафік | інтерфейс німецькою вже є |
 
-Підсумок (наше припущення): 6 локалей на старті, з них 4 зі своїми
-скріншотами (en-US, uk, en-GB, es-MX); «банки» (ru, fr) беруть скріншоти
-основної мови. Кожній доданій локалі потрібен опис — для «банків» це текст
-en-US.
+Підсумок (рішення 4 жовтня 2026): **6 локалей на старті — en-US, uk, en-GB,
+es-MX, fr (банк) і ko (банк)**. Український стор = українська + English
+(U.K.). 4 локалі зі своїми скріншотами (en-US, uk, en-GB, es-MX); «банки»
+(fr, ko) беруть скріншоти основної мови. Кожній доданій локалі потрібен опис
+— для «банків» це текст en-US.
 
 ### Перевірка лімітів
 
@@ -135,7 +137,9 @@ en-US.
 кома без пробілів, слова ≥ 3 символів, жодне слово (з урахуванням множини й
 українських закінчень) не повторюється в назві, підзаголовку й ключових
 однієї локалі, немає «app/free/best», брендів і назв категорій, кожен підпис
-скріншота містить слово з цієї локалі. Результат:
+скріншота містить слово з цієї локалі. Для корейського «банку» ще й строго:
+жодне його ключове слово не повторює слів із назви, підзаголовка й ключових
+en-US, es-MX і fr. Результат:
 
 | Локаль | Назва | Підзаголовок | Ключові (символи, байти UTF-8) | Короткий варіант | Промо | Підписів |
 |---|---|---|---|---|---|---|
@@ -143,8 +147,8 @@ en-US.
 | uk | 28/30 | 29/30 | 94/100 (176 B) | 51 симв. / 95 B | 150/170 | 6 |
 | en-GB | 30/30 | 23/30 | 95/100 (95 B) | — | 163/170 | 6 |
 | es-MX | 30/30 | 26/30 | 93/100 (96 B) | — | 157/170 | 6 |
-| ru (банк) | 25/30 | 30/30 | 96/100 (96 B) | — | — | 0 |
 | fr-FR (банк) | 30/30 | 29/30 | 94/100 (94 B) | — | — | 0 |
+| ko (банк) | 25/30 | 30/30 | 95/100 (95 B) | — | — | 0 |
 
 **Українські ключові — символи чи байти?** Довідка Apple досі пише «100
 bytes». Агенція локалізації ще у 2013 писала, що Apple перейшла на 100
@@ -190,9 +194,9 @@ Taps; «dictionary» тут лише заради «picture dictionary».
 ```
 Point your camera at a mug, a plant or your bike and get the word in Spanish, French or 27 other languages, cut out as a sticker. Plus a daily word for your level.
 ```
-Варіант на тиждень події (139):
+Варіант на тиждень події (165):
 ```
-Label Your Kitchen Challenge: scan one object a day and in a week you will have 7 new word stickers. Plus a word of the day for your level.
+Label Your Kitchen Challenge: scan your kitchen in one shot, get a word sticker for every object and learn them all in a week. Plus a word of the day for your level.
 ```
 
 **Description:**
@@ -226,7 +230,7 @@ NO ACCOUNT NEEDED
 Open the app and start scanning. Your words and progress stay on your phone. Want a backup? Sign in with Apple to keep your words in sync on all your iPhones — we never ask for your name or email. Photos are used only to recognise the object and are not stored on our servers. Anonymous usage statistics can be turned off in Settings.
 
 FREE AND PRO
-Free forever: your dictionary with no word limit, flashcards, quiz, the word of the day and the widget, plus 1 AI scan a day and 1 room scan to try.
+Free forever: your dictionary with no word limit, flashcards, quiz, the word of the day and the widget. Plus one free AI scan to try (one in total, not per day): an object or a whole room.
 LinguaLens Pro: unlimited AI scans, unlimited room scans and all 29 languages. Choose monthly or yearly (the yearly plan may start with a free trial for eligible new subscribers), or Lifetime — a one-time purchase, not a subscription.
 Payment is charged to your Apple ID at confirmation of purchase. Subscriptions renew automatically unless cancelled at least 24 hours before the end of the current period. Manage or cancel in your Apple ID settings.
 
@@ -278,9 +282,9 @@ Privacy Policy: https://<server>/privacy
 ```
 Наведи камеру на чашку, вазон чи велосипед — і отримай англійське слово-наліпку з вимовою. А щодня — нове слово під твій рівень і сферу, від A1 до C2.
 ```
-Варіант на тиждень події (140):
+Варіант на тиждень події (146):
 ```
-Челендж «Підпиши кухню»: по одному предмету щодня — і за тиждень у тебе 7 нових англійських слів-наліпок. Слово дня під твій рівень — щодня.
+Челендж «Підпиши кухню»: скануй кухню одним кадром — кожен предмет стане словом-наліпкою, а за тиждень вивчиш їх усі. І слово дня під твій рівень.
 ```
 
 **Опис:**
@@ -314,7 +318,7 @@ LinguaLens перетворює світ навколо тебе на словн
 Відкрив і скануєш. Слова й прогрес зберігаються на телефоні. Хочеш резервну копію — увійди через Apple, і словник буде однаковий на всіх твоїх iPhone. Імені й пошти ми не просимо. Фото потрібне лише для розпізнавання і не зберігається на наших серверах. Анонімну статистику можна вимкнути в параметрах.
 
 БЕЗКОШТОВНО І PRO
-Назавжди безкоштовно: словник без ліміту слів, флешкартки, квіз, слово дня й віджет, а ще 1 AI-скан щодня й 1 скан кімнати на пробу.
+Назавжди безкоштовно: словник без ліміту слів, флешкартки, квіз, слово дня й віджет. А ще один безкоштовний AI-скан на пробу (один загалом, а не щодня): предмет або ціла кімната.
 LinguaLens Pro: AI-скани без ліміту, скани кімнат без ліміту й усі 29 мов. Обери місяць чи рік (річний може починатися з безкоштовного пробного періоду для нових підписників) або «Назавжди» — один платіж, не підписка.
 Оплата списується з Apple ID після підтвердження покупки. Підписка продовжується автоматично, якщо не скасувати її щонайменше за 24 години до кінця поточного періоду. Керувати підпискою й скасувати її можна в налаштуваннях Apple ID.
 
@@ -422,7 +426,7 @@ SIN CUENTA
 Abre la app y empieza a escanear. Tus palabras se quedan en tu teléfono. Si quieres una copia de seguridad, inicia sesión con Apple: nunca pedimos tu nombre ni tu correo. Las fotos solo se usan para reconocer el objeto y no se guardan en nuestros servidores. Las estadísticas anónimas se pueden desactivar en Ajustes.
 
 GRATIS Y PRO
-Gratis para siempre: tu diccionario sin límite de palabras, tarjetas, quiz, la palabra del día y el widget, además de 1 escaneo con IA al día y 1 escaneo de cuarto para probar.
+Gratis para siempre: tu diccionario sin límite de palabras, tarjetas, quiz, la palabra del día y el widget. Además, 1 escaneo con IA gratis para probar (uno en total, no al día): un objeto o un cuarto entero.
 LinguaLens Pro: escaneos con IA ilimitados, escaneos de cuartos ilimitados y los 29 idiomas. Elige plan mensual o anual (el anual puede empezar con una prueba gratuita para nuevos suscriptores elegibles) o Lifetime: un pago único, no una suscripción.
 El pago se carga a tu Apple ID al confirmar la compra. La suscripción se renueva automáticamente salvo que la canceles al menos 24 horas antes del final del periodo actual. Puedes gestionarla o cancelarla en los ajustes de tu Apple ID.
 
@@ -447,36 +451,38 @@ Política de privacidad: https://<server>/privacy
 
 ---
 
-### Russian — рішення за тобою
+### Korean — «банк» для США (вирішено 4 жовтня 2026)
 
-Раніше ми вирішили не робити російськомовних метаданих. Російська локаль
-цікава тим, що (за спостереженнями ASO-сервісів) індексується **і в США, і в
-Україні**. Два варіанти:
-
-**А. «Банк» без жодного російського слова (за замовчуванням).** Тексти
-англійською; людям із російською мовою iPhone і так показалася б англійська
-сторінка, тож видимо нічого не змінюється, а США й Україна отримують ще одне
-поле англійських ключів. Опис — текст en-US, скріншоти — основні.
+**Російської локалі немає взагалі** — ні з російськими словами, ні як
+англійського «банку». Український стор показує English (U.K.), російську й
+українську; ми заповнюємо українську й English (U.K.). Тексти, які раніше
+готували для російської як «варіант А» (англійською, без жодного
+російського слова), ідуть у **корейську** (Korean): за таблицею Apple вона
+індексується в США, але не в Україні. Людям із корейською мовою iPhone і так
+показалася б англійська сторінка. Опис — текст en-US, скріншоти — основні.
 
 - **Name** (25): `English Words: LinguaLens`
 - **Subtitle** (30): `Visual Dictionary & Daily Quiz`
-- **Keywords** (96):
+- **Keywords** (95):
   ```
-  ukrainian,polish,portuguese,esl,vocab,study,practice,lesson,sticker,scan,flashcard,builder,learn
+  ukrainian,polish,portuguese,vocab,study,practice,lesson,sticker,scan,spaced,repetition,memorize
   ```
-  Фрази: english words, learn english words, ukrainian english words,
-  visual dictionary, daily english quiz, polish / portuguese words, vocab
-  builder, english flashcard.
+  Фрази: english words, ukrainian / polish / portuguese words, study
+  ukrainian, english vocab, visual dictionary, daily english quiz, english
+  sticker, scan words, spaced repetition, memorize english words.
 
-**Б. Справжні російські ключі.** Тоді росіяномовні в Україні знаходитимуть
-нас за запитами, які дослідження бачить як нішеві: «переводчик по фото»
-(той самий ризик, що й із «photo translator»), «словарный запас», «слово дня»,
-середні — «учить английские слова», «английские слова», «карточки»,
-«словарь». Promova російської локалі не має, Duolingo має. Це рішення про
-бренд, а не лише про ASO, тому без тебе ми його не ухвалюємо.
+Що змінилось проти варіанта А: назва й підзаголовок ті самі, а з ключових
+прибрано **esl, flashcard, builder і learn**. Раніше ця локаль працювала і в
+Україні, тепер — лише в США, а там ці слова вже є в en-US чи fr. На їхнє місце
+— **spaced, repetition, memorize**, яких немає в жодній іншій американській
+локалі. Ціна заміни: у корейській більше не складаються «learn ukrainian» і
+«vocab builder» (у США лишаються «study ukrainian» тут і «vocabulary builder»
+в en-US; «learn ukrainian» є в en-GB, але en-GB у США не індексується).
+Повтори в назві й підзаголовку (english, words, dictionary, quiz) — свідомі:
+це основа фраз саме цієї локалі.
 
-Якщо не хочеш російської локалі взагалі — тексти варіанта А клади в
-**корейську** (Korean): вона теж індексується в США, але не в Україні.
+Варіант зі справжніми російськими ключами («Б») знято разом із російською
+локаллю.
 
 ### French — «банк» для США
 
@@ -492,10 +498,11 @@ Política de privacidad: https://<server>/privacy
   flashcards, learn japanese / korean / chinese words, japanese / korean /
   chinese word of the day.
 
-Повтор слів між en-US і «банками» — свідомий: фраза складається лише в
-межах однієї локалі, тому «picture dictionary» в назві французької локалі —
-це сильніша позиція для тієї ж фрази, ніж два слова в полі ключових en-US
-(спостереження розробника з відео, Apple цього не описує).
+Повтор слів між en-US і французьким «банком» — свідомий: фраза складається
+лише в межах однієї локалі, тому «picture dictionary» в назві французької
+локалі — це сильніша позиція для тієї ж фрази, ніж два слова в полі ключових
+en-US (спостереження розробника з відео, Apple цього не описує). У полі
+ключових корейського «банку» повторів з en-US, es-MX і fr немає (див. вище).
 
 ### Перевірка ключових слів (до подачі)
 
@@ -512,8 +519,9 @@ Política de privacidad: https://<server>/privacy
    «photo» тоді йде в підзаголовок.
 
 Кандидати на заміну (з досліджень, теж неперевірені):
-- en: visual dictionary, object, scan word, word sticker, vocab, esl
-  vocabulary, spaced, repetition, practice, japanese, korean, chinese;
+- en: visual dictionary, object, scan word, word sticker, esl vocabulary,
+  japanese, korean, chinese (vocab, practice, spaced, repetition уже стоять у
+  корейському «банку»);
 - uk: повторення, флешкартка, початківець, польська, іспанська, навчання;
 - es-MX: palabras en inglés, vocabulario, practicar, tarjetas de memoria.
 
@@ -565,17 +573,27 @@ Apple радить писати тривалість у назві підпис�
 коли, за даними нашого раннього дослідження, закінчується безкоштовний
 Premium у Promova для українців).
 
-Челендж «по одному предмету щодня» збігається з безкоштовним рівнем
-(1 скан на день), тож обіцянка чесна для всіх. Чи схвалить Apple подію, що
-спирається на звичайні функції застосунку, а не на окремий контент, — наше
-припущення; якщо відхилять, подаємо застосунок без події, а її — з першим
-оновленням.
+**Челендж переписано під безкоштовний скан на все життя.** Старий формат
+«по одному предмету щодня» спирався на 1 скан на день і більше не чесний.
+Новий: **кухня одним кадром** (скан сцени підписує кожен предмет) **і
+тиждень, щоб вивчити ці слова** картками й квізом. Картки, квіз і слово дня
+безкоштовні без меж. Сам скан кухні безкоштовний лише тому, хто ще не
+витратив свій єдиний скан (наприклад, пропустив скан в онбордингу); решті він
+потрібен у Pro, і пробний тиждень на річному якраз накриває тиждень події.
+
+Поле вартості події: Apple просить позначати потрібну покупку, а для
+застосунків із підпискою — лише тоді, коли подія коштує **окремо** від
+звичайної підписки (сторінка Apple «In-App Events»). У нас окремої ціни
+немає, тож покупку не позначаємо — і в текстах події не обіцяємо, що скан
+безкоштовний. Чи схвалить Apple подію, що спирається на звичайні функції
+застосунку, а не на окремий контент, — наше припущення; якщо відхилять,
+подаємо застосунок без події, а її — з першим оновленням.
 
 | Поле | Ліміт | en | uk |
 |---|---|---|---|
 | Назва | 30 | Label Your Kitchen Challenge (28) | Челендж: підпиши кухню (22) |
-| Короткий опис | 50 | One object a day for 7 days, one new word each (46) | Один предмет щодня — 7 днів, 7 нових слів (41) |
-| Довгий опис | 120 | Scan one kitchen object a day for a week and collect your first word stickers in English, Spanish or 27 more languages. (119) | Скануй по одному предмету з кухні щодня протягом тижня — і збери першу колекцію слів-наліпок англійською чи іншою мовою. (120) |
+| Короткий опис | 50 | Your kitchen in one shot, its words in a week (45) | Кухня одним кадром — і її слова за тиждень (42) |
+| Довгий опис | 120 | Scan your kitchen in one shot: every object gets a word sticker. Learn them all in a week with flashcards and a quiz. (117) | Скануй кухню одним кадром — кожен предмет отримає слово-наліпку. А за тиждень вивчи їх усі з картками й квізом. (111) |
 
 Людям, у яких застосунку ще немає, пошук показує скріншоти, а не картку
 події (факт Apple). Тож подія — передусім для тих, хто вже встановив, і для
@@ -608,15 +626,20 @@ Premium у Promova для українців).
   ключові слова для кожної мови — у розділах локалей вище.
 - **Жодних цін, «free» і «безкоштовно»** на скріншотах (правило 2.3.7).
 - Перші три кадри вирішують: їх видно в пошуку без відкриття сторінки.
-- Сцена (ціла кімната) — функція Pro з однією безкоштовною спробою. Показувати
-  її можна: вона є в застосунку.
+- Сцена (ціла кімната) — функція Pro з однією безкоштовною спробою (вона
+  забирає і єдиний безкоштовний скан). Показувати її можна: вона є в
+  застосунку.
 - Готові картки для кадрів 2 і 6 дає сам застосунок («Поділитися» → «Зберегти
   зображення»).
 - Перед зйомкою набери 15–20 гарних слів (різні предмети, світле тло) і
   вибери світлу тему.
 
 Для A/B-тесту скріншотів (Product Page Optimization) потрібен другий набір —
-план у `LAUNCH_PLAN.md`, розділ 6.4.
+план у `LAUNCH_PLAN.md`, розділ 6.4. **Іконка у версії 1.0 одна, альтернативних
+іконок у збірці немає** (рішення 4 жовтня 2026). Тому перший тест у перші
+тижні — скріншоти: тест без альтернативних іконок Apple дозволяє подати на
+рецензію окремо від нової версії. Тест іконки — пізніше, після оновлення,
+яке додасть альтернативні іконки в збірку.
 
 ---
 
@@ -661,8 +684,8 @@ Apple вважає дані **«зібраними» (collected)**, якщо в�
   id чи Apple ID. IDFA й IDFV PostHog не читає.
 - **Product Interaction.** Дві частини. (1) Разом зі словником
   синхронізуються кількість дій за днями, лічильники досягнень і список уже
-  показаних досягнень; сервер тримає лічильники сканів (за сьогодні й
-  кількість сканів кімнати за весь час). Це пов'язано з id. (2) Анонімні події
+  показаних досягнень; сервер тримає лічильники сканів (скільки сканів і
+  скільки сканів кімнати за весь час). Це пов'язано з id. (2) Анонімні події
   PostHog: кроки онбордингу, показ пейволу, почата чи завершена покупка, скан
   вдався чи ні, збережене слово, «поділитися», а також запуск і згортання
   застосунку. Вони не пов'язані з людиною, але Apple питає про тип даних
@@ -745,14 +768,14 @@ ONBOARDING (first launch, about 1–2 minutes; every question has Skip, and Back
 5. Subscription offer (only for people without Pro): three short screens — the free trial, a timeline with a reminder 2 days before the trial ends, then the plan picker with prices from the App Store, the billed amount, trial terms, Terms of Use, Privacy Policy and Restore Purchases. Every screen has a close (X) button, and "Continue for free" goes to the app without purchase.
 
 FREE VS PRO:
-- Free forever: the dictionary with no word limit, flashcards with spaced repetition, quiz, a personalised word of the day with notification and widget, share cards, optional Sign in with Apple sync, one learning language, 1 AI scan per day and 1 room ("Scene") scan in total. A free room scan also uses that day's scan. The scan during onboarding is that day's free scan.
+- Free forever: the dictionary with no word limit, flashcards with spaced repetition, quiz, a personalised word of the day with notification and widget, share cards, optional Sign in with Apple sync, one learning language, and exactly 1 free AI scan in total (not per day). That one free scan can be a single object or one room ("Scene") scan. The scan during onboarding uses it. A failed scan (no object recognised, network error) does not use it.
 - LinguaLens Pro: unlimited AI scans, unlimited room scans, all 29 learning languages. Plans: monthly or yearly auto-renewable subscriptions (the yearly plan may start with a 7-day free trial for eligible users) and Lifetime, a one-time non-consumable purchase.
 
 HOW TO TEST:
 1. Complete or skip onboarding; close the subscription offer with X or "Continue for free".
-2. Point the camera at any everyday object (a cup, a keyboard, a plant) and tap the shutter. The object's name appears in the language being learned (Spanish by default on an English-language device, English otherwise; change it in Settings → I'm learning). Recognition needs an internet connection. Tap Save: the word appears in the Words tab and in Learn (flashcards and quiz).
-3. A second scan on the same day opens the paywall before anything is uploaded. The paywall also opens from the "Scene" mode in the scanner after the free room scan, when adding a second learning language, and from Settings → Get Pro.
-4. Purchases work with a Sandbox Apple Account; after a purchase scans are unlimited. Restore Purchases is on the paywall and in Settings. With Pro, Settings → Manage subscription opens the subscription management screen.
+2. Point the camera at any everyday object (a cup, a keyboard, a plant) and tap the shutter. The object's name appears in the language being learned (Spanish by default on an English-language device, English otherwise; change it in Settings → I'm learning). Recognition needs an internet connection. Tap Save: the word appears in the Words tab and in Learn (flashcards and quiz). If you already scanned an object during onboarding, that was your 1 free scan, and this step opens the paywall instead (see steps 3–4).
+3. Every scan after the free one — the same day, the next day or later — opens the paywall before anything is uploaded. The paywall also opens from the "Scene" mode in the scanner once the free scan is used, when adding a second learning language, and from Settings → Get Pro.
+4. To keep testing scanning, buy any plan with a Sandbox Apple Account: after the purchase, object and room scans are unlimited. Restore Purchases is on the paywall and in Settings. With Pro, Settings → Manage subscription opens the subscription management screen.
 5. Tap Share on a scan result or a word card: the app renders an image and opens the standard iOS share sheet.
 
 REMOTE CONFIGURATION (no code is downloaded): through RevenueCat offering metadata we can switch (a) whether the subscription offer is shown at the end of onboarding and (b) whether paywalls use our in-app screen or a RevenueCat paywall designed in our RevenueCat dashboard. Both paywalls show the billed amount as the main price, trial length and what happens after it, Terms of Use, Privacy Policy, Restore Purchases and a close button. For this review both switches are set to the defaults described above (offer shown, in-app screen).
@@ -802,9 +825,9 @@ Contact: <your email>
 **TestFlight (на справжньому iPhone)**
 - [ ] Увесь чеклист із `TESTING.md`
 - [ ] Онбординг від початку до кінця і з пропуском кожного питання; ім'я не потрапляє ні на сервер, ні в PostHog (Activity → Events)
-- [ ] Пейвол онбордингу: три кроки, хрестик на кожному, «Продовжити безкоштовно — 1 скан щодня»
-- [ ] Другий скан за день відкриває пейвол **до** зйомки; друга сцена — пейвол «Ціла кімната за один кадр — у Pro»
-- [ ] Sandbox-покупка: Pro вмикається, **другий скан за день проходить** (отже сервер теж бачить Pro)
+- [ ] Пейвол онбордингу: три кроки, хрестик на кожному, «Продовжити безкоштовно» без обіцянки щоденних сканів
+- [ ] Скан після єдиного безкоштовного відкриває пейвол **до** зйомки — і того ж дня, і наступного; сцена після безкоштовного скану чи безкоштовної сцени — теж пейвол
+- [ ] Sandbox-покупка: Pro вмикається, **скан після безкоштовного проходить** (отже сервер теж бачить Pro)
 - [ ] Покупка «Назавжди»: у параметрах «Pro назавжди», жодних дат продовження
 - [ ] Видали застосунок і постав знову → «Відновити покупки» повертає Pro
 - [ ] «Керувати підпискою» в параметрах відкривається
@@ -813,17 +836,17 @@ Contact: <your email>
 - [ ] «Стерти всі мої дані» працює
 - [ ] Авіарежим: кожен екран пояснює, що сталося, нічого не зависає
 - [ ] Текст дозволу камери англійською й українською (залежить від мови телефону)
-- [ ] Сплеш, іконка, назва під іконкою — правильні
+- [ ] Сплеш, іконка (одна: альтернативних іконок у 1.0 немає), назва під іконкою — правильні
 
 **Сторінка**
-- [ ] Локалі en-US, uk, en-GB, es-MX (+ ru і fr за рішенням) заповнені за розділом ASO
+- [ ] Локалі en-US, uk, en-GB, es-MX, fr (банк) і ko (банк) заповнені за розділом ASO; **російської локалі немає**
 - [ ] Скріншоти відповідають реальному застосунку, без цін
 - [ ] App Privacy заповнено за таблицею вище
 - [ ] Privacy Policy URL і Support URL відкриваються
 - [ ] Місячна, річна й «Назавжди» прикріплені до версії
 - [ ] In-App Event прикріплений до тієї ж подачі
 - [ ] Обрано **Manually release this version**
-- [ ] Нотатки для рецензента вставлено, пошта вказана
+- [ ] Нотатки для рецензента вставлено (там сказано: 1 безкоштовний скан, далі пейвол, sandbox-покупка знімає ліміт), пошта вказана
 
 **Вхід через Apple**
 - [ ] App ID має capability **Sign in with Apple** (EAS вмикає її сам за
