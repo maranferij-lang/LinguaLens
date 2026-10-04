@@ -273,7 +273,8 @@ export function themeKeyOf(palette, dark) {
   return palette === FREE_PALETTE || !PALETTE_KEYS.includes(palette) ? mode : `${palette}-${mode}`;
 }
 
-// Плитки режиму в Параметрах (Авто — окремо, це не тема, а правило).
+// «Крейда» світла й темна — як до v1.3 (тоді це були плитки режиму в
+// Параметрах). Лишається для наявних імпортів; нове бере PALETTES.
 export const THEME_DEFS = [
   { key: 'light', name: 'Світла', dark: false, ...pick(PALETTES[0].light), swatch: PALETTES[0].light.bg },
   { key: 'dark', name: 'Темна', dark: true, ...pick(PALETTES[0].dark), swatch: PALETTES[0].dark.bg },

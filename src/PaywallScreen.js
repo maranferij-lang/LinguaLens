@@ -722,9 +722,10 @@ export function PaletteDots({ value, dark, onPick, short = false, t }) {
   );
 }
 
-// Іконки переваг: решта — з ProIcons, «слова дня» — дзвіночок сповіщення,
-// «теми» — палітра художника (сітка 24, штрих 1.8, як у ProIcons).
-function BenefitIcon({ name, size, color }) {
+// Іконки переваг (і для інших екранів, що показують PRO_BENEFITS): решта —
+// з ProIcons, «слова дня» — дзвіночок сповіщення, «теми» — палітра
+// художника (сітка 24, штрих 1.8, як у ProIcons).
+export function BenefitIcon({ name, size, color }) {
   if (name === 'bell') return <IcBell size={size} color={color} />;
   if (name === 'palette') {
     const st = { fill: 'none', stroke: color, strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round' };
