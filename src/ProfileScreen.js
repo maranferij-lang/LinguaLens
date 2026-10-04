@@ -4,6 +4,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 
 import * as Haptics from 'expo-haptics';
 import Svg, { Path } from 'react-native-svg';
 import { localDayKey } from './storage';
+import { activeDaySet, streakInfo } from './streak';
 import { cleanName } from './profile';
 import { flagFor, nameFor } from './speech';
 import { weekdayLabels } from './share/layout';
@@ -36,17 +37,6 @@ function Pencil({ size = 12, color }) {
   );
 }
 
-function computeStreak(activeDays) {
-  let streak = 0;
-  const d = new Date();
-  if (!activeDays.has(localDayKey(d))) d.setDate(d.getDate() - 1);
-  while (activeDays.has(localDayKey(d))) {
-    streak++;
-    d.setDate(d.getDate() - 1);
-  }
-  return streak;
-}
-
 export default function ProfileScreen({ words, activity, stats, profile, onUpdateProfile, onShareWeek, onShareAchievement, t }) {
   const { C, T, SHADOW } = useTheme();
   const s = useMemo(() => makeStyles(C), [C]);
@@ -55,13 +45,8 @@ export default function ProfileScreen({ words, activity, stats, profile, onUpdat
   const [editing, setEditing] = useState(false);
   const [draftName, setDraftName] = useState(profile.name || '');
 
-  const activeDays = new Set([
-    ...Object.keys(activity),
-    ...words.map((w) => localDayKey(new Date(w.addedAt || 0))),
-  ]);
-  activeDays.delete(localDayKey(new Date(0)));
-
-  const streak = computeStreak(activeDays);
+  // Серія — з src/streak.js, та сама, що в App і віджеті
+  const streak = streakInfo({ activeDays: activeDaySet(activity, words) }).n;
   const weekWords = words.filter((w) => Date.now() - (w.addedAt || 0) < WEEK).length;
   const reviews = words.reduce((sum, w) => sum + (w.srs?.reps || 0), 0);
 

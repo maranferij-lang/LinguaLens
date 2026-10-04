@@ -50,6 +50,7 @@ import {
   persistStats,
 } from './src/storage';
 import { applyPractice, applyReview, dueWords, newSrs } from './src/srs';
+import { activeDaySet, streakInfo } from './src/streak';
 import { LANGS, initAudio } from './src/speech';
 import { makeT } from './src/i18n';
 import { useUiLang } from './src/locale';
@@ -464,25 +465,12 @@ export default function App() {
   const s = useMemo(() => makeStyles(C), [C]);
 
   // ---------- ДОСЯГНЕННЯ ----------
-  const activeDays = useMemo(() => {
-    const set = new Set([
-      ...Object.keys(activity),
-      ...words.map((w) => localDayKey(new Date(w.addedAt || 0))),
-    ]);
-    set.delete(localDayKey(new Date(0)));
-    return set;
-  }, [activity, words]);
-
-  const streak = useMemo(() => {
-    let n = 0;
-    const d = new Date();
-    if (!activeDays.has(localDayKey(d))) d.setDate(d.getDate() - 1);
-    while (activeDays.has(localDayKey(d))) {
-      n++;
-      d.setDate(d.getDate() - 1);
-    }
-    return n;
-  }, [activeDays]);
+  // Серія — з src/streak.js, як і в Профілі, «Навчанні» й віджеті: одне
+  // число на весь застосунок. streakNow — уся інформація (doneToday,
+  // todayKey, lastActiveKey), streak — саме число.
+  const activeDays = useMemo(() => activeDaySet(activity, words), [activity, words]);
+  const streakNow = useMemo(() => streakInfo({ activeDays }), [activeDays]);
+  const streak = streakNow.n;
 
   // перевіряємо нові досягнення після кожної зміни даних
   useEffect(() => {
