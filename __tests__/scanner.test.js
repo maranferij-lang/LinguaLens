@@ -464,7 +464,11 @@ describe('intro paywall after the first scan', () => {
     expect(paywall(tree).props.reason).toBe('intro');
     expect((await storedSettings()).introPaywallShown).toBe(true);
 
-    await press(tree, () => paywall(tree).props.onClose());
+    // для VoiceOver пейвол — модальний шар, жест «назад» його закриває
+    const layer = paywall(tree).parent;
+    expect(layer.props.accessibilityViewIsModal).toBe(true);
+    await press(tree, () => layer.props.onAccessibilityEscape());
+    expect(paywall(tree)).toBeNull();
     await scanAndClose(tree);
     expect(paywall(tree)).toBeNull();
     await act(async () => tree.unmount());

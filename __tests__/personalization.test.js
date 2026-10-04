@@ -207,6 +207,18 @@ describe('“Tailored to you” in Settings', () => {
     expect(one(tree, ProfileEditor)).toBeNull();
     expect((await stored('ll_settings_v1')).profile).toEqual(PROFILE);
   });
+
+  test('for VoiceOver the editor is a modal layer that the escape gesture closes', async () => {
+    await returning({ settings: { profile: PROFILE } });
+    const tree = await renderApp();
+    await openTab(tree, 'settings');
+    await run(() => one(tree, SettingsScreen).props.onEditProfile());
+    const layer = one(tree, ProfileEditor).parent;
+    expect(layer.props.accessibilityViewIsModal).toBe(true);
+    await run(() => layer.props.onAccessibilityEscape());
+    expect(one(tree, ProfileEditor)).toBeNull();
+    expect((await stored('ll_settings_v1')).profile).toEqual(PROFILE);
+  });
 });
 
 describe('“I know it” on the word of the day', () => {

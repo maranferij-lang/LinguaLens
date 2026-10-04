@@ -1173,9 +1173,15 @@ export default function App() {
         </Material>
 
         {/* Редактор «Слово дня під тебе» — так само власним шаром, а не
-            Modal: з вкладки навчання над ним ще може відкритись пейвол. */}
+            Modal: з вкладки навчання над ним ще може відкритись пейвол.
+            Для VoiceOver шар — модальний: вкладки під ним не читаються, а
+            жест «назад» (двома пальцями «Z») закриває редактор. */}
         {profileEdit ? (
-          <View style={[StyleSheet.absoluteFill, { paddingTop: insets.top, paddingBottom: insets.bottom, backgroundColor: C.bg }]}>
+          <View
+            style={[StyleSheet.absoluteFill, { paddingTop: insets.top, paddingBottom: insets.bottom, backgroundColor: C.bg }]}
+            accessibilityViewIsModal
+            onAccessibilityEscape={() => setProfileEdit(false)}
+          >
             <ProfileEditor
               profile={settings.profile}
               targetLang={settings.targetLang}
@@ -1190,9 +1196,14 @@ export default function App() {
         ) : null}
 
         {/* Пейвол поверх усього. Modal тут не потрібен: власний шар дає
-            повний контроль над анімацією і не конфліктує з таб-баром. */}
+            повний контроль над анімацією і не конфліктує з таб-баром.
+            VoiceOver — як і з редактором: модальний шар, «назад» закриває. */}
         {paywall ? (
-          <View style={[StyleSheet.absoluteFill, { paddingTop: insets.top, paddingBottom: insets.bottom, backgroundColor: C.bg }]}>
+          <View
+            style={[StyleSheet.absoluteFill, { paddingTop: insets.top, paddingBottom: insets.bottom, backgroundColor: C.bg }]}
+            accessibilityViewIsModal
+            onAccessibilityEscape={closePaywall}
+          >
             <PaywallScreen
               reason={paywall}
               plans={pro.plans}

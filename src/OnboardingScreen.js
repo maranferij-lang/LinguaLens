@@ -137,7 +137,9 @@ export default function OnboardingScreen({ t, onDone, profile = null, heardFrom 
         </Pressable>
         <FadeIn style={{ alignItems: 'center' }}>
           <MascotBob pose="encourage" size={190} />
-          <Text style={s.pushTitle}>{t('notifTitle')}</Text>
+          <Text style={s.pushTitle} accessibilityRole="header">
+            {t('notifTitle')}
+          </Text>
           <Text style={s.desc}>{topic ? t('notifTextTopic', { h: hour, topic: t('topicIn_' + topic) }) : t('notifText')}</Text>
         </FadeIn>
         <View style={{ alignSelf: 'stretch', marginTop: 32, gap: 6 }}>
