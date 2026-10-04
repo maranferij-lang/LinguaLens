@@ -230,6 +230,7 @@ test('a review stamps the word and syncs it about five seconds later; returning 
     if (path === '/me') return me('acc', true);
     if (path === '/sync') return srv.sync(body);
   });
+  const listenersFrom = AppState.addEventListener.mock.calls.length;
   const tree = await renderApp();
   const before = syncCalls().length;
   await openTab(tree, 'cards');
@@ -254,11 +255,15 @@ test('a review stamps the word and syncs it about five seconds later; returning 
   await settle();
   expect(srv.st.words.get('a').srs.box).toBe(1);
 
-  // повернення в застосунок (не частіше, ніж раз на 15 с)
-  const onChange = AppState.addEventListener.mock.calls.filter(([type]) => type === 'change').at(-1)[1];
+  // повернення в застосунок (не частіше, ніж раз на 15 с). AppState кличе
+  // всіх слухачів цього дерева — і синхронізацію, і мову інтерфейсу.
+  const listeners = AppState.addEventListener.mock.calls
+    .slice(listenersFrom)
+    .filter(([type]) => type === 'change')
+    .map((c) => c[1]);
   const spy = jest.spyOn(Date, 'now').mockReturnValue(NOW + 3600000);
   try {
-    await run(async () => onChange('active'));
+    await run(async () => listeners.forEach((fn) => fn('active')));
   } finally {
     spy.mockRestore();
   }

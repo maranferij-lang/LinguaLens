@@ -20,19 +20,25 @@ export const BLUR_AVAILABLE = !!BlurView;
 export const TAB_H = 62;
 export const UNDER_TAB = TAB_H + 16;
 
+// Темний тон панелі над живою камерою — як хром Камери iOS: світла панель
+// над яскравою сценою губила підписи вкладок у будь-якій темі.
+export const CAMERA_CHROME = 'rgba(0,0,0,0.45)';
+
 // Матеріал під панель. Велика поверхня → сильніше розмиття (правило «більше = товще»).
-export function Material({ children, style, intensity = 42 }) {
+// camera — панель лежить над камерою: завжди темна, незалежно від теми.
+export function Material({ children, style, intensity = 42, camera = false }) {
   const { C, isDark } = useTheme();
+  const dark = camera || isDark;
 
   if (!BlurView) {
-    return <View style={[{ backgroundColor: C.tabbar }, style]}>{children}</View>;
+    return <View style={[{ backgroundColor: camera ? CAMERA_CHROME : C.tabbar }, style]}>{children}</View>;
   }
 
   return (
     <BlurView
       intensity={intensity}
-      tint={isDark ? 'dark' : 'light'}
-      style={[{ backgroundColor: C.chrome }, style]}
+      tint={dark ? 'dark' : 'light'}
+      style={[{ backgroundColor: camera ? CAMERA_CHROME : C.chrome }, style]}
     >
       {children}
     </BlurView>
@@ -40,9 +46,11 @@ export function Material({ children, style, intensity = 42 }) {
 }
 
 // Верхній край панелі: замість hairline-бордюра — тонка світла лінія, наче
-// матеріал ловить світло згори. У темних темах вона біла й ледь помітна.
-export function MaterialEdge() {
-  const { isDark } = useTheme();
+// матеріал ловить світло згори. У темних темах (і над камерою) вона біла й
+// ледь помітна.
+export function MaterialEdge({ camera = false }) {
+  const { isDark: themeDark } = useTheme();
+  const isDark = camera || themeDark;
   return (
     <View
       pointerEvents="none"

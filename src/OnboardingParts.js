@@ -9,6 +9,8 @@
 import { useMemo } from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
 import { cefrFor, cleanProfile, levelBand, planTopics, topicCycle } from './profile';
+import { flagFor, nameFor } from './speech';
+import { localeFor, phoneUiLang } from './locale';
 import { LogoMark } from './Logo';
 import { Mascot } from './Mascot';
 import { IcBell, IcCards, IcChart, IcCheck, IcCompass, IcScan } from './icons';
@@ -30,8 +32,12 @@ const shade = (rank) => SHADES[Math.min(rank, SHADES.length - 1)];
 // «Слово дня для тебе»: головна тема й рівень CEFR, справжній цикл тем на
 // найближчі дні (для роботи у фінансах — 4 дні з 7 фінанси, 2 — робота,
 // 1 — загальне) і що це означає для рівня. Під ним — по рядку на кожну
-// названу труднощ і функцію, що на неї відповідає.
-export function PlanBody({ profile, struggles, t }) {
+// названу труднощ і функцію, що на неї відповідає. lang — мова, яку
+// вчать: прапорець і ендонім у шапці картки (її могли щойно змінити).
+//
+// Одна тема (усе пропущено чи «для себе») — без легенди: «Загальне ·
+// щодня» лише повторило б заголовок, тож замість неї один рядок.
+export function PlanBody({ profile, struggles, lang, t }) {
   const { C, SHADOW_SM } = useTheme();
   const s = useMemo(() => makeStyles(C), [C]);
   const p = cleanProfile(profile);
@@ -45,7 +51,17 @@ export function PlanBody({ profile, struggles, t }) {
   return (
     <View style={{ gap: 12 }}>
       <FadeIn delay={stagger(i++)} style={[s.card, SHADOW_SM]}>
-        <Text style={s.caps}>{t('obPlanWod')}</Text>
+        <View style={s.capsRow}>
+          <Text style={[s.caps, { flex: 1 }]}>{t('obPlanWod')}</Text>
+          {lang ? (
+            <View style={s.planLang}>
+              <Text style={s.planFlag}>{flagFor(lang)}</Text>
+              <Text style={s.planLangName} numberOfLines={1}>
+                {nameFor(lang)}
+              </Text>
+            </View>
+          ) : null}
+        </View>
         <View style={s.headRow}>
           <Text style={s.headTopic} numberOfLines={2}>
             {t('topic_' + topics[0].topic)}
@@ -67,25 +83,25 @@ export function PlanBody({ profile, struggles, t }) {
           </View>
         )}
 
-        <View style={{ marginTop: single ? 6 : 12, gap: 8 }}>
-          {topics.map((x, r) => {
-            const name = t('topic_' + x.topic);
-            const days = single
-              ? t('obPlanDaily')
-              : r === 0
-                ? t('obPlanDaysOf', { n: x.days, m: cycle.length })
-                : t('obPlanDays', { n: x.days });
-            return (
-              <View key={x.topic} style={s.legendRow} accessible accessibilityLabel={`${name}, ${days}`}>
-                <View style={[s.dot, { opacity: shade(r) }]} />
-                <Text style={s.legendName} numberOfLines={1}>
-                  {name}
-                </Text>
-                <Text style={s.legendDays}>{days}</Text>
-              </View>
-            );
-          })}
-        </View>
+        {single ? (
+          <Text style={s.singleSub}>{t('obPlanSingleSub')}</Text>
+        ) : (
+          <View style={{ marginTop: 12, gap: 8 }}>
+            {topics.map((x, r) => {
+              const name = t('topic_' + x.topic);
+              const days = r === 0 ? t('obPlanDaysOf', { n: x.days, m: cycle.length }) : t('obPlanDays', { n: x.days });
+              return (
+                <View key={x.topic} style={s.legendRow} accessible accessibilityLabel={`${name}, ${days}`}>
+                  <View style={[s.dot, { opacity: shade(r) }]} />
+                  <Text style={s.legendName} numberOfLines={1}>
+                    {name}
+                  </Text>
+                  <Text style={s.legendDays}>{days}</Text>
+                </View>
+              );
+            })}
+          </View>
+        )}
       </FadeIn>
 
       {/* «B2+ — пропускаємо базові слова»: що рівень міняє на ділі */}
@@ -116,15 +132,23 @@ export function PlanBody({ profile, struggles, t }) {
   );
 }
 
+// Ілюстрація з Lingo й чашкою для світлої і темної теми: світла — на
+// майже білому тлі, темна — та сама сцена на кольорі картки темної теми,
+// щоб на першому ж екрані не світився білий квадрат.
+export const HERO = {
+  light: require('../assets/onb-1.png'),
+  dark: require('../assets/onb-1-dark.png'),
+};
+
 // ─── «Спробуй зараз» ───────────────────────────────────────────────────────
 // Lingo у кутах видошукача — тих самих, що на екрані сканера: людина
 // впізнає їх, коли відкриється камера.
 export function WowHero() {
-  const { C } = useTheme();
+  const { C, isDark } = useTheme();
   const s = useMemo(() => makeStyles(C), [C]);
   return (
     <View style={s.wow} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-      <Image source={require('../assets/onb-1.png')} style={s.wowImg} />
+      <Image source={isDark ? HERO.dark : HERO.light} style={s.wowImg} />
       <View style={[s.corner, s.tl]} />
       <View style={[s.corner, s.tr]} />
       <View style={[s.corner, s.bl]} />
@@ -158,9 +182,21 @@ export function FirstWord({ word, t }) {
 }
 
 // ─── Як виглядатиме сповіщення ─────────────────────────────────────────────
+// Година слова дня так, як її покаже сам iPhone: «10:00» українською,
+// «10:00 AM» з англійським телефоном. Формат — за мовою телефону (тією ж,
+// що й інтерфейс), а не «моєю мовою» з налаштувань.
+export function hourLabel(hour) {
+  try {
+    return new Date(2000, 0, 1, hour).toLocaleTimeString(localeFor(phoneUiLang()), { hour: 'numeric', minute: '2-digit' });
+  } catch (_) {
+    return String(hour).padStart(2, '0') + ':00';
+  }
+}
+
 // Схоже на банер iOS: значок, назва застосунку, година і текст. Заголовок —
 // як у справжньому сповіщенні слова дня («Слово дня · Фінанси»), тіло —
-// без вигаданого слова: його ще ніхто не обрав.
+// без вигаданого слова: його ще ніхто не обрав. Тіло — у два рядки навіть
+// на SE: банер, що обривається трикрапкою, виглядає зламаним.
 export function PushPreview({ topic, hour, t }) {
   const { C, SHADOW } = useTheme();
   const s = useMemo(() => makeStyles(C), [C]);
@@ -192,7 +228,12 @@ const makeStyles = (C) =>
   StyleSheet.create({
     card: { backgroundColor: C.card, borderRadius: R.lg, padding: 18 },
     caps: { color: C.faint, ...CAPS },
+    capsRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+    planLang: { flexDirection: 'row', alignItems: 'center', gap: 5, flexShrink: 1 },
+    planFlag: { fontSize: 14 },
+    planLangName: { color: C.dim, ...type(13, F.bold, { noLead: true }), flexShrink: 1 },
     headRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8 },
+    singleSub: { color: C.dim, ...type(15, F.semi), marginTop: 6 },
     headTopic: { flexShrink: 1, color: C.text, ...type(24, F.extra) },
     cefr: { backgroundColor: C.accent, borderRadius: R.pill, paddingHorizontal: 10, paddingVertical: 4 },
     cefrText: { color: C.onAccent, ...type(14, F.extra, { noLead: true }) },

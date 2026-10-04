@@ -5,6 +5,8 @@
 //     трохи похилені, як їх наклеїла рука, підпис — тихий.
 // Пошук і фільтр мови спільні для обох поглядів.
 // Над ними — стрічка сцен: фото кімнат, з яких ці слова прийшли.
+// Заголовок, лічильник і стрічка сцен їдуть разом зі списком, а перемикач
+// і пошук липнуть угорі: на SE нерухома шапка забирала ~70 % екрана.
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
@@ -64,13 +66,24 @@ export function tiltFor(id) {
 }
 
 // Геометрія сітки: три колонки на ширину екрана мінус поля екрана.
-// Висота рядка стала (наліпка + підпис + проміжок) — завдяки цьому
-// FlatList не міряє кожен рядок (getItemLayout).
-export const GRID = { cols: 3, gap: 10, pad: 20, label: 21, rowGap: 14, top: 4 };
+// Висота рядка стала (наліпка + підпис + проміжок) — сітка не стрибає,
+// коли наліпки догружаються.
+export const GRID = { cols: 3, gap: 10, pad: 20, label: 21, rowGap: 14 };
 export function gridMetrics(width) {
   const tile = Math.floor((width - GRID.pad * 2 - GRID.gap * (GRID.cols - 1)) / GRID.cols);
   return { tile, row: tile + GRID.label + GRID.rowGap };
 }
+
+// Наліпки рядками по три: обидва погляди — один FlatList з тією самою
+// шапкою й липкою панеллю пошуку.
+export function rowsOf(list, cols = GRID.cols) {
+  const rows = [];
+  for (let i = 0; i < list.length; i += cols) rows.push(list.slice(i, i + cols));
+  return rows;
+}
+
+// Перший елемент списку — липка панель (перемикач, пошук, фільтр мови)
+const BAR = { id: '__bar' };
 
 // Обраний погляд переживає перемикання вкладок (екран перемонтовується
 // щоразу), але не перезапуск застосунку.
@@ -94,7 +107,7 @@ export default function DictionaryScreen({
   onSceneVisible,
   t,
 }) {
-  const { C, SHADOW_SM } = useTheme();
+  const { C, T, SHADOW_SM } = useTheme();
   const s = useMemo(() => makeStyles(C, SHADOW_SM), [C, SHADOW_SM]);
   const { width } = useWindowDimensions();
 
@@ -120,8 +133,11 @@ export default function DictionaryScreen({
   // Якщо видалили останнє слово обраної мови, фільтр зникає з екрана —
   // тож і діяти перестає, інакше людина застрягла б перед порожнім списком.
   const lang = langFilter && langsPresent.includes(langFilter) ? langFilter : null;
+  // Прапорець біля слова потрібен, лише коли мов у словнику кілька
+  const multiLang = langsPresent.length > 1;
   const shown = useMemo(() => filterWords(words, query, lang), [words, query, lang]);
   const { tile, row } = useMemo(() => gridMetrics(width), [width]);
+  const data = useMemo(() => [BAR, ...(view === 'grid' ? rowsOf(shown) : shown)], [view, shown]);
 
   // Колбеки рядків мають бути стабільними, інакше memo-рядки
   // перемальовуються на кожен рендер App. Свіжі пропси беремо з ref.
@@ -202,10 +218,11 @@ export default function DictionaryScreen({
   );
 
   const renderRow = useCallback(
-    ({ item }) => (
+    (item) => (
       <ListRow
         item={item}
         open={openId === item.id}
+        flag={multiLang}
         onToggle={toggle}
         onAskDelete={askDelete}
         onShare={canShare ? shareWord : null}
@@ -214,18 +231,7 @@ export default function DictionaryScreen({
         t={t}
       />
     ),
-    [openId, toggle, askDelete, canShare, shareWord, s, C, t]
-  );
-
-  const renderTile = useCallback(
-    ({ item }) => <GridTile item={item} tile={tile} row={row} onOpen={openSheet} s={s} />,
-    [tile, row, openSheet, s]
-  );
-
-  const gridLayout = useCallback(
-    // У FlatList із колонками index тут — номер РЯДКА, а не елемента
-    (_, index) => ({ length: row, offset: GRID.top + row * index, index }),
-    [row]
+    [openId, multiLang, toggle, askDelete, canShare, shareWord, s, C, t]
   );
 
   if (!words.length) {
@@ -248,8 +254,8 @@ export default function DictionaryScreen({
     // стрічка лишається, бо саме з неї ці слова й зберігають.
     if (!scenes.length) return <View style={s.empty}>{empty}</View>;
     return (
-      <View style={s.root}>
-        <Text style={s.title}>{t('dictTitle')}</Text>
+      <View style={[s.root, s.rootPadded]}>
+        <Text style={T.largeTitle} accessibilityRole="header">{t('dictTitle')}</Text>
         <Text style={s.subtitle}>{t('dictCount', { n: 0 })}</Text>
         {sceneStrip}
         <View style={[s.empty, { paddingHorizontal: 14 }]}>{empty}</View>
@@ -265,16 +271,22 @@ export default function DictionaryScreen({
     </View>
   );
 
-  return (
-    <View style={s.root}>
-      <Text style={s.title}>{t('dictTitle')}</Text>
+  // Шапка їде разом зі списком
+  const header = (
+    <View style={s.head}>
+      <Text style={T.largeTitle} accessibilityRole="header">{t('dictTitle')}</Text>
       {/* «Збережено: 24», а не «24 слів»: так число узгоджується з будь-якою
           мовою без правил множини. */}
       <Text style={s.subtitle}>{t('dictCount', { n: words.length })}</Text>
 
       {nudge ? <SyncNudge n={words.length} onOpen={onNudge} onHide={onDismissNudge} s={s} C={C} t={t} /> : null}
       {sceneStrip}
+    </View>
+  );
 
+  // Липка панель: перемикач погляду, пошук і фільтр мови завжди під рукою
+  const bar = (
+    <View style={s.bar}>
       <Segment
         value={view}
         onChange={switchView}
@@ -290,7 +302,7 @@ export default function DictionaryScreen({
         <TextInput
           style={s.search}
           placeholder={t('search')}
-          placeholderTextColor={C.faint}
+          placeholderTextColor={C.dim}
           value={query}
           onChangeText={setQuery}
           autoCorrect={false}
@@ -299,11 +311,13 @@ export default function DictionaryScreen({
           clearButtonMode="while-editing"
         />
       </View>
-      {langsPresent.length > 1 ? (
+      {multiLang ? (
         <View style={s.filterRow}>
+          {/* ~31 pt на вигляд, 44 pt для пальця */}
           <Pressable
             style={[s.filterChip, !lang && s.filterChipActive]}
             onPress={() => pickLang(null)}
+            hitSlop={{ top: 7, bottom: 7 }}
             accessibilityState={{ selected: !lang }}
           >
             <Text style={[s.filterText, !lang && { color: C.text }]}>{t('all')}</Text>
@@ -313,6 +327,7 @@ export default function DictionaryScreen({
               key={l}
               style={[s.filterChip, lang === l && s.filterChipActive]}
               onPress={() => pickLang(lang === l ? null : l)}
+              hitSlop={{ top: 7, bottom: 7 }}
               accessibilityState={{ selected: lang === l }}
             >
               <Text style={s.filterText}>{flagFor(l)}</Text>
@@ -320,41 +335,36 @@ export default function DictionaryScreen({
           ))}
         </View>
       ) : null}
+    </View>
+  );
 
-      {/* key={view}: при перемиканні новий погляд проявляється, а не
-          підміняється миттєво. Різні FlatList ще й тому, що numColumns
-          не можна міняти на льоту. */}
-      <FadeIn key={view} style={{ flex: 1 }} dy={8}>
-        {view === 'grid' ? (
-          <FlatList
-            data={shown}
-            keyExtractor={keyOf}
-            renderItem={renderTile}
-            numColumns={GRID.cols}
-            getItemLayout={gridLayout}
-            columnWrapperStyle={s.gridRow}
-            contentContainerStyle={s.gridContent}
-            ListEmptyComponent={noMatch}
-            keyboardDismissMode="on-drag"
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-            // Наліпки — SVG із розмитою тінню: малюємо порціями по 4 рядки.
-            initialNumToRender={GRID.cols * 4}
-            maxToRenderPerBatch={GRID.cols * 3}
-            windowSize={7}
-          />
-        ) : (
-          <FlatList
-            data={shown}
-            keyExtractor={keyOf}
-            renderItem={renderRow}
-            contentContainerStyle={{ paddingBottom: UNDER_TAB + 8 }}
-            ListEmptyComponent={noMatch}
-            keyboardDismissMode="on-drag"
-            keyboardShouldPersistTaps="handled"
-          />
-        )}
-      </FadeIn>
+  function renderItem({ item }) {
+    if (item === BAR) return bar;
+    if (Array.isArray(item)) return <GridRow items={item} tile={tile} row={row} onOpen={openSheet} s={s} />;
+    return renderRow(item);
+  }
+
+  return (
+    <View style={s.root}>
+      {/* Один FlatList на обидва погляди: шапка — ListHeaderComponent,
+          панель пошуку — перший елемент даних і липне (у stickyHeaderIndices
+          шапка — це 0, тож панель — 1). */}
+      <FlatList
+        data={data}
+        keyExtractor={keyOfItem}
+        renderItem={renderItem}
+        ListHeaderComponent={header}
+        stickyHeaderIndices={[1]}
+        ListFooterComponent={shown.length ? null : noMatch}
+        contentContainerStyle={s.listContent}
+        keyboardDismissMode="on-drag"
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        // Наліпки — SVG із розмитою тінню: малюємо порціями
+        initialNumToRender={view === 'grid' ? 5 : 10}
+        maxToRenderPerBatch={view === 'grid' ? 3 : 10}
+        windowSize={7}
+      />
 
       <WordSheet
         item={sheetWord}
@@ -368,7 +378,7 @@ export default function DictionaryScreen({
   );
 }
 
-const keyOf = (item) => item.id;
+const keyOfItem = (item) => (Array.isArray(item) ? 'row-' + item[0].id : item.id);
 
 // ─── Підказка про резервну копію ───────────────────────────────────────────
 // Тиха картка, а не діалог: вхід необов'язковий, і людина, яка не хоче
@@ -480,6 +490,17 @@ function Segment({ value, options, onChange, s }) {
   );
 }
 
+// ─── Рядок альбому: до трьох наліпок ───────────────────────────────────────
+const GridRow = memo(function GridRow({ items, tile, row, onOpen, s }) {
+  return (
+    <View style={s.gridRow}>
+      {items.map((item) => (
+        <GridTile key={item.id} item={item} tile={tile} row={row} onOpen={onOpen} s={s} />
+      ))}
+    </View>
+  );
+});
+
 // ─── Наліпка в альбомі ─────────────────────────────────────────────────────
 const GridTile = memo(function GridTile({ item, tile, row, onOpen, s }) {
   const uri = photoUri(item.photo);
@@ -505,7 +526,7 @@ const GridTile = memo(function GridTile({ item, tile, row, onOpen, s }) {
 });
 
 // ─── Рядок списку ──────────────────────────────────────────────────────────
-const ListRow = memo(function ListRow({ item, open, onToggle, onAskDelete, onShare, s, C, t }) {
+const ListRow = memo(function ListRow({ item, open, flag, onToggle, onAskDelete, onShare, s, C, t }) {
   const uri = photoUri(item.photo);
   const lang = item.lang || 'en';
   return (
@@ -530,7 +551,8 @@ const ListRow = memo(function ListRow({ item, open, onToggle, onAskDelete, onSha
           onAccessibilityAction={() => onToggle(item.id)}
         >
           <Text style={s.word}>
-            {item.word} <Text style={s.flag}>{flagFor(lang)}</Text>
+            {item.word}
+            {flag ? <Text style={s.flag}> {flagFor(lang)}</Text> : null}
           </Text>
           {item.translation ? <Text style={s.translation}>{item.translation}</Text> : null}
         </View>
@@ -569,9 +591,14 @@ const ListRow = memo(function ListRow({ item, open, onToggle, onAskDelete, onSha
 
 const makeStyles = (C, SHADOW_SM) =>
   StyleSheet.create({
-    root: { flex: 1, backgroundColor: C.bg, padding: 20, paddingBottom: 0 },
-    title: { color: C.text, ...type(34, F.bold) },
+    root: { flex: 1, backgroundColor: C.bg },
+    // слів ще немає, а сцени є — без списку, відступи як у шапки
+    rootPadded: { padding: 20, paddingBottom: 0 },
+    listContent: { paddingBottom: UNDER_TAB + 8 },
+    head: { paddingHorizontal: 20, paddingTop: 20 },
     subtitle: { color: C.dim, ...type(13, F.reg), marginTop: 2, marginBottom: 14 },
+    // Липка панель на тлі екрана: рядки проїжджають під нею
+    bar: { backgroundColor: C.bg, paddingHorizontal: 20, paddingTop: 6, paddingBottom: 4 },
 
     // Підказка про вхід: м'який акцентний фон, як у картки Pro в Параметрах,
     // — помітна, але не кричить червоним чи градієнтом.
@@ -596,7 +623,7 @@ const makeStyles = (C, SHADOW_SM) =>
     // Стрічка сцен виходить за поля екрана: мініатюри доїжджають до краю,
     // як будь-яка горизонтальна стрічка в iOS.
     scenes: { marginHorizontal: -20, marginBottom: 14 },
-    scenesLabel: { ...CAPS, color: C.faint, marginHorizontal: 20, marginBottom: 8 },
+    scenesLabel: { ...CAPS, color: C.dim, marginHorizontal: 20, marginBottom: 8 },
     scenesRow: { paddingHorizontal: 20, gap: 8 },
     sceneThumb: {
       width: SCENE_THUMB.w,
@@ -610,7 +637,7 @@ const makeStyles = (C, SHADOW_SM) =>
     sceneThumbShade: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 36, backgroundColor: 'rgba(0,0,0,0.38)' },
     sceneThumbText: { color: '#FFFFFF', ...type(11, F.extra, { noLead: true }), textAlign: 'center', paddingHorizontal: 4, paddingBottom: 7 },
 
-    segment: { flexDirection: 'row', backgroundColor: C.card2, borderRadius: R.md, padding: 3, marginBottom: 12 },
+    segment: { flexDirection: 'row', backgroundColor: C.card2, borderRadius: R.md, padding: 3, marginBottom: 10 },
     segmentThumb: {
       position: 'absolute',
       top: 3,
@@ -633,7 +660,7 @@ const makeStyles = (C, SHADOW_SM) =>
       backgroundColor: C.input,
       borderRadius: R.md,
       paddingHorizontal: 15,
-      marginBottom: 12,
+      marginBottom: 8,
     },
     search: {
       flex: 1,
@@ -641,7 +668,7 @@ const makeStyles = (C, SHADOW_SM) =>
       color: C.text,
       ...type(16, F.reg, { noLead: true }),
     },
-    filterRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
+    filterRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
     filterChip: {
       paddingHorizontal: 13,
       paddingVertical: 7,
@@ -652,8 +679,7 @@ const makeStyles = (C, SHADOW_SM) =>
     filterText: { color: C.dim, ...type(13, F.semi, { noLead: true }) },
 
     // Альбом: проміжки між наліпками — повітря, а не лінії сітки.
-    gridContent: { paddingTop: GRID.top, paddingBottom: UNDER_TAB + 8 },
-    gridRow: { gap: GRID.gap },
+    gridRow: { flexDirection: 'row', gap: GRID.gap, paddingHorizontal: GRID.pad },
     tile: { alignItems: 'center' },
     // Наліпка має прозорий запас під облямівку й тінь, тож підпис
     // підтягуємо ближче — інакше він «відпадає» від своєї наліпки.
@@ -664,7 +690,7 @@ const makeStyles = (C, SHADOW_SM) =>
       marginTop: 2,
       alignSelf: 'stretch',
     },
-    tileArticle: { color: C.faint },
+    tileArticle: { color: C.dim },
 
     noMatch: { alignItems: 'center', paddingTop: 48, paddingHorizontal: 24 },
     noMatchTitle: { color: C.text, ...type(17, F.bold) },
@@ -676,6 +702,7 @@ const makeStyles = (C, SHADOW_SM) =>
       backgroundColor: C.card,
       borderRadius: R.lg,
       padding: 14,
+      marginHorizontal: 20,
       marginBottom: 9,
       ...SHADOW_SM,
     },

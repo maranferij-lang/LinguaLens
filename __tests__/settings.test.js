@@ -1,9 +1,10 @@
-// Параметри кажуть правду: підказка «моєї мови» — про те, що реально
-// перекладено, а помилка стирання — про справжню причину.
-import { Alert } from 'react-native';
+// Параметри кажуть правду: «моя мова» — лише про переклади, мова інтерфейсу
+// — та, що в телефоні, а помилка стирання — про справжню причину.
+import { Alert, Linking } from 'react-native';
 import { act, create } from 'react-test-renderer';
 import SettingsScreen from '../src/SettingsScreen';
-import { makeT } from '../src/i18n';
+import { STRINGS, makeT } from '../src/i18n';
+import { formatDate } from '../src/locale';
 
 async function render(props) {
   let tree;
@@ -18,7 +19,8 @@ async function render(props) {
         wodEnabled={false}
         wodHour={10}
         sub={{ pro: false }}
-        t={makeT(props.nativeLang || 'uk')}
+        uiLang="uk"
+        t={makeT(props.uiLang || 'uk')}
         {...props}
       />
     );
@@ -28,14 +30,57 @@ async function render(props) {
 
 const hintOf = (tree, t) => tree.root.findAll((n) => n.props.label === t('myLang') && 'hint' in n.props)[0].props.hint;
 
-test('the app-language promise only for languages the UI really speaks', async () => {
-  let tree = await render({ nativeLang: 'uk' });
-  expect(hintOf(tree, makeT('uk'))).toBe(makeT('uk')('myLangHint'));
-  await act(async () => tree.unmount());
+const strings = (tree) => tree.root.findAll((n) => typeof n.props.children === 'string').map((n) => n.props.children);
 
-  tree = await render({ nativeLang: 'fr' });
-  expect(hintOf(tree, makeT('fr'))).toBe(makeT('en')('myLangHintNoUi'));
-  await act(async () => tree.unmount());
+// «Моя мова» більше не обіцяє інтерфейс: вона лише для перекладів. Мова
+// інтерфейсу — окремий рядок із мовою телефону; тап веде в Параметри iOS,
+// де мову можна змінити саме для LinguaLens.
+describe('languages', () => {
+  const uk = makeT('uk');
+  const uiRow = (tree, label) =>
+    tree.root.findAll((n) => n.props.accessibilityRole === 'button' && n.props.accessibilityLabel === label)[0];
+
+  test('“my language” is about translations only, whatever it is', async () => {
+    for (const nativeLang of ['uk', 'fr', 'pl']) {
+      const tree = await render({ nativeLang, uiLang: 'uk' });
+      expect(hintOf(tree, uk)).toBe(uk('myLangHint'));
+      await act(async () => tree.unmount());
+    }
+    // колишня підказка «застосунок лишається англійським» більше не потрібна
+    for (const dict of Object.values(STRINGS)) expect(dict.myLangHintNoUi).toBeUndefined();
+  });
+
+  test('the interface row names the phone language and opens the app’s page in Settings', async () => {
+    const open = jest.spyOn(Linking, 'openSettings').mockResolvedValue();
+    try {
+      const tree = await render({ nativeLang: 'pl', uiLang: 'uk' });
+      expect(strings(tree)).toEqual(expect.arrayContaining([uk('uiLangTitle'), 'Українська', uk('uiLangHint')]));
+      const row = uiRow(tree, `${uk('uiLangTitle')}: Українська`);
+      expect(row.props.accessibilityHint).toBe(uk('uiLangHint'));
+      await act(async () => row.props.onPress());
+      expect(open).toHaveBeenCalledTimes(1);
+      await act(async () => tree.unmount());
+    } finally {
+      open.mockRestore();
+    }
+  });
+
+  test('a phone language without a UI translation shows English — the language the app speaks', async () => {
+    const en = makeT('en');
+    const tree = await render({ nativeLang: 'fr', uiLang: 'en', t: en });
+    expect(uiRow(tree, `${en('uiLangTitle')}: English`)).toBeDefined();
+    await act(async () => tree.unmount());
+  });
+
+  test('the Pro renewal date is in the interface language, not in “my language”', async () => {
+    const until = new Date(2026, 9, 8).getTime();
+    const opts = { day: 'numeric', month: 'long', year: 'numeric' };
+    const tree = await render({ nativeLang: 'de', uiLang: 'uk', sub: { pro: true, until } });
+    const hint = tree.root.findAll((n) => Array.isArray(n.props.children) && n.props.children.includes(uk('managePro')))[0];
+    expect(hint.props.children[0]).toBe(uk('proUntil', { d: formatDate(until, 'uk', opts) }) + ' · ');
+    expect(formatDate(until, 'uk', opts)).not.toBe(formatDate(until, 'de', opts));
+    await act(async () => tree.unmount());
+  });
 });
 
 describe('erase all my data', () => {
@@ -47,7 +92,7 @@ describe('erase all my data', () => {
 
   async function eraseWith(error) {
     const t = makeT('en');
-    const tree = await render({ nativeLang: 'en', onEraseEverything: jest.fn(async () => Promise.reject(error)) });
+    const tree = await render({ uiLang: 'en', onEraseEverything: jest.fn(async () => Promise.reject(error)) });
     const label = tree.root.findAll((n) => n.props.children === t('eraseAll'))[0];
     let btn = label;
     while (typeof btn.props.onPress !== 'function') btn = btn.parent;
@@ -77,7 +122,7 @@ describe('anonymous statistics switch', () => {
 
   test('shown with a key, reflects the setting and reports a change', async () => {
     const onToggleAnalytics = jest.fn();
-    const tree = await render({ nativeLang: 'en', analyticsAvailable: true, analyticsOn: true, onToggleAnalytics });
+    const tree = await render({ uiLang: 'en', analyticsAvailable: true, analyticsOn: true, onToggleAnalytics });
     const sw = statSwitch(tree);
     expect(sw.props.value).toBe(true);
     await act(async () => sw.props.onValueChange(false));
@@ -87,7 +132,7 @@ describe('anonymous statistics switch', () => {
   });
 
   test('absent in a build without analytics', async () => {
-    const tree = await render({ nativeLang: 'en' });
+    const tree = await render({ uiLang: 'en' });
     expect(statSwitch(tree)).toBeUndefined();
     await act(async () => tree.unmount());
   });
@@ -97,7 +142,7 @@ describe('anonymous statistics switch', () => {
 test('lifetime Pro: «Pro forever», purchases and support, no renewal date', async () => {
   const t = makeT('en');
   const onManageSub = jest.fn();
-  const tree = await render({ nativeLang: 'en', sub: { pro: true, lifetime: true, until: null }, onManageSub });
+  const tree = await render({ uiLang: 'en', sub: { pro: true, lifetime: true, until: null }, onManageSub });
   const strings = tree.root.findAll((n) => typeof n.props.children === 'string').map((n) => n.props.children);
   expect(strings).toContain(t('proLifetime'));
   expect(strings).not.toContain(t('restore'));

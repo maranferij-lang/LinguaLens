@@ -56,19 +56,27 @@ test('dictionary row: Listen, Share and Delete are reachable, the word expands t
   await act(async () => tree.unmount());
 });
 
-test('word of the day: Listen, I know it and Save are separate from the card', async () => {
+test('word of the day: Listen, I know it and Save are separate from the card and there without expanding', async () => {
   const onSave = jest.fn();
   const word = { word: 'la manzana', translation: 'apple', example: 'Una manzana roja.', example_translation: 'A red apple.' };
   const tree = await render(<WordOfDayCard word={word} lang="es" saved={false} onSave={onSave} onKnow={() => {}} t={t} />);
 
+  // дії — одразу, без розгортання: розгортається лише приклад
   const row = toggleTarget(tree);
+  expect(row.props.accessibilityState.expanded).toBe(false);
+  const check = () => {
+    expect(hiddenInsideAccessible(control(tree, t('saveWord')))).toBe(false);
+    expect(hiddenInsideAccessible(control(tree, t('listen')))).toBe(false);
+    expect(hiddenInsideAccessible(control(tree, t('wodKnowA11y')))).toBe(false);
+  };
+  check();
   await act(async () => row.props.onAccessibilityAction({ nativeEvent: { actionName: 'activate' } }));
   expect(toggleTarget(tree).props.accessibilityState.expanded).toBe(true);
+  check();
 
-  const save = control(tree, t('saveWord'));
-  expect(hiddenInsideAccessible(save)).toBe(false);
-  expect(hiddenInsideAccessible(control(tree, t('listen')))).toBe(false);
-  expect(hiddenInsideAccessible(control(tree, t('wodKnowA11y')))).toBe(false);
+  // рядок-кепс VoiceOver читає словами, а не по літерах
+  const caps = tree.root.find((n) => typeof n.type === 'string' && n.props.children === t('wordOfDay').toLocaleUpperCase());
+  expect(caps.props.accessibilityLabel).toBe('Word of the day');
   await act(async () => tree.unmount());
 });
 

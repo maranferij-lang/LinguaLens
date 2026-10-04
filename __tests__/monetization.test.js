@@ -224,7 +224,8 @@ describe('anonymous statistics', () => {
     await renderApp();
     expect(PostHog.instances).toHaveLength(1);
     expect(ph().register).toHaveBeenLastCalledWith({
-      ui_lang: 'uk',
+      // мова інтерфейсу — мова телефону (у тестах англійська), а не «моя мова»
+      ui_lang: 'en',
       target_lang: 'en',
       native_lang: 'uk',
       level: 8,

@@ -27,6 +27,8 @@ const metrics = { frame: { x: 0, y: 0, width: 393, height: 852 }, insets: { top:
 
 beforeEach(async () => {
   await AsyncStorage.clear();
+  // телефон англійською (див. заглушку expo-localization у jest.setup.js)
+  require('expo-localization').__setLocales(['en-US'], { silent: true });
   global.fetch = jest.fn(async () => {
     throw new TypeError('Network request failed');
   });
@@ -199,13 +201,17 @@ describe('word of the day', () => {
     return calls.at(-1)[0];
   };
 
-  test('the home-screen widget gets the cached word and follows the interface language', async () => {
+  test('the home-screen widget gets the cached word and speaks the phone language, not “my language”', async () => {
     await returning({ wod: wodFor('es', 'en'), seen: ALL_ACH });
     const tree = await renderApp();
     expect(lastTimeline()[0].props).toMatchObject({ state: 'word', word: 'la manzana', caption: 'Español · word of the day' });
-    // тепер інтерфейс німецькою, а вчимо далі іспанську — кеш тієї ж пари не годиться
+    // переклади тепер німецькою, а вчимо далі іспанську — кеш пари es→en не
+    // годиться; підписи ж лишаються мовою телефону, тобто англійською
     await openTab(tree, 'settings');
     await run(() => one(tree, SettingsScreen).props.onSetNative('de'));
+    expect(lastTimeline()[0].props).toMatchObject({ state: 'empty', message: 'Open LinguaLens for new words' });
+    // а телефон перейшов на німецьку — віджет за ним
+    await run(() => require('expo-localization').__setLocales(['de-DE']));
     expect(lastTimeline()[0].props).toMatchObject({ state: 'empty', message: 'Öffne LinguaLens für neue Wörter' });
     await act(async () => tree.unmount());
   });
@@ -315,6 +321,9 @@ test('a free scan used on an earlier day still blocks today: the paywall, and no
   await returning({ seen: ALL_ACH });
   await AsyncStorage.setItem('ll_usage_v1', JSON.stringify({ day: '2000-01-01', scans: 1, limit: 1 }));
   const tree = await renderApp();
+  // без сканів застосунок відкривається на навчанні — сканер на своїй вкладці
+  expect(one(tree, ScannerScreen)).toBeNull();
+  await openTab(tree, 'scan');
   const scanner = () => one(tree, ScannerScreen);
   expect(scanner().props.scansLeft).toBe(0);
   let allowed;

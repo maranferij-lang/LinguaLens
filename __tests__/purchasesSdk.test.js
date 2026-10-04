@@ -439,7 +439,8 @@ describe('prices that did not load', () => {
     expect(tree.root.findAllByType(ActivityIndicator)).toHaveLength(0);
     expect(texts()).toContain(t('pricesFailed'));
     expect(retry()).toBeTruthy();
-    expect(cta().props.disabled).toBe(true);
+    // купувати нічого: замість вимкненої кнопки покупки — «Спробувати ще раз»
+    expect(cta()).toBeUndefined();
 
     // мережа повернулась — «Спробувати ще раз», і тарифи на місці
     sdk.getOfferings.mockImplementation(async () => OFFERING);

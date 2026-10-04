@@ -6,20 +6,16 @@
 // саме він потрібен, щоб знайти справжню поломку.
 import { Component } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { getLocales } from 'expo-localization';
 import { MascotBob } from './Mascot';
 import { GradBtn } from './ui';
 import { makeT } from './i18n';
+import { phoneUiLang } from './locale';
 import { F, R, THEMES, type } from './theme';
 
-// Межа стоїть над App і не бачить налаштувань (вони могли й не прочитатись),
-// тож мову беремо з телефону.
+// Межа стоїть над App і не бачить його стану, але мова інтерфейсу однаково
+// не з налаштувань, а з телефону — та сама, що й на решті екранів.
 function deviceT() {
-  let lang = 'en';
-  try {
-    lang = (getLocales()[0]?.languageCode || 'en').toLowerCase();
-  } catch (_) {}
-  return makeT(lang);
+  return makeT(phoneUiLang());
 }
 
 export default class ErrorBoundary extends Component {

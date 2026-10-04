@@ -1,13 +1,49 @@
-// Мова інтерфейсу → локаль для дат і чисел. Без явної локалі
-// toLocaleDateString бере мову системи, і в українському інтерфейсі
-// з'являлось «до October 8».
+// Мова інтерфейсу: звідки береться і як із неї вийти на локаль для дат.
 //
-// Мова — та, якою інтерфейс реально говорить (uiLang): французу без
-// перекладу UI речення пейволу англійське, і дата в ньому теж має бути
+// Інтерфейс завжди говорить мовою телефону (pickUiLang у i18n.js), а не
+// «моєю мовою» з налаштувань: та — лише мова перекладів. Телефон українською
+// й переклади польською — застосунок українською; телефон французькою —
+// англійською, бо французького інтерфейсу в нас немає.
+//
+// Без явної локалі toLocaleDateString бере мову системи, і в українському
+// інтерфейсі з'являлось «до October 8». Тож дати теж ідуть за uiLang: французу
+// без перекладу UI речення пейволу англійське, і дата в ньому теж має бути
 // англійською, а не «Free until 8 octobre».
-import { uiLang } from './i18n';
+import { useEffect, useState } from 'react';
+import { AppState } from 'react-native';
+import { getLocales, useLocales } from 'expo-localization';
+import { pickUiLang, uiLang } from './i18n';
 
 const LOCALES = { en: 'en-US', uk: 'uk-UA', de: 'de-DE', es: 'es-ES' };
+
+// Мова інтерфейсу просто зараз — для тих, хто живе поза React (межа
+// помилок над App) чи читає її один раз.
+export function phoneUiLang() {
+  try {
+    return pickUiLang(getLocales());
+  } catch (_) {
+    return 'en';
+  }
+}
+
+// Мова інтерфейсу, яка стежить за телефоном. Уже перший кадр — мовою
+// телефону: значення читається синхронно, без «блимання» англійською.
+// Змінити мову iOS перезапускає застосунок, тож там це майже завжди та сама
+// мова; Android і веб міняють її на ходу — useLocales чує подію, а повернення
+// з фону (там і змінюють мову) перечитує список про всяк випадок. Однакове
+// значення React відкидає без перерендеру.
+export function useUiLang() {
+  const locales = useLocales();
+  const [lang, setLang] = useState(() => pickUiLang(locales));
+  useEffect(() => setLang(pickUiLang(locales)), [locales]);
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') setLang(phoneUiLang());
+    });
+    return () => sub?.remove?.();
+  }, []);
+  return lang;
+}
 
 export function localeFor(lang) {
   const code = uiLang(lang);

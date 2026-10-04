@@ -6,7 +6,7 @@
 import fs from 'fs';
 import path from 'path';
 
-import { STRINGS, makeT, pluralIndex, uiLang } from '../src/i18n';
+import { STRINGS, makeT, pickUiLang, pluralIndex, uiLang } from '../src/i18n';
 import { formatDate } from '../src/locale';
 import { ACHIEVEMENTS } from '../src/achievements';
 import { COMPARISON, PLANS, PRO_BENEFITS } from '../src/subscription';
@@ -294,5 +294,54 @@ describe('dates', () => {
   test('translated interfaces keep their own date format', () => {
     expect(formatDate(ts, 'uk')).not.toBe(formatDate(ts, 'en'));
     expect(formatDate(ts, 'de')).toMatch(/Oktober/);
+  });
+});
+
+// Інтерфейс говорить мовою телефону: перша з бажаних мов iOS, для якої є
+// переклад, — так само, як iOS обирає .lproj для системних запитів.
+describe('interface language = phone language', () => {
+  const loc = (...tags) => tags.map((tag) => ({ languageTag: tag, languageCode: tag.split('-')[0] }));
+
+  test('the first preferred language we have a UI for', () => {
+    expect(pickUiLang(loc('uk-UA'))).toBe('uk');
+    expect(pickUiLang(loc('uk-UA', 'en-US'))).toBe('uk');
+    expect(pickUiLang(loc('ru-RU', 'uk-UA'))).toBe('uk');
+    expect(pickUiLang(loc('pl-PL', 'es-ES', 'en-US'))).toBe('es');
+    expect(pickUiLang(loc('de-AT'))).toBe('de');
+  });
+
+  test('nothing we speak → English, as iOS falls back to the development language', () => {
+    expect(pickUiLang(loc('fr-FR'))).toBe('en');
+    expect(pickUiLang(loc('pl-PL', 'ru-RU'))).toBe('en');
+    expect(pickUiLang([])).toBe('en');
+    expect(pickUiLang(null)).toBe('en');
+    expect(pickUiLang([{ languageCode: 'constructor' }])).toBe('en');
+  });
+
+  test('a locale without languageCode still counts by its tag', () => {
+    expect(pickUiLang([{ languageCode: null, languageTag: 'es-MX' }])).toBe('es');
+    expect(pickUiLang([{ languageTag: 'UK_ua' }])).toBe('uk');
+  });
+
+  // Перемикач мови в Параметри → LinguaLens показує мови з
+  // CFBundleLocalizations (expo-localization → supportedLocales), а запити
+  // камери й фото беруть тексти з app.json → locales. Обидва списки мусять
+  // збігатися з мовами інтерфейсу — інакше запит говорив би однією мовою, а
+  // екран перед ним іншою.
+  test('iOS knows exactly the languages the interface speaks', () => {
+    const app = JSON.parse(fs.readFileSync(path.join(ROOT, 'app.json'), 'utf8')).expo;
+    const plugin = app.plugins.find((p) => Array.isArray(p) && p[0] === 'expo-localization');
+    expect([...plugin[1].supportedLocales].sort()).toEqual([...LANGS].sort());
+    expect(Object.keys(app.locales).sort()).toEqual([...LANGS].sort());
+    expect(Object.keys(STRINGS).sort()).toEqual([...LANGS].sort());
+  });
+
+  test('the settings row is translated everywhere', () => {
+    for (const l of LANGS) {
+      expect(STRINGS[l].uiLangTitle).toBeTruthy();
+      expect(STRINGS[l].uiLangHint).toContain('LinguaLens');
+      if (l !== 'en') expect(STRINGS[l].uiLangHint).not.toBe(STRINGS.en.uiLangHint);
+    }
+    expect(STRINGS.uk.uiLangTitle).toBe('Мова інтерфейсу');
   });
 });

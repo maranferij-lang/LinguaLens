@@ -260,10 +260,12 @@ export function levelBand(level) {
   return 5;
 }
 
-// «8/10 · B2+ — пропускаємо базові слова, починаємо зі складніших»
+// Що рівень міняє на ділі: «Пропускаємо базові слова, починаємо зі
+// складніших». Число й CEFR уже великі над слайдером — тут лише наслідок
+// (VoiceOver чує «8 з 10, B2+» у значенні самого слайдера, levelA11y).
 export function levelResult(level, t) {
-  const v = clampLevel(level);
-  return `${v}/10 · ${cefrFor(v)} — ${t('levelBand' + levelBand(v))}`;
+  const s = t('levelBand' + levelBand(level));
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 // Слово, яке людина знає, — в кінець списку (найновіше), без повторів і не

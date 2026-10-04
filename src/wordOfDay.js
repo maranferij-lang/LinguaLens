@@ -153,7 +153,8 @@ let queue = Promise.resolve();
 
 // Головна функція: оновити кеш + перепланувати сповіщення.
 // Викликається при старті апки і при зміні мов, профілю, «Знаю» й налаштувань.
-// t — перекладач інтерфейсу: тема в заголовку сповіщення («Фінанси · liquidity»).
+// t — перекладач інтерфейсу (мовою телефону, не «моєю мовою»): тема в
+// заголовку сповіщення («Фінанси · liquidity»).
 export function syncWordOfDay(opts) {
   const run = queue.then(() => doSync(opts));
   queue = run.catch(() => {});
@@ -212,8 +213,9 @@ export async function rescheduleNotifications(cache, enabled, hour = DEFAULT_HOU
 
   if (Platform.OS === 'android') {
     try {
+      // Назву каналу Android показує в налаштуваннях сповіщень — мовою інтерфейсу
       await Notifications.setNotificationChannelAsync('word-of-day', {
-        name: 'Word of the day',
+        name: t ? t('dailyPush') : 'Word of the day',
         importance: Notifications.AndroidImportance.DEFAULT,
       });
     } catch (_) {}

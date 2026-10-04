@@ -1,10 +1,12 @@
-// Профіль: аватар-Lingo, рівень, стрік, статистика, графік, досягнення.
+// Профіль: аватар-Lingo, колекція слів, стрік, статистика, графік, досягнення.
 import { useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import Svg, { Path } from 'react-native-svg';
 import { localDayKey } from './storage';
 import { cleanName } from './profile';
 import { flagFor, nameFor } from './speech';
+import { weekdayLabels } from './share/layout';
 import { evaluate, computeMetrics, levelFromWords, unlockedCount } from './achievements';
 import { IcCheck, IcFlame, IcShare } from './icons';
 import { Mascot, MascotBob } from './Mascot';
@@ -16,6 +18,23 @@ import { F, R, useTheme } from './theme';
 
 const WEEK = 7 * 24 * 60 * 60 * 1000;
 const AVATARS = ['wave', 'celebrate', 'think', 'encourage'];
+
+// Олівець на значку аватара: видно, що профіль можна змінити. Штрих — як
+// у наборі src/icons.js.
+function Pencil({ size = 12, color }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24">
+      <Path
+        d="M15.5 4.5 19.5 8.5 8.5 19.5H4.5V15.5zM13 7l4 4"
+        fill="none"
+        stroke={color}
+        strokeWidth={2.2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
 
 function computeStreak(activeDays) {
   let streak = 0;
@@ -29,7 +48,7 @@ function computeStreak(activeDays) {
 }
 
 export default function ProfileScreen({ words, activity, stats, profile, onUpdateProfile, onShareWeek, onShareAchievement, t }) {
-  const { C, SHADOW } = useTheme();
+  const { C, T, SHADOW } = useTheme();
   const s = useMemo(() => makeStyles(C), [C]);
 
   const [tab, setTab] = useState('stats'); // stats | achievements
@@ -60,7 +79,9 @@ export default function ProfileScreen({ words, activity, stats, profile, onUpdat
     days.push({ key, dow: d.getDay(), value: activity[key] || 0 });
   }
   const maxVal = Math.max(1, ...days.map((d) => d.value));
-  const DAY_LETTERS = (t('dowLetters') || 'SMTWTFS').split(''); // неділя → субота
+  // «Нд Пн Вт…», а не «НПВСЧПС»: однією літерою понеділок і пʼятниця
+  // однакові. Від неділі, як Date#getDay.
+  const DAY_LABELS = weekdayLabels(t('dowShort'));
 
   const byLang = {};
   for (const w of words) {
@@ -100,22 +121,37 @@ export default function ProfileScreen({ words, activity, stats, profile, onUpdat
       showsVerticalScrollIndicator={false}
       contentInsetAdjustmentBehavior="never"
     >
+      {/* Заголовок — як на інших вкладках */}
+      <Text style={[T.largeTitle, s.title]} accessibilityRole="header">
+        {t('tabProfile')}
+      </Text>
+
       {/* Шапка профілю */}
       <FadeIn>
         <View style={[s.hero, SHADOW]}>
-          <Pressable onPress={openEditor} style={s.avatarWrap}>
+          {/* Олівець на аватарі каже, що його можна змінити; підказка
+              словами — лише поки імені ще немає */}
+          <Pressable
+            onPress={openEditor}
+            style={s.avatarWrap}
+            accessibilityRole="button"
+            accessibilityLabel={t('editProfile')}
+          >
             <MascotBob pose={profile.avatar || 'wave'} size={92} />
+            <View style={s.editBadge}>
+              <Pencil size={13} color={C.onAccent} />
+            </View>
           </Pressable>
           <Pressable onPress={openEditor}>
             <Text style={s.name}>{profile.name || t('profileNoName')}</Text>
           </Pressable>
-          <Text style={s.email}>{t('profileHint')}</Text>
+          {profile.name ? null : <Text style={s.email}>{t('profileHint')}</Text>}
 
-          <View style={s.levelRow}>
-            <Text style={s.levelText}>{t('level', { n: lvl.level })}</Text>
-            <Text style={s.levelNext}>
-              {lvl.current}/{lvl.nextNeed}
-            </Text>
+          {/* Колекція слів, а не «рівень»: рівнем у застосунку зветься лише
+              рівень мови (B2 у налаштуваннях) */}
+          <View style={[s.levelRow, profile.name && { marginTop: 14 }]}>
+            <Text style={s.levelText}>{t('collStage', { n: lvl.level })}</Text>
+            <Text style={s.levelNext}>{t('collWords', { c: lvl.current, n: lvl.nextNeed })}</Text>
           </View>
           <Bar progress={lvl.progress} color={C.accent} bg={C.card2} />
         </View>
@@ -150,7 +186,8 @@ export default function ProfileScreen({ words, activity, stats, profile, onUpdat
                 <IcFlame size={28} color={streak ? C.accent : C.faint} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={s.streakNum}>{t('streakN', { n: streak })}</Text>
+                {/* Нуль днів — не провал, а старт: перший день так і кличе */}
+                <Text style={s.streakNum}>{streak ? t('streakN', { n: streak }) : t('streakStartTitle')}</Text>
                 <Text style={s.streakHint}>{streak ? t('streakGo') : t('streakStart')}</Text>
               </View>
             </Glass>
@@ -186,7 +223,9 @@ export default function ProfileScreen({ words, activity, stats, profile, onUpdat
                           : { height: 10, backgroundColor: C.card2 },
                       ]}
                     />
-                    <Text style={s.barLabel}>{DAY_LETTERS[d.dow]}</Text>
+                    <Text style={s.barLabel} numberOfLines={1}>
+                      {DAY_LABELS[d.dow]}
+                    </Text>
                   </View>
                 ))}
               </View>
@@ -230,7 +269,15 @@ export default function ProfileScreen({ words, activity, stats, profile, onUpdat
                 disabled={!a.unlocked || !onShareAchievement}
                 onPress={() => onShareAchievement(a)}
                 style={[s.achCard, a.unlocked ? s.achUnlocked : s.achLocked]}
+                accessibilityRole={a.unlocked && onShareAchievement ? 'button' : undefined}
+                accessibilityHint={a.unlocked && onShareAchievement ? t('share') : undefined}
               >
+                {/* Відкрите досягнення можна показати друзям — і це видно */}
+                {a.unlocked && onShareAchievement ? (
+                  <View style={s.achShare} pointerEvents="none">
+                    <IcShare size={15} color={C.accent} />
+                  </View>
+                ) : null}
                 <View style={!a.unlocked && { opacity: 0.32 }}>
                   <AchIcon id={a.id} size={34} color={a.unlocked ? C.accent : C.faint} />
                 </View>
@@ -269,7 +316,7 @@ export default function ProfileScreen({ words, activity, stats, profile, onUpdat
               value={draftName}
               onChangeText={setDraftName}
               placeholder={t('namePlaceholder')}
-              placeholderTextColor={C.faint}
+              placeholderTextColor={C.dim}
               autoFocus
               returnKeyType="done"
               onSubmitEditing={saveName}
@@ -313,6 +360,7 @@ const makeStyles = (C) =>
     },
     shareWeekText: { color: C.accent, fontSize: 15, fontFamily: F.bold },
     root: { flex: 1, backgroundColor: C.bg, padding: 20 },
+    title: { marginBottom: 14 },
     hero: {
       backgroundColor: C.card,
       borderRadius: R.xl,
@@ -321,6 +369,20 @@ const makeStyles = (C) =>
       marginBottom: 14,
     },
     avatarWrap: { marginBottom: 2 },
+    // значок-олівець у куті аватара
+    editBadge: {
+      position: 'absolute',
+      right: 2,
+      bottom: 6,
+      width: 26,
+      height: 26,
+      borderRadius: 13,
+      backgroundColor: C.accent,
+      borderWidth: 2,
+      borderColor: C.card,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
     name: { color: C.text, fontSize: 22, letterSpacing: -0.31, fontFamily: F.extra, textAlign: 'center' },
     email: { color: C.dim, fontSize: 13, fontFamily: F.reg, marginTop: 2, marginBottom: 16 },
     levelRow: { flexDirection: 'row', justifyContent: 'space-between', alignSelf: 'stretch', marginBottom: 6 },
@@ -349,7 +411,7 @@ const makeStyles = (C) =>
     miniNum: { color: C.text, fontSize: 24, fontFamily: F.extra },
     miniLabel: { color: C.dim, fontSize: 11, marginTop: 3, fontFamily: F.reg },
     sectionLabel: {
-      color: C.faint,
+      color: C.dim,
       fontSize: 12,
       fontFamily: F.extra,
       textTransform: 'uppercase',
@@ -362,7 +424,7 @@ const makeStyles = (C) =>
     barCol: { alignItems: 'center', flex: 1, gap: 4 },
     bar: { width: 16, borderRadius: 5 },
     barVal: { color: C.dim, fontSize: 10, letterSpacing: 0.2, height: 14, fontFamily: F.semi },
-    barLabel: { color: C.faint, fontSize: 11, fontFamily: F.semi },
+    barLabel: { color: C.dim, fontSize: 11, fontFamily: F.semi },
     sepLine: { height: StyleSheet.hairlineWidth, backgroundColor: C.sep, marginLeft: 48 },
     langRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 11 },
     langName: { color: C.text, fontSize: 16, flex: 1, fontFamily: F.semi },
@@ -383,7 +445,18 @@ const makeStyles = (C) =>
     achTitle: { color: C.text, fontSize: 13, fontFamily: F.bold, marginTop: 8, marginBottom: 8, lineHeight: 17 },
     achDone: { flexDirection: 'row', alignItems: 'center', gap: 5 },
     achDoneText: { color: C.green, fontSize: 12, fontFamily: F.bold },
-    achProgress: { color: C.faint, fontSize: 11, fontFamily: F.semi, marginTop: 5 },
+    achProgress: { color: C.dim, fontSize: 11, fontFamily: F.semi, marginTop: 5 },
+    achShare: {
+      position: 'absolute',
+      top: 10,
+      right: 10,
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      backgroundColor: C.accentSoft,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
 
     backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)' },
     sheetWrap: { position: 'absolute', bottom: 0, left: 0, right: 0 },
@@ -396,7 +469,7 @@ const makeStyles = (C) =>
     },
     sheetTitle: { color: C.text, fontSize: 20, fontFamily: F.extra, marginBottom: 10 },
     label: {
-      color: C.faint,
+      color: C.dim,
       fontSize: 11,
       fontFamily: F.extra,
       letterSpacing: 1,

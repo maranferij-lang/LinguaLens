@@ -748,10 +748,11 @@ describe('camera permission on the Scan tab', () => {
 // v1.3: безкоштовний скан — один на все життя. Лічильник над камерою каже
 // «лишився N безкоштовних», а не «на сьогодні»: завтра нових не буде.
 describe('the free scans counter over the camera', () => {
+  // нуль сканів — не «0 лишилось», а «використано» і чип Pro (polishApp.test.js)
   test('says how many free scans are left, never “today”', async () => {
     for (const [n, en, uk] of [
       [1, '1 free scan left', 'Лишився 1 безкоштовний скан'],
-      [0, '0 free scans left', 'Лишилося 0 безкоштовних сканів'],
+      [3, '3 free scans left', 'Лишилося 3 безкоштовні скани'],
     ]) {
       let tree = await render(scanner({ scansLeft: n }));
       expect(texts(tree)).toContain(en);

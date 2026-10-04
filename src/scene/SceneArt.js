@@ -135,7 +135,9 @@ export function Leaders({ width, height, lines, color = '#FFFFFF', dot = '#FFFFF
 // Плашка «слово / переклад». Розміри вже пораховані (chipSize), тож вона
 // не міряє себе сама й не залежить від системного розміру шрифту — це
 // частина зображення, як підпис на фото в журналі.
-export function SceneChip({ word, translation, size, colors, radius = 12, padX = 11, style }) {
+// saved — слово вже в словнику: плашка трохи пригашена, у куті — галочка
+// (на екрані сцени; картка «поділитись» цього не показує).
+export function SceneChip({ word, translation, size, colors, radius = 12, padX = 11, saved = false, style }) {
   return (
     <View
       style={[
@@ -153,6 +155,7 @@ export function SceneChip({ word, translation, size, colors, radius = 12, padX =
           shadowOffset: { width: 0, height: 3 },
           elevation: 4,
         },
+        saved && { opacity: SAVED_OPACITY },
         style,
       ]}
     >
@@ -172,6 +175,35 @@ export function SceneChip({ word, translation, size, colors, radius = 12, padX =
           {translation}
         </Text>
       ) : null}
+      {saved ? <SavedMark color={colors.check || colors.word} /> : null}
+    </View>
+  );
+}
+
+// Пригашення збереженої плашки: читається, але видно, що з нею вже все
+const SAVED_OPACITY = 0.72;
+
+// Галочка «вже в словнику»: кружечок на правому верхньому куті плашки
+function SavedMark({ color }) {
+  return (
+    <View
+      style={{
+        position: 'absolute',
+        top: -6,
+        right: -6,
+        width: 18,
+        height: 18,
+        borderRadius: 9,
+        backgroundColor: color,
+        borderWidth: 1.5,
+        borderColor: '#FFFFFF',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <Svg width={10} height={10} viewBox="0 0 24 24">
+        <Path d="M4.5 12.5 9.5 17.5 19.5 6.5" fill="none" stroke="#FFFFFF" strokeWidth={3.4} strokeLinecap="round" strokeLinejoin="round" />
+      </Svg>
     </View>
   );
 }
