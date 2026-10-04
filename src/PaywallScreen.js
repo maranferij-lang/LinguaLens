@@ -109,6 +109,8 @@ export default function PaywallScreen({
   const short = useWindowDimensions().height < SHORT_SCREEN;
   const [picked, setPicked] = useState('year');
   const [busy, setBusy] = useState(false);
+  // покупка вже йде: другий тап, що встиг до перерендеру, нічого не запускає
+  const buyingRef = useRef(false);
   // ключ примітки під кнопкою після покупки (purchaseNote) або null
   const [note, setNote] = useState(null);
   // «Відновити покупки» вже йде: другий тап не запускає другого відновлення
@@ -171,12 +173,21 @@ export default function PaywallScreen({
   }
 
   async function buy() {
-    if (!plan || busy) return;
+    if (!plan || buyingRef.current) return;
+    buyingRef.current = true;
     setBusy(true);
     setNote(null);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const res = await onPurchase(plan.id);
-    setBusy(false);
+    let res;
+    try {
+      res = await onPurchase(plan.id);
+    } catch (_) {
+      // невідомо, чи списано: «щось пішло не так» з виходом через відновлення
+      res = { ok: false, error: 'FAILED' };
+    } finally {
+      buyingRef.current = false;
+      setBusy(false);
+    }
     // Скасування в системному вікні — не помилка, мовчимо. «Гроші не
     // списано» — лише коли це точно так (див. purchaseNote).
     setNote(purchaseNote(res));
@@ -222,7 +233,7 @@ export default function PaywallScreen({
   // Тарифи з ціною з магазину — перші під заголовком на кожній стіні.
   // Для VoiceOver — група перемикачів: «Рік, $34.99, …, вибрано».
   const plansBlock = (
-    <FadeIn delay={45} style={{ marginTop: compact ? 20 : short ? 18 : 26 }}>
+    <FadeIn delay={45} style={{ marginTop: compact ? 20 : short ? 12 : 26 }}>
       {!list.length && !unavailable && !failed ? <ActivityIndicator color={C.accent} style={{ marginVertical: 30 }} /> : null}
       <View style={{ gap: 10 }} accessibilityRole="radiogroup">
         {list.map((p) => {
@@ -237,7 +248,7 @@ export default function PaywallScreen({
                 Haptics.selectionAsync();
                 setPicked(p.id);
               }}
-              style={[s.plan, active && s.planActive, active && SHADOW]}
+              style={[s.plan, short && !compact && s.planShort, active && s.planActive, active && SHADOW]}
               accessibilityRole="radio"
               accessibilityState={{ checked: active }}
               accessibilityLabel={label}
@@ -285,13 +296,15 @@ export default function PaywallScreen({
         ? t(RENEW_LEGAL[plan.id], { p: plan.price })
         : t('renewLegal');
 
-  // Ask to Buy «чекаємо на схвалення» — стан, а не помилка: сірим
+  // Ask to Buy «чекаємо на схвалення» — стан, а не помилка: сірим.
+  // «Щось пішло не так» — без «напиши в підтримку» в самому реченні: коли
+  // адреса є, під ним справжнє посилання, а коли нема — і писати нікуди.
   const noteText = unavailable ? t('purchasesUnavailable') : note === 'purchaseUnclear' ? t('pwUnclearNote') : note ? t(note) : '';
 
   return (
     <View style={s.root}>
       {/* Хрестик — у власній смужці поза прокруткою: ціни під ним не їздять */}
-      <View style={s.topBar}>
+      <View style={[s.topBar, short && s.topBarShort]}>
         <Pressable style={s.close} onPress={onClose} hitSlop={4} accessibilityRole="button" accessibilityLabel={t('close')}>
           <View style={s.closeDot}>
             <IcClose size={20} color={C.dim} />
@@ -496,7 +509,10 @@ export function defaultPlan(list) {
 // чесніше за «через тиждень». Нагадування — лише якщо зможемо його
 // надіслати (див. canRemind) і якщо до нього лишається хоч день. День
 // нагадування — той самий, що ставить scheduleTrialReminder (wordOfDay.js).
-export function TrialTimeline({ days, price, lang, canRemind, t }) {
+//
+// dense — тісніший варіант для низьких екранів (SE): на другому екрані
+// пейволу онбордингу під таймлайном ще має влізти «скасувати будь-коли».
+export function TrialTimeline({ days, price, lang, canRemind, dense = false, t }) {
   const { C } = useTheme();
   const s = useMemo(() => makeStyles(C), [C]);
   const date = (n) => formatDate(Date.now() + n * 86400000, lang);
@@ -515,14 +531,14 @@ export function TrialTimeline({ days, price, lang, canRemind, t }) {
     { key: 'charge', label: t('tlDay', { n: days }), date: date(days), text: t('tlChargeText', { p: price }) },
   ];
   return (
-    <View style={s.timeline}>
+    <View style={[s.timeline, dense && s.timelineDense]}>
       {rows.map((r, i) => (
         <View key={r.key} style={s.tlRow} accessible>
           <View style={s.tlRail}>
             <View style={[s.tlDot, i === 0 && s.tlDotNow]} />
             {i < rows.length - 1 ? <View style={s.tlLine} /> : null}
           </View>
-          <View style={s.tlBody}>
+          <View style={[s.tlBody, dense && s.tlBodyDense]}>
             <Text style={s.tlLabel}>
               {r.label}
               {r.date ? <Text style={s.tlDate}>{'  ·  ' + r.date}</Text> : null}
@@ -551,6 +567,8 @@ const makeStyles = (C) =>
       paddingHorizontal: 10,
       backgroundColor: C.bg,
     },
+    // на SE — рівно на висоту цілі: кожен пункт тут на рахунку
+    topBarShort: { height: 44 },
     close: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
     closeDot: {
       width: 36,
@@ -633,6 +651,9 @@ const makeStyles = (C) =>
       borderWidth: 2,
       borderColor: 'transparent',
     },
+    // на SE тарифи трохи нижчі, щоб обраний лишався над підвалом навіть з
+    // помилкою покупки (рядок однаково вищий за 44 pt)
+    planShort: { paddingVertical: 12 },
     planActive: { borderColor: C.accent },
     radio: {
       width: 22,
@@ -724,6 +745,8 @@ const makeStyles = (C) =>
     tlDotNow: { backgroundColor: C.accent },
     tlLine: { flex: 1, width: 2, borderRadius: 1, backgroundColor: C.accentSoft, marginVertical: 4 },
     tlBody: { flex: 1, paddingBottom: 16 },
+    timelineDense: { marginTop: 14, paddingTop: 14, paddingBottom: 2 },
+    tlBodyDense: { paddingBottom: 10 },
     tlLabel: { color: C.text, ...type(16, F.extra) },
     tlDate: { color: C.dim, ...type(14, F.semi) },
     tlText: { color: C.dim, ...type(14, F.reg), marginTop: 2 },

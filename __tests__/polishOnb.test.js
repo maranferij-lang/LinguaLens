@@ -11,7 +11,7 @@ import fs from 'fs';
 import path from 'path';
 import OnboardingScreen, { onboardingFlow } from '../src/OnboardingScreen';
 import OnboardingPaywall from '../src/OnboardingPaywall';
-import PaywallScreen from '../src/PaywallScreen';
+import PaywallScreen, { TrialTimeline } from '../src/PaywallScreen';
 import LangSheet, { langOptions } from '../src/LangSheet';
 import HoldToCommit, { HOLD_MS, NUDGE_MS } from '../src/HoldToCommit';
 import { HERO, PlanBody, PushPreview, hourLabel } from '../src/OnboardingParts';
@@ -290,6 +290,8 @@ describe('onboarding paywall screens', () => {
       expect(tree.root.findAll((n) => n.type?.name === 'MascotBob')[0].props.size).toBe(100);
       await tap(tree, t('obNext'));
       expect(style(hosts(tree, (n) => n.props.testID === 'opw-bell')[0]).width).toBe(76);
+      // тісніший таймлайн — під ним ще влазить «скасувати будь-коли»
+      expect(tree.root.findByType(TrialTimeline).props.dense).toBe(true);
     } finally {
       dims.mockRestore();
     }
@@ -461,6 +463,22 @@ describe('progress during purchase and restore', () => {
     expect(onPurchase).toHaveBeenCalledTimes(1);
     await act(async () => finish({ cancelled: true }));
     expect(cta().props.loading).toBe(false);
+  });
+
+  test('two taps before the next frame still start one purchase; a thrown error ends the spinner', async () => {
+    let finish;
+    const onPurchase = jest.fn(() => new Promise((r, reject) => (finish = reject)));
+    const tree = await mount(<PaywallScreen reason="scans" plans={PLANS} onClose={() => {}} onPurchase={onPurchase} onRestore={async () => ({})} lang="en" t={t} />);
+    const cta = () => tree.root.findAll((n) => n.type === GradBtn && n.props.title === t('startTrial'))[0];
+    const press = cta().props.onPress;
+    await act(async () => {
+      press();
+      press();
+    });
+    expect(onPurchase).toHaveBeenCalledTimes(1);
+    await act(async () => finish(new Error('boom')));
+    expect(cta().props.loading).toBe(false);
+    expect(has(tree, t('pwUnclearNote'))).toBe(true);
   });
 
   test('a double tap on Restore runs one restore; the alert has a short title and the explanation', async () => {

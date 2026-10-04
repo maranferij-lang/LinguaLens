@@ -68,8 +68,9 @@ export default function OnboardingPaywall({
 }) {
   const { C, SHADOW_LG } = useTheme();
   const s = useMemo(() => makeStyles(C), [C]);
-  // SE і подібні: менші Lingo й коло, тісніші відступи — (а) показує всі
-  // три переваги, а (б) — рядок списання й «скасувати можна будь-коли»
+  // SE і подібні: менші Lingo й коло, тісніші відступи й таймлайн — (а)
+  // показує всі три переваги, а (б) — рядок списання й «скасувати можна
+  // будь-коли» без прокрутки
   const short = useWindowDimensions().height < SHORT_SCREEN;
   // Набір екранів фіксуємо на старті: тарифи, що дозавантажились посеред
   // показу, не мають перекидати людину назад на (а).
@@ -144,7 +145,7 @@ export default function OnboardingPaywall({
   return (
     <View style={s.root}>
       {/* Хрестик — у власній смужці поза прокруткою, як у PaywallScreen */}
-      <View style={s.topBar}>
+      <View style={[s.topBar, short && s.topBarShort]}>
         <Pressable style={s.close} onPress={close} hitSlop={4} accessibilityRole="button" accessibilityLabel={t('close')}>
           <View style={s.closeDot}>
             <IcClose size={20} color={C.dim} />
@@ -193,8 +194,8 @@ export default function OnboardingPaywall({
           </View>
         ) : (
           <FadeIn key="tl" delay={stagger(1)}>
-            <TrialTimeline days={plan.trialDays} price={plan.price} lang={lang} canRemind={canRemind} t={t} />
-            <Text style={s.cancel}>{t('opwCancel')}</Text>
+            <TrialTimeline days={plan.trialDays} price={plan.price} lang={lang} canRemind={canRemind} dense={short} t={t} />
+            <Text style={[s.cancel, short && s.cancelShort]}>{t('opwCancel')}</Text>
           </FadeIn>
         )}
       </ScrollView>
@@ -219,6 +220,7 @@ const makeStyles = (C) =>
       paddingHorizontal: 10,
       backgroundColor: C.bg,
     },
+    topBarShort: { height: 44 },
     close: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
     closeDot: {
       width: 36,
@@ -276,6 +278,7 @@ const makeStyles = (C) =>
     },
     benefitText: { flex: 1, color: C.text, ...type(16, F.bold) },
     cancel: { color: C.dim, ...type(13, F.semi), textAlign: 'center', marginTop: 14 },
+    cancelShort: { marginTop: 10 },
     footer: {
       backgroundColor: C.card,
       paddingHorizontal: 22,
