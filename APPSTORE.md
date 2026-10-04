@@ -903,7 +903,25 @@ eas env:list production # які змінні піде в збірку
 
 ## v1.3 · W1 Сканер, «Навчання», серія 2.0
 
-_Заповнює потік W1._
+**Що нового (рядки для «What’s New»):**
+- uk: «Новий сканер: ліхтарик, вибір мови просто на камері, наліпка
+  останнього слова. Серія тепер живе: вогник росте щодня й розгоряється на
+  сьомий, а перша дія дня — маленьке свято. Картки й квіз видно з першого
+  запуску — і ясно, як їх відкрити.»
+- en: “A new scanner with a flashlight, the word language right on the
+  camera and your latest sticker at hand. Your streak comes alive: the
+  flame grows every day and catches fire on day seven, and the first
+  thing you learn each day gets a small celebration. Flashcards and the
+  quiz are visible from the start — with a clear way to unlock them.”
+
+**Notes for Review (додати до наявних):**
+- Streak reminder: one local notification at 8 pm, only when the user’s
+  own learning streak (2+ days) would end that night and nothing was
+  practiced today. It reminds the user of their own progress, contains no
+  advertising, and can be turned off in Settings → Streak → Streak
+  reminders (Guideline 4.5.4).
+- The flashlight button uses the existing camera permission; no new
+  permissions were added.
 
 ## v1.3 · W2 Віджети й Pro «кілька слів на день»
 
