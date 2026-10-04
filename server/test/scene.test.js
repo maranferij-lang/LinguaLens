@@ -12,6 +12,9 @@ Object.assign(process.env, {
   DATA_FILE: path.join(dir, 'data.json'),
   AUTH_SECRET: 'test-secret',
   FREE_SCANS_PER_DAY: '3',
+  // Тут перевіряємо саму сцену, а не пробу Pro (її — scenepro.test.js):
+  // кілька сцен на пристрій, тож довічний ліміт із запасом.
+  FREE_SCENES: '10',
   REVENUECAT_SECRET_KEY: '',
 });
 const { startServer } = require('./helpers/http');
@@ -78,7 +81,7 @@ test('the mock scene: four objects with boxes and clockwise outlines, one scan',
     // перша точка вгорі, наступні йдуть праворуч — за годинниковою стрілкою
     assert.ok(o.outline[0][0] === o.box[0] && o.outline[2][1] > o.outline[0][1]);
   }
-  assert.deepEqual(r.data.usage, { day: billing.utcDay(), scans: 1, limit: 3 });
+  assert.deepEqual(r.data.usage, { day: billing.utcDay(), scans: 1, limit: 3, scenes: 1, sceneLimit: 10 });
   assert.equal(await used(token), 1);
 });
 
@@ -183,6 +186,8 @@ test('an unreadable reply is 502, an AI failure 502, a timeout 504 — the slot 
     assert.ok(!JSON.stringify(r.data).includes('Anthropic'));
   }
   assert.equal(await used(token), 0);
+  const me = await call('GET', '/me', { token, headers: { 'x-local-date': billing.utcDay() } });
+  assert.equal(me.data.usage.scenes, 0);
 });
 
 test('a scene costs exactly one scan of the daily limit', async () => {
@@ -190,9 +195,14 @@ test('a scene costs exactly one scan of the daily limit', async () => {
   const day = billing.utcDay();
   const headers = { 'x-local-date': day };
   const statuses = [];
-  for (let i = 0; i < 4; i++) statuses.push((await call('POST', '/scan', { token, body: SCENE, headers })).status);
-  assert.deepEqual(statuses, [200, 200, 200, 402]);
+  const replies = [];
+  for (let i = 0; i < 4; i++) replies.push(await call('POST', '/scan', { token, body: SCENE, headers }));
+  assert.deepEqual(replies.map((r) => r.status), [200, 200, 200, 402]);
+  // проби сцен ще є (10), тож відмова — саме денний ліміт
+  assert.deepEqual(replies[3].data, { error: 'SCAN_LIMIT', limit: 3, used: 3 });
   assert.equal(await used(token), 3);
+  const me = await call('GET', '/me', { token, headers });
+  assert.equal(me.data.usage.scenes, 3);
 });
 
 test('a scene nobody waits for any more is not counted', async () => {

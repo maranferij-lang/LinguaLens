@@ -12,6 +12,7 @@ Object.assign(process.env, {
   DATA_FILE: path.join(dir, 'data.json'),
   AUTH_SECRET: 'test-secret',
   FREE_SCANS_PER_DAY: '2',
+  FREE_SCENES: '1',
   REVENUECAT_WEBHOOK_AUTH: 'Bearer hook-secret',
   REVENUECAT_SECRET_KEY: '',
 });
@@ -74,7 +75,7 @@ test('device scans until the free quota, then 402 before calling AI', async () =
   const a = await call('POST', '/scan', { token, body: IMAGE, headers: { 'x-local-date': day } });
   assert.equal(a.status, 200);
   assert.equal(a.data.word, 'mug');
-  assert.deepEqual(a.data.usage, { day, scans: 1, limit: 2 });
+  assert.deepEqual(a.data.usage, { day, scans: 1, limit: 2, scenes: 0, sceneLimit: 1 });
   assert.ok(Array.isArray(a.data.outline) && a.data.outline.length >= 6);
   const b = await call('POST', '/scan', { token, body: IMAGE, headers: { 'x-local-date': day } });
   assert.equal(b.status, 200);
@@ -197,19 +198,20 @@ test('RevenueCat webhook grants Pro and lifts the limit', async () => {
   assert.equal(denied.status, 401);
   const until = Date.now() + 7 * 86400000;
   const ok = await call('POST', '/webhooks/revenuecat', {
-    body: { event: { type: 'INITIAL_PURCHASE', app_user_id: user.id, expiration_at_ms: until, entitlement_ids: ['pro'] } },
+    body: { event: { type: 'INITIAL_PURCHASE', app_user_id: user.id, expiration_at_ms: until, entitlement_ids: ['lingualens_pro'] } },
     headers: { authorization: 'Bearer hook-secret' },
   });
   assert.equal(ok.status, 200);
   const r = await call('POST', '/scan', { token, body: IMAGE, headers: { 'x-local-date': day } });
   assert.equal(r.status, 200);
   assert.equal(r.data.usage.limit, null);
+  assert.equal(r.data.usage.sceneLimit, null);
   const me = await call('GET', '/me', { token });
   assert.equal(me.data.pro.active, true);
   assert.equal(me.data.pro.until, until);
 
   await call('POST', '/webhooks/revenuecat', {
-    body: { event: { type: 'EXPIRATION', app_user_id: user.id, expiration_at_ms: Date.now() - 1000, entitlement_ids: ['pro'] } },
+    body: { event: { type: 'EXPIRATION', app_user_id: user.id, expiration_at_ms: Date.now() - 1000, entitlement_ids: ['lingualens_pro'] } },
     headers: { authorization: 'Bearer hook-secret' },
   });
   const after = await call('GET', '/me', { token });
@@ -222,14 +224,14 @@ test('webhook revokes Pro from the previous owner on TRANSFER and on a refund', 
   const hook = (event) =>
     call('POST', '/webhooks/revenuecat', { body: { event }, headers: { authorization: 'Bearer hook-secret' } });
   const until = Date.now() + 30 * 86400000;
-  await hook({ type: 'INITIAL_PURCHASE', app_user_id: a.user.id, expiration_at_ms: until, entitlement_ids: ['pro'] });
+  await hook({ type: 'INITIAL_PURCHASE', app_user_id: a.user.id, expiration_at_ms: until, entitlement_ids: ['lingualens_pro'] });
   assert.equal((await call('GET', '/me', { token: a.token })).data.pro.active, true);
   await hook({ type: 'TRANSFER', transferred_from: [a.user.id], transferred_to: [b.user.id] });
   assert.equal((await call('GET', '/me', { token: a.token })).data.pro.active, false);
 
-  await hook({ type: 'RENEWAL', app_user_id: b.user.id, expiration_at_ms: until, entitlement_ids: ['pro'] });
+  await hook({ type: 'RENEWAL', app_user_id: b.user.id, expiration_at_ms: until, entitlement_ids: ['lingualens_pro'] });
   assert.equal((await call('GET', '/me', { token: b.token })).data.pro.active, true);
-  await hook({ type: 'CANCELLATION', cancel_reason: 'CUSTOMER_SUPPORT', app_user_id: b.user.id, entitlement_ids: ['pro'] });
+  await hook({ type: 'CANCELLATION', cancel_reason: 'CUSTOMER_SUPPORT', app_user_id: b.user.id, entitlement_ids: ['lingualens_pro'] });
   assert.equal((await call('GET', '/me', { token: b.token })).data.pro.active, false);
 });
 
@@ -239,7 +241,7 @@ test('a scan in flight does not bring back Pro revoked by a webhook', async () =
   const hook = (event) =>
     call('POST', '/webhooks/revenuecat', { body: { event }, headers: { authorization: 'Bearer hook-secret' } });
   const headers = { 'x-forwarded-for': '198.51.100.62' };
-  await hook({ type: 'INITIAL_PURCHASE', app_user_id: a.user.id, expiration_at_ms: Date.now() + 86400000, entitlement_ids: ['pro'] });
+  await hook({ type: 'INITIAL_PURCHASE', app_user_id: a.user.id, expiration_at_ms: Date.now() + 86400000, entitlement_ids: ['lingualens_pro'] });
   assert.equal((await call('GET', '/me', { token: a.token, headers })).data.pro.active, true);
 
   const ai = require('../ai');

@@ -1,4 +1,5 @@
-// Pro-статус і денний ліміт сканів — на сервері, а не в телефоні.
+// Pro-статус, денний ліміт сканів і довічна проба сцени — на сервері, а не в
+// телефоні.
 //
 // Чому тут: лічильник у AsyncStorage обнуляється перевстановленням, а будь-хто
 // зі скриптом міг би безкоштовно витрачати наш AI-ключ. Тепер сервер сам
@@ -11,10 +12,28 @@
 const crypto = require('crypto');
 const store = require('./store');
 
-const FREE_SCANS_PER_DAY = Number(process.env.FREE_SCANS_PER_DAY || 5);
+// Кількість з оточення: ціле ≥ 0, інакше — значення за замовчуванням.
+// Опечатка на кшталт FREE_SCANS_PER_DAY=три дала б NaN, а `used >= NaN`
+// завжди false — тобто безлімітні безкоштовні скани за наш рахунок.
+function envCount(name, fallback) {
+  const raw = process.env[name];
+  if (raw === undefined || String(raw).trim() === '') return fallback;
+  const n = Number(raw);
+  if (Number.isInteger(n) && n >= 0) return n;
+  console.warn(`billing: ${name}=${raw} — не ціле число ≥ 0, беру ${fallback}`);
+  return fallback;
+}
+
+// Один безкоштовний скан на день: кожен виклик AI коштує грошей, а словник,
+// картки й слово дня лишаються безкоштовними без меж (v1.2).
+const FREE_SCANS_PER_DAY = envCount('FREE_SCANS_PER_DAY', 1);
+// Скан цілої кімнати — функція Pro, але з пробою: FREE_SCENES сцен за все
+// життя запису, щоб людина побачила «вау» до того, як побачить ціну.
+const FREE_SCENES = envCount('FREE_SCENES', 1);
 const RC_SECRET = process.env.REVENUECAT_SECRET_KEY || '';
 const RC_WEBHOOK_AUTH = process.env.REVENUECAT_WEBHOOK_AUTH || '';
-const ENTITLEMENT = process.env.REVENUECAT_ENTITLEMENT || 'pro';
+// Ідентифікатор entitlement у RevenueCat (Project → Entitlements).
+const ENTITLEMENT = process.env.REVENUECAT_ENTITLEMENT || 'lingualens_pro';
 const RC_CACHE_MS = 10 * 60 * 1000;
 const REFRESH_MIN_MS = 30 * 1000;
 // Якщо RevenueCat недоступний, людина, в якої Pro щойно закінчився, ще три
@@ -114,8 +133,22 @@ function usedOn(user, day) {
   return user.usage && user.usage.day === d ? user.usage.scans || 0 : 0;
 }
 
+// Сцен за все життя запису, і в Pro теж: наперед ми не знаємо, чи людина має
+// Pro (див. reserveScan). Хто мав Pro і перестав, пробу вже бачив.
+function scenesUsed(user) {
+  const n = user && user.scenes;
+  return Number.isInteger(n) && n > 0 ? n : 0;
+}
+
+// null у лімітах — «без меж» (Pro).
 function usageView(user, day, pro) {
-  return { day, scans: usedOn(user, day), limit: pro ? null : FREE_SCANS_PER_DAY };
+  return {
+    day,
+    scans: usedOn(user, day),
+    limit: pro ? null : FREE_SCANS_PER_DAY,
+    scenes: scenesUsed(user),
+    sceneLimit: pro ? null : FREE_SCENES,
+  };
 }
 
 // Слот займаємо ДО виклику AI і атомарно. Перевірити ліміт, викликати AI і
@@ -123,39 +156,60 @@ function usageView(user, day, pro) {
 // лічильник і проходили б усі. Тут запис умовний (версія документа): якщо
 // хтось устиг раніше — перечитуємо і пробуємо ще раз.
 //
-// { ok: true, pro, release } — release() повертає слот, якщо скан не вдався
-//   («не бачу предмета» людині не коштує спроби);
-// { ok: false, used, limit } — ліміт вичерпано (402, AI не викликаємо);
+// Сцена займає і денний слот, і одну з довічних безкоштовних сцен — ТИМ САМИМ
+// записом. Двома окремими записами паралельні сцени могли б пройти обидві,
+// а невдала сцена повертала б лише половину.
+//
+// Порядок перевірок: спершу денний ліміт (402 SCAN_LIMIT), потім сцени
+// (402 SCENE_PRO). Pro питаємо лише тоді, коли безкоштовне скінчилось, і не
+// більше разу на спробу: для більшості сканів це нуль запитів до RevenueCat.
+//
+// { ok: true, pro, release } — release() повертає слот (і сцену), якщо скан
+//   не вдався («не бачу предмета» людині не коштує спроби);
+// { ok: false, used, limit } — денний ліміт вичерпано (402, AI не викликаємо);
+// { ok: false, scene: true, used, limit } — безкоштовні сцени вичерпано;
 // { ok: false, gone: true } — пристрій стерто; { ok: false, busy: true }.
-async function reserveScan(user, day) {
+async function reserveScan(user, day, { scene = false } = {}) {
   let current = user;
   for (let attempt = 0; attempt < 6; attempt++) {
     if (attempt > 0) current = await store.get('users', user.id);
     if (!current) return { ok: false, gone: true };
+    let pro = null;
+    const isPro = async () => (pro ??= (await proStatus(current)).active);
     const used = usedOn(current, day);
-    let pro = false;
-    if (used >= FREE_SCANS_PER_DAY) {
-      pro = (await proStatus(current)).active;
-      if (!pro) return { ok: false, used, limit: FREE_SCANS_PER_DAY };
+    if (used >= FREE_SCANS_PER_DAY && !(await isPro())) return { ok: false, used, limit: FREE_SCANS_PER_DAY };
+    const fields = { usage: { day: counterDay(current, day), scans: used + 1 } };
+    if (scene) {
+      const scenes = scenesUsed(current);
+      if (scenes >= FREE_SCENES && !(await isPro())) {
+        return { ok: false, scene: true, used: scenes, limit: FREE_SCENES };
+      }
+      fields.scenes = scenes + 1;
     }
-    const usage = { day: counterDay(current, day), scans: used + 1 };
-    const r = await store.update('users', user.id, { usage }, { version: current.__version });
+    const r = await store.update('users', user.id, fields, { version: current.__version });
     if (r.ok) {
-      user.usage = usage;
+      Object.assign(user, fields);
       if (current.proUntil !== undefined) user.proUntil = current.proUntil;
-      return { ok: true, pro, release: () => releaseScan(user.id, usage.day) };
+      return { ok: true, pro: !!pro, release: () => releaseScan(user.id, fields.usage.day, scene) };
     }
     if (r.reason === 'missing') return { ok: false, gone: true };
   }
   return { ok: false, busy: true };
 }
 
-async function releaseScan(id, day) {
+// Повертає те, що зайняв reserveScan, одним умовним записом. Денний слот —
+// лише якщо лічильник ще того самого дня; сцену — завжди, вона довічна.
+async function releaseScan(id, day, scene) {
   for (let attempt = 0; attempt < 6; attempt++) {
     const user = await store.get('users', id);
-    if (!user || !user.usage || user.usage.day !== day || !(user.usage.scans > 0)) return;
-    const usage = { day, scans: user.usage.scans - 1 };
-    const r = await store.update('users', id, { usage }, { version: user.__version });
+    if (!user) return;
+    const fields = {};
+    if (user.usage && user.usage.day === day && user.usage.scans > 0) {
+      fields.usage = { day, scans: user.usage.scans - 1 };
+    }
+    if (scene && scenesUsed(user) > 0) fields.scenes = scenesUsed(user) - 1;
+    if (!Object.keys(fields).length) return;
+    const r = await store.update('users', id, fields, { version: user.__version });
     if (r.ok || r.reason === 'missing') return;
   }
 }
@@ -237,6 +291,8 @@ async function handleWebhook(body) {
 
 module.exports = {
   FREE_SCANS_PER_DAY,
+  FREE_SCENES,
+  ENTITLEMENT,
   utcDay,
   addDays,
   dayIndexOf,
