@@ -68,3 +68,40 @@ describe('erase all my data', () => {
     expect(await eraseWith(Object.assign(new Error('HTTP_500'), { code: 'HTTP_500', status: 500 }))).toBe(t('eraseServerFail'));
   });
 });
+
+// «Анонімна статистика»: перемикач є, лише коли збірка має ключ PostHog,
+// і VoiceOver читає його назву.
+describe('anonymous statistics switch', () => {
+  const t = makeT('en');
+  const statSwitch = (tree) => tree.root.findAll((n) => n.props.accessibilityLabel === t('analyticsTitle') && 'onValueChange' in n.props)[0];
+
+  test('shown with a key, reflects the setting and reports a change', async () => {
+    const onToggleAnalytics = jest.fn();
+    const tree = await render({ nativeLang: 'en', analyticsAvailable: true, analyticsOn: true, onToggleAnalytics });
+    const sw = statSwitch(tree);
+    expect(sw.props.value).toBe(true);
+    await act(async () => sw.props.onValueChange(false));
+    expect(onToggleAnalytics).toHaveBeenCalledWith(false);
+    expect(tree.root.findAll((n) => n.props.children === t('analyticsHint')).length).toBeGreaterThan(0);
+    await act(async () => tree.unmount());
+  });
+
+  test('absent in a build without analytics', async () => {
+    const tree = await render({ nativeLang: 'en' });
+    expect(statSwitch(tree)).toBeUndefined();
+    await act(async () => tree.unmount());
+  });
+});
+
+// Pro «назавжди»: без дати продовження й без «керувати підпискою»
+test('lifetime Pro: «Pro forever», purchases and support, no renewal date', async () => {
+  const t = makeT('en');
+  const onManageSub = jest.fn();
+  const tree = await render({ nativeLang: 'en', sub: { pro: true, lifetime: true, until: null }, onManageSub });
+  const strings = tree.root.findAll((n) => typeof n.props.children === 'string').map((n) => n.props.children);
+  expect(strings).toContain(t('proLifetime'));
+  expect(strings).not.toContain(t('restore'));
+  const hint = tree.root.findAll((n) => Array.isArray(n.props.children) && n.props.children.includes(t('managePurchases')));
+  expect(hint.length).toBeGreaterThan(0);
+  await act(async () => tree.unmount());
+});

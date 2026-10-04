@@ -72,6 +72,20 @@ test('the paywall gets the server counters with a 402', async () => {
   expect(e.data).toEqual({ error: 'SCAN_LIMIT', used: 5, limit: 5 });
 });
 
+// 402 буває двох видів — сервер називає який у тілі. Усе, що не SCENE_PRO
+// (старий сервер, текст замість коду, порожнє тіло), — денний ліміт, як і раніше.
+test.each([
+  [{ error: 'SCENE_PRO', used: 1, limit: 1 }, 'SCENE_PRO'],
+  [{ error: 'SCAN_LIMIT', used: 1, limit: 1 }, 'SCAN_LIMIT'],
+  [{ error: 'Ліміт вичерпано' }, 'SCAN_LIMIT'],
+  [null, 'SCAN_LIMIT'],
+])('a 402 with %j becomes %s', async (body, code) => {
+  respond(402, body);
+  const e = await recognizeScene('b64').catch((x) => x);
+  expect(e.message).toBe(code);
+  expect(e.data).toEqual(body);
+});
+
 test('network failure is OFFLINE, an aborted request is TIMEOUT', async () => {
   global.fetch = jest.fn(async () => {
     throw new TypeError('Network request failed');
@@ -154,6 +168,7 @@ describe('recognizeScene', () => {
 
   test.each([
     [402, 'SCAN_LIMIT', 'SCAN_LIMIT'],
+    [402, 'SCENE_PRO', 'SCENE_PRO'],
     [422, 'NO_OBJECT', 'SCAN_EMPTY'],
     [429, 'x', 'SCAN_RATE'],
     [504, 'x', 'SCAN_TIMEOUT'],

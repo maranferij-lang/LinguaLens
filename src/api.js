@@ -77,7 +77,8 @@ export function deviceForgotten(e) {
 export function apiCreateDevice() {
   return request('/auth/device', { method: 'POST', body: {} });
 }
-// { user, pro: {active, until}, usage: {day, scans, limit} }
+// { user, pro: {active, until}, usage: {day, scans, limit, scenes, sceneLimit} }
+// limit/sceneLimit null — Pro, без меж; scenes — сцени за все життя запису.
 // refresh — одразу після покупки: сервер перепитає RevenueCat без кешу.
 export function apiMe(refresh = false) {
   return request(refresh ? '/me?refresh=1' : '/me');
@@ -118,6 +119,14 @@ const SCAN_ERRORS = {
   504: 'SCAN_TIMEOUT',
 };
 
+// 402 буває двох видів, і сервер називає який у тілі { error, limit, used }:
+// SCAN_LIMIT — денні скани вичерпано (used/limit — скани за сьогодні);
+// SCENE_PRO — безкоштовні сцени вичерпано (used/limit — сцени за все життя).
+// Решта (старий сервер, кривий JSON) — як і раніше, денний ліміт.
+function paymentCode(data) {
+  return data?.error === 'SCENE_PRO' ? 'SCENE_PRO' : 'SCAN_LIMIT';
+}
+
 // Один запит /scan із перекладом мережевих помилок у коди сканера.
 async function scanRequest(body, timeout) {
   try {
@@ -125,7 +134,12 @@ async function scanRequest(body, timeout) {
   } catch (e) {
     if (e.code === 'TIMEOUT') throw codeError('SCAN_TIMEOUT');
     if (e.code === 'OFFLINE') throw codeError('SCAN_OFFLINE');
-    const err = codeError(deviceForgotten(e) ? 'SCAN_AUTH' : SCAN_ERRORS[e.status] || 'SCAN_SERVER');
+    const code = deviceForgotten(e)
+      ? 'SCAN_AUTH'
+      : e.status === 402
+        ? paymentCode(e.data)
+        : SCAN_ERRORS[e.status] || 'SCAN_SERVER';
+    const err = codeError(code);
     err.data = e.data;
     throw err;
   }

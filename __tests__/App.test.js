@@ -144,29 +144,17 @@ test('with no words yet, the same choice just swaps the languages', async () => 
   await act(async () => tree.unmount());
 });
 
-test('a scanned word denied by the free cap is saved once Pro is bought', async () => {
+// v1.2: словник безкоштовний без меж — сотий і сто перший слова
+// зберігаються так само, як перше, і пейвол «словник заповнено» не з'являється.
+test('the free dictionary has no ceiling', async () => {
   await returning({ words: words100(), seen: ALL_ACH });
   const tree = await renderApp();
   const saved = await run(() => one(tree, ScannerScreen).props.onSaveWord({ word: 'la taza', translation: 'mug', lang: 'es' }));
-  expect(saved).toBe(false);
-  expect(one(tree, PaywallScreen).props.reason).toBe('words');
-  await run(() => one(tree, PaywallScreen).props.onPurchase('year'));
+  expect(saved).toBe(true);
   expect(one(tree, PaywallScreen)).toBeNull();
   const ws = await stored('ll_words_v1');
   expect(ws).toHaveLength(101);
   expect(ws[100].word).toBe('la taza');
-  await act(async () => tree.unmount());
-});
-
-test('closing the paywall forgets the denied word', async () => {
-  await returning({ words: words100(), seen: ALL_ACH });
-  const tree = await renderApp();
-  await run(() => one(tree, ScannerScreen).props.onSaveWord({ word: 'la taza', translation: 'mug', lang: 'es' }));
-  await run(() => one(tree, PaywallScreen).props.onClose());
-  await openTab(tree, 'settings');
-  await run(() => one(tree, SettingsScreen).props.onOpenPaywall());
-  await run(() => one(tree, PaywallScreen).props.onPurchase('year'));
-  expect(await stored('ll_words_v1')).toHaveLength(100);
   await act(async () => tree.unmount());
 });
 
@@ -255,14 +243,14 @@ describe('word of the day', () => {
     await act(async () => tree.unmount());
   });
 
-  test('a save denied by the free cap does not count', async () => {
+  test('saving it with a full hundred words still counts — there is no cap', async () => {
     await returning({ words: words100(), wod: wodFor('es', 'en'), seen: ALL_ACH });
     const tree = await renderApp();
     await openTab(tree, 'cards');
     await run(() => one(tree, FlashcardsScreen).props.onSaveWod());
-    await run(() => one(tree, PaywallScreen).props.onClose());
-    await run(() => one(tree, FlashcardsScreen).props.onSaveWod());
-    expect((await stored('ll_stats_v1'))?.wordOfDaySeen).toBeUndefined();
+    expect(one(tree, PaywallScreen)).toBeNull();
+    expect((await stored('ll_stats_v1')).wordOfDaySeen).toBe(1);
+    expect(await stored('ll_words_v1')).toHaveLength(101);
     await act(async () => tree.unmount());
   });
 });
@@ -373,17 +361,13 @@ test('the week card counts this week, not a lifetime of reviews', async () => {
 // ---------- сцени ----------
 const sceneWord = (w) => ({ word: w, translation: 't', lang: 'es', nativeLang: 'en', photo: null, shape: null, sceneId: 'sc' });
 
-test('scene words: what fits under the free cap is saved, the rest waits for Pro', async () => {
+test('scene words: every new one is saved, even past a hundred', async () => {
   await returning({ words: words100().slice(0, 98), seen: ALL_ACH });
   const tree = await renderApp();
-  const scanner = () => one(tree, ScannerScreen);
   const list = ['w1', 'la taza', 'el libro', 'la lámpara', 'la planta'].map(sceneWord); // w1 вже є
-  const saved = await run(() => scanner().props.onSaveWords(list));
-  expect(saved).toBe(2);
-  expect(one(tree, PaywallScreen).props.reason).toBe('words');
-  expect((await stored('ll_words_v1')).map((w) => w.word).slice(98)).toEqual(['la taza', 'el libro']);
-
-  await run(() => one(tree, PaywallScreen).props.onPurchase('year'));
+  const saved = await run(() => one(tree, ScannerScreen).props.onSaveWords(list));
+  expect(saved).toBe(4);
+  expect(one(tree, PaywallScreen)).toBeNull();
   const ws = await stored('ll_words_v1');
   expect(ws.map((w) => w.word).slice(98)).toEqual(['la taza', 'el libro', 'la lámpara', 'la planta']);
   expect(ws.every((w) => w.srs && w.addedAt)).toBe(true);

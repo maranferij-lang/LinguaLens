@@ -2,12 +2,15 @@
 //
 // Правила, за якими він побудований:
 //   • Заголовок говорить про людину, не про тариф. Причина відмови приходить
-//     ззовні (скани / словник / мови), і текст під неї підлаштовується —
-//     людина бачить відповідь саме на ту стіну, в яку щойно вперлась.
-//   • Тижневий тариф присутній, але не виділений. Він потрібен як якір:
-//     поруч із $4.99/тиждень річний за $34.99 читається як очевидний вибір.
-//   • Річний обраний за замовчуванням і має пробний тиждень. Ніяких
-//     передвибраних дорогих варіантів — це нечесно і повертається відписками.
+//     ззовні (скани на сьогодні / скан кімнати / мови), і текст під неї
+//     підлаштовується — людина бачить відповідь саме на ту стіну, в яку
+//     щойно вперлась. Словник безкоштовний без меж, тож стіни «словник» немає.
+//   • Тарифи — ті, що прийшли з поточної пропозиції RevenueCat (зазвичай
+//     місяць, рік і «назавжди»). Річний обраний за замовчуванням і має
+//     пробний тиждень. Ніяких передвибраних дорогих варіантів — це нечесно
+//     і повертається відписками.
+//   • «Назавжди» — разова покупка: без «на місяць», без «−N%», і юридичний
+//     рядок під кнопкою прямо каже, що це не підписка.
 //   • Закрити можна завжди, хрестик великий і на своєму місці. Пейвол, з
 //     якого важко вийти, псує оцінку в App Store сильніше, ніж дає виторгу.
 //   • 'intro' — мʼякий пейвол один раз після першого скану: замість таблиці
@@ -28,7 +31,8 @@ import { MascotBob } from './Mascot';
 import { FadeIn, GradBtn, Press } from './ui';
 import { CAPS, F, R, type, useTheme } from './theme';
 
-// freeScans — денна стеля з сервера (див. freeScansPerDay у subscription.js).
+// freeScans — денна стеля з сервера (див. freeScansPerDay у subscription.js),
+// freeScenes — скільки сцен безкоштовно за все життя (freeScenes там само).
 // unavailable — збірка без магазину: тарифів немає, купити не можна.
 // canRemind — чи зможемо нагадати про кінець пробного періоду (сповіщення
 // дозволені або ще можна спитати): лише тоді таймлайн це обіцяє.
@@ -36,6 +40,7 @@ export default function PaywallScreen({
   reason,
   plans,
   freeScans = FREE.scansPerDay,
+  freeScenes = FREE.scenes,
   unavailable,
   canRemind = true,
   onClose,
@@ -70,7 +75,7 @@ export default function PaywallScreen({
   // Заголовок під причину: кожна стіна має свій аргумент.
   const HEAD = {
     scans: { title: t('pwScansTitle'), text: t('pwScansText', { n: freeScans }) },
-    words: { title: t('pwWordsTitle'), text: t('pwWordsText', { n: FREE.maxWords }) },
+    scene: { title: t('pwSceneTitle'), text: t('pwSceneText', { n: freeScenes }) },
     langs: { title: t('pwLangsTitle'), text: t('pwLangsText') },
     intro: timeline ? { title: t('pwIntroTitle'), text: t('pwIntroText') } : null,
   };
@@ -157,7 +162,8 @@ export default function PaywallScreen({
             </View>
 
             {COMPARISON.map((row, i) => {
-              const free = row.id === 'scans' ? String(freeScans) : row.free;
+              // стелі — з сервера, а не з довідника
+              const free = row.id === 'scans' ? String(freeScans) : row.id === 'scene' ? String(freeScenes) : row.free;
               return (
                 <View key={row.id} style={[s.tableRow, i > 0 && s.tableRowLine]}>
                   <Text style={s.rowLabel}>{t('cmp_' + row.id)}</Text>
@@ -184,9 +190,10 @@ export default function PaywallScreen({
         )}
 
         {/* Те, чого немає в таблиці. Лише правда: наліпки й колекція
-            безкоштовні для всіх, тож тут їх немає (App Review 3.1.2). */}
+            безкоштовні для всіх, тож тут їх немає (App Review 3.1.2). З
+            таймлайном таблиці немає — тоді тут і самі переваги Pro. */}
         <FadeIn delay={70} style={s.benefits}>
-          {PRO_BENEFITS.filter((b) => b.id === 'support').map((b) => (
+          {PRO_BENEFITS.filter((b) => timeline || b.id === 'support').map((b) => (
             <View key={b.id} style={s.benefitRow}>
               <View style={s.benefitIcon}>
                 <ProIcon name={b.icon} size={20} color={C.accent} />
@@ -224,7 +231,11 @@ export default function PaywallScreen({
                     ) : null}
                   </View>
                   <Text style={s.planPer}>
-                    {p.trialDays ? t('trialDays', { n: p.trialDays }) : t('perMonth', { p: p.perMonth })}
+                    {p.lifetime
+                      ? t('lifetimeOnce')
+                      : p.trialDays
+                        ? t('trialDays', { n: p.trialDays })
+                        : t('perMonth', { p: p.perMonth })}
                   </Text>
                 </View>
 
@@ -245,16 +256,18 @@ export default function PaywallScreen({
       {/* Дія притиснута донизу — під великий палець */}
       <View style={[s.footer, SHADOW_LG]}>
         <GradBtn
-          title={plan?.trialDays ? t('startTrial') : t('subscribe')}
+          title={plan?.trialDays ? t('startTrial') : plan?.lifetime ? t('buyLifetime') : t('subscribe')}
           onPress={buy}
           disabled={busy || !plan || unavailable}
         />
         {/* Без магазину кажемо це одразу, а не після марного тапу */}
         {unavailable || note ? <Text style={s.note}>{unavailable ? t('purchasesUnavailable') : note}</Text> : null}
         <Text style={s.legal}>
-          {plan?.trialDays
-            ? t(plan.legalKey, { p: plan.price, d: chargeDate(plan.trialDays) })
-            : t('renewLegal')}
+          {plan?.lifetime
+            ? t('lifetimeLegal')
+            : plan?.trialDays
+              ? t(plan.legalKey, { p: plan.price, d: chargeDate(plan.trialDays) })
+              : t('renewLegal')}
         </Text>
         {/* Вихід без покупки — повноцінна кнопка з тим, що лишається
             безкоштовним, а не сірий дрібний текст, який треба шукати. */}

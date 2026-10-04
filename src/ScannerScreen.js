@@ -18,6 +18,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { recognizeImage, recognizeScene } from './api';
+import { track } from './analytics';
 import { captureScene, createCutter, cropToObject, objectJpeg } from './cutout';
 import { speak } from './speech';
 import { IcClose, IcShare, IcSpeaker } from './icons';
@@ -47,6 +48,10 @@ const MAX_ZOOM = 0.6;
 // видошукачу перемикає. Сцена — уся кімната чи стіл одним кадром.
 const MODES = ['object', 'scene'];
 
+// Відмови сервера за оплатою (402): денні скани скінчились або безкоштовна
+// сцена вже використана. Це не помилки, а пейвол — його відкриває App.
+const PAYWALL_CODES = ['SCAN_LIMIT', 'SCENE_PRO'];
+
 // Поки модель шукає предмети сцени (5–12 с), рядок статусу міняється:
 // мовчазне очікування здається довшим, ніж є.
 const STATUS_EVERY = 2600;
@@ -73,6 +78,14 @@ export default function ScannerScreen({
   // рівень людини 1–10 з профілю (undefined — профілю немає): від нього
   // сервер робить приклад простішим чи багатшим і додає «Ще вирази»
   level,
+  // Сцена — функція Pro, і безкоштовну пробу вже використано: на перемикачі
+  // режиму біля «Сцени» маленький значок PRO, а вибір сцени відкриває
+  // пейвол (onScenePro) замість режиму, який однаково не спрацює.
+  sceneLocked = false,
+  onScenePro,
+  // звідки скан — для статистики: 'app' або 'onboarding' (перший скан у
+  // онбордингу)
+  scanSource = 'app',
   t,
 }) {
   const { C } = useTheme();
@@ -203,6 +216,11 @@ export default function ScannerScreen({
 
   function switchMode(next) {
     if (next === mode || busy.current) return;
+    if (next === 'scene' && sceneLocked && onScenePro) {
+      Haptics.selectionAsync();
+      onScenePro();
+      return;
+    }
     Haptics.selectionAsync();
     // видошукач і підказка плавно перебудовуються під новий режим
     layoutNext();
@@ -232,8 +250,9 @@ export default function ScannerScreen({
       return;
     }
     // Ліміт перевіряємо до зйомки: інакше витратимо виклик AI і покажемо
-    // відмову вже після нього — це виглядає як обман. Сцена коштує один скан.
-    if (onGuardScan && !onGuardScan()) return;
+    // відмову вже після нього — це виглядає як обман. Сцена коштує один скан
+    // і ще одну безкоштовну пробу сцени, тож воротар має знати режим.
+    if (onGuardScan && !onGuardScan(mode)) return;
     busy.current = true;
     setError('');
     clearTimeout(thaw.current);
@@ -261,12 +280,15 @@ export default function ScannerScreen({
         setJustSaved(false);
       }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      track('scan', { mode, ok: true, source: scanSource });
     } catch (e) {
       setFrozen(null);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       // Ліміт вичерпано — це не помилка, а пейвол (сервер навіть не кликав
       // AI). Його вже відкрив App, коли recognize спитав, що робити.
-      if (e.message === 'SCAN_LIMIT' && onLimitReached) return;
+      if (PAYWALL_CODES.includes(e.message) && onLimitReached) return;
+      // Код помилки — з api.js (SCAN_TIMEOUT, SCAN_EMPTY…), а не текст
+      track('scan', { mode, ok: false, source: scanSource, error: /^[A-Z_]+$/.test(e?.message || '') ? e.message : 'OTHER' });
       // Сервер не впізнав пристрій — тихо беремо нову ідентичність.
       if (e.message === 'SCAN_AUTH' && onSessionLost) onSessionLost();
       // Коди з api.js перетворюємо на людські фрази. Кожна каже, ЩО робити,
@@ -317,14 +339,15 @@ export default function ScannerScreen({
     return true;
   }
 
-  // Сервер відмовив за лімітом (402). App або відкриває пейвол (false), або —
-  // Pro щойно куплено, сервер перепитав RevenueCat і зняв стелю (true) —
-  // тоді той самий кадр іде ще раз, і людині не треба знімати вдруге.
+  // Сервер відмовив за оплатою (402: SCAN_LIMIT чи SCENE_PRO). App або
+  // відкриває пейвол (false), або — Pro щойно куплено, сервер перепитав
+  // RevenueCat і зняв стелю (true) — тоді той самий кадр іде ще раз, і
+  // людині не треба знімати вдруге.
   async function recognize(fn, base64) {
     try {
       return await fn(base64, targetLang, nativeLang, level);
     } catch (e) {
-      if (e.message !== 'SCAN_LIMIT' || !onLimitReached || !(await onLimitReached(e.data))) throw e;
+      if (!PAYWALL_CODES.includes(e.message) || !onLimitReached || !(await onLimitReached(e.data, e.message))) throw e;
     }
     return fn(base64, targetLang, nativeLang, level);
   }
@@ -495,7 +518,7 @@ export default function ScannerScreen({
         </View>
       )}
 
-      <ModePicker mode={mode} onChange={switchMode} disabled={loading} reduced={reduced} s={s} t={t} />
+      <ModePicker mode={mode} onChange={switchMode} disabled={loading} locked={sceneLocked} reduced={reduced} s={s} t={t} />
 
       {/* Затвор як в Apple Camera: біле кільце + біле коло */}
       <View style={s.shutterWrap}>
@@ -635,9 +658,12 @@ export default function ScannerScreen({
 // ─── Перемикач режимів ─────────────────────────────────────────────────────
 // Як у Камері iOS: рядок підписів капсом над затвором, обраний — жовтий і
 // стоїть по центру; їде весь рядок, а не підсвічування стрибає між словами.
-function ModePicker({ mode, onChange, disabled, reduced, s, t }) {
+// locked — сцена лише в Pro: біля підпису маленький значок PRO, і VoiceOver
+// теж про це каже.
+function ModePicker({ mode, onChange, disabled, locked, reduced, s, t }) {
   const [widths, setWidths] = useState({});
   const labels = { object: t('modeObject'), scene: t('modeScene') };
+  const pro = (m) => locked && m === 'scene';
   const idx = MODES.indexOf(mode);
   const measured = MODES.every((m) => widths[m]);
   const total = measured ? MODES.reduce((sum, m) => sum + widths[m], 0) : 0;
@@ -668,12 +694,21 @@ function ModePicker({ mode, onChange, disabled, reduced, s, t }) {
                 setWidths((prev) => (prev[m] === w ? prev : { ...prev, [m]: w }));
               }}
               accessibilityRole="tab"
-              accessibilityLabel={labels[m]}
+              accessibilityLabel={pro(m) ? t('modeScenePro') : labels[m]}
               accessibilityState={{ selected: active, disabled }}
             >
-              <Text style={[s.modeText, active && s.modeTextActive]} maxFontSizeMultiplier={1.2}>
-                {labels[m]}
-              </Text>
+              <View style={s.modeInner}>
+                <Text style={[s.modeText, active && s.modeTextActive]} maxFontSizeMultiplier={1.2}>
+                  {labels[m]}
+                </Text>
+                {pro(m) ? (
+                  <View style={s.modePro}>
+                    <Text style={s.modeProText} maxFontSizeMultiplier={1.2}>
+                      PRO
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
             </Pressable>
           );
         })}
@@ -840,6 +875,11 @@ const makeStyles = (C) =>
       textShadowOffset: { width: 0, height: 1 },
     },
     modeTextActive: { color: '#FFD60A' },
+    modeInner: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+    // Значок PRO біля «Сцени»: маленька пігулка кольору акценту, як бейдж
+    // PRO в пейволі, — щоб людина впізнала його там, куди він веде.
+    modePro: { backgroundColor: C.accent, borderRadius: R.pill, paddingHorizontal: 5, paddingVertical: 1.5 },
+    modeProText: { color: C.onAccent, fontSize: 9, fontFamily: F.extra, letterSpacing: 0.8 },
 
     // Таб-бар лежить поверх камери, тож затвор стоїть над ним, а не під ним.
     shutterWrap: { position: 'absolute', bottom: SHUTTER_BOTTOM, width: '100%', alignItems: 'center' },

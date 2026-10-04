@@ -3,7 +3,7 @@
 import { act, create } from 'react-test-renderer';
 import PaywallScreen from '../src/PaywallScreen';
 import { PLANS } from '../src/subscription';
-import { makeT } from '../src/i18n';
+import { makeT, STRINGS } from '../src/i18n';
 
 const t = makeT('en');
 const texts = (tree) =>
@@ -146,5 +146,74 @@ describe('intro after the first scan', () => {
     expect(all).toContain(t('pwTitle'));
     expect(all).not.toContain(t('tlToday'));
     expect(all.some((s) => s.startsWith('Continue for free'))).toBe(true);
+  });
+});
+
+// ---------- v1.2: сцена — у Pro, словник без стелі, «назавжди» ----------
+describe('v1.2 paywall', () => {
+  let mounted = null;
+  afterEach(async () => {
+    if (mounted) await act(async () => mounted.unmount());
+    mounted = null;
+  });
+  const open = async (props) => (mounted = await render(props));
+  const strings = (tree) =>
+    tree.root
+      .findAll((n) => typeof n.props?.children === 'string' || Array.isArray(n.props?.children))
+      .flatMap((n) => [n.props.children].flat())
+      .filter((c) => typeof c === 'string');
+  const press = (tree, text) =>
+    act(async () => {
+      const hit = tree.root.findAll(
+        (n) => typeof n.props.onPress === 'function' && n.findAll((c) => c.props.children === text).length
+      );
+      await hit.at(-1).props.onPress();
+    });
+
+  test('the scene wall has its own argument and the server’s free scene count', async () => {
+    const tree = await open({ reason: 'scene', freeScenes: 1, plans: PLANS });
+    const all = strings(tree);
+    expect(all).toContain(t('pwSceneTitle'));
+    expect(all).toContain('The free plan includes 1 scene to try. With Pro, scan whole rooms as often as you like.');
+  });
+
+  test('the comparison has scans, scenes and languages — and no word cap', async () => {
+    const tree = await open({ reason: 'info', freeScans: 1, freeScenes: 1, plans: PLANS });
+    const all = strings(tree);
+    expect(all).toEqual(expect.arrayContaining([t('cmp_scans'), t('cmp_scene'), t('cmp_langs'), t('cmp_wod'), t('cmp_srs'), t('cmp_speech')]));
+    expect(all).not.toContain('Saved words');
+    expect(STRINGS.en.cmp_words).toBeUndefined();
+    expect(STRINGS.en.pwWordsTitle).toBeUndefined();
+  });
+
+  test('lifetime: one-time payment, no renewal line, no “per month”', async () => {
+    const plans = [
+      { ...PLANS.find((p) => p.id === 'year'), price: '$34.99', trialDays: 0 },
+      { ...PLANS.find((p) => p.id === 'lifetime'), price: '$79.99', perMonth: null, trialDays: 0 },
+    ];
+    const tree = await open({ reason: 'info', plans });
+    await press(tree, t('planLifetime'));
+    const all = strings(tree);
+    expect(all).toContain(t('lifetimeOnce'));
+    expect(all).toContain(t('lifetimeLegal'));
+    expect(all).not.toContain(t('renewLegal'));
+    expect(all).toContain('$79.99');
+    expect(tree.root.findAll((n) => n.props.title === t('buyLifetime')).length).toBeGreaterThan(0);
+  });
+
+  test('yearly is preselected when the offering has it, whatever the order', async () => {
+    // пробний період лише в річного — за кнопкою видно, який тариф обрано
+    const plans = ['lifetime', 'month', 'year'].map((id) => ({ ...PLANS.find((p) => p.id === id), trialDays: id === 'year' ? 7 : 0 }));
+    const tree = await open({ reason: 'info', plans });
+    expect(tree.root.findAll((n) => n.props.title === t('startTrial')).length).toBeGreaterThan(0);
+    expect(strings(tree).some((x) => x.startsWith('Free until') && x.includes('a year'))).toBe(true);
+    expect(strings(tree)).not.toContain(t('lifetimeLegal'));
+  });
+
+  test('with a trial timeline the Pro benefits replace the table', async () => {
+    const tree = await open({ reason: 'intro', plans: PLANS });
+    const all = strings(tree);
+    expect(all).toEqual(expect.arrayContaining([t('pro_scans'), t('pro_scene'), t('pro_langs')]));
+    expect(all).not.toContain(t('colFree'));
   });
 });

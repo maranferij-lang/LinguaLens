@@ -1,4 +1,4 @@
-import { plansFromOffering, purchaseNote, restoreNote } from '../src/purchases';
+import { paywallConfigFrom, PAYWALL_DEFAULTS, plansFromOffering, purchaseNote, restoreNote, stateFromInfo } from '../src/purchases';
 import { STRINGS } from '../src/i18n';
 
 const product = (price, priceString, extra = {}) => ({ price, priceString, pricePerMonthString: null, introPrice: null, ...extra });
@@ -16,12 +16,13 @@ const offering = {
       }),
     },
     { packageType: 'CUSTOM', product: product(1, '1 €') },
+    { packageType: 'LIFETIME', product: product(79.99, '79,99 €', { pricePerMonthString: '6,67 €' }) },
   ],
 };
 
 test('store packages map onto our plans with local prices', () => {
   const plans = plansFromOffering(offering);
-  expect(plans.map((p) => p.id)).toEqual(['week', 'month', 'quarter', 'year']);
+  expect(plans.map((p) => p.id)).toEqual(['week', 'month', 'quarter', 'year', 'lifetime']);
   const year = plans.find((p) => p.id === 'year');
   expect(year.price).toBe('34,99 €');
   expect(year.perMonth).toBe('2,92 €');
@@ -36,6 +37,17 @@ test('savings are computed from real prices, not the hard-coded USD badges', () 
   expect(byId.quarter.save).toBe(19);
   expect(byId.week.save).toBe(0);
   expect(byId.year.saveKey).toBeUndefined();
+});
+
+test('lifetime is a one-time purchase: no trial, no monthly price, no “save %”', () => {
+  const life = plansFromOffering(offering).find((p) => p.id === 'lifetime');
+  expect(life).toMatchObject({ price: '79,99 €', perMonth: null, trialDays: 0, save: 0, lifetime: true, legalKey: 'lifetimeLegal' });
+  expect(life.best).toBeUndefined();
+});
+
+test('only what the offering has: monthly + yearly + lifetime', () => {
+  const grid = { availablePackages: offering.availablePackages.filter((p) => ['MONTHLY', 'ANNUAL', 'LIFETIME'].includes(p.packageType)) };
+  expect(plansFromOffering(grid).map((p) => p.id)).toEqual(['month', 'year', 'lifetime']);
 });
 
 test('missing offering gives no plans instead of fake prices', () => {
@@ -82,5 +94,49 @@ describe('what the paywall says after a purchase or a restore', () => {
       restoreNote({}),
     ];
     for (const k of keys) expect(STRINGS.en[k]).toEqual(expect.any(String));
+  });
+});
+
+describe('offering metadata switches', () => {
+  test('known values are read, case and spaces forgiven', () => {
+    expect(paywallConfigFrom({ onboarding_paywall: 'skip', paywall_ui: 'revenuecat' })).toEqual({ onboardingPaywall: 'skip', ui: 'revenuecat' });
+    expect(paywallConfigFrom({ onboarding_paywall: ' Show ', paywall_ui: 'RevenueCat' })).toEqual({ onboardingPaywall: 'show', ui: 'revenuecat' });
+  });
+
+  test('anything unknown falls back to the defaults', () => {
+    for (const m of [undefined, null, 'x', {}, { onboarding_paywall: 'hide', paywall_ui: 'superwall' }, { onboarding_paywall: true, paywall_ui: 1 }]) {
+      expect(paywallConfigFrom(m)).toEqual(PAYWALL_DEFAULTS);
+    }
+    expect(PAYWALL_DEFAULTS).toEqual({ onboardingPaywall: 'show', ui: 'custom' });
+  });
+});
+
+describe('Pro state from CustomerInfo', () => {
+  const ent = (extra) => ({ entitlements: { active: { lingualens_pro: { periodType: 'NORMAL', willRenew: true, ...extra } } }, managementURL: 'https://m' });
+
+  test('a subscription keeps its expiry and renewal', () => {
+    expect(stateFromInfo(ent({ expirationDateMillis: 5, expirationDate: 'x', periodType: 'TRIAL' }))).toMatchObject({
+      pro: true,
+      until: 5,
+      trial: true,
+      willRenew: true,
+      lifetime: false,
+      managementURL: 'https://m',
+    });
+  });
+
+  test('no expiry means lifetime: nothing renews', () => {
+    expect(stateFromInfo(ent({ expirationDateMillis: null, expirationDate: null, productIdentifier: 'lifetime' }))).toMatchObject({
+      pro: true,
+      until: null,
+      willRenew: false,
+      lifetime: true,
+      productId: 'lifetime',
+    });
+  });
+
+  test('no entitlement, no Pro', () => {
+    expect(stateFromInfo({ entitlements: { active: {} } })).toEqual({ pro: false, managementURL: null });
+    expect(stateFromInfo(null)).toEqual({ pro: false, managementURL: null });
   });
 });

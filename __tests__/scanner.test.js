@@ -162,7 +162,7 @@ describe('402 from the server', () => {
     const onLimitReached = jest.fn(async () => true);
     const tree = await render(scanner({ onLimitReached }));
     await press(tree, () => shutter(tree).props.onPress());
-    expect(onLimitReached).toHaveBeenCalledWith({ error: 'SCAN_LIMIT', used: 5, limit: 5 });
+    expect(onLimitReached).toHaveBeenCalledWith({ error: 'SCAN_LIMIT', used: 5, limit: 5 }, 'SCAN_LIMIT');
     expect(recognizeImage).toHaveBeenCalledTimes(2);
     expect(tree.root.findAll((n) => n.props.children === 'la taza').length).toBeGreaterThan(0);
     await act(async () => tree.unmount());
@@ -197,6 +197,56 @@ describe('402 from the server', () => {
     expect(sceneView(tree).props.scene).toBeNull();
     // кадр звільнено, хоч до наліпок справа не дійшла
     expect(shots[0].release).toHaveBeenCalledTimes(1);
+    await act(async () => tree.unmount());
+  });
+
+  // Безкоштовну сцену вже використано: це теж пейвол, а не помилка, і App
+  // має знати, ЯКИЙ саме (code), щоб показати аргумент про сцени.
+  test('SCENE_PRO goes to App with its code, no error line under the shutter', async () => {
+    const sceneError = Object.assign(new Error('SCENE_PRO'), { data: { error: 'SCENE_PRO', used: 1, limit: 1 } });
+    recognizeScene.mockImplementation(async () => Promise.reject(sceneError));
+    const onLimitReached = jest.fn(async () => false);
+    const tree = await render(scanner({ scanMode: 'scene', onLimitReached }));
+    await press(tree, () => shutter(tree).props.onPress());
+    expect(onLimitReached).toHaveBeenCalledWith({ error: 'SCENE_PRO', used: 1, limit: 1 }, 'SCENE_PRO');
+    expect(recognizeScene).toHaveBeenCalledTimes(1);
+    expect(texts(tree)).not.toContain(t('scanErrServer'));
+    await act(async () => tree.unmount());
+  });
+});
+
+describe('scene is Pro once the free one is used', () => {
+  const sceneTab = (tree, label) => tab(tree, label);
+
+  test('a PRO badge on the scene chip, and VoiceOver says so', async () => {
+    const tree = await render(scanner({ sceneLocked: true, onScenePro: jest.fn() }));
+    expect(sceneTab(tree, t('modeScenePro'))).toBeTruthy();
+    expect(texts(tree)).toContain('PRO');
+    await act(async () => tree.unmount());
+  });
+
+  test('no badge while the free scene is still there', async () => {
+    const tree = await render(scanner({ sceneLocked: false }));
+    expect(sceneTab(tree, t('modeScene'))).toBeTruthy();
+    expect(texts(tree)).not.toContain('PRO');
+    await act(async () => tree.unmount());
+  });
+
+  test('choosing the scene opens the paywall instead of switching', async () => {
+    const onScenePro = jest.fn();
+    const onScanModeChange = jest.fn();
+    const tree = await render(scanner({ sceneLocked: true, onScenePro, onScanModeChange }));
+    await press(tree, () => sceneTab(tree, t('modeScenePro')).props.onPress());
+    expect(onScenePro).toHaveBeenCalledTimes(1);
+    expect(onScanModeChange).not.toHaveBeenCalled();
+    await act(async () => tree.unmount());
+  });
+
+  test('the guard is told which mode the shutter is in', async () => {
+    const onGuardScan = jest.fn(() => false);
+    const tree = await render(scanner({ scanMode: 'scene', onGuardScan }));
+    await press(tree, () => shutter(tree).props.onPress());
+    expect(onGuardScan).toHaveBeenCalledWith('scene');
     await act(async () => tree.unmount());
   });
 });

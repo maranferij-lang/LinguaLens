@@ -280,6 +280,11 @@ export default function SettingsScreen({
   onSyncNow,
   profile = null,
   onEditProfile,
+  // «Анонімна статистика» (src/analytics.js): рядок є, лише коли збірка
+  // взагалі має ключ PostHog — інакше перемикати нічого.
+  analyticsAvailable = false,
+  analyticsOn = true,
+  onToggleAnalytics,
   t,
 }) {
   const { C, isDark } = useTheme();
@@ -375,17 +380,22 @@ export default function SettingsScreen({
         ) : null}
 
         {/* Pro — одразу далі. Не тому, що ми жадібні, а тому що це єдине
-            місце, де людина може дізнатись про межі й керувати підпискою. */}
+            місце, де людина може дізнатись про межі й керувати підпискою.
+            Тап відкриває Customer Center від RevenueCat (скасування,
+            повернення коштів, відновлення); «назавжди» нічого не продовжує,
+            тож там — «Покупки й підтримка», а не «Керувати підпискою». */}
         {sub?.pro ? (
           <Press style={[s.proCard, showAccount && s.afterAccount]} onPress={onManageSub}>
             <View style={s.proIconWrap}>
               <PCrown size={22} color={C.onAccent} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={s.proTitle}>{sub.trial ? t('proTrial') : t('proActive')}</Text>
+              <Text style={s.proTitle}>{sub.lifetime ? t('proLifetime') : sub.trial ? t('proTrial') : t('proActive')}</Text>
               <Text style={s.proHint}>
-                {sub.until ? t('proUntil', { d: formatDate(sub.until, nativeLang, { day: 'numeric', month: 'long', year: 'numeric' }) }) + ' · ' : ''}
-                {t('managePro')}
+                {!sub.lifetime && sub.until
+                  ? t('proUntil', { d: formatDate(sub.until, nativeLang, { day: 'numeric', month: 'long', year: 'numeric' }) }) + ' · '
+                  : ''}
+                {sub.lifetime ? t('managePurchases') : t('managePro')}
               </Text>
             </View>
             <IcChevron color={C.faint} />
@@ -543,13 +553,19 @@ export default function SettingsScreen({
               <IcChevron color={C.faint} />
             </View>
           </Pressable>
-          <View style={s.sep} />
-          <Pressable style={s.linkRow} onPress={restore}>
-            <Text style={[s.linkText, { flex: 1 }]}>{t('restore')}</Text>
-            <View style={{ transform: [{ rotate: '-90deg' }] }}>
-              <IcChevron color={C.faint} />
-            </View>
-          </Pressable>
+          {/* Відновлення — для тих, у кого Pro ще немає (новий телефон,
+              перевстановлення). З Pro воно є в Customer Center. */}
+          {sub?.pro ? null : (
+            <>
+              <View style={s.sep} />
+              <Pressable style={s.linkRow} onPress={restore}>
+                <Text style={[s.linkText, { flex: 1 }]}>{t('restore')}</Text>
+                <View style={{ transform: [{ rotate: '-90deg' }] }}>
+                  <IcChevron color={C.faint} />
+                </View>
+              </Pressable>
+            </>
+          )}
           {PRIVACY_URL ? (
             <>
               <View style={s.sep} />
@@ -584,6 +600,26 @@ export default function SettingsScreen({
         {/* Дані */}
         <Text style={s.sectionLabel}>{t('data')}</Text>
         <Glass>
+          {/* Статистика — першою в «Даних»: це теж про те, що йде з телефона.
+              Увімкнена за замовчуванням, вимикається одним дотиком. */}
+          {analyticsAvailable ? (
+            <>
+              <View style={s.switchRow}>
+                <View style={{ flex: 1, paddingRight: 12 }}>
+                  <Text style={s.switchTitle}>{t('analyticsTitle')}</Text>
+                  <Text style={s.dimText}>{t('analyticsHint')}</Text>
+                </View>
+                <Switch
+                  value={analyticsOn}
+                  onValueChange={onToggleAnalytics}
+                  accessibilityLabel={t('analyticsTitle')}
+                  trackColor={{ false: C.card3, true: C.accent }}
+                  thumbColor="#fff"
+                />
+              </View>
+              <View style={s.sepInner} />
+            </>
+          ) : null}
           <Text style={s.dimText}>{t('inDict', { n: wordsCount })}</Text>
           <Press
             style={[s.dangerBtn, !wordsCount && { opacity: 0.4 }]}
