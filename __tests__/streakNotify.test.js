@@ -101,25 +101,46 @@ describe('scheduling', () => {
 
 describe('settings', () => {
   const s = { sectionLabel: {}, switchRow: {}, switchTitle: {}, dimText: {} };
-  const ctx = (settings, extra) => ({ t, lang: 'uk', C: { card3: '#000', accent: '#000' }, s, settings, saveSetting: jest.fn() });
+  const ctx = (settings, saveSetting = jest.fn()) => ({ t, lang: 'uk', C: { card3: '#000', accent: '#000' }, s, settings, saveSetting });
+  const theSwitch = (tree) => tree.root.findAll((n) => n.props.testID === 'streak-remind' && typeof n.props.onValueChange === 'function')[0];
 
   test('a switch “Remind me about my streak” with the hour in the interface clock', async () => {
-    const onToggle = jest.fn();
+    const save = jest.fn();
     let tree;
     await act(async () => {
-      tree = create(<StreakSection ctx={ctx({})} extra={{ onToggleStreakRemind: onToggle }} />);
+      tree = create(<StreakSection ctx={ctx({}, save)} extra={{}} />);
     });
     const texts = tree.root.findAll((n) => typeof n.props.children === 'string').map((n) => n.props.children);
     expect(texts).toEqual(expect.arrayContaining(['Серія', 'Нагадувати про серію', 'О 20:00, якщо сьогодні ще нічого не повторено']));
-    const sw = tree.root.findAll((n) => n.props.testID === 'streak-remind' && typeof n.props.onValueChange === 'function')[0];
-    expect(sw.props.value).toBe(true);
-    await act(async () => sw.props.onValueChange(false));
-    expect(onToggle).toHaveBeenCalledWith(false);
+    expect(theSwitch(tree).props.value).toBe(true);
+    await act(async () => theSwitch(tree).props.onValueChange(false));
+    expect(save).toHaveBeenCalledWith({ streakRemind: false });
+    // вимкнули — заплановане на сьогодні теж знято, слова дня не чіпаємо
+    expect(Notifications.cancelScheduledNotificationAsync.mock.calls).toEqual([[STREAK_RISK_ID]]);
     await act(async () => tree.unmount());
     await act(async () => {
       tree = create(<StreakSection ctx={ctx({ streakRemind: false })} extra={{}} />);
     });
-    expect(tree.root.findAll((n) => n.props.testID === 'streak-remind' && typeof n.props.onValueChange === 'function')[0].props.value).toBe(false);
+    expect(theSwitch(tree).props.value).toBe(false);
+    await act(async () => tree.unmount());
+  });
+
+  test('turning it on without permission asks the system; a refusal leaves it off', async () => {
+    Notifications.getPermissionsAsync.mockImplementation(async () => ({ status: 'undetermined', canAskAgain: true }));
+    Notifications.requestPermissionsAsync.mockImplementationOnce(async () => ({ status: 'denied' }));
+    const save = jest.fn();
+    let tree;
+    await act(async () => {
+      tree = create(<StreakSection ctx={ctx({ streakRemind: false }, save)} extra={{}} />);
+    });
+    await act(async () => theSwitch(tree).props.onValueChange(true));
+    expect(Notifications.requestPermissionsAsync).toHaveBeenCalledTimes(1);
+    expect(save).not.toHaveBeenCalled();
+    // дозволили — вмикається
+    Notifications.requestPermissionsAsync.mockImplementationOnce(async () => ({ status: 'granted' }));
+    await act(async () => theSwitch(tree).props.onValueChange(true));
+    expect(save).toHaveBeenCalledWith({ streakRemind: true });
+    expect(Notifications.cancelScheduledNotificationAsync).not.toHaveBeenCalled();
     await act(async () => tree.unmount());
   });
 });
@@ -204,9 +225,10 @@ describe('App', () => {
     const tree = await app({ activity: { [ago(1)]: 2, [ago(2)]: 1 } });
     await act(async () => tree.root.findAll((n) => n.props.tb?.key === 'settings')[0].props.onPress());
     await settle();
-    const extra = tree.root.findByType(SettingsScreen).props.extra;
+    const sw = tree.root.findByType(SettingsScreen).findAll((n) => n.props.testID === 'streak-remind' && typeof n.props.onValueChange === 'function')[0];
+    expect(sw.props.value).toBe(true);
     Notifications.cancelScheduledNotificationAsync.mockClear();
-    await act(async () => extra.onToggleStreakRemind(false));
+    await act(async () => sw.props.onValueChange(false));
     await settle();
     expect(JSON.parse(await AsyncStorage.getItem('ll_settings_v1')).streakRemind).toBe(false);
     expect(Notifications.cancelScheduledNotificationAsync).toHaveBeenCalledWith(STREAK_RISK_ID);

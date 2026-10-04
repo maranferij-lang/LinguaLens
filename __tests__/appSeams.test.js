@@ -91,8 +91,7 @@ describe('settings', () => {
   test('sections get App’s settings functions, the paywall and settingsExtra', async () => {
     const { tree, screen } = await settingsScreen({ nativeLang: 'en', targetLang: 'es' });
     const props = screen().props;
-    // кожен потік додає сюди свої поля (W1 — onToggleStreakRemind)
-    expect(props.extra).toEqual(expect.any(Object));
+    expect(props.extra).toEqual({});
     expect(typeof props.openPaywall).toBe('function');
     await act(async () => props.saveSetting({ widgetHideTranslation: false }));
     expect(JSON.parse(await AsyncStorage.getItem('ll_settings_v1'))).toMatchObject({ widgetHideTranslation: false });

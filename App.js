@@ -1377,12 +1377,8 @@ export default function App() {
     if (ready && streakLive.doneToday) cancelStreakRisk();
   }, [ready, streakLive.doneToday, streakLive.todayKey]);
 
-  async function toggleStreakRemind(on) {
-    if (on && !(await askPush('streak'))) return;
-    commitSettings({ ...settingsRef.current, streakRemind: !!on });
-    track('streak_reminder', { action: on ? 'on' : 'off' });
-    if (!on) cancelStreakRisk();
-  }
+  // Перемикач «Нагадувати про серію» — у src/settings/StreakSection.js (сам
+  // пише streakRemind і знімає заплановане); тут його лише читаємо.
 
   // Свято першої дії дня (core.md C.3): щойно дія перевела «сьогодні ще ні»
   // в «сьогодні так», а сьогодні ще не святкували. Позначку пишемо одразу,
@@ -1485,7 +1481,6 @@ export default function App() {
   // кожен потік додає свої поля між своїми маркерами.
   const settingsExtra = {
     // <v13:W1>
-    onToggleStreakRemind: toggleStreakRemind,
     // </v13:W1>
     // <v13:W2>
     // </v13:W2>
@@ -1850,7 +1845,6 @@ export default function App() {
             t={t}
           />
         </View>
-
         {/* Свято першої дії дня — над усім, коли черга вільна */}
         <StreakCelebration
           data={overlayFree ? celebration : null}
