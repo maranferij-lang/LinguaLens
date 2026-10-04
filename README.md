@@ -38,12 +38,14 @@ iPhone (Expo SDK 57 · React Native 0.86 · React 19.2)
 ├─ HTTPS ─► сервер (Node, без npm-залежностей, Google Cloud Run)
 │            POST /auth/device          новий пристрій → випадковий id + токен
 │            POST /scan                 кадр → AI → слово, рамка, силует
-│                                       (5 безкоштовних сканів на день, далі 402;
-│                                       level 1–10 — приклад під рівень, від 7 ще вирази)
+│                                       (1 безкоштовний скан на день, далі 402 SCAN_LIMIT;
+│                                       mode 'scene' — уся кімната: Pro, без нього 1 раз
+│                                       за все життя, далі 402 SCENE_PRO; level 1–10 —
+│                                       приклад під рівень, від 7 ще вирази)
 │            POST /word-of-day          до 14 днів слів під профіль: теми, рівень, «Знаю»
 │            GET  /word-of-day          старі версії: 7 днів зі списку v1 під seed пристрою
 │            POST /me/profile           відповіді онбордингу (цілі, сфера, рівень, звідки)
-│            GET  /me · DELETE /me      Pro-статус і лічильник · стерти дані
+│            GET  /me · DELETE /me      Pro-статус і лічильники · стерти дані
 │            GET  /privacy · /support · /health
 │            POST /webhooks/revenuecat  зміни підписки
 │              │
@@ -58,6 +60,11 @@ iPhone (Expo SDK 57 · React Native 0.86 · React 19.2)
   залишають телефон.
 - **Ліміт сканів рахує сервер** за id пристрою, а не телефон. Перевстановлення
   його не обнуляє, і запит понад ліміт відхиляється ще до виклику AI.
+  Безкоштовно: `FREE_SCANS_PER_DAY` (1) скан на день і `FREE_SCENES` (1) скан
+  цілої кімнати за все життя; Pro знімає обидва ліміти. Словник, картки й
+  слово дня — без меж. Відповідь `/scan` і `GET /me` несе
+  `usage: { day, scans, limit, scenes, sceneLimit }` (`null` у лімітах — Pro);
+  відмова — `402 { error: 'SCAN_LIMIT' | 'SCENE_PRO', limit, used }`.
 - **Pro прив'язаний до того ж id.** RevenueCat повідомляє сервер вебхуком, а
   на випадок, якщо вебхук загубився, сервер сам перепитує (кеш 10 хв).
   Покупка переноситься на новий телефон через «Відновити покупки».
@@ -169,7 +176,7 @@ src/ErrorBoundary.js
 server/server.js          — маршрути, ліміти частоти, заголовки безпеки
 server/ai.js              — провайдери gemini | anthropic | mock, промпти, кеш перекладів
 server/auth.js            — анонімні пристрої, HMAC-токени
-server/billing.js         — денний ліміт сканів, Pro через RevenueCat
+server/billing.js         — денний ліміт сканів, проба сцени, Pro через RevenueCat
 server/store.js           — Firestore (REST) або data.json
 server/words.js           — 320 слів «слова дня» v1 (GET для старих версій)
 server/topics/            — 16 тематичних списків слова дня з рівнями 1–3

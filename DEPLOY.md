@@ -205,15 +205,20 @@ gcloud run services describe lingualens-server --region europe-central2 --format
 | `APP_TOKEN` | рекомендовано | спільний токен; той самий у `EXPO_PUBLIC_APP_TOKEN` |
 | `REVENUECAT_SECRET_KEY` | так, для Pro | секретний ключ RevenueCat `sk_…`: сервер сам перевіряє Pro |
 | `REVENUECAT_WEBHOOK_AUTH` | так, для Pro | значення заголовка `Authorization` вебхука. Без нього вебхук відповідає 401 |
-| `REVENUECAT_ENTITLEMENT` | ні | за замовчуванням `pro` |
+| `REVENUECAT_ENTITLEMENT` | ні | ідентифікатор entitlement у RevenueCat, за замовчуванням `lingualens_pro`. Має збігатися з дашбордом символ у символ, інакше сервер не побачить жодного Pro |
 | `APPLE_AUDIENCES` | ні | bundle id застосунку для перевірки входу через Apple; за замовчуванням `com.marik.lingualens`. Кілька — через кому |
 | `APPLE_TEAM_ID` / `APPLE_KEY_ID` / `APPLE_PRIVATE_KEY` | так, для релізу з входом через Apple | ключ Sign in with Apple (крок 9). Без них вхід працює, але при видаленні акаунта вхід не відкликається — App Review цього вимагає |
 | `SUPPORT_EMAIL` | так | пошта на сторінках `/privacy` і `/support` |
-| `FREE_SCANS_PER_DAY` | ні | безкоштовних сканів на день, за замовчуванням 5 |
+| `FREE_SCANS_PER_DAY` | ні | безкоштовних сканів на день, за замовчуванням `1`. Понад ліміт — `402 SCAN_LIMIT` до виклику AI |
+| `FREE_SCENES` | ні | скільки сканів цілої кімнати (сцен) пристрій без Pro має **за все життя**, за замовчуванням `1`; `0` — сцени лише в Pro. Безкоштовна сцена забирає ще й денний скан. Понад пробу — `402 SCENE_PRO` до виклику AI |
 | `RATE_PER_MIN` | ні | сканів з однієї IP за хвилину, за замовчуванням 20 |
 | `TRUST_PROXY_HOPS` | ні | скільки проксі перед сервером. Cloud Run напряму — `1` (за замовчуванням), за External Load Balancer — `2` |
 | `PORT` | ні | Cloud Run задає сам, не чіпай |
 | `DATA_FILE` | ні | шлях до файлу сховища; потрібен лише тестам |
+
+Ліміти (`FREE_SCANS_PER_DAY`, `FREE_SCENES`) — цілі числа від 0. Опечатку на
+кшталт `FREE_SCANS_PER_DAY=три` сервер не перетворить на безлімітні скани: пише
+попередження в лог і бере значення за замовчуванням.
 
 ## 6. Перевірка
 
