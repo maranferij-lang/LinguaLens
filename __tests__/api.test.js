@@ -73,7 +73,7 @@ test('the paywall gets the server counters with a 402', async () => {
 });
 
 // 402 буває двох видів — сервер називає який у тілі. Усе, що не SCENE_PRO
-// (старий сервер, текст замість коду, порожнє тіло), — денний ліміт, як і раніше.
+// (старий сервер, текст замість коду, порожнє тіло), — ліміт сканів, як і раніше.
 test.each([
   [{ error: 'SCENE_PRO', used: 1, limit: 1 }, 'SCENE_PRO'],
   [{ error: 'SCAN_LIMIT', used: 1, limit: 1 }, 'SCAN_LIMIT'],

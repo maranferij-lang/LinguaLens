@@ -744,3 +744,29 @@ describe('camera permission on the Scan tab', () => {
     await act(async () => tree.unmount());
   });
 });
+
+// v1.3: безкоштовний скан — один на все життя. Лічильник над камерою каже
+// «лишився N безкоштовних», а не «на сьогодні»: завтра нових не буде.
+describe('the free scans counter over the camera', () => {
+  test('says how many free scans are left, never “today”', async () => {
+    for (const [n, en, uk] of [
+      [1, '1 free scan left', 'Лишився 1 безкоштовний скан'],
+      [0, '0 free scans left', 'Лишилося 0 безкоштовних сканів'],
+    ]) {
+      let tree = await render(scanner({ scansLeft: n }));
+      expect(texts(tree)).toContain(en);
+      expect(texts(tree).some((s) => /today/i.test(s))).toBe(false);
+      await act(async () => tree.unmount());
+      tree = await render(scanner({ scansLeft: n, nativeLang: 'uk', t: makeT('uk') }));
+      expect(texts(tree)).toContain(uk);
+      expect(texts(tree).some((s) => /сьогодні/.test(s))).toBe(false);
+      await act(async () => tree.unmount());
+    }
+  });
+
+  test('with Pro (no ceiling) there is no counter at all', async () => {
+    const tree = await render(scanner({ scansLeft: Infinity }));
+    expect(texts(tree).some((s) => /free scans? left/.test(s))).toBe(false);
+    await act(async () => tree.unmount());
+  });
+});

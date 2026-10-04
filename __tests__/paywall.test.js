@@ -50,6 +50,7 @@ test('without a store: no prices, the reason up front, buying disabled', async (
 test('the scans paywall states the server’s free limit', async () => {
   const tree = await render({ reason: 'scans', freeScans: 3, plans: PLANS });
   const all = texts(tree);
+  expect(all).toContain(t('pwScansTitle', { n: 3 }));
   expect(all).toContain(t('pwScansText', { n: 3 }));
   expect(all).toContain('3'); // клітинка «зараз» у таблиці
   await act(async () => tree.unmount());
@@ -95,26 +96,26 @@ describe('intro after the first scan', () => {
         t('tlRemindText'),
         t('tlDay', { n: 7 }),
         t('tlChargeText', { p: '$34.99' }),
-        'Continue for free — 1 scan a day',
+        'Continue for free — 1 scan left',
         t('terms'),
         t('restore'),
       ])
     );
     expect(all).not.toContain(t('colFree'));
     expect(tree.root.findAll((n) => n.props.title === t('startTrial')).length).toBeGreaterThan(0);
-    await press(tree, 'Continue for free — 1 scan a day');
+    await press(tree, 'Continue for free — 1 scan left');
     expect(onClose).toHaveBeenCalledTimes(1);
     expect(tree.root.findAll((n) => n.props.accessibilityLabel === t('close') && n.props.onPress).length).toBeGreaterThan(0);
   });
 
-  test('the free option counts scans with the right plural', async () => {
+  test('the free option counts the scans left with the right plural', async () => {
     const uk = makeT('uk');
     for (const [n, text] of [
-      [1, 'Продовжити безкоштовно — 1 скан щодня'],
-      [3, 'Продовжити безкоштовно — 3 скани щодня'],
-      [5, 'Продовжити безкоштовно — 5 сканів щодня'],
+      [1, 'Продовжити безкоштовно — лишився 1 скан'],
+      [3, 'Продовжити безкоштовно — лишилося 3 скани'],
+      [5, 'Продовжити безкоштовно — лишилося 5 сканів'],
     ]) {
-      const tree = await open({ reason: 'intro', plans: PLANS, freeScans: n, t: uk });
+      const tree = await open({ reason: 'intro', plans: PLANS, freeScans: 10, scansLeft: n, t: uk });
       expect(strings(tree)).toContain(text);
       await act(async () => tree.unmount());
       mounted = null;
@@ -136,7 +137,7 @@ describe('intro after the first scan', () => {
     expect(all).not.toContain(t('tlToday'));
     expect(all).toContain(t('pwTitle'));
     expect(all).toContain(t('colFree'));
-    expect(all).toContain('Continue for free — 5 scans a day');
+    expect(all).toContain('Continue for free — 5 scans left');
     expect(tree.root.findAll((n) => n.props.title === t('subscribe')).length).toBeGreaterThan(0);
   });
 
@@ -249,12 +250,66 @@ describe('v1.2 paywall', () => {
     expect(after).not.toContain(t('colFree'));
   });
 
-  test('the free way out never promises another scan today once it is used', async () => {
-    let tree = await open({ reason: 'intro', plans: PLANS, freeScans: 1, scansLeft: 0 });
-    expect(strings(tree)).toContain(t('pwContinueFreeTomorrow'));
-    await act(async () => tree.unmount());
+  // Безкоштовний скан один на все життя: витрачено — кнопка не обіцяє ні
+  // ще одного сьогодні, ні «наступного завтра», а каже, що лишається.
+  test('once the free scan is used, the free way out offers the word list and cards — never a scan tomorrow', async () => {
+    const TIME = /today|tomorrow|a day|per day|сьогодні|завтра|щодня|на день|heute|morgen|pro Tag|hoy|mañana|al día/i;
+    for (const lang of ['en', 'uk', 'de', 'es']) {
+      const tl = makeT(lang);
+      const tree = await open({ reason: 'intro', plans: PLANS, freeScans: 1, scansLeft: 0, lang, t: tl });
+      const all = strings(tree);
+      expect(all).toContain(tl('pwContinueFreeNoScans'));
+      for (const n of [0, 1]) expect(all).not.toContain(tl('pwContinueFree', { n }));
+      expect(tl('pwContinueFreeNoScans')).not.toMatch(TIME);
+      await act(async () => tree.unmount());
+      mounted = null;
+    }
+    expect(t('pwContinueFreeNoScans')).toBe('Continue for free — word list and cards');
+    expect(makeT('uk')('pwContinueFreeNoScans')).toBe('Продовжити безкоштовно — словник і картки');
+  });
+
+  // Скільки сканів ЛИШИЛОСЬ, а не скільки їх було на старті
+  test('with scans left, the free way out names what is left, not the ceiling', async () => {
+    const tree = await open({ reason: 'intro', plans: PLANS, freeScans: 3, scansLeft: 1 });
+    const all = strings(tree);
+    expect(all).toContain('Continue for free — 1 scan left');
+    expect(all).not.toContain(t('pwContinueFreeNoScans'));
+    expect(all.some((x) => /a day|today|tomorrow/.test(x))).toBe(false);
+  });
+});
+
+// v1.3: безкоштовно — один скан на все життя. Стіна сканів каже саме це:
+// без «на сьогодні», «на день» чи «завтра», і що лишається безкоштовним.
+describe('the scans wall for a lifetime free scan', () => {
+  let mounted = null;
+  afterEach(async () => {
+    if (mounted) await act(async () => mounted.unmount());
     mounted = null;
-    tree = await open({ reason: 'intro', plans: PLANS, freeScans: 1, scansLeft: 1 });
-    expect(strings(tree)).toContain('Continue for free — 1 scan a day');
+  });
+
+  test('English: used up, one scan to try, the rest stays free; the table counts scans in total', async () => {
+    const tree = (mounted = await render({ reason: 'scans', freeScans: 1, plans: PLANS }));
+    const all = texts(tree);
+    expect(all).toContain('You’ve used your free scan');
+    expect(all).toContain(
+      'The free plan includes 1 scan to try. With Pro, scan as much as you like. Your word list, flashcards and word of the day stay free.'
+    );
+    expect(all).toContain('Scans in total');
+    expect(all.some((x) => /today|tomorrow|a day|per day/i.test(x))).toBe(false);
+  });
+
+  test('Ukrainian reads naturally, with the right plural', async () => {
+    const uk = makeT('uk');
+    let tree = (mounted = await render({ reason: 'scans', freeScans: 1, plans: PLANS, t: uk, lang: 'uk' }));
+    let all = texts(tree);
+    expect(all).toContain('Безкоштовний скан використано');
+    expect(all).toContain('Безкоштовно — 1 скан на пробу. З Pro скануй скільки хочеш. Словник, картки й слово дня лишаються безкоштовними.');
+    expect(all).toContain('Сканів загалом');
+    expect(all.some((x) => /сьогодні|завтра|на день|щодня/.test(x))).toBe(false);
+    await act(async () => tree.unmount());
+    tree = mounted = await render({ reason: 'scans', freeScans: 3, plans: PLANS, t: uk, lang: 'uk' });
+    all = texts(tree);
+    expect(all).toContain('Безкоштовні скани використано');
+    expect(all).toContain('Безкоштовно — 3 скани на пробу. З Pro скануй скільки хочеш. Словник, картки й слово дня лишаються безкоштовними.');
   });
 });

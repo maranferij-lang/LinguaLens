@@ -94,7 +94,7 @@ import {
   canScan,
   canScene,
   canUseLanguage,
-  freeScansPerDay,
+  freeScans,
   freeScenes,
   loadUsage,
   saveUsage,
@@ -220,8 +220,9 @@ export default function App() {
   // Відкритий аркуш результату скану — це нативний Modal, і все з кореня App
   // (тост, пейвол) iOS малює ПІД ним.
   const [scanSheetOpen, setScanSheetOpen] = useState(false);
-  // Денний облік сканів. Джерело правди — сервер; тут лише кеш, щоб
-  // показати пейвол ще ДО зйомки і не гнати кадр, який сервер однаково відхилить.
+  // Облік сканів за все життя запису (безкоштовно — один). Джерело правди —
+  // сервер; тут лише кеш, щоб показати пейвол ще ДО зйомки і не гнати кадр,
+  // який сервер однаково відхилить.
   const [usage, setUsage] = useState({ scans: 0 });
   const [paywall, setPaywall] = useState(null); // null | 'scans' | 'scene' | 'langs' | 'info' | 'intro'
   // Відкритий пейвол для асинхронних дій (покупка, відновлення, статистика)
@@ -362,7 +363,7 @@ export default function App() {
   }
 
   // Нова ідентичність має свій лічильник — підтягуємо його одразу, інакше
-  // старе локальне «5 з 5» блокувало б скани до наступного запуску.
+  // старе локальне «1 з 1» блокувало б скани до наступного запуску.
   // Якщо телефон був в акаунті Apple, сервер того акаунта вже не знає (його
   // стерли з іншого iPhone): далі телефон — гість, а слова лишаються на ньому.
   async function renewIdentity() {
@@ -377,13 +378,14 @@ export default function App() {
     } catch (_) {}
   }
 
-  // limit — денна стеля з сервера (null — Pro); scenes/sceneLimit — сцени за
-  // все життя і їхня безкоштовна стеля (null — Pro). Відповідь без якогось
-  // поля (старий сервер) не стирає вже відоме.
+  // scans/limit — скани за все життя запису і безкоштовна стеля з сервера
+  // (null — Pro); scenes/sceneLimit — так само для сцен. Дня тут немає:
+  // лічильник не обнуляється. Відповідь без якогось поля (старий сервер)
+  // не стирає вже відоме.
   function updateUsage(next) {
     setUsage((prev) => {
       const keep = (k) => (next[k] !== undefined ? next[k] : prev[k]);
-      const u = { day: next.day, scans: next.scans || 0, limit: keep('limit') };
+      const u = { scans: next.scans || 0, limit: keep('limit') };
       if (keep('scenes') !== undefined) u.scenes = keep('scenes');
       if (keep('sceneLimit') !== undefined) u.sceneLimit = keep('sceneLimit');
       saveUsage(u);
@@ -391,9 +393,9 @@ export default function App() {
     });
   }
 
-  // Сервер відмовив за оплатою (402). code — 'SCAN_LIMIT' (денні скани:
-  // used/limit — скани за сьогодні) або 'SCENE_PRO' (безкоштовні сцени:
-  // used/limit — сцени за все життя). Повертає true, якщо той самий кадр
+  // Сервер відмовив за оплатою (402). code — 'SCAN_LIMIT' (безкоштовні
+  // скани: used/limit — скани за все життя) або 'SCENE_PRO' (безкоштовні
+  // сцени: used/limit — теж за все життя). Повертає true, якщо той самий кадр
   // можна надіслати ще раз. Pro уже куплено, а сервер ще не знає (вебхук не
   // дійшов) — просимо його перепитати RevenueCat; стелі вже немає — пейвол
   // не потрібен.
@@ -401,7 +403,7 @@ export default function App() {
     const scene = code === 'SCENE_PRO';
     if (data?.used != null) {
       if (scene) setUsage((prev) => persistUsage({ ...prev, scenes: data.used, sceneLimit: data.limit }));
-      else updateUsage({ day: localDayKey(), scans: data.used, limit: data.limit });
+      else updateUsage({ scans: data.used, limit: data.limit });
     }
     if (sub.pro) {
       const me = await refreshMe(true);
@@ -469,9 +471,14 @@ export default function App() {
   }, [shownAch]);
 
   // ---------- ДАНІ ----------
+  // Активність дня — з неї серія і графік тижня: збережені слова, кожна
+  // картка й кожна відповідь квізу. Безкоштовний скан один на все життя,
+  // тож серію людина тримає навчанням, а не скануванням.
   // n — скільки дій за раз: сім слів зі сцени — це сім збережень, інакше
   // картка «Мій тиждень» рахувала б їх як одне й з'їдала б повторення.
+  // Нуль не пишемо: день із нулем теж потрапив би в серію.
   function logActivity(n = 1) {
+    if (!(n > 0)) return;
     const k = localDayKey();
     setActivity((prev) => {
       const next = { ...prev, [k]: (prev[k] || 0) + n };
@@ -482,7 +489,8 @@ export default function App() {
 
   // Воротар сканера. Викликається ДО зйомки: краще сказати «ні» одразу,
   // ніж витратити виклик AI і показати відмову після нього. Порядок — як на
-  // сервері: спершу денні скани, потім безкоштовна проба сцени.
+  // сервері: спершу безкоштовні скани (сцена теж займає скан), потім
+  // безкоштовна проба сцени.
   function guardScan(mode = 'object') {
     const deny = canScan({ pro: sub.pro, usage }) || (mode === 'scene' ? canScene({ pro: sub.pro, usage }) : null);
     if (deny) {
@@ -1002,10 +1010,16 @@ export default function App() {
     setStats({});
     setSeenAch([]);
     setWod(null);
-    // стеля — налаштування сервера, а не дані людини: її лишаємо
+    // Новий запис на сервері — новий лічильник, і він справді з нуля:
+    // стирання, на відміну від виходу з акаунта, лічильників не переносить.
+    // Стеля — налаштування сервера, а не дані людини: її лишаємо. Обидва
+    // числа одразу перепитуємо в /me — до його відповіді на екрані нуль.
     setUsage((u) => ({ scans: 0, limit: u.limit }));
     account.forget();
-    if (session) setDeviceId(session.userId);
+    if (session) {
+      setDeviceId(session.userId);
+      refreshMe();
+    }
   }
 
   // ---------- АКАУНТ APPLE ----------
@@ -1063,6 +1077,7 @@ export default function App() {
     const session = await leaveAccount();
     setDeviceId(session ? session.userId : null);
     // лічильники сканів сервер переніс у нову ідентичність — /me їх покаже
+    // (інакше вихід і новий вхід щоразу дарували б ще один безкоштовний скан)
     if (session) refreshMe();
   }
 
@@ -1124,9 +1139,10 @@ export default function App() {
 
   // Перший скан в онбордингу («Спробуй зараз»): справжній сканер — зі
   // згодою на AI і дозволом камери, як завжди, — але без пейволів посеред
-  // знайомства: скан на сьогодні вже витрачено чи сервер відмовив за
-  // оплатою — просто вертаємось в онбординг, а пропозицію Pro людина
-  // побачить наприкінці. level — рівень, який людина щойно обрала.
+  // знайомства: безкоштовний скан уже витрачено (скажімо, до перевстановлення
+  // — сервер памʼятає запис) чи сервер відмовив за оплатою — просто
+  // вертаємось в онбординг, а пропозицію Pro людина побачить наприкінці.
+  // level — рівень, який людина щойно обрала.
   function renderFirstScan({ onSaved, onClose, level }) {
     return (
       <ScannerScreen
@@ -1147,7 +1163,7 @@ export default function App() {
         }}
         onScanned={(res) => res?.usage && updateUsage(res.usage)}
         onLimitReached={async (data, code) => {
-          if (data?.used != null && code !== 'SCENE_PRO') updateUsage({ day: localDayKey(), scans: data.used, limit: data.limit });
+          if (data?.used != null && code !== 'SCENE_PRO') updateUsage({ scans: data.used, limit: data.limit });
           track('scan_denied', { reason: code === 'SCENE_PRO' ? 'scene' : 'scans', server: true, source: 'onboarding' });
           onClose();
           return false;
@@ -1243,7 +1259,7 @@ export default function App() {
             wodHour={settings.wodHour}
             replay={onbReplay.current}
             // «Спробуй зараз» — лише вперше, з порожнім словником і коли
-            // безкоштовний скан на сьогодні ще є
+            // безкоштовний скан ще не витрачено
             canWow={!onbReplay.current && words.length === 0 && scansLeft({ pro: sub.pro, usage }) > 0}
             renderScanner={renderFirstScan}
             draft={onbReplay.current ? null : onbDraft.current}
@@ -1326,8 +1342,11 @@ export default function App() {
                   wodSaved={wodSaved}
                   onSaveWod={saveWordOfDay}
                   targetLang={settings.targetLang}
-                  onQuizDone={(perfect) => {
+                  onQuizDone={(perfect, correct) => {
                     bumpStat('quizzes');
+                    // Правильні відповіді — теж повторення дня (помилки вже
+                    // записав reviewWord): серію тримає навчання, а не скан.
+                    logActivity(correct || 0);
                     if (perfect) {
                       bumpStat('perfectQuiz');
                       maybeAskForReview();
@@ -1471,7 +1490,7 @@ export default function App() {
             {paywall === 'onboarding' ? (
               <OnboardingPaywall
                 plans={pro.plans}
-                freeScans={freeScansPerDay(usage)}
+                freeScans={freeScans(usage)}
                 scansLeft={scansLeft({ pro: sub.pro, usage })}
                 unavailable={pro.mode === 'unavailable'}
                 plansFailed={pro.plansStatus === 'failed'}
@@ -1494,7 +1513,7 @@ export default function App() {
               <PaywallScreen
                 reason={paywall}
                 plans={pro.plans}
-                freeScans={freeScansPerDay(usage)}
+                freeScans={freeScans(usage)}
                 freeScenes={freeScenes(usage)}
                 scansLeft={scansLeft({ pro: sub.pro, usage })}
                 unavailable={pro.mode === 'unavailable'}

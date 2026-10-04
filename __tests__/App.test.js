@@ -303,7 +303,71 @@ test('without Pro a 402 opens the paywall with the server’s limit', async () =
   const tree = await renderApp();
   const retry = await run(() => one(tree, ScannerScreen).props.onLimitReached({ error: 'SCAN_LIMIT', used: 3, limit: 3 }));
   expect(retry).toBe(false);
-  expect(one(tree, PaywallScreen).props).toMatchObject({ reason: 'scans', freeScans: 3 });
+  expect(one(tree, PaywallScreen).props).toMatchObject({ reason: 'scans', freeScans: 3, scansLeft: 0 });
+  // лічильник за все життя — без дня, який міг би його «обнулити»
+  expect(await stored('ll_usage_v1')).toEqual({ scans: 3, limit: 3 });
+  await act(async () => tree.unmount());
+});
+
+// v1.3: безкоштовний скан — один на все життя. Лічильник, збережений
+// колись раніше, блокує й сьогодні, навіть офлайн, поки сервер мовчить.
+test('a free scan used on an earlier day still blocks today: the paywall, and no “tomorrow”', async () => {
+  await returning({ seen: ALL_ACH });
+  await AsyncStorage.setItem('ll_usage_v1', JSON.stringify({ day: '2000-01-01', scans: 1, limit: 1 }));
+  const tree = await renderApp();
+  const scanner = () => one(tree, ScannerScreen);
+  expect(scanner().props.scansLeft).toBe(0);
+  let allowed;
+  await run(() => (allowed = scanner().props.onGuardScan('object')));
+  expect(allowed).toBe(false);
+  expect(one(tree, PaywallScreen).props).toMatchObject({ reason: 'scans', freeScans: 1, scansLeft: 0 });
+  const all = texts(tree);
+  expect(all).toContain('You’ve used your free scan');
+  expect(all).toContain('Scans in total');
+  expect(all.some((s) => /today|tomorrow|a day|per day/i.test(s))).toBe(false);
+  await act(async () => tree.unmount());
+});
+
+test('the server’s lifetime count from /me replaces the cache and is kept without a day', async () => {
+  await returning();
+  serve((u, method) => {
+    if (method === 'POST' && u.pathname === '/auth/device') return reply(200, { token: 't', user: { id: 'u', createdAt: 1 } });
+    if (u.pathname === '/me')
+      return reply(200, { user: { id: 'u' }, pro: { active: false }, usage: { day: localDayKey(), scans: 1, limit: 1, scenes: 0, sceneLimit: 1, period: 'lifetime' } });
+  });
+  const tree = await renderApp();
+  expect(one(tree, ScannerScreen).props.scansLeft).toBe(0);
+  expect(await stored('ll_usage_v1')).toEqual({ scans: 1, limit: 1, scenes: 0, sceneLimit: 1 });
+  await act(async () => tree.unmount());
+});
+
+// «Стерти мої дані»: новий запис на сервері — лічильник справді з нуля. До
+// відповіді /me екран показує нуль, і /me для нового запису питаємо одразу.
+test('after “erase all my data” the new record’s counter is asked for at once', async () => {
+  await returning({ seen: ALL_ACH });
+  let records = 0;
+  const meCalls = [];
+  serve((u, method) => {
+    if (method === 'POST' && u.pathname === '/auth/device') {
+      records++;
+      return reply(200, { token: 't' + records, user: { id: 'u' + records, createdAt: 1 } });
+    }
+    if (u.pathname === '/me' && method === 'DELETE') return reply(200, { ok: true });
+    if (u.pathname === '/me') {
+      meCalls.push(records);
+      const used = records === 1 ? 1 : 0;
+      return reply(200, { user: { id: 'u' + records, apple: false }, pro: { active: false }, usage: { day: localDayKey(), scans: used, limit: 1, scenes: used, sceneLimit: 1 } });
+    }
+  });
+  const tree = await renderApp();
+  expect(one(tree, ScannerScreen).props.scansLeft).toBe(0);
+  await openTab(tree, 'settings');
+  await run(() => one(tree, SettingsScreen).props.onEraseEverything());
+  expect(records).toBe(2);
+  expect(meCalls).toContain(2);
+  await openTab(tree, 'scan');
+  expect(one(tree, ScannerScreen).props).toMatchObject({ scansLeft: 1, sceneLocked: false });
+  expect(await stored('ll_usage_v1')).toEqual({ scans: 0, limit: 1, scenes: 0, sceneLimit: 1 });
   await act(async () => tree.unmount());
 });
 
@@ -345,6 +409,63 @@ test('an achievement is “fresh” only from the toast, not from the profile', 
   await run(() => one(tree, ProfileScreen).props.onShareAchievement(a));
   expect(openShare(tree)).toMatchObject({ kind: 'achievement', fresh: false });
   await act(async () => tree.unmount());
+});
+
+// v1.3: безкоштовний скан один на все життя — сканувати щодня безкоштовно
+// вже не вийде, тож серію тримає навчання: картки, квіз, слово дня.
+describe('the streak is kept by learning, not by scanning', () => {
+  const longAgo = Date.now() - 60 * 86400000;
+  const known = () => [0, 1, 2, 3].map((i) => ({ ...word(i), addedAt: longAgo }));
+  const yesterday = () => {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    return localDayKey(d);
+  };
+
+  test('a finished quiz counts for today: every answer is a review, and the streak goes on', async () => {
+    await returning({ words: known(), seen: ALL_ACH });
+    await AsyncStorage.setItem('ll_activity_v1', JSON.stringify({ [yesterday()]: 3 }));
+    const tree = await renderApp();
+    await openTab(tree, 'cards');
+    // одна помилка (її одразу пише onMiss → onReview), три правильні — у кінці
+    await run(() => one(tree, FlashcardsScreen).props.onReview('w0', false));
+    await run(() => one(tree, FlashcardsScreen).props.onQuizDone(false, 3));
+    expect((await stored('ll_activity_v1'))[localDayKey()]).toBe(4);
+    expect((await stored('ll_stats_v1')).quizzes).toBe(1);
+
+    await openTab(tree, 'profile');
+    const all = texts(tree);
+    expect(all).toContain('2 days in a row');
+    expect(all).toContain('Keep it up — review your words every day.');
+    // картка «Мій тиждень»: нових слів немає, а повторення — і вчора, і сьогодні
+    await run(() => one(tree, ProfileScreen).props.onShareWeek());
+    expect(openShare(tree).stats).toMatchObject({ streak: 2, weekWords: 0, reviews: 7 });
+    await act(async () => tree.unmount());
+  });
+
+  test('a flashcards session alone starts a streak', async () => {
+    await returning({ words: known(), seen: ALL_ACH });
+    const tree = await renderApp();
+    await openTab(tree, 'profile');
+    expect(texts(tree)).toContain('Review your cards or save the word of the day to start a streak.');
+    await openTab(tree, 'cards');
+    await run(() => one(tree, FlashcardsScreen).props.onReview('w1', true));
+    await run(() => one(tree, FlashcardsScreen).props.onReview('w2', true));
+    expect((await stored('ll_activity_v1'))[localDayKey()]).toBe(2);
+    await openTab(tree, 'profile');
+    expect(texts(tree)).toContain('1 day in a row');
+    await act(async () => tree.unmount());
+  });
+
+  test('a quiz with no right answers adds no empty day of its own', async () => {
+    await returning({ words: known(), seen: ALL_ACH });
+    const tree = await renderApp();
+    await openTab(tree, 'cards');
+    await run(() => one(tree, FlashcardsScreen).props.onQuizDone(false, 0));
+    expect((await stored('ll_activity_v1')) || {}).toEqual({});
+    expect((await stored('ll_stats_v1')).quizzes).toBe(1);
+    await act(async () => tree.unmount());
+  });
 });
 
 test('the week card counts this week, not a lifetime of reviews', async () => {

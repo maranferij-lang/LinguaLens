@@ -230,6 +230,56 @@ describe('copy style', () => {
   });
 });
 
+// v1.3: безкоштовно — один скан на все життя, а не на день. Жоден рядок не
+// обіцяє скан «на сьогодні», «на день» чи «завтра», а серію тримає навчання.
+describe('a lifetime free scan', () => {
+  const PER_DAY = /today|tomorrow|a day|per day|every day|сьогодні|завтра|щодня|на день|heute|morgen|pro Tag|jeden Tag|hoy|mañana|al día|cada día/i;
+  const SCAN = /scan|скан|escane/i;
+  const SCAN_KEYS = ['scansLeftN', 'pwScansTitle', 'pwScansText', 'cmp_scans', 'pwContinueFree', 'pwContinueFreeNoScans'];
+
+  test('the new and reworded keys exist in every language; the “next scan tomorrow” one is gone', () => {
+    for (const lang of LANGS) {
+      for (const k of SCAN_KEYS) expect([lang, k, typeof STRINGS[lang][k]]).toEqual([lang, k, 'string']);
+      expect(STRINGS[lang]).not.toHaveProperty('pwContinueFreeTomorrow');
+    }
+  });
+
+  test.each(LANGS)('%s: the scan copy never speaks of a day, today or tomorrow', (lang) => {
+    const bad = SCAN_KEYS.filter((k) => PER_DAY.test(STRINGS[lang][k])).map((k) => `${k}: ${STRINGS[lang][k]}`);
+    expect(bad).toEqual([]);
+  });
+
+  // Ширша сітка: будь-який рядок, де скан стоїть поруч зі словом про день
+  test.each(LANGS)('%s: no string anywhere ties scanning to a day', (lang) => {
+    const bad = Object.entries(STRINGS[lang])
+      .filter(([, s]) => SCAN.test(s) && PER_DAY.test(s))
+      .map(([k, s]) => `${k}: ${s}`);
+    expect(bad).toEqual([]);
+  });
+
+  test.each(LANGS)('%s: the streak hints are about learning, not scanning', (lang) => {
+    for (const k of ['streakGo', 'streakStart']) expect(STRINGS[lang][k]).not.toMatch(SCAN);
+  });
+
+  test('plurals of the scan counters', () => {
+    const uk = makeT('uk');
+    expect([1, 2, 5, 21].map((n) => uk('scansLeftN', { n }))).toEqual([
+      'Лишився 1 безкоштовний скан',
+      'Лишилося 2 безкоштовні скани',
+      'Лишилося 5 безкоштовних сканів',
+      'Лишився 21 безкоштовний скан',
+    ]);
+    expect(uk('pwScansTitle', { n: 1 })).toBe('Безкоштовний скан використано');
+    expect(uk('pwScansTitle', { n: 3 })).toBe('Безкоштовні скани використано');
+    expect(uk('cmp_scans')).toBe('Сканів загалом');
+    const en = makeT('en');
+    expect([1, 3].map((n) => en('scansLeftN', { n }))).toEqual(['1 free scan left', '3 free scans left']);
+    expect(en('pwScansTitle', { n: 1 })).toBe('You’ve used your free scan');
+    expect(makeT('de')('scansLeftN', { n: 1 })).toBe('1 Gratis-Scan übrig');
+    expect(makeT('es')('scansLeftN', { n: 2 })).toBe('Te quedan 2 escaneos gratis');
+  });
+});
+
 // Французу без перекладу UI речення англійське — і дата в ньому теж.
 describe('dates', () => {
   const ts = new Date(2026, 9, 8, 12).getTime();

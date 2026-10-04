@@ -153,12 +153,26 @@ describe('scene is Pro after one free try', () => {
     expect(one(tree, ScannerScreen).props.onGuardScan('scene')).toBe(true);
   });
 
-  test('the daily scan limit is checked first, like on the server', async () => {
+  test('the free scan is checked first, like on the server: a scene takes it too', async () => {
     await returning();
     serveUsage({ scans: 1, limit: 1, scenes: 1, sceneLimit: 1 });
     const tree = await renderApp();
     await run(() => one(tree, ScannerScreen).props.onGuardScan('scene'));
     expect(one(tree, PaywallScreen).props.reason).toBe('scans');
+  });
+
+  // Безкоштовний скан пішов на предмет — проба сцени ще «є», але сцена теж
+  // займає скан, а його вже немає: стіна сканів, і без значка PRO на сцені.
+  test('the free scan spent on an object leaves no scan for the free scene either', async () => {
+    await returning();
+    serveUsage({ scans: 1, limit: 1, scenes: 0, sceneLimit: 1 });
+    const tree = await renderApp();
+    expect(one(tree, ScannerScreen).props).toMatchObject({ scansLeft: 0, sceneLocked: false });
+    let allowed;
+    await run(() => (allowed = one(tree, ScannerScreen).props.onGuardScan('scene')));
+    expect(allowed).toBe(false);
+    expect(one(tree, PaywallScreen).props.reason).toBe('scans');
+    expect(events('scan_denied')).toEqual([{ reason: 'scans', mode: 'scene' }]);
   });
 
   test('tapping the locked scene chip opens the scene paywall', async () => {

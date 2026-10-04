@@ -108,10 +108,11 @@ test('trial → reminder → plans, each screen reported, prices only on the las
   // що буде після пробного періоду, як скасувати, умови, відновлення
   expect(all.some((s) => s.startsWith('Free until') && s.includes('$34.99 a year'))).toBe(true);
   for (const s of [t('terms'), t('restore'), t('startTrial')]) expect(all.includes(s) || !!tree.root.findAll((n) => n.props.title === s).length).toBe(true);
-  // скан на сьогодні вже витрачено — «ще один сьогодні» не обіцяємо
-  expect(all).toContain(t('pwContinueFreeTomorrow'));
-  expect(all.some((s) => s.startsWith('Continue for free — 1'))).toBe(false);
-  await press(tree, t('pwContinueFreeTomorrow'));
+  // безкоштовний скан (один на все життя) вже витрачено — ще одного не
+  // обіцяємо ні сьогодні, ні завтра: лишаються словник і картки
+  expect(all).toContain(t('pwContinueFreeNoScans'));
+  expect(all.some((s) => s.startsWith('Continue for free — 1') || /tomorrow|a day/.test(s))).toBe(false);
+  await press(tree, t('pwContinueFreeNoScans'));
   expect(onClose).toHaveBeenCalledWith(2);
 });
 
@@ -144,7 +145,7 @@ test('no trial in the offering: straight to the plans, no timeline, no “free�
   const all = strings(tree);
   expect(all).not.toContain(t('tlToday'));
   expect(all.some((s) => /free for/i.test(s))).toBe(false);
-  expect(all).toContain('Continue for free — 1 scan a day');
+  expect(all).toContain('Continue for free — 1 scan left');
   expect(tree.root.findAll((n) => n.props.title === t('subscribe')).length).toBeGreaterThan(0);
 });
 
