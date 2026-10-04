@@ -13,7 +13,12 @@
 // крапки), а наступне слово — під замком: «Наступне слово відкриється о
 // 19:00». Дії діють на те слово, яке зараз на картці. Без slots картка —
 // така, як і була.
-import { useEffect, useMemo, useRef, useState } from 'react';
+//
+// Слоти рахує App (useWodSlots) і кладе їх у маленьке спільне сховище
+// нижче, а картка бере їх звідти, якщо slots не прийшли пропом: так Pro
+// працює, хоч між App і карткою стоїть екран «Навчання» (FlashcardsScreen),
+// який про слоти не знає.
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { ActivityIndicator, AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { speak } from './speech';
@@ -27,6 +32,24 @@ import { hourLabel } from './widgets/format';
 import { CAPS, F, R, type, useTheme } from './theme';
 
 const same = (a, b) => String(a || '').toLowerCase() === String(b || '').toLowerCase();
+
+// Спільне сховище слотів: пише useWodSlots (App), читає картка. null — одне
+// слово на день (без Pro, без кешу на сьогодні, App не змонтовано).
+let shared = null;
+const listeners = new Set();
+function publish(value) {
+  if (value === shared) return;
+  shared = value;
+  listeners.forEach((fn) => fn());
+}
+function subscribe(fn) {
+  listeners.add(fn);
+  return () => listeners.delete(fn);
+}
+const sharedSlots = () => shared;
+export function useSharedWodSlots() {
+  return useSyncExternalStore(subscribe, sharedSlots, sharedSlots);
+}
 
 // Слова дня на сьогодні для картки (Pro). → { n, list, next, focus, onSave,
 // onKnow } або null, коли слово одне (тоді картка — як без Pro).
@@ -57,7 +80,7 @@ export function useWodSlots({ wod, hours, words, ui, focus = null, onSave, onKno
   }, []);
   const handlers = useRef({ onSave, onKnow });
   handlers.current = { onSave, onKnow };
-  return useMemo(() => {
+  const value = useMemo(() => {
     if (day.n < 2 || !day.open.length) return null;
     return {
       n: day.n,
@@ -68,6 +91,10 @@ export function useWodSlots({ wod, hours, words, ui, focus = null, onSave, onKno
       onKnow: (w) => handlers.current.onKnow?.(w),
     };
   }, [day, words, ui, focus]);
+  // картці — через спільне сховище; App зник — слотів немає
+  useEffect(() => publish(value), [value]);
+  useEffect(() => () => publish(null), []);
+  return value;
 }
 
 // topic — назва теми ('' — загальні слова); onKnow — «Знаю» (App шукає нове
@@ -76,7 +103,8 @@ export function useWodSlots({ wod, hours, words, ui, focus = null, onSave, onKno
 // піднятись (null — не пропонуємо), onLevelUp / onKeepLevel — відповіді на
 // пропозицію. Людині рівень називаємо за CEFR («Підняти до B2+»), як у
 // Параметрах: число зі слайдера нічого б їй не сказало.
-// slots — Pro, кілька слів на день (useWodSlots); null — одне слово.
+// slots — Pro, кілька слів на день (useWodSlots); null — одне слово; без
+// пропа — зі спільного сховища (те саме, що порахував App).
 export default function WordOfDayCard({
   word,
   lang,
@@ -90,8 +118,10 @@ export default function WordOfDayCard({
   levelUp = null,
   onLevelUp,
   onKeepLevel,
-  slots = null,
+  slots: slotsProp,
 }) {
+  const fromApp = useSharedWodSlots();
+  const slots = slotsProp === undefined ? fromApp : slotsProp;
   const { C, SHADOW } = useTheme();
   const s = useMemo(() => makeStyles(C), [C]);
   const reduce = useReducedMotion();
@@ -325,9 +355,17 @@ export default function WordOfDayCard({
             ) : null}
 
             {curSaved ? (
-              <View style={[s.actionBtn, { backgroundColor: C.greenSoft }]}>
+              // «У словнику» з галочкою — найдовший підпис ряду: на SE він
+              // ледве влазить у третину, тож тісніший відступ і, на iOS,
+              // трохи менший кегль замість «У словни…»
+              <View style={[s.actionBtn, s.savedBtn, { backgroundColor: C.greenSoft }]}>
                 <IcCheck size={15} color={C.green} />
-                <Text style={[s.actionText, { color: C.green }]} numberOfLines={1}>
+                <Text
+                  style={[s.actionText, { color: C.green, flexShrink: 1 }]}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.8}
+                >
                   {t('saved')}
                 </Text>
               </View>
@@ -433,6 +471,7 @@ const makeStyles = (C) =>
       minHeight: 46,
     },
     saveBtn: { backgroundColor: C.accent },
+    savedBtn: { gap: 4, paddingHorizontal: 6 },
     actionText: { color: C.text, fontSize: 15, fontFamily: F.bold },
     note: { color: C.dim, ...type(13, F.semi), marginTop: 10, textAlign: 'center' },
 

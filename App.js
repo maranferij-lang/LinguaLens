@@ -1454,9 +1454,9 @@ export default function App() {
     const c = await syncWordOfDay(wodArgs(next, true));
     if (c) setWod(c);
   }
-  // Передається в <FlashcardsScreen wodSlots> → <WordOfDayCard slots>
-  // (інтеграція з потоком «Навчання»); без Pro — null, картка як і була.
-  const wodSlots = useWodSlots({
+  // Картка на «Навчанні» бере їх сама (спільне сховище в WordOfDayCard.js):
+  // екран між ними про слоти не знає. Без Pro — null, картка як і була.
+  useWodSlots({
     wod: wod && wod.lang === settings.targetLang && wod.native === settings.nativeLang ? wod : null,
     hours: wodHours,
     words,

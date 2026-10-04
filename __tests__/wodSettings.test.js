@@ -370,7 +370,9 @@ describe('useWodSlots', () => {
 
   test('coming back to the app recounts the open words', async () => {
     const listeners = [];
-    const spy = jest.spyOn(AppState, 'addEventListener').mockImplementation((type, fn) => {
+    // AppState.addEventListener — уже jest.fn (пресет RN): mockRestore зняв би
+    // з нього й типову реалізацію, тож підміняємо лише один виклик
+    jest.spyOn(AppState, 'addEventListener').mockImplementationOnce((type, fn) => {
       listeners.push(fn);
       return { remove() {} };
     });
@@ -393,6 +395,86 @@ describe('useWodSlots', () => {
     expect(out.list.map((w) => w.slot)).toEqual([0, 1, 2]);
     expect(out.next).toBeNull();
     act(() => tree.unmount());
-    spy.mockRestore();
+  });
+});
+
+// ---------- «Навчання» в Pro: картка бере слоти з App сама ----------
+// Між App і карткою стоїть екран «Навчання», який про слоти не знає: App
+// кладе їх у спільне сховище (useWodSlots), картка читає звідти.
+describe('the Learn tab with several words a day (App → card)', () => {
+  const Linking = require('react-native').Linking;
+  afterEach(() => jest.useRealTimers());
+
+  // 15:30 — слова 10:00 і 15:00 уже відкриті, 21:00 — ще ні
+  async function learn({ pro = true } = {}) {
+    jest.useFakeTimers({ now: new Date(2026, 9, 8, 15, 30), advanceTimers: true, doNotFake: ['nextTick', 'setImmediate'] });
+    server();
+    await returning({ pro, settings: { wodHour: 10, wodPerDay: 3, wodHours: [10, 15, 21] } });
+    const tree = await renderApp();
+    await openTab(tree, 'cards');
+    return tree;
+  }
+  const card = (tree) => one(tree, WordOfDayCard);
+  const cardText = (tree) => card(tree).findAll((n) => n.type === Text).map(flat);
+  const dots = (tree) => card(tree).findAll((n) => typeof n.type === 'string' && n.props.testID === 'wod-slots');
+
+  test('dots, the newest open word and the next one locked at its hour', async () => {
+    const tree = await learn();
+    expect(dots(tree)).toHaveLength(1);
+    expect(cardText(tree)).toEqual(expect.arrayContaining(['w0-0', 'w0-1', uk('widgetSlot', { i: 2, n: 3 }), uk('wodNextLocked', { t: '21:00' })]));
+    expect(cardText(tree)).not.toContain('w0-2');
+  });
+
+  test('“Save” on a later word saves that word; a widget tap with a slot opens that slot', async () => {
+    const tree = await learn();
+    await run(() =>
+      card(tree)
+        .findAll((n) => n.props.onPress && n.type !== Text && allTextOf(n).includes(uk('saveWord')))
+        .at(-1)
+        .props.onPress()
+    );
+    expect((await stored('ll_words_v1')).map((w) => w.word)).toEqual(['w0-1']);
+    expect(cardText(tree)).toContain(uk('saved'));
+
+    const onUrl = Linking.addEventListener.mock.calls.filter(([type]) => type === 'url').at(-1)[1];
+    await run(() => onUrl({ url: `lingualens://word-of-day?date=${localDayKey()}&slot=0&from=widget&w=wod&f=systemLarge` }));
+    expect(cardText(tree)).toContain(uk('widgetSlot', { i: 1, n: 3 }));
+  });
+
+  test('a tap on the notification of a word opens that word on the card', async () => {
+    // тап приходить подією нативного модуля, як на телефоні
+    const { LegacyEventEmitter } = require('expo-modules-core');
+    const native = require('expo-notifications/build/NotificationsEmitterModule').default;
+    const { DEFAULT_ACTION_IDENTIFIER } = require('expo-notifications');
+    const tree = await learn();
+    await openTab(tree, 'settings');
+    const date = localDayKey();
+    await run(() =>
+      new LegacyEventEmitter(native).emit('onDidReceiveNotificationResponse', {
+        actionIdentifier: DEFAULT_ACTION_IDENTIFIER,
+        notification: {
+          date: Date.now(),
+          request: { identifier: `wod-${date}`, content: { title: 'w0-0', data: { type: 'word-of-day', date, slot: 0 } }, trigger: null },
+        },
+      })
+    );
+    expect(card(tree)).not.toBeNull();
+    expect(cardText(tree)).toContain(uk('widgetSlot', { i: 1, n: 3 }));
+  });
+
+  test('without Pro the same settings give the card of one word', async () => {
+    const tree = await learn({ pro: false });
+    expect(dots(tree)).toHaveLength(0);
+    expect(cardText(tree)).toContain('w0-0');
+  });
+
+  test('the shared slots are gone once the app unmounts', async () => {
+    const tree = await learn();
+    expect(dots(tree)).toHaveLength(1);
+    await act(async () => mounted.unmount());
+    mounted = null;
+    const alone = await renderCard({ word: W(0, 'harbour') });
+    expect(alone.root.findAll((n) => n.props.testID === 'wod-slots')).toHaveLength(0);
+    await act(async () => alone.unmount());
   });
 });
