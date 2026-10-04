@@ -162,7 +162,7 @@ async function linkApple(caller, sub) {
       const owner = await store.get(USERS, mapping.userId);
       if (owner) {
         // Лічильники телефона йдуть з ним в акаунт: інакше запис, що вже
-        // витратив денний скан і пробу сцени, входом отримав би нові.
+        // витратив безкоштовний скан і пробу сцени, входом отримав би нові.
         // Акаунт стерли саме зараз — перечитуємо зв'язок і вирішуємо знову.
         if (!(await addCounters(owner, caller))) continue;
         if (fresh) await dropUser(fresh);

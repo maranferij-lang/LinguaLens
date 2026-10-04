@@ -209,16 +209,29 @@ gcloud run services describe lingualens-server --region europe-central2 --format
 | `APPLE_AUDIENCES` | ні | bundle id застосунку для перевірки входу через Apple; за замовчуванням `com.marik.lingualens`. Кілька — через кому |
 | `APPLE_TEAM_ID` / `APPLE_KEY_ID` / `APPLE_PRIVATE_KEY` | так, для релізу з входом через Apple | ключ Sign in with Apple (крок 9). Без них вхід працює, але при видаленні акаунта вхід не відкликається — App Review цього вимагає |
 | `SUPPORT_EMAIL` | так | пошта на сторінках `/privacy` і `/support` |
-| `FREE_SCANS_PER_DAY` | ні | безкоштовних сканів на день, за замовчуванням `1`. Понад ліміт — `402 SCAN_LIMIT` до виклику AI |
-| `FREE_SCENES` | ні | скільки сканів цілої кімнати (сцен) пристрій без Pro має **за все життя**, за замовчуванням `1`; `0` — сцени лише в Pro. Безкоштовна сцена забирає ще й денний скан. Понад пробу — `402 SCENE_PRO` до виклику AI |
+| `FREE_SCANS` | ні | безкоштовних сканів **за все життя** запису (анонімний пристрій чи акаунт Apple), не на день; за замовчуванням `1`. Скани в Pro теж рахуються. Понад ліміт — `402 SCAN_LIMIT` до виклику AI |
+| `FREE_SCENES` | ні | скільки сканів цілої кімнати (сцен) пристрій без Pro має **за все життя**, за замовчуванням `1`; `0` — сцени лише в Pro. Безкоштовна сцена забирає ще й безкоштовний скан, тож із `FREE_SCANS=1` після неї й звичайний скан — уже Pro. Понад пробу — `402 SCENE_PRO` до виклику AI |
 | `RATE_PER_MIN` | ні | сканів з однієї IP за хвилину, за замовчуванням 20 |
 | `TRUST_PROXY_HOPS` | ні | скільки проксі перед сервером. Cloud Run напряму — `1` (за замовчуванням), за External Load Balancer — `2` |
 | `PORT` | ні | Cloud Run задає сам, не чіпай |
 | `DATA_FILE` | ні | шлях до файлу сховища; потрібен лише тестам |
 
-Ліміти (`FREE_SCANS_PER_DAY`, `FREE_SCENES`) — цілі числа від 0. Опечатку на
-кшталт `FREE_SCANS_PER_DAY=три` сервер не перетворить на безлімітні скани: пише
+Ліміти (`FREE_SCANS`, `FREE_SCENES`) — цілі числа від 0. Опечатку на
+кшталт `FREE_SCANS=три` сервер не перетворить на безлімітні скани: пише
 попередження в лог і бере значення за замовчуванням.
+
+`FREE_SCANS_PER_DAY` (денний ліміт до 4 жовтня 2026) **більше нічого не
+робить**. Якщо сервіс її ще має, сервер при старті пише в лог
+`billing: FREE_SCANS_PER_DAY=… ігнорую — ліміт тепер на все життя запису, його
+задає FREE_SCANS` і працює з `FREE_SCANS`. Прибери її:
+
+```bash
+gcloud run services update lingualens-server --region europe-central2 \
+  --remove-env-vars FREE_SCANS_PER_DAY
+```
+
+Записи, що вже сканували за денного ліміту, не отримують ще один безкоштовний
+скан: старий лічильник (`usage.scans`) береться в рахунок довічного.
 
 ## 6. Перевірка
 
@@ -344,7 +357,7 @@ gcloud run deploy lingualens-server --source . --region europe-central2
 
 ```bash
 gcloud run services update lingualens-server --region europe-central2 \
-  --update-env-vars FREE_SCANS_PER_DAY=5
+  --update-env-vars FREE_SCANS=3
 ```
 
 > `--set-env-vars` **замінює всі** змінні на ті, що в команді.

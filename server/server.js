@@ -221,6 +221,8 @@ async function handleScan(req, res, user) {
   if (scanLimited(clientIp(req))) {
     return json(res, 429, { error: 'Забагато запитів. Зачекай хвилинку.' });
   }
+  // Локальне «сьогодні» клієнта — лише для поля day у usage: ліміт сканів
+  // довічний і від дати не залежить.
   const day = billing.localDay(req.headers['x-local-date']);
   // Тіло читаємо ДО слота: від нього залежить, що саме займати. Сцена
   // займає ще й довічну безкоштовну пробу, і обидва лічильники пишуться одним
@@ -231,11 +233,12 @@ async function handleScan(req, res, user) {
   if (!body.image || typeof body.image !== 'string') {
     return json(res, 400, { error: 'Поле "image" (base64 JPEG) обовʼязкове' });
   }
-  // Сцена (кілька предметів з одного кадру) коштує один денний скан, а без
-  // Pro ще й одну з FREE_SCENES довічних проб. Відсутній чи невідомий mode —
-  // звичайний скан: старі версії застосунку цього поля не знають.
+  // Сцена (кілька предметів з одного кадру) коштує один скан із FREE_SCANS
+  // довічних, а без Pro ще й одну з FREE_SCENES довічних проб. Відсутній чи
+  // невідомий mode — звичайний скан: старі версії застосунку цього поля не
+  // знають.
   const scene = body.mode === 'scene';
-  const slot = await billing.reserveScan(user, day, { scene });
+  const slot = await billing.reserveScan(user, { scene });
   if (slot.gone) return json(res, 401, { error: 'UNAUTHORIZED' });
   if (slot.busy) return json(res, 429, { error: 'Забагато запитів. Зачекай хвилинку.' });
   if (!slot.ok) {
@@ -243,9 +246,9 @@ async function handleScan(req, res, user) {
     // SCAN_LIMIT — пейвол сканів, SCENE_PRO — пейвол сцени.
     return json(res, 402, { error: slot.scene ? 'SCENE_PRO' : 'SCAN_LIMIT', limit: slot.limit, used: slot.used });
   }
-  // Слот зайнятий. Якщо далі щось піде не так (помилка AI, «не бачу
+  // Скан зайнятий. Якщо далі щось піде не так (помилка AI, «не бачу
   // предмета», людина не дочекалась) — повертаємо його, і саме ДО відповіді:
-  // інакше миттєвий повтор на межі ліміту отримав би 402.
+  // інакше миттєвий повтор єдиного безкоштовного скану отримав би 402.
   const release = () => slot.release().catch((e) => console.error('release failed:', e.message));
   let out;
   try {

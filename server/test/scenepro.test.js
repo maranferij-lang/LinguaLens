@@ -1,6 +1,6 @@
 // Скан сцени — функція Pro з довічною пробою (FREE_SCENES) через справжній
-// HTTP: порядок відмов (спершу денний ліміт, потім сцени), обидві — до AI;
-// гонки паралельних сцен; повернення проби разом зі слотом; Pro без меж і
+// HTTP: порядок відмов (спершу ліміт сканів, потім сцени), обидві — до AI;
+// гонки паралельних сцен; повернення проби разом зі сканом; Pro без меж і
 // ліниві запити до RevenueCat (підроблений fetch рахує виклики).
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
@@ -13,8 +13,9 @@ Object.assign(process.env, {
   PROVIDER: 'mock',
   DATA_FILE: path.join(dir, 'data.json'),
   AUTH_SECRET: 'test-secret',
-  // Денних сканів із запасом: тут упираємось саме в пробу сцени.
-  FREE_SCANS_PER_DAY: '10',
+  // Сканів із запасом: тут упираємось саме в пробу сцени — з FREE_SCANS > 1
+  // вона однаково кінчається на FREE_SCENES.
+  FREE_SCANS: '10',
   FREE_SCENES: '1',
   REVENUECAT_SECRET_KEY: 'sk_test_fake',
   REVENUECAT_WEBHOOK_AUTH: 'Bearer hook-secret',
@@ -85,7 +86,7 @@ test('a free user gets one scene for life, then 402 SCENE_PRO before the AI is c
     const first = await call('POST', '/scan', { token, body: SCENE, headers: headers() });
     assert.equal(first.status, 200);
     assert.equal(first.data.mode, 'scene');
-    assert.deepEqual(first.data.usage, { day: day(), scans: 1, limit: 10, scenes: 1, sceneLimit: 1 });
+    assert.deepEqual(first.data.usage, { day: day(), scans: 1, limit: 10, scenes: 1, sceneLimit: 1, period: 'lifetime' });
 
     const second = await call('POST', '/scan', { token, body: SCENE, headers: headers() });
     assert.equal(second.status, 402);
@@ -99,7 +100,7 @@ test('a free user gets one scene for life, then 402 SCENE_PRO before the AI is c
     assert.deepEqual(tomorrow.data, { error: 'SCENE_PRO', limit: 1, used: 1 });
     assert.equal(calls.scene, 1);
 
-    // відмова в сцені не з'їла денного скану: звичайний скан проходить
+    // відмова в сцені не з'їла скану: звичайний скан проходить
     const single = await call('POST', '/scan', { token, body: IMAGE, headers: headers() });
     assert.equal(single.status, 200);
     assert.equal(single.data.word, 'mug');
@@ -112,9 +113,9 @@ test('a free user gets one scene for life, then 402 SCENE_PRO before the AI is c
   assert.equal(u.sceneLimit, 1);
 });
 
-test('the daily limit is checked first: SCAN_LIMIT, not SCENE_PRO', async () => {
+test('the scan limit is checked first: SCAN_LIMIT, not SCENE_PRO', async () => {
   const { token, user } = await newDevice();
-  await store.update('users', user.id, { usage: { day: day(), scans: 10 }, scenes: 1 });
+  await store.update('users', user.id, { scans: 10, scenes: 1 });
   await withAi({}, async (calls) => {
     const r = await call('POST', '/scan', { token, body: SCENE, headers: headers() });
     assert.equal(r.status, 402);
@@ -126,7 +127,7 @@ test('the daily limit is checked first: SCAN_LIMIT, not SCENE_PRO', async () => 
   assert.equal(u.scenes, 1);
 });
 
-test('parallel scenes cannot overrun the free scene, and denied ones take no daily slot', async () => {
+test('parallel scenes cannot overrun the free scene, and denied ones take no scan', async () => {
   const { token } = await newDevice();
   // справжній AI відповідає секунди — саме тоді запити й перетинаються
   const slow = (fn) => async (...a) => {
@@ -151,7 +152,7 @@ test('parallel scenes cannot overrun the free scene, and denied ones take no dai
   assert.equal(u.scenes, 1);
 });
 
-test('a failed free scene gives back both the daily scan and the scene', async () => {
+test('a failed free scene gives back both the lifetime scan and the scene', async () => {
   const { token } = await newDevice();
   const timeout = Object.assign(new Error('timed out'), { name: 'TimeoutError' });
   const failures = [
@@ -245,7 +246,7 @@ test('Pro scans scenes without a limit, and a lapsed Pro has no free scene left'
   for (let i = 1; i <= 3; i++) {
     const r = await call('POST', '/scan', { token, body: SCENE, headers: headers() });
     assert.equal(r.status, 200);
-    assert.deepEqual(r.data.usage, { day: day(), scans: i, limit: null, scenes: i, sceneLimit: null });
+    assert.deepEqual(r.data.usage, { day: day(), scans: i, limit: null, scenes: i, sceneLimit: null, period: 'lifetime' });
   }
   // Pro вже відомий із вебхука — жодного запиту до RevenueCat на скан
   assert.equal(rc.calls, before);
