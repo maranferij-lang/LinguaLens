@@ -30,6 +30,7 @@ import {
   exportSize,
   weekRangeLabel,
   weekStats,
+  SCENE_ROWS,
   SCENE_SET_MAX,
   STICKER_MIN_H,
   STICKER_PAD,
@@ -469,14 +470,28 @@ describe('scene word set layout', () => {
     expect(sceneSetLayout(objs(30)).height).toBeLessThanOrEqual(385);
   });
 
-  test('chips stay inside the transparent margin, long words shrink instead of overflowing', () => {
-    const long = sceneSetLayout(objs(6, (i) => (i % 2 ? 'die Geschirrspülmaschine' : 'la tabla de cortar')));
+  test('chips stay inside the transparent margin; a long name gets a wide chip of its own', () => {
+    const long = sceneSetLayout(objs(6, (i) => (i % 2 ? 'die Geschirrspülmaschine' : 'la lámpara de escritorio')));
     for (const c of long.chips) {
       expect(c.x).toBeGreaterThanOrEqual(STICKER_PAD);
       expect(c.x + c.w).toBeLessThanOrEqual(STICKER_W - STICKER_PAD);
-      expect(c.wordSize).toBeLessThan(19);
-      expect(c.wordSize).toBeGreaterThanOrEqual(11);
+      // читається, а не дрібнота з «…»
+      expect(c.wide).toBe(true);
+      expect(c.wordSize).toBeGreaterThanOrEqual(14);
     }
+    // широка фішка — сама в ряду; рядів не більше чотирьох, решта — «+N»
+    expect(new Set(long.chips.map((c) => c.y)).size).toBe(long.chips.length);
+    expect(long.chips.length).toBe(SCENE_ROWS);
+    expect(long.more).toBe(2);
+    expect(long.height).toBeLessThanOrEqual(385);
+    // зовсім довга назва зменшується, але не нижче 11
+    const huge = sceneSetLayout([{ key: 'x', word: 'Donaudampfschifffahrtsgesellschaftskapitän', translation: 'капітан' }]);
+    expect(huge.chips[0].wordSize).toBeGreaterThanOrEqual(11);
+    expect(huge.chips[0].x + huge.chips[0].w).toBeLessThanOrEqual(STICKER_W - STICKER_PAD);
+    // короткі сусіди лишаються парами довкола широкої
+    const mixed = sceneSetLayout([{ key: 'a', word: 'mug' }, { key: 'b', word: 'la lámpara de escritorio' }, { key: 'c', word: 'jar' }, { key: 'd', word: 'cup' }]);
+    expect(mixed.chips.map((c) => c.wide)).toEqual([false, true, false, false]);
+    expect(mixed.chips[2].y).toBe(mixed.chips[3].y);
     // одиночна остання фішка — по центру
     const odd = sceneSetLayout(objs(3));
     const last = odd.chips[2];

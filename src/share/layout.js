@@ -521,29 +521,48 @@ export const SCENE_CHIP = { word: 19, sub: 13, lineW: 24, lineS: 17, padX: 12, p
 export const SCENE_HEAD_H = 34;
 export const SCENE_MORE_H = 26;
 const SCENE_TILTS = [-3, 2.5, -1.5, 3, -2.5, 1.5];
+// Найменші кеглі, за яких назва ще вміщається у вузьку фішку; дрібніше —
+// фішка стає широкою. Рядів не більше SCENE_ROWS (висота ≤ 385 pt).
+const SCENE_CHIP_MIN_WORD = 14;
+const SCENE_CHIP_MIN_SUB = 11;
+export const SCENE_ROWS = 4;
 
 export function sceneSetLayout(objects, { width = STICKER_W } = {}) {
   const c = SCENE_CHIP;
   const list = (Array.isArray(objects) ? objects : []).filter((o) => o && String(o.word || '').trim());
-  const shown = list.slice(0, SCENE_SET_MAX);
-  const more = list.length - shown.length;
-  const inner = c.maxW - c.padX * 2;
-  const sized = shown.map((o, i) => {
+  // Довга назва («la lámpara de escritorio») у вузьку фішку влізла б лише
+  // дрібним кеглем чи з «…» — така фішка стає широкою й займає ряд сама.
+  const wideW = width - STICKER_PAD * 2 - 16;
+  const sized = list.slice(0, SCENE_SET_MAX).map((o, i) => {
     const word = String(o.word).trim();
     const tr = String(o.translation || '').trim();
+    const room = c.maxW - c.padX * 2 - 6;
+    const wide = textEm(word) * SCENE_CHIP_MIN_WORD > room || (!!tr && textEm(tr, 0) * SCENE_CHIP_MIN_SUB > room);
+    const maxW = wide ? wideW : c.maxW;
+    const inner = maxW - c.padX * 2;
     const wordSize = fontSizeForWord(word, { max: c.word, min: 11, width: inner });
     const subSize = tr ? fontSizeForWord(tr, { max: c.sub, min: 9, width: inner, tracking: 0 }) : 0;
     const textW = Math.max(textEm(word) * wordSize, tr ? textEm(tr, 0) * subSize : 0);
     // +6: бокові відступи гліфів і волосяна рамка
-    const w = Math.round(Math.min(c.maxW, Math.max(c.minW, textW + c.padX * 2 + 6)));
+    const w = Math.round(Math.min(maxW, Math.max(c.minW, textW + c.padX * 2 + 6)));
     const h = c.padY * 2 + c.lineW + (tr ? c.lineS : 0) + 2;
-    return { key: o.key ?? String(i), word, translation: tr, wordSize, subSize, w, h, rotate: SCENE_TILTS[i % SCENE_TILTS.length] };
+    return { key: o.key ?? String(i), word, translation: tr, wordSize, subSize, w, h, wide, rotate: SCENE_TILTS[i % SCENE_TILTS.length] };
   });
+  // Ряди: дві вузькі фішки поруч, широка — сама. Не більше SCENE_ROWS
+  // рядів, щоб наліпка лишалась наліпкою, а не списком; решта — у «і ще N».
+  const rows = [];
+  for (const ch of sized) {
+    const last = rows[rows.length - 1];
+    if (!ch.wide && last && last.length === 1 && !last[0].wide) last.push(ch);
+    else if (rows.length < SCENE_ROWS) rows.push([ch]);
+    else break;
+  }
+  const shownCount = rows.reduce((n, r) => n + r.length, 0);
+  const more = list.length - shownCount;
   // Згори — поле, запас під нахил шапки, сама шапка й відступ до фішок
   let y = STICKER_PAD + 6 + SCENE_HEAD_H + 12;
   const chips = [];
-  for (let r = 0; r < sized.length; r += 2) {
-    const row = sized.slice(r, r + 2);
+  for (const row of rows) {
     const total = row.reduce((sum, ch) => sum + ch.w, 0) + c.gap * (row.length - 1);
     let x = Math.round((width - total) / 2);
     const rowH = Math.max(...row.map((ch) => ch.h));
