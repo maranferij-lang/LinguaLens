@@ -184,8 +184,14 @@ export default function DictionaryScreen({
   const sceneStrip = scenes.length ? (
     <SceneStrip scenes={scenes} onOpen={openSceneView} onLongPress={askDeleteScene} s={s} t={t} />
   ) : null;
+  // key: сцена стоїть у кінці обох гілок рендеру (порожній словник і
+  // звичайний), але на різних позиціях. Без ключа перше збережене зі сцени
+  // слово перемикає гілку — і React перемонтовує SceneView разом із Modal:
+  // картка слова закривається, сцена вдруге програє вступ, а на iOS нова
+  // модалка ще й не показується, поки стара не доїхала зі своєю анімацією.
   const sceneView = (
     <SceneView
+      key="sceneView"
       scene={openScene}
       savedWords={words}
       onSaveWords={onSaveWords}

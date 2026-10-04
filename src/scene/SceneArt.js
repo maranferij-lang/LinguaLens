@@ -82,8 +82,9 @@ export function LiftedObjects({ uri, frame, width, height, shapes, shadow = true
 
 // Тонкі лінії від предмета до відсунутого підпису й крапка на предметі.
 // halo — м'яке світле коло під крапкою, щоб вона читалась і на білій
-// стіні, і на темній шафі.
-export function Leaders({ width, height, lines, color = '#FFFFFF', dot = '#FFFFFF', dotR = 3, ring = 0, halo = 0, stroke = 1 }) {
+// стіні, і на темній шафі. under — тінь-підкладка під лінією й кільцем:
+// світле на світлому без неї зникає, лишається сама кольорова крапка.
+export function Leaders({ width, height, lines, color = '#FFFFFF', dot = '#FFFFFF', dotR = 3, ring = 0, halo = 0, stroke = 1, under = false }) {
   if (!lines.length) return null;
   return (
     <Svg width={width} height={height} style={{ position: 'absolute', left: 0, top: 0 }} pointerEvents="none">
@@ -93,9 +94,22 @@ export function Leaders({ width, height, lines, color = '#FFFFFF', dot = '#FFFFF
         const dy = to.y - from.y;
         const len = Math.hypot(dx, dy) || 1;
         const start = dotR + ring + 1.5;
+        const line = len > start + 2;
         return (
           <G key={key}>
-            {len > start + 2 ? (
+            {under && line ? (
+              <Line
+                x1={from.x + (dx / len) * start}
+                y1={from.y + (dy / len) * start}
+                x2={to.x}
+                y2={to.y}
+                stroke="#000000"
+                strokeWidth={stroke + 2}
+                strokeOpacity={0.35}
+                strokeLinecap="round"
+              />
+            ) : null}
+            {line ? (
               <Line
                 x1={from.x + (dx / len) * start}
                 y1={from.y + (dy / len) * start}
@@ -108,6 +122,7 @@ export function Leaders({ width, height, lines, color = '#FFFFFF', dot = '#FFFFF
               />
             ) : null}
             {halo ? <Circle cx={from.x} cy={from.y} r={halo} fill="#FFFFFF" fillOpacity={0.24} /> : null}
+            {under ? <Circle cx={from.x} cy={from.y} r={dotR + ring + 1} fill="#000000" fillOpacity={0.3} /> : null}
             {ring ? <Circle cx={from.x} cy={from.y} r={dotR + ring} fill="#FFFFFF" /> : null}
             <Circle cx={from.x} cy={from.y} r={dotR} fill={dot} />
           </G>
