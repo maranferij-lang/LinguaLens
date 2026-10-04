@@ -232,6 +232,17 @@ describe('the evening banner on Learn', () => {
       for (const k of ['streakRiskTitle', 'streakRiskBody', 'streakRiskCta', 'streakNotifBody']) expect(tl(k, { n: 3, t: '1' })).not.toMatch(/scan|скан|escane/i);
     }
   });
+
+  test('the time left reads cleanly in every language: no “Min..” after an abbreviation', () => {
+    for (const lang of ['en', 'uk', 'de', 'es']) {
+      const tl = makeT(lang);
+      for (const ms of [60000, 2 * 3600000, (3 * 60 + 13) * 60000]) {
+        const body = tl('streakRiskBody', { t: formatLeft(ms, lang) });
+        expect(body).not.toMatch(/\.\./);
+        expect(body).toContain(formatLeft(ms, lang));
+      }
+    }
+  });
 });
 
 describe('App', () => {

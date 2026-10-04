@@ -142,7 +142,8 @@ export default {
     streakContinue: 'Weiter',
     streakAchChip: 'Erfolg: {a}',
     streakRiskTitle: 'Deine Serie von {n} {n|Tag|Tagen} erlischt um Mitternacht',
-    streakRiskBody: 'Noch {t}. Wiederhole ein Wort, damit deine Flamme weiterbrennt.',
+    // «Min.» уже з крапкою — речення не закінчуємо одразу після {t}
+    streakRiskBody: 'Noch {t} Zeit — wiederhole ein Wort, damit deine Flamme weiterbrennt.',
     streakRiskCta: '1 Karte wiederholen',
     streakNotifBody: 'Deine Serie: {n} {n|Tag|Tage}. Ein Wort heute hält sie am Leben.',
     streakSectionTitle: 'Serie',
