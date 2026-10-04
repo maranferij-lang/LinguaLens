@@ -79,11 +79,13 @@ test('the comparison: scans, scenes and languages first, then what stays free', 
     { id: 'scans', free: '1', pro: '∞' },
     { id: 'scene', free: '1', pro: '∞' },
     { id: 'langs', free: '1', pro: '29' },
-    { id: 'wod', free: true, pro: true },
-    { id: 'srs', free: true, pro: true },
-    { id: 'speech', free: true, pro: true },
+    // v1.3 (план §5.12): слова дня й теми — з прапорців; картки, квіз і
+    // віджети — один рядок
+    { id: 'wodn', free: '1', pro: 5, upTo: true, fresh: true },
+    { id: 'themes', free: '—', none: true, pro: '4', fresh: true },
+    { id: 'core', free: true, pro: true },
   ]);
-  expect(PRO_BENEFITS.map((b) => b.id)).toEqual(['scans', 'scene', 'langs', 'support']);
+  expect(PRO_BENEFITS.map((b) => b.id)).toEqual(['scans', 'scene', 'wodn', 'themes', 'langs', 'support']);
 });
 
 describe('scenes (a whole room in one shot)', () => {

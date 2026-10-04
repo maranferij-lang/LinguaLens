@@ -35,7 +35,12 @@
 // скану цілої кімнати, яка теж займає цей скан. Словник, картки, квіз, слово
 // дня, віджет і вимова — без меж: саме вони вертають людину щодня, і
 // застосунок, «марний, доки не заплатиш», — скарга номер один у цій категорії.
+// Pro у v1.3 ще й ДОДАЄ (а не відкриває заблоковане): 3 або 5 слів дня на
+// день о годинах людини і чотири кольорові палітри. Ліміту колекції й
+// захисту серії в v1.3 немає — у таблиці пейволу їх теж немає (MONETIZATION.md).
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { PALETTES_ENABLED, PRO_WOD_OPTIONS } from './flags';
+import { PRO_PALETTES } from './theme';
 
 // legalKey — рядок «безкоштовно до…, потім ціна за період»: пробний період
 // може бути на будь-якому тарифі, і період у ньому мусить бути саме цей.
@@ -217,22 +222,47 @@ export function canUseLanguage({ pro, words, nextLang }) {
 // Порядок не випадковий: спершу те, через що людина сюди прийшла.
 // «Експорт у файл» звідси прибраний свідомо: ним користуються одиниці, а в
 // списку він займає місце справжнього аргументу і розмиває цінність.
-export const PRO_BENEFITS = [
-  { id: 'scans', icon: 'scan' },
-  { id: 'scene', icon: 'room' },
-  { id: 'langs', icon: 'globe' },
-  { id: 'support', icon: 'heart' },
-];
+// Рядки «слова дня» й «теми» є, лише коли ці функції ввімкнені прапорцями
+// (src/flags.js): обіцяти вимкнене не можна (App Review 3.1.2). wodn — {n}:
+// найбільший варіант слів дня для Pro.
+export function proBenefits({ wodOptions = PRO_WOD_OPTIONS, palettes = PALETTES_ENABLED } = {}) {
+  const most = wodOptions.length ? Math.max(...wodOptions) : 0;
+  return [
+    { id: 'scans', icon: 'scan' },
+    { id: 'scene', icon: 'room' },
+    ...(most ? [{ id: 'wodn', icon: 'bell', n: most }] : []),
+    ...(palettes ? [{ id: 'themes', icon: 'palette' }] : []),
+    { id: 'langs', icon: 'globe' },
+    { id: 'support', icon: 'heart' },
+  ];
+}
+export const PRO_BENEFITS = proBenefits();
+
+// Головні чотири — для мʼякого пейволу й таймлайну пробного періоду: скани,
+// сцени й нове у v1.3. Вимкнене прапорцем місце займає наступна перевага
+// (мови), тож рядків завжди чотири.
+export function topBenefits(list = PRO_BENEFITS, n = 4) {
+  return list.filter((b) => b.id !== 'support').slice(0, n);
+}
 
 // Порівняння «без підписки / з підпискою». Головний елемент пейволу:
 // людина має бачити не список благ, а СВОЮ ситуацію і те, як вона зміниться.
-// Нижні рядки з галочками з обох боків — теж аргумент: безкоштовне лишається
+// Нижній рядок з галочками з обох боків — теж аргумент: безкоштовне лишається
 // безкоштовним, Pro нічого в людини не забирає.
-export const COMPARISON = [
-  { id: 'scans', free: String(FREE.scans), pro: '∞' },
-  { id: 'scene', free: String(FREE.scenes), pro: '∞' },
-  { id: 'langs', free: String(FREE.languagePairs), pro: '29' },
-  { id: 'wod', free: true, pro: true },
-  { id: 'srs', free: true, pro: true },
-  { id: 'speech', free: true, pro: true },
-];
+//   upTo — значення Pro «до N» (cmpUpTo); none — у безкоштовному цього немає
+//   (риска, VoiceOver читає «немає»); fresh — нове у v1.3 (позначка «нове»).
+// Рядки слів дня й тем — лише з увімкненими прапорцями; без варіантів слів
+// дня на їхньому місці звичайне «Слово дня ✓ / ✓». Ліміту колекції й
+// захисту серії тут немає ніколи: у v1.3 їх немає в застосунку.
+export function comparison({ wodOptions = PRO_WOD_OPTIONS, palettes = PALETTES_ENABLED } = {}) {
+  const most = wodOptions.length ? Math.max(...wodOptions) : 0;
+  return [
+    { id: 'scans', free: String(FREE.scans), pro: '∞' },
+    { id: 'scene', free: String(FREE.scenes), pro: '∞' },
+    { id: 'langs', free: String(FREE.languagePairs), pro: '29' },
+    most ? { id: 'wodn', free: '1', pro: most, upTo: true, fresh: true } : { id: 'wod', free: true, pro: true },
+    ...(palettes ? [{ id: 'themes', free: '—', none: true, pro: String(PRO_PALETTES.length), fresh: true }] : []),
+    { id: 'core', free: true, pro: true },
+  ];
+}
+export const COMPARISON = comparison();
