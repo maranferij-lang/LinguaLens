@@ -230,8 +230,11 @@ export async function recognizeScene(base64Jpeg, lang = 'en', nativeLang = 'uk',
 // null: тоді сервер дає загальні слова, як і раніше.
 // Сервер, що ще не вміє POST (404), отримує старий GET: застосунок із новою
 // версією не лишається без слова дня, поки сервер не оновили.
-// На холодному кеші сервер перекладає до 14 слів — звідси довгий таймаут.
-export async function apiWordOfDay({ days, lang, native, profile = null, known = [] }) {
+// На холодному кеші сервер перекладає до 42 слів — звідси довгий таймаут.
+// perDay (Pro, v1.3) — 3 або 5 слів на день; 1 не шлемо, і тіло запиту
+// лишається таким, як у старих версій. Сервер без Pro дає одне слово й
+// каже про це в perDay відповіді; GET (старий сервер) про слоти не знає.
+export async function apiWordOfDay({ days, lang, native, profile = null, known = [], perDay = 1 }) {
   const today = localDayKey();
   const body = {
     days,
@@ -240,6 +243,7 @@ export async function apiWordOfDay({ days, lang, native, profile = null, known =
     today,
     ...(profile ? { profile } : null),
     ...(known.length ? { known } : null),
+    ...(perDay > 1 ? { perDay } : null),
   };
   try {
     return await request('/word-of-day', { method: 'POST', body, timeout: 45000 });
