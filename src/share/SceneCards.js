@@ -7,10 +7,11 @@
 // Три вигляди:
 //   • «Наліпки» — предмети підняті наліпками, решта фото ледь пригашена,
 //     підписи на білих плашках (як на екрані сцени);
-//   • «Підписи» — фото без змін, лише крапка на предметі, тонка лінія й
-//     білий підпис збоку: редакційна анотація;
+//   • «Підписи» — крапка на предметі, тонка лінія й підпис збоку на
+//     темній напівпрозорій плашці: редакційна анотація;
 //   • «Рамка» — фото вставкою на кольоровому тлі з номерами на предметах і
-//     чистим нумерованим списком під ним.
+//     чистим списком під ним: номер у рядку — лише в тих, кого видно у
+//     вставці.
 // Сцена вже знята в 9:16, тож на перших двох вона йде на весь кадр.
 import { useId } from 'react';
 import { Image, Text, View } from 'react-native';
@@ -178,14 +179,20 @@ function StickersCard({ scene, uri, frame, pal, t }) {
 }
 
 // ─── «Підписи» ─────────────────────────────────────────────────────────────
-// Текст без плашки, тож розмір — лише сам текст; тінь під літерами тримає
-// білий підпис і на світлій стіні.
-const LABEL_SHADOW = { textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 6, textShadowOffset: { width: 0, height: 1 } };
+// Білий текст на фото тримає лише гарантована підкладка: на білій чи
+// бежевій стіні тінь під літерами розпливається сірим туманом, і підпис
+// зникає. Тож кожен підпис стоїть на темній напівпрозорій плашці — як
+// титр у журналі: фото крізь неї видно, а слово читається на будь-якій
+// стіні (≥ 4.5:1 навіть на чисто білій — це перевіряє тест).
+export const LABEL_INK = { plate: 'rgba(20,18,16,0.72)', word: '#FFFFFF', sub: 'rgba(255,255,255,0.86)', edge: 'rgba(255,255,255,0.14)' };
+// Плашку міряє chipSize з тими самими полями, тож розкладка знає справжній
+// розмір підпису й не ставить плашки одна на одну.
+const LABEL_PAD = { x: 7, y: 3 };
 
 function LabelsCard({ scene, uri, frame, pal, t }) {
   const ink = inkFor(pal);
   const items = scene.objects.map((o) => {
-    const size = chipSize(o.word, o.translation, { size: 15, sub: 12, maxW: 140, padX: 2, padY: 1 });
+    const size = chipSize(o.word, o.translation, { size: 15, sub: 12, maxW: 150, padX: LABEL_PAD.x, padY: LABEL_PAD.y });
     return { key: o.key, rect: rectOf(o.box, frame), anchor: anchorOf(o, frame), w: size.w, h: size.h, size };
   });
   const labels = layoutChips(items, PHOTO_BOUNDS, { mode: 'callout' });
@@ -193,23 +200,45 @@ function LabelsCard({ scene, uri, frame, pal, t }) {
   return (
     <>
       <Image source={{ uri }} style={{ position: 'absolute', left: frame.x, top: frame.y, width: frame.w, height: frame.h }} />
+      {/* ледь пригашуємо фото, як на «Наліпках»: білі лінії й крапки
+          лишаються видимими й там, де плашки немає */}
+      <View style={{ position: 'absolute', left: 0, top: 0, width: CARD_W, height: CARD_H, backgroundColor: 'rgba(0,0,0,0.12)' }} />
       <PhotoFooter meta={metaLine(scene, scene.objects.length, t)} />
-      <Leaders width={CARD_W} height={CARD_H} lines={lines} dot={ink.dot} dotR={3.4} ring={2} halo={10} />
+      <Leaders width={CARD_W} height={CARD_H} lines={lines} dot={ink.dot} dotR={3.4} ring={2} halo={10} under />
       {labels.map((c, i) => {
         const o = scene.objects[i];
         const { size } = items[i];
         return (
-          <View key={c.key} style={{ position: 'absolute', left: c.x, top: c.y, width: c.w, height: c.h, justifyContent: 'center' }}>
+          <View
+            key={c.key}
+            style={{
+              position: 'absolute',
+              left: c.x,
+              top: c.y,
+              width: c.w,
+              height: c.h,
+              justifyContent: 'center',
+              paddingHorizontal: LABEL_PAD.x,
+              borderRadius: 8,
+              backgroundColor: LABEL_INK.plate,
+              borderWidth: 0.5,
+              borderColor: LABEL_INK.edge,
+              shadowColor: '#000',
+              shadowOpacity: 0.18,
+              shadowRadius: 8,
+              shadowOffset: { width: 0, height: 2 },
+            }}
+          >
             <Txt
               numberOfLines={1}
-              style={[{ color: '#FFFFFF', fontFamily: F.extra, fontSize: size.wordSize, lineHeight: size.lineW, textAlign: c.align, letterSpacing: -0.15 }, LABEL_SHADOW]}
+              style={{ color: LABEL_INK.word, fontFamily: F.extra, fontSize: size.wordSize, lineHeight: size.lineW, textAlign: c.align, letterSpacing: -0.15 }}
             >
               {o.word}
             </Txt>
             {o.translation ? (
               <Txt
                 numberOfLines={1}
-                style={[{ color: 'rgba(255,255,255,0.88)', fontFamily: F.semi, fontSize: size.subSize, lineHeight: size.lineS, textAlign: c.align }, LABEL_SHADOW]}
+                style={{ color: LABEL_INK.sub, fontFamily: F.semi, fontSize: size.subSize, lineHeight: size.lineS, textAlign: c.align }}
               >
                 {o.translation}
               </Txt>
@@ -230,23 +259,49 @@ export function listFontSize(objects, width = CONTENT_W - 26) {
   return Math.max(12, Math.min(17, Math.floor((width * 0.96) / widest)));
 }
 
-function FrameCard({ scene, uri, pal, t, locale }) {
+const boxArea = ([y1, x1, y2, x2]) => Math.max(0, y2 - y1) * Math.max(0, x2 - x1);
+
+// Розкладка «Рамки»: висота фото, його смуга, рядки списку й номери на
+// фото. Номери в списку — рівно ті, що стоять крапками на фото: номер без
+// крапки (чи навпаки) лише плутав би. А смуга вміщає далеко не все: у кадрі
+// від стелі до підлоги лампу під стелею й килим на підлозі одна вставка не
+// покаже. Тож видимі на фото йдуть у список першими й нумеруються 1…k,
+// решта — тихою крапкою без номера.
+export function frameLayout(scene) {
   const objects = scene.objects;
-  const rows = objects.slice(0, FRAME_ROWS);
-  const more = objects.length - rows.length;
-  const listH = rows.length * ROW_H + (more > 0 ? 22 : 0);
+  const count = Math.min(objects.length, FRAME_ROWS);
+  const more = objects.length - count;
+  const listH = count * ROW_H + (more > 0 ? 22 : 0);
   // Фото забирає все, що лишилось від списку, заголовка й підпису
   const photoH = Math.max(220, Math.min(400, CARD_H - PAD_TOP - PAD_BOTTOM - 16 - 18 - 22 - listH - 36 - 20));
-  // Смугу фото підбираємо під пронумеровані предмети: номер на фото без
-  // рядка в списку (чи навпаки) лише плутав би.
-  const anchors = rows.map((o) => anchorOf(o, { x: 0, y: 0, w: 1, h: 1 }));
+  // Смугу підбираємо під усі предмети сцени — ту, де їх видно найбільше
+  const anchors = objects.map((o) => anchorOf(o, { x: 0, y: 0, w: 1, h: 1 }));
   const inset = insetFrame(scene.width || 1080, scene.height || 1920, CONTENT_W, photoH, anchors);
-  const size = listFontSize(rows);
-  // На фото — лише ті пронумеровані предмети, чия крапка вміщається у
-  // вставку: обрізаний край чужого контуру читався б як випадкова лінія.
-  const marks = rows
-    .map((o, i) => ({ o, a: anchorOf(o, inset), n: i + 1 }))
-    .filter(({ a }) => a.x >= 10 && a.x <= CONTENT_W - 10 && a.y >= 10 && a.y <= photoH - 10);
+  // На фото — лише ті предмети, чия крапка вміщається у вставку: обрізаний
+  // край чужого контуру читався б як випадкова лінія.
+  const placed = objects.map((o) => {
+    const a = anchorOf(o, inset);
+    return { o, a, shown: a.x >= 10 && a.x <= CONTENT_W - 10 && a.y >= 10 && a.y <= photoH - 10 };
+  });
+  // Дві крапки одна на одній не прочитати. Крапка великого предмета часто
+  // падає на дрібний поверх нього (диван — на подушку), тож місце лишається
+  // за дрібним, а великий іде в список без номера.
+  const taken = [];
+  for (const p of [...placed].sort((m, k) => boxArea(m.o.box) - boxArea(k.o.box))) {
+    if (!p.shown) continue;
+    if (taken.some((q) => Math.hypot(q.a.x - p.a.x, q.a.y - p.a.y) < 22)) p.shown = false;
+    else taken.push(p);
+  }
+  const rows = [...placed.filter((p) => p.shown), ...placed.filter((p) => !p.shown)]
+    .slice(0, FRAME_ROWS)
+    .map((p, i) => ({ ...p, n: p.shown ? i + 1 : null }));
+  return { photoH, inset, rows, marks: rows.filter((r) => r.n), more };
+}
+
+function FrameCard({ scene, uri, pal, t, locale }) {
+  const objects = scene.objects;
+  const { photoH, inset, rows, marks, more } = frameLayout(scene);
+  const size = listFontSize(rows.map((r) => r.o));
   return (
     <View style={{ flex: 1, paddingHorizontal: PAD_X, paddingTop: PAD_TOP, paddingBottom: PAD_BOTTOM }}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 12 }}>
@@ -296,9 +351,16 @@ function FrameCard({ scene, uri, pal, t, locale }) {
       </View>
 
       <View style={{ marginTop: 22 }}>
-        {rows.map((o, i) => (
+        {rows.map(({ o, n }) => (
           <View key={o.key} style={{ height: ROW_H, flexDirection: 'row', alignItems: 'center' }}>
-            <Txt style={{ width: 26, color: pal.accent, fontFamily: F.extra, fontSize: 13, lineHeight: 18 }}>{i + 1}</Txt>
+            {n ? (
+              <Txt style={{ width: 26, color: pal.accent, fontFamily: F.extra, fontSize: 13, lineHeight: 18 }}>{n}</Txt>
+            ) : (
+              // окремої крапки на фото в нього немає — тиха крапка замість номера
+              <View style={{ width: 26 }}>
+                <View style={{ width: 5, height: 5, borderRadius: 2.5, marginLeft: 2, backgroundColor: pal.muted, opacity: 0.7 }} />
+              </View>
+            )}
             <Txt numberOfLines={1} style={{ flex: 1, color: pal.text, fontFamily: F.extra, fontSize: size, lineHeight: Math.round(size * 1.3), letterSpacing: -0.1 }}>
               {o.word}
               {o.translation ? <Txt style={{ color: pal.muted, fontFamily: F.reg }}>{' — ' + o.translation}</Txt> : null}

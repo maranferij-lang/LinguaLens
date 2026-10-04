@@ -1,6 +1,6 @@
 // Стрічка сцен у словнику: тап відкриває сцену з історії, довгий натиск
 // (або дія VoiceOver) видаляє її після підтвердження.
-import { Alert, Modal } from 'react-native';
+import { Alert, Modal, Switch } from 'react-native';
 import { act, create } from 'react-test-renderer';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import DictionaryScreen from '../src/DictionaryScreen';
@@ -119,4 +119,48 @@ test('without scenes the dictionary looks exactly as before', async () => {
   expect(texts(tree)).not.toContain(t('scenesTitle'));
   const empty = await render({ scenes: [], words: [] });
   expect(texts(empty.tree)).toEqual(expect.arrayContaining([t('dictEmptyTitle'), t('scanFirstWord')]));
+});
+
+// Порожній словник і звичайний — різні гілки рендеру. Перше слово, збережене
+// зі сцени, перемикає гілку; сцена й відкрита картка слова мусять це пережити,
+// а не перемонтуватись разом із Modal (на iOS модалка тоді й зовсім пропадає).
+test('saving the first word from an open scene keeps the same SceneView, Modal and word card', async () => {
+  const onSceneVisible = jest.fn();
+  const all = {
+    onDelete: jest.fn(),
+    onShare: jest.fn(),
+    onScan: jest.fn(),
+    scenes: [scene('s1', 3)],
+    onSaveWords: jest.fn(() => 1),
+    onUpdateScene: jest.fn(),
+    onDeleteScene: jest.fn(),
+    onSceneVisible,
+    t,
+  };
+  const el = (words) => (
+    <SafeAreaProvider initialMetrics={metrics}>
+      <DictionaryScreen {...all} words={words} />
+    </SafeAreaProvider>
+  );
+  let tree;
+  await act(async () => {
+    tree = create(el([]));
+  });
+  mounted.push(tree);
+  await act(async () => thumbs(tree)[0].props.onPress());
+  const view = tree.root.findByType(SceneView);
+  const modal = view.findByType(Modal);
+  // картка слова «w1» відкрита — у ній перемикач «Показувати на картці»
+  const chip = tree.root.findAll((n) => n.props.accessibilityLabel === 'w1, t1' && typeof n.props.onPress === 'function')[0];
+  await act(async () => chip.props.onPress());
+  expect(tree.root.findAllByType(Switch)).toHaveLength(1);
+
+  // App.addWords додав слово — словник уже не порожній
+  await act(async () => tree.update(el([{ id: 'w1', word: 'w1', translation: 't1', lang: 'en', addedAt: 2 }])));
+  expect(texts(tree)).toContain(t('dictCount', { n: 1 }));
+  expect(tree.root.findByType(SceneView)).toBe(view);
+  expect(view.findByType(Modal)).toBe(modal);
+  expect(view.props.scene.id).toBe('s1');
+  expect(tree.root.findAllByType(Switch)).toHaveLength(1);
+  expect(onSceneVisible.mock.calls).toEqual([[true]]);
 });
