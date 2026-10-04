@@ -196,8 +196,8 @@ describe('notifications and the widget', () => {
   const titles = () =>
     Notifications.scheduleNotificationAsync.mock.calls.map(([n]) => n.content.title).filter((x) => x.includes('liquidez'));
   const lastTimeline = () => {
-    const { createWidget } = require('expo-widgets');
-    return createWidget.mock.results.at(-1).value.updateTimeline.mock.calls.at(-1)[0];
+    // віджетів три (v1.3) — беремо саме «Слово дня»
+    return require('expo-widgets').__widgets.WordOfDay.updateTimeline.mock.calls.at(-1)[0];
   };
 
   test('word-of-the-day notifications and the widget speak the phone language', async () => {

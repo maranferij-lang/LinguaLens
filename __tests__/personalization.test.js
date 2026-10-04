@@ -9,7 +9,6 @@ import App from '../App';
 import FlashcardsScreen from '../src/FlashcardsScreen';
 import OnboardingScreen from '../src/OnboardingScreen';
 import ProfileEditor from '../src/ProfileEditor';
-import ScannerScreen from '../src/ScannerScreen';
 import SettingsScreen from '../src/SettingsScreen';
 import WordOfDayCard from '../src/WordOfDayCard';
 import { ProfileTip, WidgetTip } from '../src/LearnTips';
@@ -177,8 +176,8 @@ describe('“Tailored to you” in Settings', () => {
     expect(strings(settings())).toContain('Finance · B2+');
 
     // віджет — за новим кешем, з темою
-    const { createWidget } = require('expo-widgets');
-    const timeline = createWidget.mock.results.at(-1).value.updateTimeline.mock.calls.at(-1)[0];
+    // віджетів три (v1.3) — беремо саме «Слово дня»
+    const timeline = require('expo-widgets').__widgets.WordOfDay.updateTimeline.mock.calls.at(-1)[0];
     expect(timeline[0].props).toMatchObject({ word: 'liquidity', caption: 'Español · Finance' });
   });
 
@@ -371,14 +370,11 @@ describe('tips on the Learn tab', () => {
     expect(one(tree, ProfileTip)).toBeNull();
   });
 
-  test('the widget tip comes with the third saved word, once ever', async () => {
-    await returning({ settings: { profile: PROFILE }, words: [w(1), w(2)] });
+  // v1.3: одразу після онбордингу (а не з третього слова) — для Free три
+  // слова це довго, — і доки людина її не закрила
+  test('the widget tip shows right after onboarding, until hidden, once ever', async () => {
+    await returning({ settings: { profile: PROFILE }, words: [] });
     let tree = await renderApp();
-    await openTab(tree, 'cards');
-    expect(one(tree, WidgetTip)).toBeNull();
-
-    await openTab(tree, 'scan');
-    await run(() => one(tree, ScannerScreen).props.onSaveWord({ word: 'la taza', translation: 'mug', lang: 'es' }));
     await openTab(tree, 'cards');
     const tip = one(tree, WidgetTip);
     expect(tip).not.toBeNull();

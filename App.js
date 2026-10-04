@@ -86,7 +86,7 @@ import {
   hasPermission,
   DEFAULT_HOUR,
 } from './src/wordOfDay';
-import { subscribeToWidgetTaps, updateWordWidget, widgetsAvailable } from './src/widgets';
+import { subscribeToWidgetTaps, widgetsAvailable } from './src/widgets';
 import { IcBook, IcCards, IcGear, IcScan, IcUser } from './src/icons';
 import { MascotBob } from './src/Mascot';
 import { Material, MaterialEdge } from './src/Chrome';
@@ -111,6 +111,11 @@ import {
 // <v13:W1>
 // </v13:W1>
 // <v13:W2>
+import { useWidgets } from './src/widgets/useWidgets';
+import { resetWidgets } from './src/widgets';
+import { loadFastClock } from './src/widgets/clock';
+import { slotHours, wodPerDay as wodPerDayOf } from './src/wordOfDay';
+import { useWodSlots } from './src/WordOfDayCard';
 // </v13:W2>
 // <v13:W3>
 // </v13:W3>
@@ -380,26 +385,43 @@ export default function App() {
     if (!sub.pro && scansLeft({ pro: false, usage: st.usage }) === 0) setTab('cards');
   }, [ready, subKnown]);
 
-  // Тап по сповіщенню «слово дня» відкриває вкладку навчання, де воно чекає.
-  useEffect(
-    () =>
-      subscribeToNotificationTaps((data) => {
-        if (data.type === 'word-of-day') setTab('cards');
-        if (data.type === 'trial-end') setTab('settings');
-      }),
-    []
-  );
-
-  // Тап по віджету «Слово дня» — туди ж, у навчання. Віджет міг просити
-  // «відкрий по нові слова», поки застосунок спав у фоні зі старим кешем, —
-  // тоді й підтягуємо свіжі. Холодний старт (сесії ще немає) це робить сам.
-  const widgetTap = useRef(null);
-  widgetTap.current = () => {
-    setTab('cards');
-    if (!deviceId) return;
-    syncWordOfDay(wodArgs(settings)).then((c) => c && setWod(c));
+  // Тап по сповіщенню «слово дня» відкриває вкладку навчання, де воно чекає;
+  // у Pro — саме на тому слові дня (слоті), про яке було сповіщення.
+  const notifTap = useRef(null);
+  notifTap.current = (data) => {
+    if (data.type === 'word-of-day') {
+      startTab.current.moved = true;
+      setTab('cards');
+      focusWodSlot(data.date, data.slot);
+    }
+    if (data.type === 'trial-end') setTab('settings');
   };
-  useEffect(() => subscribeToWidgetTaps(() => widgetTap.current()), []);
+  useEffect(() => subscribeToNotificationTaps((data) => notifTap.current(data)), []);
+
+  // Тап по віджету (src/widgets/links.js): слово дня (зі слотом) —
+  // «Навчання»; слово зі словника — його аркуш; «Повторити» — картки;
+  // серія — Профіль. Віджет міг просити «відкрий по нові слова», поки
+  // застосунок спав у фоні зі старим кешем, — тоді й підтягуємо свіжі.
+  // Холодний старт (сесії ще немає) це робить сам.
+  const widgetTap = useRef(null);
+  widgetTap.current = (link) => {
+    track('widget_open', { kind: link.kind || null, family: link.family || null, route: link.route });
+    startTab.current.moved = true;
+    if (link.route === 'word') {
+      openWord(link.id);
+      return;
+    }
+    if (link.route === 'streak') {
+      setTab('profile');
+      return;
+    }
+    setTab('cards');
+    if (link.route !== 'word-of-day') return;
+    focusWodSlot(link.date, link.slot);
+    if (!deviceId) return;
+    syncWordOfDay(wodArgs(settingsRef.current)).then((c) => c && setWod(c));
+  };
+  useEffect(() => subscribeToWidgetTaps((link) => widgetTap.current(link)), []);
 
   // Серверний лічильник сканів і статус пристрою. 401 UNAUTHORIZED — сервер
   // нас забув (стерли дані, змінили секрет): тихо беремо нову ідентичність.
@@ -714,12 +736,15 @@ export default function App() {
   // Усе, що треба syncWordOfDay: мови, сповіщення, профіль, «Знаю» і
   // перекладач для теми в заголовку сповіщення — мовою інтерфейсу, як і
   // все, що пише застосунок (переклад самого слова — «моєю мовою» з сервера).
+  // hours — години слотів: одна без Pro, 3 або 5 у Pro (src/wordOfDay.js).
+  // Pro — з ref: старт і сповіщення кличуть це із замикань першого кадру.
   function wodArgs(st, force = false) {
     return {
       lang: st.targetLang,
       native: st.nativeLang,
       enabled: st.wodEnabled,
       hour: st.wodHour,
+      hours: slotHours(st, proRef.current),
       profile: st.profile,
       known: st.knownWords,
       t: tRef.current,
@@ -779,14 +804,6 @@ export default function App() {
   const wodTopic = useMemo(() => topicName(t, todayWord?.topic), [t, todayWord]);
   // Прийшло інше слово — пояснення про офлайн уже неактуальне
   useEffect(() => setWodNote(''), [todayWord?.date, todayWord?.word]);
-
-  // Віджет іде за тим самим кешем: кожен новий кеш (старт, зміна мов,
-  // сповіщень чи години, онбординг, стирання даних) і зміна мови
-  // інтерфейсу переписують його таймлайн. До завантаження даних — ні:
-  // інакше віджет на мить показав би «відкрий застосунок».
-  useEffect(() => {
-    if (ready) updateWordWidget(wod, { t, targetLang: settings.targetLang, nativeLang: settings.nativeLang });
-  }, [ready, wod, t, settings.targetLang, settings.nativeLang]);
 
   // Мова телефону змінилась на ходу (Android і веб; iOS для цього
   // перезапускає застосунок, і старт сам усе переплановує): заплановані
@@ -1082,6 +1099,8 @@ export default function App() {
     setStats({});
     setSeenAch([]);
     setWod(null);
+    // віджети — у порожній стан, мініатюри й лік розкриттів — геть
+    resetWidgets(tRef.current);
     // Новий запис на сервері несе лічильники стертого (carry, див.
     // auth.eraseServerData): стирання нового безкоштовного скану не дає.
     // Тож лічильник на екрані не обнуляємо, лише зберігаємо знову
@@ -1282,10 +1301,11 @@ export default function App() {
     setShare({ kind: 'achievement', achievement, fresh, stats: { words: words.length, streak } });
   }
 
-  // Підказка про віджет: є лише в iOS-збірці; з третього слова і не разом із
+  // Підказка про віджет: є лише в iOS-збірці; одразу після онбордингу (вкладка
+  // «Навчання» є лише після нього), поки людина її не закрила, і не разом із
   // профільною — дві картки поспіль зсунули б самі картки для повторення за
   // край екрана. Показ рахуємо раз за запуск, щойно людина її побачила.
-  const widgetTip = !profileTip && !settings.widgetTipShown && words.length >= 3 && widgetsAvailable();
+  const widgetTip = !profileTip && !settings.widgetTipShown && widgetsAvailable();
   const widgetTipSeen = useRef(false);
   useEffect(() => {
     if (tab !== 'cards' || !widgetTip || widgetTipSeen.current) return;
@@ -1337,6 +1357,114 @@ export default function App() {
   // <v13:W1>
   // </v13:W1>
   // <v13:W2>
+  // ---------- ВІДЖЕТИ ----------
+  // Pro — з ref: wodArgs кличуть і замикання першого кадру (старт, тапи).
+  const proRef = useRef(false);
+  proRef.current = !!sub.pro;
+  // Три віджети (слово дня, мої слова, серія): таймлайни, тема, мініатюри.
+  const widgetsOn = useWidgets({ ready, t, ui, settings, wod, words, activity, pro: sub.pro, themeKey });
+  // «Прискорений час» віджетів (лише розробка) — як лишили минулого разу
+  useEffect(() => {
+    loadFastClock();
+  }, []);
+
+  // ---------- PRO: КІЛЬКА СЛІВ НА ДЕНЬ ----------
+  // Скільки слів на день і о котрій (без Pro — одне, о wodHour).
+  const wodN = wodPerDayOf(settings, sub.pro);
+  const wodHours = slotHours(settings, sub.pro);
+  // Вибір 3 чи 5 без Pro веде на пейвол; купили — вибір застосовується.
+  const pendingPerDay = useRef(0);
+  function setWodPerDay(n) {
+    const count = [1, 3, 5].includes(n) ? n : 1;
+    if (count > 1 && !sub.pro) {
+      pendingPerDay.current = count;
+      track('wod_per_day', { n: count, source: 'paywall' });
+      openPaywall('wod_per_day');
+      return;
+    }
+    pendingPerDay.current = 0;
+    track('wod_per_day', { n: count, source: 'settings' });
+    const cur = settingsRef.current;
+    // години слотів — свіжі стартові від години першого слова
+    const next = { ...cur, wodPerDay: count, wodHours: count > 1 ? slotHours({ ...cur, wodPerDay: count, wodHours: null }, true) : null };
+    commitSettings(next);
+    syncWordOfDay(wodArgs(next)).then((c) => c && setWod(c));
+  }
+  // Година слова i (0 — перше, воно ж wodHour для сповіщень без Pro).
+  function setWodSlotHour(i, h) {
+    const cur = settingsRef.current;
+    const hours = slotHours(cur, proRef.current).slice();
+    if (!Number.isInteger(h) || i < 0 || i >= hours.length) return;
+    hours[i] = h;
+    const next = { ...cur, wodHour: hours[0], wodHours: hours.length > 1 ? hours : cur.wodHours };
+    commitSettings(next);
+    syncWordOfDay(wodArgs(next)).then((c) => c && setWod(c));
+  }
+  // Pro прийшов (покупка) чи скінчився — інша кількість слів на день: кеш
+  // перепитає сервер сам (needsRefresh), сповіщення переплануються.
+  const proWas = useRef(!!sub.pro);
+  useEffect(() => {
+    if (proWas.current === !!sub.pro) return;
+    proWas.current = !!sub.pro;
+    if (sub.pro && pendingPerDay.current) {
+      setWodPerDay(pendingPerDay.current);
+      return;
+    }
+    if (ready && deviceId && wodPerDayOf(settingsRef.current, true) > 1) {
+      syncWordOfDay(wodArgs(settingsRef.current)).then((c) => c && setWod(c));
+    }
+  }, [sub.pro]);
+
+  // Слово дня, яке відкрити на картці (тап по сповіщенню чи віджету зі
+  // слотом). Лише сьогоднішнє: вчорашнє сповіщення відкриває поточне слово.
+  const [wodFocus, setWodFocus] = useState(null);
+  function focusWodSlot(date, slot) {
+    if (date && date !== localDayKey()) return;
+    setWodFocus(slot != null && Number.isInteger(Number(slot)) ? { slot: Number(slot), at: Date.now() } : null);
+  }
+  // Pro: усі вже відкриті слова дня для картки в «Навчанні» (крапки,
+  // гортання, «Наступне слово о 19:00»). Слот 0 — те саме слово, що й
+  // todayWord; решту картка зберігає й «знає» через ці дві дії.
+  function saveWodSlot(w) {
+    if (!w || !w.slot) return saveWordOfDay();
+    if (!wod || wordsRef.current.some((x) => x.word?.toLowerCase() === w.word?.toLowerCase())) return;
+    addWord(
+      {
+        word: w.word,
+        ipa: w.ipa || '',
+        translation: w.translation || '',
+        example: w.example || '',
+        exampleTranslation: w.example_translation || '',
+        lang: wod.lang,
+        nativeLang: wod.native,
+      },
+      'wod'
+    );
+    bumpStat('wordOfDaySeen');
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }
+  async function knowWodSlot(w) {
+    if (!w || !w.slot) return knowWordOfDay();
+    const known = String(w.source || w.word || '').trim();
+    if (!known) return;
+    const cur = settingsRef.current;
+    const next = { ...cur, knownWords: addKnown(cur.knownWords, known) };
+    commitSettings(next);
+    track('wod_known', { streak: cur.knowStreak || 0, level: cur.profile?.level ?? null, slot: w.slot });
+    const c = await syncWordOfDay(wodArgs(next, true));
+    if (c) setWod(c);
+  }
+  // Передається в <FlashcardsScreen wodSlots> → <WordOfDayCard slots>
+  // (інтеграція з потоком «Навчання»); без Pro — null, картка як і була.
+  const wodSlots = useWodSlots({
+    wod: wod && wod.lang === settings.targetLang && wod.native === settings.nativeLang ? wod : null,
+    hours: wodHours,
+    words,
+    ui,
+    focus: wodFocus,
+    onSave: saveWodSlot,
+    onKnow: knowWodSlot,
+  });
   // </v13:W2>
   // <v13:W3>
   // </v13:W3>
@@ -1351,6 +1479,12 @@ export default function App() {
     // <v13:W1>
     // </v13:W1>
     // <v13:W2>
+    // «Слово дня»: Pro — 3 або 5 слів на день о своїх годинах; «Віджети».
+    wodPerDay: wodN,
+    wodHours,
+    onSetWodPerDay: setWodPerDay,
+    onSetWodSlotHour: setWodSlotHour,
+    widgetsAvailable: widgetsOn,
     // </v13:W2>
     // <v13:W3>
     // </v13:W3>

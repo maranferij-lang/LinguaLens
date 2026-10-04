@@ -1,5 +1,5 @@
 // Дві тихі підказки на вкладці навчання: налаштувати слово дня під себе і
-// винести його на головний екран. Обидві — картки, а не діалоги: людина
+// винести слова на головний екран (віджети). Обидві — картки, а не діалоги: людина
 // прибирає їх одним дотиком, і вони більше не повертаються (прапорці в
 // налаштуваннях вирішує App).
 import { useMemo } from 'react';
@@ -9,6 +9,7 @@ import Svg, { Rect } from 'react-native-svg';
 import { IcClose, IcSliders } from './icons';
 import { FadeIn, Press } from './ui';
 import { layoutNext } from './motion';
+import { WidgetHowTo } from './widgets/HowTo';
 import { F, R, type, useTheme } from './theme';
 
 function useStyles() {
@@ -65,13 +66,12 @@ function WidgetGlyph({ size = 20, color }) {
   );
 }
 
-// «Слово дня на головному екрані»: три коротких кроки. Без вигаданих
-// цифр на кшталт «на 60% частіше» — своїх даних у нас ще немає. Замість
-// мініатюри віджета (на 64 pt її текст не читався) — значок, як у сусідньої
-// підказки про профіль.
+// «Слова на головному екрані»: та сама анімація «як додати», що в
+// онбордингу й Параметрах (src/widgets/HowTo.js), — три кроки з іконками.
+// Без вигаданих цифр на кшталт «на 60% частіше» — своїх даних у нас ще немає.
+// Показується одразу після онбордингу, поки людина її не закриє (App).
 export function WidgetTip({ onHide, t }) {
   const { C, SHADOW, s } = useStyles();
-  const steps = [t('widgetTipStep1'), t('widgetTipStep2'), t('widgetTipStep3')];
   return (
     <FadeIn dy={6} style={[s.widget, SHADOW]}>
       <View style={s.widgetHead}>
@@ -83,16 +83,7 @@ export function WidgetTip({ onHide, t }) {
         </Text>
         <Hide onPress={onHide} t={t} s={s} C={C} />
       </View>
-      <View style={s.steps}>
-        {steps.map((text, i) => (
-          <View key={i} style={s.step}>
-            <View style={s.stepNum}>
-              <Text style={s.stepNumText}>{i + 1}</Text>
-            </View>
-            <Text style={s.stepText}>{text}</Text>
-          </View>
-        ))}
-      </View>
+      <WidgetHowTo t={t} compact style={s.steps} />
     </FadeIn>
   );
 }
@@ -119,16 +110,5 @@ const makeStyles = (C) =>
     // картка біла — значок на мʼякому акценті (у підказки про профіль навпаки)
     widgetIcon: { backgroundColor: C.accentSoft },
     widgetTitle: { flex: 1, color: C.text, ...type(16, F.bold) },
-    steps: { marginTop: 12, gap: 9, paddingRight: 14 },
-    step: { flexDirection: 'row', alignItems: 'center', gap: 11 },
-    stepNum: {
-      width: 24,
-      height: 24,
-      borderRadius: 12,
-      backgroundColor: C.accentSoft,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    stepNumText: { color: C.accent, ...type(13, F.extra, { noLead: true }) },
-    stepText: { flex: 1, color: C.text, ...type(14, F.semi) },
+    steps: { marginTop: 14, paddingLeft: 6, paddingRight: 14 },
   });
