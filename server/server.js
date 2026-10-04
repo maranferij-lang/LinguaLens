@@ -422,16 +422,52 @@ function wodDays(v) {
   return Number.isFinite(n) ? Math.min(Math.max(n, 1), 14) : 7;
 }
 
+// Скільки слів на день: 1, а в Pro — до 5 (v1.3). Безкоштовний запис, що
+// попросив більше, м'яко отримує 1, без 403: застосунок і так покаже
+// пейвол сам, а збій перевірки Pro не має лишати людину без слова дня.
+async function wodPerDay(asked, user) {
+  const n = wordplan.perDayOf(asked);
+  if (n <= 1) return 1;
+  try {
+    return (await billing.proStatus(user)).active ? n : 1;
+  } catch (_) {
+    return 1;
+  }
+}
+
+// Слів у відповіді — не більше 42: 14 днів по 3 або 8 днів по 5. Так запит
+// лишається малим, а сповіщення телефона — під межею iOS (64).
+const WOD_MAX_WORDS = 42;
+// Скільки перекладів AI одночасно: 42 паралельні виклики на холодному кеші —
+// це 429 від провайдера. Кеш слів спільний для всіх, тож платимо раз за слово.
+const WOD_PARALLEL = 8;
+
+// map з обмеженою паралельністю; порядок результатів — як у list.
+async function mapLimit(list, limit, fn) {
+  const out = new Array(list.length);
+  let next = 0;
+  async function worker() {
+    while (next < list.length) {
+      const i = next++;
+      out[i] = await fn(list[i], i);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, list.length) }, worker));
+  return out;
+}
+
 // POST — персональне слово дня: теми й рівень з профілю, без слів, на які
 // людина натиснула «Знаю». Профіль приходить у кожному запиті, а не з бази:
 // так він працює і без збереження на сервері, і одразу після зміни в
-// Параметрах.
+// Параметрах. perDay (Pro, v1.3) — додаткові слова дня (слоти 1…); старий
+// клієнт без нього отримує рівно те саме, що й раніше (поле slot не читає).
 async function handleWordOfDayPost(req, res, user) {
   if (wodLimited(clientIp(req)) || wodUserLimited(user.id)) return json(res, 429, { error: 'Забагато запитів.' });
   // 500 «Знаю» по ≤ 60 символів — до ~35 КБ; 64 КБ із запасом.
   const body = await readJson(req, 64 * 1024);
   if (!profile.isPlainObject(body)) return json(res, 400, { error: 'BAD_JSON' });
-  const days = wodDays(body.days);
+  const perDay = await wodPerDay(body.perDay, user);
+  const days = Math.min(wodDays(body.days), Math.floor(WOD_MAX_WORDS / perDay));
   const lang = langOr(body.lang, 'en');
   const native = langOr(body.native, 'uk');
   // Дати — від локального «сьогодні» клієнта, як у GET.
@@ -442,24 +478,22 @@ async function handleWordOfDayPost(req, res, user) {
     known: profile.known(body.known),
     today,
     days,
+    perDay,
   });
 
-  // Дні перекладаються паралельно, як у GET; невдалий переклад не валить
-  // решту — день лишається хоча б з англійським словом.
-  const out = await Promise.all(
-    plan.map(async ({ date, en, topic, hint }) => {
-      try {
-        return { date, ...(await ai.translateWord(en, lang, native, { topic, hint })), source: en, topic };
-      } catch (_) {
-        return { date, word: en, ipa: '', translation: '', example: '', example_translation: '', source: en, topic };
-      }
-    })
-  );
+  // Невдалий переклад не валить решту — слово лишається хоча б англійським.
+  const out = await mapLimit(plan, WOD_PARALLEL, async ({ date, slot, en, topic, hint }) => {
+    try {
+      return { date, slot, ...(await ai.translateWord(en, lang, native, { topic, hint })), source: en, topic };
+    } catch (_) {
+      return { date, slot, word: en, ipa: '', translation: '', example: '', example_translation: '', source: en, topic };
+    }
+  });
   const topics = {};
   for (const w of out) topics[w.topic] = (topics[w.topic] || 0) + 1;
   const mix = Object.entries(topics).map(([k, n]) => k + '×' + n).join(' ');
-  console.log(new Date().toISOString(), 'word-of-day', lang + '→' + native, out.length + 'д', mix);
-  return json(res, 200, { words: out });
+  console.log(new Date().toISOString(), 'word-of-day', lang + '→' + native, days + 'д×' + perDay, mix);
+  return json(res, 200, { words: out, perDay });
 }
 
 // Відповіді онбордингу — у запис пристрою (users/<id>.profile), щоб

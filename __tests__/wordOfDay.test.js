@@ -263,3 +263,187 @@ describe('permission status for onboarding', () => {
     expect(await permissionStatus()).toBe('unavailable');
   });
 });
+
+// ── v1.3: Pro — кілька слів на день (слоти) ──
+describe('several words a day (Pro slots)', () => {
+  const {
+    PAST_DAYS,
+    WOD_NOTIFY_CAP,
+    defaultSlotHours,
+    notificationPlan,
+    slotHours,
+    todayFrom,
+    todaySlots,
+    wodPerDay,
+  } = require('../src/wordOfDay');
+
+  // Сервер v1.3: perDay слів на день (без Pro — 1), не більше 42 слів
+  function servePerDay({ pro = true, legacy = false } = {}) {
+    served = [];
+    global.fetch = jest.fn(async (url, init = {}) => {
+      const body = init.body ? JSON.parse(init.body) : null;
+      served.push({ path: new URL(url).pathname, method: init.method || 'GET', body });
+      const perDay = pro && body?.perDay ? body.perDay : 1;
+      const days = Math.min(body?.days || 7, Math.floor(42 / perDay));
+      const words = [];
+      for (let i = 0; i < days; i++) {
+        for (let s = 0; s < perDay; s++) {
+          const w = { date: day(i), word: `w${i}-${s}`, translation: 'tr', source: `w${i}-${s}`, topic: 'general' };
+          words.push(legacy ? w : { ...w, slot: s });
+        }
+      }
+      return { ok: true, status: 200, json: async () => (legacy ? { words } : { words, perDay }) };
+    });
+  }
+
+  test('wodPerDay and the slot hours: 1 without Pro, 3 or 5 with it, rising hours from the first', () => {
+    expect(wodPerDay({ wodPerDay: 5 }, false)).toBe(1);
+    expect(wodPerDay({ wodPerDay: 5 }, true)).toBe(5);
+    expect(wodPerDay({ wodPerDay: 4 }, true)).toBe(1);
+    expect(wodPerDay({}, true)).toBe(1);
+
+    expect(defaultSlotHours(1, 10)).toEqual([10]);
+    expect(defaultSlotHours(3, 10)).toEqual([10, 16, 21]);
+    expect(defaultSlotHours(5, 10)).toEqual([10, 13, 16, 18, 21]);
+    expect(defaultSlotHours(5, 8)).toEqual([8, 11, 15, 18, 21]);
+    // пізня перша година — крок у годину, до 23:00
+    expect(defaultSlotHours(3, 20)).toEqual([20, 21, 22]);
+    expect(defaultSlotHours(5, 20)).toEqual([19, 20, 21, 22, 23]);
+    for (let first = 0; first < 24; first++) {
+      for (const n of [3, 5]) {
+        const h = defaultSlotHours(n, first);
+        expect(h).toHaveLength(n);
+        h.forEach((x, i) => {
+          expect(Number.isInteger(x) && x >= 0 && x <= 23).toBe(true);
+          if (i) expect(x).toBeGreaterThan(h[i - 1]);
+        });
+      }
+    }
+
+    expect(slotHours({ wodHour: 8, wodPerDay: 3, wodHours: null }, true)).toEqual([8, 15, 21]);
+    expect(slotHours({ wodHour: 8, wodPerDay: 3, wodHours: [9, 12, 19] }, true)).toEqual([8, 12, 19]);
+    // години не зростають (слово 1 пізніше за слово 2) — стартові
+    expect(slotHours({ wodHour: 13, wodPerDay: 3, wodHours: [9, 12, 19] }, true)).toEqual([13, 17, 21]);
+    expect(slotHours({ wodHour: 8, wodPerDay: 3, wodHours: [8, 12, 19] }, false)).toEqual([8]);
+    expect(slotHours({ wodHour: 'x', wodPerDay: 1 }, true)).toEqual([10]);
+  });
+
+  test('perDay goes to the server only above 1; the cache keeps slots, perDay and the days it got', async () => {
+    servePerDay();
+    const c = await syncWordOfDay(args({ hours: [9, 14, 19] }));
+    expect(served[0].body.perDay).toBe(3);
+    expect(c).toMatchObject({ perDay: 3, asked: 3, days: 14 });
+    expect(c.words).toHaveLength(42);
+    expect(c.words.slice(0, 3).map((w) => w.slot)).toEqual([0, 1, 2]);
+
+    await AsyncStorage.clear();
+    servePerDay();
+    await syncWordOfDay(args({ hours: [9] }));
+    expect(served[0].body).not.toHaveProperty('perDay');
+
+    await AsyncStorage.clear();
+    servePerDay();
+    const five = await syncWordOfDay(args({ hours: [9, 11, 14, 17, 20] }));
+    expect(five).toMatchObject({ perDay: 5, days: 8 });
+  });
+
+  test('an old server (GET or no slots) means one word a day', async () => {
+    servePerDay({ legacy: true });
+    const c = await syncWordOfDay(args({ hours: [9, 14, 19] }));
+    expect(c.perDay).toBe(1);
+    expect(c.words.every((w) => w.slot === 0)).toBe(true);
+    expect(new Set(c.words.map((w) => w.date)).size).toBe(c.words.length);
+  });
+
+  test('needsRefresh: a different number of words a day, but a short answer is retried only every 10 minutes', () => {
+    const sig = wodSignature(PROFILE, []);
+    const words = Array.from({ length: 14 }, (_, i) => ({ date: day(i), slot: 0 }));
+    const now = Date.now();
+    const want = (perDay) => ({ lang: 'en', native: 'uk', sig, perDay });
+    const one = { lang: 'en', native: 'uk', sig, perDay: 1, asked: 1, words, fetchedAt: now };
+    expect(needsRefresh(one, want(1), now)).toBe(false);
+    expect(needsRefresh(one, want(3), now)).toBe(true);
+    // просили 3, сервер дав 1 (RevenueCat ще не знає про покупку)
+    const short = { ...one, asked: 3 };
+    expect(needsRefresh(short, want(3), now + 60000)).toBe(false);
+    expect(needsRefresh(short, want(3), now + 10 * 60000)).toBe(true);
+    // Pro скінчився: кеш на 3 слова, тепер треба 1
+    expect(needsRefresh({ ...one, perDay: 3, asked: 3 }, want(1), now)).toBe(true);
+    // 5 на день — 8 днів; оновлюємо, коли лишилось менше 4
+    const eight = { ...one, perDay: 5, asked: 5, days: 8, words: words.slice(0, 4) };
+    expect(needsRefresh(eight, want(5), now)).toBe(false);
+    expect(needsRefresh({ ...eight, words: words.slice(0, 3) }, want(5), now)).toBe(true);
+    // минулі дні й додаткові слоти не рахуються як «запас»
+    const past = Array.from({ length: 6 }, (_, i) => ({ date: day(-1 - i), slot: 0 }));
+    const extra = words.slice(0, 6).map((w) => ({ ...w, slot: 1 }));
+    expect(needsRefresh({ ...one, words: [...past, ...extra, ...words.slice(0, 6)] }, want(1), now)).toBe(true);
+  });
+
+  test('the past week survives a refresh for the same languages (for the large widget)', async () => {
+    const old = Array.from({ length: 10 }, (_, i) => ({ date: day(i - 9), word: 'old' + i, slot: 0 }));
+    const slotWord = { date: day(-2), word: 'extra', slot: 1 };
+    await AsyncStorage.setItem('ll_wod_v1', JSON.stringify({ lang: 'en', native: 'uk', sig: 'other', words: [...old, slotWord] }));
+    servePerDay();
+    const c = await syncWordOfDay(args());
+    const past = c.words.filter((w) => w.date < TODAY);
+    expect(past.map((w) => w.date)).toEqual(Array.from({ length: PAST_DAYS }, (_, i) => day(i - PAST_DAYS)));
+    expect(past.every((w) => w.slot === 0)).toBe(true);
+    expect(todayFrom(c).word).toBe('w0-0');
+
+    // інша пара мов — минулого не беремо
+    servePerDay();
+    const de = await syncWordOfDay(args({ lang: 'de' }));
+    expect(de.words.some((w) => w.date < TODAY)).toBe(false);
+  });
+
+  test('todayFrom is slot 0; todaySlots opens slot s at hours[s] and names the next one', () => {
+    const at = (h, m = 0) => {
+      const d = new Date();
+      d.setHours(h, m, 0, 0);
+      return d;
+    };
+    const words = [0, 1, 2].map((s) => ({ date: TODAY, word: 'w' + s, slot: s }));
+    const cache = { words: [{ date: day(1), word: 'tomorrow', slot: 0 }, ...words.reverse()] };
+    expect(todayFrom(cache).word).toBe('w0');
+    const hours = [9, 14, 19];
+    expect(todaySlots(cache, hours, at(8))).toMatchObject({ n: 3, next: { slot: 1, hour: 14 } });
+    expect(todaySlots(cache, hours, at(8)).open.map((w) => [w.word, w.slot, w.hour])).toEqual([['w0', 0, 9]]);
+    expect(todaySlots(cache, hours, at(13, 59)).open).toHaveLength(1);
+    expect(todaySlots(cache, hours, at(14)).open.map((w) => w.word)).toEqual(['w0', 'w1']);
+    expect(todaySlots(cache, hours, at(14)).next).toEqual({ slot: 2, hour: 19 });
+    expect(todaySlots(cache, hours, at(23))).toMatchObject({ n: 3, next: null });
+    expect(todaySlots(cache, hours, at(23)).open).toHaveLength(3);
+    // Pro скінчився — одна година, один слот
+    expect(todaySlots(cache, [9], at(23))).toMatchObject({ n: 1, next: null });
+    // кеш без сьогодні
+    expect(todaySlots({ words: [] }, hours, at(10))).toEqual({ n: 0, open: [], next: null });
+    expect(todaySlots(null, hours, at(10))).toEqual({ n: 0, open: [], next: null });
+  });
+
+  test('notifications: one per slot at its hour, slot ids, data.slot, never more than 56', async () => {
+    servePerDay();
+    await syncWordOfDay(args({ enabled: true, hours: [9, 14, 23] }));
+    const calls = Notifications.scheduleNotificationAsync.mock.calls.map(([n]) => n);
+    expect(calls.length).toBeGreaterThan(30);
+    expect(calls.length).toBeLessThanOrEqual(42);
+    const tomorrow = calls.filter((n) => n.content.data.date === day(1));
+    expect(tomorrow.map((n) => n.identifier)).toEqual([`wod-${day(1)}`, `wod-${day(1)}-1`, `wod-${day(1)}-2`]);
+    expect(tomorrow.map((n) => n.trigger.date.getHours())).toEqual([9, 14, 23]);
+    expect(tomorrow.map((n) => n.content.data)).toEqual([0, 1, 2].map((slot) => ({ type: 'word-of-day', date: day(1), slot })));
+    const times = calls.map((n) => n.trigger.date.getTime());
+    expect([...times].sort((a, b) => a - b)).toEqual(times);
+
+    // 5 на день на 14 днів дали б 70 — плануємо 56 найближчих
+    const cache = { words: [] };
+    for (let i = 0; i < 14; i++) for (let s = 0; s < 5; s++) cache.words.push({ date: day(i + 1), word: 'x', slot: s });
+    const plan = notificationPlan(cache, [8, 11, 14, 17, 20]);
+    expect(WOD_NOTIFY_CAP).toBe(56);
+    expect(plan).toHaveLength(56);
+    expect(plan[0].identifier).toBe(`wod-${day(1)}`);
+    expect(plan.map((p) => p.date)).toEqual(Array.from({ length: 56 }, (_, i) => day(1 + Math.floor(i / 5))));
+    // менше годин, ніж слотів у кеші: зайві слоти не плануємо
+    expect(notificationPlan(cache, [8]).every((p) => p.slot === 0)).toBe(true);
+    // стара сигнатура: одна година числом
+    expect(notificationPlan(cache, 9)).toHaveLength(14);
+  });
+});

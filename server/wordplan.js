@@ -192,22 +192,74 @@ function buildPlan({ seed, profile, known = new Set(), lex = LEXICON }) {
   };
 }
 
-// Слово на дату. День k від початку прогресу (since) → місце в циклі →
-// котре це за ліком слово своєї теми (j) → j-те слово її списку по колу.
-function pick(plan, date) {
-  const k = Math.max(0, billing.dayIndexOf(date) - plan.origin);
+// Слово для дня k від початку прогресу (since): місце в циклі → котре це
+// за ліком слово своєї теми (j) → j-те слово її списку по колу.
+function pickAt(plan, k) {
   const P = plan.pattern.length;
-  const slot = k % P;
-  const source = plan.sources.get(plan.pattern[slot]);
-  const j = Math.floor(k / P) * source.weight + plan.rank[slot];
+  const pos = k % P;
+  const source = plan.sources.get(plan.pattern[pos]);
+  const j = Math.floor(k / P) * source.weight + plan.rank[pos];
   const w = source.list[j % source.list.length];
-  return { date, en: w.en, topic: source.key, hint: w.hint, level: w.level };
+  return { en: w.en, topic: source.key, hint: w.hint, level: w.level };
 }
 
-// days слів, починаючи з today (локальний день клієнта).
-function schedule({ seed, profile, known, today, days, lex }) {
+// Слово на дату (підпис і поведінка — як до v1.3).
+function pick(plan, date) {
+  return { date, ...pickAt(plan, Math.max(0, billing.dayIndexOf(date) - plan.origin)) };
+}
+
+// Pro: кілька слів на день (v1.3) — 1, 3 або 5; будь-що інше дає 1.
+// Додаткові слова (слоти 1…) беремо з «віртуальних днів» далеко за
+// горизонтом основних: той самий цикл тем і ті самі списки, тож частки тем
+// і рівень тримаються, а слово слоту 0 не залежить від perDay — після
+// покупки чи кінця Pro «моє слово дня» не міняється.
+const MAX_PER_DAY = 5;
+const EXTRA_BASE = 100000;
+// Скільки разів шукати інше слово, якщо додаткове збіглося з уже взятим
+// того ж дня (вузькі списки), і на скільки «днів» стрибати.
+const RETRIES = 8;
+const RETRY_STEP = 7 * MAX_PER_DAY * 1000;
+
+function perDayOf(v) {
+  const n = Math.floor(Number(v));
+  return Number.isFinite(n) ? Math.min(Math.max(n, 1), MAX_PER_DAY) : 1;
+}
+
+// days днів, починаючи з today (локальний день клієнта), по perDay слів на
+// день: [{ date, slot, en, topic, hint, level }] — день за днем, слоти по
+// порядку. Слот s ≥ 1 не залежить від perDay: у 3 і 5 на день слоти 1–2
+// однакові. У межах дня слова не повторюються.
+function schedule({ seed, profile, known, today, days, lex, perDay = 1 }) {
+  const n = perDayOf(perDay);
   const plan = buildPlan({ seed, profile, known, lex });
-  return Array.from({ length: days }, (_, i) => pick(plan, billing.addDays(today, i)));
+  const out = [];
+  for (let i = 0; i < days; i++) {
+    const date = billing.addDays(today, i);
+    const k = Math.max(0, billing.dayIndexOf(date) - plan.origin);
+    const main = { date, slot: 0, ...pickAt(plan, k) };
+    out.push(main);
+    const seen = new Set([main.en]);
+    for (let s = 1; s < n; s++) {
+      let x = EXTRA_BASE + k * (MAX_PER_DAY - 1) + (s - 1);
+      let w = pickAt(plan, x);
+      for (let tries = 0; seen.has(w.en) && tries < RETRIES; tries++) w = pickAt(plan, (x += RETRY_STEP));
+      seen.add(w.en);
+      out.push({ date, slot: s, ...w });
+    }
+  }
+  return out;
 }
 
-module.exports = { BANDS, INTL_FROM_LEVEL, bandsFor, weightsFor, smoothPattern, buildPlan, pick, schedule };
+module.exports = {
+  BANDS,
+  INTL_FROM_LEVEL,
+  MAX_PER_DAY,
+  bandsFor,
+  weightsFor,
+  smoothPattern,
+  buildPlan,
+  pickAt,
+  pick,
+  perDayOf,
+  schedule,
+};

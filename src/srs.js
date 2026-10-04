@@ -90,6 +90,14 @@ export function practiceWords(words, limit = PRACTICE_SIZE) {
   return [...words].sort((a, b) => dueOf(a) - dueOf(b)).slice(0, limit);
 }
 
+// «Вивчено»: слово дійшло до коробки з інтервалом ≥ 8 днів. Одне визначення
+// для віджета «Мої слова» й підсумків — щоб числа ніде не розходились.
+export const LEARNED_BOX = 4;
+export function isLearned(item) {
+  const box = item?.srs?.box;
+  return Number.isInteger(box) && box >= LEARNED_BOX;
+}
+
 // Коли наступне повторення: рядок формується через i18n (t)
 export function nextDueText(words, t, now = Date.now()) {
   if (!words.length) return '';

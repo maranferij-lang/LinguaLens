@@ -196,8 +196,8 @@ describe('word of the day', () => {
 
   // Віджет: заглушка expo-widgets із jest.setup.js; таймлайн — останній виклик.
   const lastTimeline = () => {
-    const { createWidget } = require('expo-widgets');
-    const calls = createWidget.mock.results.at(-1).value.updateTimeline.mock.calls;
+    // віджетів три (v1.3) — беремо саме «Слово дня»
+    const calls = require('expo-widgets').__widgets.WordOfDay.updateTimeline.mock.calls;
     return calls.at(-1)[0];
   };
 

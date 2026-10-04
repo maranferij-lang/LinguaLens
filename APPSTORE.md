@@ -907,7 +907,43 @@ _Заповнює потік W1._
 
 ## v1.3 · W2 Віджети й Pro «кілька слів на день»
 
-_Заповнює потік W2._
+Інтеграція вставляє ці рядки в описи вище (замість нинішніх рядків про
+віджет) і зводить рядок Pro з текстами W5 (теми).
+
+**Опис — пункт про слово дня й віджети** (замість «A word of the day with a
+reminder… plus a widget…»):
+
+| Мова | Текст |
+|---|---|
+| en | • Three free widgets: the word of the day with an example sentence (tap to reveal the translation right in the widget), your own words with the photos you took, and your streak — on the Home Screen and the Lock Screen |
+| uk | • Три безкоштовні віджети: слово дня з реченням (переклад відкривається дотиком просто у віджеті), твої слова з фото, які ти зняв сам, і серія — на головному екрані й екрані блокування |
+| de | • Drei kostenlose Widgets: das Wort des Tages mit Beispielsatz (Übersetzung per Tippen direkt im Widget), deine eigenen Wörter mit deinen Fotos und deine Serie — auf dem Home- und dem Sperrbildschirm |
+| es | • Tres widgets gratis: la palabra del día con una frase de ejemplo (toca para ver la traducción en el propio widget), tus palabras con tus fotos y tu racha, en la pantalla de inicio y la de bloqueo |
+
+**Рядок «Free forever …»**: «the word of the day and the widget» →
+«the word of the day and all three widgets» (uk: «слово дня й усі три
+віджети»; de: «das Wort des Tages und alle drei Widgets»; es: «la palabra
+del día y los tres widgets»).
+
+**Рядок Pro** — додати до переліку переваг Pro (поруч із темами W5):
+en «up to 5 words of the day, at the times you choose»; uk «до 5 слів дня
+на день, о годинах, які обереш»; de «bis zu 5 Wörter des Tages, zu
+Uhrzeiten deiner Wahl»; es «hasta 5 palabras del día, a las horas que
+elijas».
+
+**Що нового у v1.3 (рядок про віджети)**:
+- en: Three widgets — Word of the Day (now in a large size, with an example sentence and the translation one tap away), My Words and Streak.
+- uk: Три віджети — «Слово дня» (тепер і великий, з реченням і перекладом за один дотик), «Мої слова» і «Серія».
+
+**Скриншот** (за бажанням, слот 4 «Віджет»): головний екран з великим
+«Словом дня» і малими «Серія» й «Мої слова» (макет
+`v13/mockups/widgets-phone-home-lock.png`).
+
+**Нотатки для рецензента — додати абзац:**
+```
+Widgets (v1.3): LinguaLens has three Home Screen and Lock Screen widgets — Word of the Day, My Words and Streak. All of them are free and contain no ads or purchase prompts. Open the app once, then long-press the Home Screen → Edit → Add Widget → LinguaLens. On iOS 17+ the "Translation" button inside the Word of the Day and My Words widgets reveals the translation without opening the app (an App Intent that only updates the widget); this can be turned off in Settings → Widgets. On the Lock Screen the translation is always shown.
+Pro "words of the day": with LinguaLens Pro a person can get 3 or 5 words of the day at hours they pick (Settings → Word of the day → Words a day). Without Pro, choosing 3 or 5 opens the paywall; the first word of the day is the same for free and Pro users.
+```
 
 ## v1.3 · W3 Онбординг 3.0 і скидання для розробки
 

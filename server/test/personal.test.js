@@ -38,6 +38,8 @@ after(async () => {
 
 const TODAY = () => billing.utcDay();
 const WORD_KEYS = ['date', 'word', 'ipa', 'translation', 'example', 'example_translation', 'source', 'topic'];
+// POST (v1.3) додає slot — котре це слово дня: 0 для всіх, 1… лише в Pro
+const POST_KEYS = ['date', 'slot', ...WORD_KEYS.slice(1)];
 const FINANCE = { goals: ['work'], field: 'finance', level: 8 };
 
 function wod(token, body, opts = {}) {
@@ -55,7 +57,7 @@ test('POST /word-of-day: 14 personal days in the shape the app expects', async (
   assert.equal(r.status, 200);
   assert.equal(r.data.words.length, 14);
   r.data.words.forEach((w, i) => {
-    assert.deepEqual(Object.keys(w), WORD_KEYS);
+    assert.deepEqual(Object.keys(w), POST_KEYS);
     assert.equal(w.date, billing.addDays(today, i));
     assert.equal(w.word, w.source); // mock перекладає «як є»
     // слово справді з теми й рівня 8/10 (2 чи 3, ніколи 1)
