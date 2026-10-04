@@ -187,3 +187,76 @@ describe('feature flags', () => {
     expect(a.client().getFeatureFlag).not.toHaveBeenCalled();
   });
 });
+
+// Справжній SDK, а не заглушка: заглушка не памʼятає opt-out, тож не
+// побачила б, що reset() у PostHog стирає й його. Сховище — у пам'яті,
+// мережа — підставлений fetch; події життєвого циклу шлемо руками (саме
+// це робить слухач AppState у SDK, коли застосунок згортають і відкривають).
+describe('the real PostHog SDK', () => {
+  function loadReal() {
+    let mod;
+    let client = null;
+    jest.isolateModules(() => {
+      jest.doMock('../src/config', () => ({ POSTHOG_KEY: 'phc_test', POSTHOG_HOST: 'https://eu.i.posthog.com' }));
+      jest.doMock('posthog-react-native', () => {
+        const Real = jest.requireActual('posthog-react-native').default;
+        function PostHog(key, options) {
+          client = new Real(key, { ...options, persistence: 'memory', flushAt: 1, flushInterval: 0, captureAppLifecycleEvents: false });
+          return client;
+        }
+        return { __esModule: true, default: PostHog, PostHog };
+      });
+      mod = require('../src/analytics');
+    });
+    return { ...mod, client: () => client };
+  }
+  const tick = (ms = 30) => new Promise((r) => setTimeout(r, ms));
+
+  let sent;
+  beforeEach(() => {
+    sent = [];
+    global.fetch = jest.fn(async (url) => {
+      sent.push(String(url));
+      return { status: 200, ok: true, json: async () => ({ featureFlags: {}, flags: {} }), text: async () => '{}' };
+    });
+  });
+
+  test('switched off, then “Erase my data”: a new id, but the SDK stays opted out and sends nothing', async () => {
+    const a = loadReal();
+    a.initAnalytics();
+    await tick();
+    const c = a.client();
+    a.setAnalyticsEnabled(false);
+    await tick();
+    expect(c.optedOut).toBe(true);
+    const before = c.getDistinctId();
+
+    a.resetAnalytics();
+    await tick();
+    expect(c.getDistinctId()).not.toBe(before);
+    expect(c.optedOut).toBe(true);
+
+    sent.length = 0;
+    c.capture('Application Became Active');
+    await c.flush().catch(() => {});
+    await tick(100);
+    expect(sent.filter((u) => u.includes('/batch'))).toEqual([]);
+    await Promise.resolve(c.shutdown?.()).catch(() => {});
+  });
+
+  test('erase while it is on: a new id, and events keep going', async () => {
+    const a = loadReal();
+    a.initAnalytics();
+    await tick();
+    const c = a.client();
+    a.resetAnalytics();
+    await tick();
+    expect(c.optedOut).toBe(false);
+    sent.length = 0;
+    a.track('scan', { mode: 'object', ok: true });
+    await c.flush().catch(() => {});
+    await tick(100);
+    expect(sent.some((u) => u.includes('/batch'))).toBe(true);
+    await Promise.resolve(c.shutdown?.()).catch(() => {});
+  });
+});

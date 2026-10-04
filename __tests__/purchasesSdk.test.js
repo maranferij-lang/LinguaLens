@@ -344,3 +344,113 @@ describe('managing the subscription', () => {
     await act(async () => tree.unmount());
   });
 });
+
+// Магазин не віддав тарифів: офлайн на свіжому встановленні, збій App Store
+// чи RevenueCat, продукти, яких ще не видно в пісочниці App Review. Пейвол
+// мусить сказати це й дати спробувати ще раз, а не крутити індикатор без
+// кінця з вимкненою кнопкою покупки (App Review 2.1).
+describe('prices that did not load', () => {
+  const { ActivityIndicator } = require('react-native');
+  const PaywallScreen = require('../src/PaywallScreen').default;
+  const t = require('../src/i18n').makeT('en');
+  const offline = async () => {
+    throw Object.assign(new Error('None of the products registered in the RevenueCat dashboard could be fetched'), { code: '23' });
+  };
+  // Дерево розмонтовуємо й тоді, коли перевірка впала: відкладені появи
+  // пейволу (FadeIn із delay) інакше спрацювали б на знесеному дереві.
+  const mounted = [];
+  afterEach(async () => {
+    while (mounted.length) {
+      const tree = mounted.pop();
+      await act(async () => tree.unmount());
+    }
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 120));
+    });
+  });
+  const settle = async () => {
+    for (let i = 0; i < 3; i++) {
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 20));
+      });
+    }
+  };
+
+  test('the hook says so, and a retry that works brings the plans', async () => {
+    sdk.getOfferings.mockImplementation(offline);
+    const tree = await mount();
+    expect(hook.plansStatus).toBe('failed');
+    expect(hook.plans).toEqual([]);
+    sdk.getOfferings.mockImplementation(async () => OFFERING);
+    await act(async () => {
+      await hook.reloadPlans();
+    });
+    expect(hook.plansStatus).toBe('ready');
+    expect(hook.plans.map((p) => p.id)).toEqual(['month', 'year', 'lifetime']);
+    await act(async () => tree.unmount());
+  });
+
+  test('no current offering counts as failed too', async () => {
+    sdk.getOfferings.mockImplementation(async () => ({ current: null, all: {} }));
+    const tree = await mount();
+    expect(hook.plansStatus).toBe('failed');
+    await act(async () => tree.unmount());
+  });
+
+  test('the paywall: a short note and “Try again” instead of an endless spinner, the buy button stays off', async () => {
+    sdk.getOfferings.mockImplementation(offline);
+    // так само, як пейвол підключає App.js: хук живе з запуску, пейвол
+    // відкривається пізніше (скани скінчились)
+    let open;
+    function App() {
+      const pro = usePro('u1');
+      const [shown, setShown] = require('react').useState(false);
+      open = () => setShown(true);
+      if (!shown) return null;
+      return (
+        <PaywallScreen
+          reason="scans"
+          plans={pro.plans}
+          unavailable={pro.mode === 'unavailable'}
+          plansFailed={pro.plansStatus === 'failed'}
+          onRetry={pro.reloadPlans}
+          onClose={() => {}}
+          onPurchase={async () => ({ ok: true })}
+          onRestore={async () => ({})}
+          onOpen={() => !pro.plans.length && pro.reloadPlans()}
+          lang="en"
+          t={t}
+        />
+      );
+    }
+    let tree;
+    await act(async () => {
+      tree = create(<App />);
+    });
+    mounted.push(tree);
+    await settle();
+    await act(async () => open());
+    await settle();
+    // і на старті, і при відкритті пейволу магазин не відповів
+    expect(sdk.getOfferings).toHaveBeenCalledTimes(2);
+    const texts = () => tree.root.findAll((n) => typeof n.props?.children === 'string').map((n) => n.props.children);
+    const cta = () => tree.root.findAll((n) => n.props.title === t('subscribe') && typeof n.props.onPress === 'function')[0];
+    const retry = () => tree.root.findAll((n) => n.props.title === t('pricesRetry') && typeof n.props.onPress === 'function')[0];
+    expect(tree.root.findAllByType(ActivityIndicator)).toHaveLength(0);
+    expect(texts()).toContain(t('pricesFailed'));
+    expect(retry()).toBeTruthy();
+    expect(cta().props.disabled).toBe(true);
+
+    // мережа повернулась — «Спробувати ще раз», і тарифи на місці
+    sdk.getOfferings.mockImplementation(async () => OFFERING);
+    await act(async () => {
+      await retry().props.onPress();
+    });
+    await settle();
+    expect(sdk.getOfferings).toHaveBeenCalledTimes(3);
+    expect(texts()).not.toContain(t('pricesFailed'));
+    expect(retry()).toBeUndefined();
+    expect(texts()).toContain('$34.99');
+    expect(cta().props.disabled).toBe(false);
+  });
+});

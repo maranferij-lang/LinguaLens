@@ -103,8 +103,14 @@ export function setProps(props) {
 }
 
 // «Стерти мої дані»: новий анонімний id, старі властивості — геть.
+// reset() у PostHog стирає й запамʼятований opt-out: якщо статистику вже
+// вимкнули, SDK знову рахував би себе увімкненим і до кінця сесії слав би
+// власні події життєвого циклу під новим id. Тож вимикаємо його ще раз —
+// обидва виклики йдуть однією чергою SDK, між ними нічого не проскочить.
 export function resetAnalytics() {
-  if (client) safe(() => client.reset());
+  if (!client) return;
+  safe(() => client.reset());
+  if (!enabled) safe(() => client.optOut());
 }
 
 // Значення прапорця (feature flag) для A/B-тесту.

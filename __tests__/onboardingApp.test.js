@@ -246,3 +246,42 @@ describe('first scan inside onboarding', () => {
     expect(one(tree, PaywallScreen)).toBeNull();
   });
 });
+
+// iOS вбиває застосунок, коли в Параметрах міняють доступ до камери (чи
+// просто вивантажує його з пам'яті) — посеред онбордингу людина не має
+// відповідати на все вдруге. Чернетка — лише на телефоні, у мережу й у
+// статистику нічого з неї не йде.
+describe('a cold start in the middle of onboarding', () => {
+  const header = (tree) =>
+    tree.root.find((n) => typeof n.type === 'string' && n.props.accessibilityRole === 'header').props.children;
+
+  test('carries on from the same step with the same answers; finishing clears the draft', async () => {
+    let tree = await renderApp();
+    await press(tree, t('obStart'));
+    await run(() => tree.root.findAll((n) => typeof n.props.onChangeText === 'function')[0].props.onChangeText('Олена'));
+    await press(tree, t('obNext'));
+    await press(tree, t('goal_travel'));
+    await press(tree, t('obNext'));
+    await press(tree, t('obNext')); // рівень
+    await press(tree, t('obSkip')); // що заважає
+    await press(tree, t('obNext')); // план
+    expect(header(tree)).toBe(t('obWowTitle'));
+    expect(await stored('ll_onb_draft_v1')).toMatchObject({ phase: 'wow', name: 'Олена', goals: ['travel'], level: 5 });
+
+    // застосунок вбито — і запущено знову
+    await act(async () => mounted.pop().unmount());
+    tree = await renderApp();
+    const onb = one(tree, OnboardingScreen);
+    expect(onb.props.draft).toMatchObject({ phase: 'wow', name: 'Олена' });
+    expect(header(tree)).toBe(t('obWowTitle'));
+    expect(calls.some((c) => c.body.includes('Олена') || c.url.includes(encodeURIComponent('Олена')))).toBe(false);
+    expect(JSON.stringify(ph().capture.mock.calls)).not.toMatch(/Олена/);
+
+    await run(() => one(tree, OnboardingScreen).props.onDone(RESULT));
+    expect(await AsyncStorage.getItem('ll_onb_draft_v1')).toBeNull();
+    // далі — звичайний застосунок, а не знову онбординг
+    await act(async () => mounted.pop().unmount());
+    tree = await renderApp();
+    expect(one(tree, OnboardingScreen)).toBeNull();
+  });
+});

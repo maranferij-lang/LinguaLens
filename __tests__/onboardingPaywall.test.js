@@ -3,6 +3,7 @@
 // компактному 'intro' або пейвол RevenueCat). Без пробного періоду — одразу
 // (в) без таймлайну. Хрестик на кожному екрані. App Review 3.1.2: на (в)
 // сума списання — перша й найпомітніша цифра, умови й відновлення поруч.
+import { AccessibilityInfo } from 'react-native';
 import { act, create } from 'react-test-renderer';
 import OnboardingPaywall, { PAYWALL_STEP_INDEX, paywallSteps } from '../src/OnboardingPaywall';
 import PaywallScreen, { defaultPlan } from '../src/PaywallScreen';
@@ -152,6 +153,43 @@ test('a plan that arrives later does not throw the person back to the first scre
   expect(tree.root.findAllByType(PaywallScreen)).toHaveLength(1);
   await act(async () => tree.update(<OnboardingPaywall plans={SIMULATED_PLANS} lang="en" t={t} onClose={() => {}} onStep={() => {}} />));
   expect(tree.root.findAllByType(PaywallScreen)).toHaveLength(1);
+});
+
+// Тарифи не завантажились: третій екран — той самий PaywallScreen, тож і
+// тут коротке пояснення та «Спробувати ще раз» замість вічного індикатора.
+test('prices that did not load: a note and “Try again” on the plans screen', async () => {
+  const onRetry = jest.fn();
+  const { tree } = await render({ plans: [], plansFailed: true, onRetry });
+  expect(has(tree, t('pricesFailed'))).toBe(true);
+  await press(tree, t('pricesRetry'));
+  expect(onRetry).toHaveBeenCalledTimes(1);
+  expect(tree.root.findAll((n) => n.props.title === t('subscribe'))[0].props.disabled).toBe(true);
+});
+
+// VoiceOver: «Далі» на (а) і (б) — та сама кнопка на тому самому місці, і
+// фокус лишався б на ній: (б) з датою й сумою списання пройшов би
+// непочутим. Як у StepFrame — на кожному екрані фокус іде на заголовок.
+test('VoiceOver: every screen moves the focus to its title', async () => {
+  AccessibilityInfo.isScreenReaderEnabled.mockImplementation(() => Promise.resolve(true));
+  AccessibilityInfo.sendAccessibilityEvent.mockClear();
+  try {
+    let tree;
+    await act(async () => {
+      tree = create(<OnboardingPaywall plans={SIMULATED_PLANS} lang="en" t={t} onClose={() => {}} onStep={() => {}} />, {
+        // ref заголовка — сам елемент, щоб було видно, куди пішов фокус
+        createNodeMock: (el) => el,
+      });
+    });
+    mounted.push(tree);
+    await act(async () => {});
+    const focused = () =>
+      AccessibilityInfo.sendAccessibilityEvent.mock.calls.filter(([, e]) => e === 'focus').map(([el]) => el.props.children);
+    expect(focused().at(-1)).toBe('Try Pro free for 7 days');
+    await press(tree, t('obNext'));
+    expect(focused().at(-1)).toBe(t('opwRemindTitle'));
+  } finally {
+    AccessibilityInfo.isScreenReaderEnabled.mockImplementation(() => Promise.resolve(false));
+  }
 });
 
 describe('RevenueCat paywall as the third screen', () => {

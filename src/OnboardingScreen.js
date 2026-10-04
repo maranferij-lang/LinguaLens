@@ -28,6 +28,10 @@ import { LogoRow } from './Logo';
 import { MascotBob } from './Mascot';
 import {
   DEFAULT_LEVEL,
+  FIELDS,
+  GOALS,
+  HEARD,
+  clampLevel,
   cleanName,
   cleanStruggles,
   needsField,
@@ -81,11 +85,36 @@ export function onboardingFlow({ variant = 'control', goals = [], replay = false
   ];
 }
 
+// Чернетка з минулого запуску (див. loadOnboardingDraft у storage.js) →
+// крок, варіант і відповіді. Зіпсована чи не з цього потоку — null:
+// тоді просто починаємо спочатку.
+export function restoreDraft(d) {
+  if (!d || typeof d !== 'object' || typeof d.phase !== 'string') return null;
+  const variant = d.variant === 'short' ? 'short' : 'control';
+  const goals = Array.isArray(d.goals) ? GOALS.filter((g) => d.goals.includes(g)) : [];
+  const all = onboardingFlow({ variant, goals, wow: true, push: true });
+  const step = d.phase === 'pushDenied' ? 'push' : d.phase;
+  if (step === 'welcome' || !all.includes(step)) return null;
+  return {
+    phase: d.phase,
+    variant,
+    name: cleanName(d.name),
+    goals,
+    field: FIELDS.includes(d.field) ? d.field : null,
+    level: typeof d.level === 'number' && Number.isFinite(d.level) ? clampLevel(d.level) : null,
+    struggles: cleanStruggles(d.struggles),
+    heard: HEARD.includes(d.heard) ? d.heard : null,
+    push: typeof d.push === 'boolean' ? d.push : undefined,
+  };
+}
+
 // profile, heardFrom, name, struggles — поточні відповіді (повтор показує їх);
 // targetLang — мова, яку вчать (над питанням про рівень і в обіцянці);
 // wodHour — о котрій приходитиме слово дня (у попередньому перегляді);
 // canWow — чи можна зробити перший скан; renderScanner({ onSaved, onClose })
 // — справжній сканер у режимі першого скану (його збирає App).
+// draft — чернетка з минулого запуску: знайомство продовжується з того
+// самого кроку; onDraft(чернетка) — на кожному кроці, App її зберігає.
 // onDone({ profile, heardFrom, name?, struggles?, wodEnabled?, scanned, flow }).
 export default function OnboardingScreen({
   t,
@@ -99,10 +128,15 @@ export default function OnboardingScreen({
   replay = false,
   canWow = false,
   renderScanner = null,
+  draft = null,
+  onDraft = null,
 }) {
   const { C } = useTheme();
   const s = useMemo(() => makeStyles(C), [C]);
   const startedAt = useRef(Date.now());
+  // Чернетка — лише для першого знайомства: повтор починається з того, що
+  // вже збережено в налаштуваннях.
+  const [saved] = useState(() => (replay ? null : restoreDraft(draft)));
 
   // Відповіді до онбордингу — до них повертає «Пропустити».
   const initial = useRef({
@@ -114,21 +148,24 @@ export default function OnboardingScreen({
     heard: heardFrom || null,
   }).current;
 
-  const [nameDraft, setNameDraft] = useState(initial.name);
-  const [goals, setGoals] = useState(initial.goals);
-  const [field, setField] = useState(initial.field);
+  // «Пропустити» й далі вертає до відповідей до онбордингу, а не до чернетки
+  const answers = saved || initial;
+  const [nameDraft, setNameDraft] = useState(answers.name);
+  const [goals, setGoals] = useState(answers.goals);
+  const [field, setField] = useState(answers.field);
   // null — рівень не обрано (крок пропущено); слайдер тоді стоїть посередині
-  const [level, setLevel] = useState(initial.level);
-  const [pains, setPains] = useState(initial.struggles);
-  const [heard, setHeard] = useState(initial.heard);
+  const [level, setLevel] = useState(answers.level);
+  const [pains, setPains] = useState(answers.struggles);
+  const [heard, setHeard] = useState(answers.heard);
 
   // ── Варіант (A/B) ───────────────────────────────────────────────────────
   // Прапорець питаємо одразу, поки людина читає вітання; «Почати» дочекається
   // його (не довше FLAG_WAIT_MS від старту), щоб варіант не змінився посеред шляху.
-  const [variant, setVariant] = useState(replay ? 'replay' : null);
-  const variantP = useRef(null);
+  // Варіант із чернетки не перепитуємо: людина вже посеред свого шляху.
+  const [variant, setVariant] = useState(replay ? 'replay' : saved ? saved.variant : null);
+  const variantP = useRef(saved ? Promise.resolve(saved.variant) : null);
   useEffect(() => {
-    if (replay) return;
+    if (replay || saved) return;
     let alive = true;
     variantP.current = flag('onboarding-flow', 'control', FLAG_WAIT_MS)
       .then((v) => (v === 'short' ? 'short' : 'control'))
@@ -143,7 +180,7 @@ export default function OnboardingScreen({
   const [pushAsk, setPushAsk] = useState(false);
   // Відповідь системи на запит. Ref, а не стан: фінал може настати в тому ж
   // тіку, що й відповідь (сповіщення — останній крок повтору).
-  const pushGranted = useRef(undefined);
+  const pushGranted = useRef(saved ? saved.push : undefined);
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     let alive = true;
@@ -155,7 +192,13 @@ export default function OnboardingScreen({
     };
   }, []);
 
-  const [phase, setPhase] = useState(replay ? 'name' : 'welcome');
+  // З чернетки — той самий крок. «Спробуй зараз», якого вже не буде (слово
+  // є чи скан на сьогодні витрачено), — крок перед ним, план.
+  const [phase, setPhase] = useState(() => {
+    if (replay) return 'name';
+    if (!saved) return 'welcome';
+    return saved.phase === 'wow' && !(canWow && renderScanner) ? 'plan' : saved.phase;
+  });
   const [scannerOpen, setScannerOpen] = useState(false);
   const [firstWord, setFirstWord] = useState(null);
   const firstWordRef = useRef(null);
@@ -181,7 +224,7 @@ export default function OnboardingScreen({
   // ── Статистика: кожен показаний крок (у повторі — ні: це не воронка) ────
   // Вітання рахуємо, щойно відомий варіант; якщо прапорець прийшов лише
   // після «Почати», його надсилає start() — і лише один раз.
-  const welcomeSent = useRef(false);
+  const welcomeSent = useRef(!!saved);
   function trackStep(step, v, f = flow) {
     if (step === 'welcome') {
       if (welcomeSent.current) return;
@@ -200,6 +243,24 @@ export default function OnboardingScreen({
     trackStep(phase, variant);
   }, [phase, variant]);
 
+  // Чернетка на кожному кроці (див. restoreDraft): iOS може вбити
+  // застосунок посеред знайомства — зокрема коли в Параметрах міняють
+  // доступ до камери, — і людина не має відповідати на все вдруге.
+  useEffect(() => {
+    if (replay || !onDraft || !variant || phase === 'welcome') return;
+    onDraft({
+      phase,
+      variant: flowName,
+      name: nameDraft,
+      goals,
+      field,
+      level,
+      struggles: pains,
+      heard,
+      push: pushGranted.current,
+    });
+  }, [phase, variant]);
+
   function event(name, props) {
     if (!replay) track(name, { ...props, flow: flowName });
   }
@@ -212,14 +273,25 @@ export default function OnboardingScreen({
   // найсвіжішу версію через ref: їхнє замикання бачило б старі відповіді.
   const forwardRef = useRef(null);
   forwardRef.current = (from) => forward(from);
+  // Наступний — за повним порядком кроків: тоді й крок із чернетки, якого в
+  // потоці вже немає (про сповіщення система вже знає), веде далі, а не
+  // одразу у фінал.
   function forward(from = phase, over) {
     const f = flowWith(over);
-    const i = f.indexOf(from === 'pushDenied' ? 'push' : from);
-    if (i < 0 || i >= f.length - 1) {
+    const all = onboardingFlow({
+      variant: over?.variant || flowName,
+      goals: over?.goals || goals,
+      replay,
+      wow: true,
+      push: true,
+    });
+    const i = all.indexOf(from === 'pushDenied' ? 'push' : from);
+    const nextStep = i < 0 ? null : all.slice(i + 1).find((k) => f.includes(k));
+    if (!nextStep) {
       finish();
       return;
     }
-    go(f[i + 1]);
+    go(nextStep);
   }
 
   // «Далі» на кроці-питанні: легкий відгук і відповідь у статистику
