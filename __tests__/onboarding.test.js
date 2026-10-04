@@ -525,6 +525,13 @@ describe('the plan', () => {
     expect(hostId(tree, 'plan-today')).toHaveLength(1);
   });
 
+  test('“topics” row: the chosen topics, without “general”', async () => {
+    const { tree } = await render();
+    await toPlan(tree);
+    expect(has(tree, t('obBuildTopics', { topics: t('topic_travel').toLocaleLowerCase('en') }))).toBe(true);
+    expect(texts(tree).some((x) => x.includes(t('topic_general').toLocaleLowerCase('en')))).toBe(false);
+  });
+
   test('a word that does not come within 2.5 s: the plan without the card', async () => {
     const { tree } = await render({ prepareWod: jest.fn(() => new Promise(() => {})) });
     await toPlan(tree);

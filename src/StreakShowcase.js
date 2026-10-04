@@ -13,7 +13,7 @@
 // onPlay({ max, touched }) — на кожну зміну: найбільший день і чи людина
 // взагалі торкалась (для onb_streak_play при виході з кроку).
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, PanResponder, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import Svg, { Circle as SvgCircle } from 'react-native-svg';
 import Flame from './streak/Flame';
@@ -23,6 +23,8 @@ import { F, R, type, useTheme } from './theme';
 
 export const DAYS = 7;
 export const HINT_IDLE_MS = 1500;
+// Нижче цієї висоти вікна (SE) сцена вогника компактніша
+const SHORT_H = 700;
 const DOT = 38;
 const SPARKS = 7;
 
@@ -42,6 +44,9 @@ export default function StreakShowcase({ t, onPlay, initial = 0 }) {
   const { C, isDark, SHADOW_SM } = useTheme();
   const s = useMemo(() => makeStyles(C), [C]);
   const reduced = useReducedMotion();
+  // SE і подібні: менша сцена вогника — ряд днів, підказка й «Далі»
+  // вміщаються без прокрутки
+  const short = useWindowDimensions().height < SHORT_H;
   const [n, setN] = useState(initial);
   const nRef = useRef(initial);
   const max = useRef(initial);
@@ -118,11 +123,11 @@ export default function StreakShowcase({ t, onPlay, initial = 0 }) {
   const week = n === DAYS;
   return (
     <View style={s.root}>
-      <View style={s.stage}>
-        <View style={[s.glow, { opacity: n ? 0.55 + stage * 0.15 : 0.45 }]} />
+      <View style={[s.stage, short && s.stageShort]}>
+        <View style={[s.glow, short && s.glowShort, { opacity: n ? 0.55 + stage * 0.15 : 0.45 }]} />
         {week && !reduced ? <Sparks v={burst} color={C.warm} /> : null}
         <Animated.View style={{ transform: [{ scale: pop }] }} testID="showcase-flame" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-          <Flame n={n} size={112} />
+          <Flame n={n} size={short ? 92 : 112} />
         </Animated.View>
       </View>
 
@@ -139,7 +144,7 @@ export default function StreakShowcase({ t, onPlay, initial = 0 }) {
           measure();
         }}
         {...pan.panHandlers}
-        style={s.row}
+        style={[s.row, short && { marginTop: 16 }]}
         accessible
         accessibilityRole="adjustable"
         accessibilityLabel={t('obStreakHint')}
@@ -256,6 +261,8 @@ const makeStyles = (C) =>
     root: { alignItems: 'center', paddingTop: 4 },
     stage: { width: 220, height: 200, alignItems: 'center', justifyContent: 'center' },
     glow: { position: 'absolute', width: 190, height: 190, borderRadius: 95, backgroundColor: C.warmSoft },
+    stageShort: { height: 158 },
+    glowShort: { width: 152, height: 152, borderRadius: 76 },
     pill: {
       marginTop: 8,
       backgroundColor: C.card,

@@ -9,7 +9,7 @@
 // не проскочили тим самим дотиком. «Менше руху» — без конфеті й «шльопу»
 // наліпки. VoiceOver одразу чує заголовок, слово з перекладом і серію.
 import { useEffect, useMemo, useRef } from 'react';
-import { AccessibilityInfo, Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import { AccessibilityInfo, Animated, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { StickerLarge } from './Sticker';
 import WordPlate from './WordPlate';
 import Flame from './streak/Flame';
@@ -78,6 +78,9 @@ export default function Celebrate({ word, t }) {
   const reduced = useReducedMotion();
   const reader = useScreenReader();
   const titleRef = useRef(null);
+  // Високі екрани (Pro Max): свято ближче до середини, а не під самим
+  // прогресом із порожньою половиною екрана під ним. SE — як було.
+  const lift = Math.min(110, Math.max(0, (useWindowDimensions().height - 700) * 0.36));
   const uri = photoUri(word?.photo);
   const pair = word?.translation ? `${word.word} — ${word.translation}` : word?.word || '';
   const label = [t('obCelebrateTitle'), pair, t('obCelebrateStreak')].filter(Boolean).join('. ');
@@ -90,7 +93,7 @@ export default function Celebrate({ word, t }) {
   }, [reader]);
 
   return (
-    <View style={s.root} testID="celebrate">
+    <View style={[s.root, lift ? { paddingTop: 8 + lift } : null]} testID="celebrate">
       {reduced ? null : <Confetti C={C} />}
       <View style={s.art} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
         {uri ? (

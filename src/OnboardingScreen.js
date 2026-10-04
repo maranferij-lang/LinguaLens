@@ -223,8 +223,12 @@ export function restoreDraft(d, now = Date.now()) {
 
 // Теми плану одним рядком: «робота, подорожі». Назви тем посеред рядка — з
 // малої (крім німецької, де іменники завжди з великої).
+// «Теми: фінанси, подорожі» — без «загальне», коли є названі теми: людина
+// вибирала саме їх, загальні слова — лише тло плану.
 function topicsLine(p, t, ui) {
-  const names = planTopics(p).map((x) => t('topic_' + x.topic));
+  const all = planTopics(p).map((x) => x.topic);
+  const named = all.filter((k) => k !== 'general');
+  const names = (named.length ? named : all).map((k) => t('topic_' + k));
   const low = ui === 'de' ? names : names.map((n) => n.toLocaleLowerCase(ui));
   return low.join(', ');
 }
