@@ -325,16 +325,18 @@ describe('the camera after the free scan', () => {
     await act(async () => tree.unmount());
   });
 
-  test('a scan left: the counter is a second line of the hint pill; Pro has neither', async () => {
+  // v1.3: лічильник — не другий рядок підказки, а статус угорі (core.md A10)
+  test('a scan left: the counter is the status pill over the camera, not the hint; Pro has neither', async () => {
     let tree = await render(scanner({ scansLeft: 1, onOpenPro: jest.fn() }));
     let pill = tree.root.findAll((n) => n.type === 'Text' && n.props.children === t('hint'))[0];
     while (pill.type !== 'View') pill = pill.parent;
-    expect(texts(pill)).toEqual([t('hint'), t('scansLeftN', { n: 1 })]);
+    expect(texts(pill)).toEqual([t('hint')]);
+    expect(texts(tree.root)).toContain(t('scanFreeLeft', { n: 1 }));
     expect(byLabel(tree.root, t('scanProChip'))).toBeUndefined();
     await act(async () => tree.unmount());
 
     tree = await render(scanner({ scansLeft: Infinity, onOpenPro: jest.fn() }));
-    expect(texts(tree.root).some((s) => /free scans? left/.test(s))).toBe(false);
+    expect(texts(tree.root).some((s) => /free scans?/.test(s))).toBe(false);
     expect(byLabel(tree.root, t('scanProChip'))).toBeUndefined();
     await act(async () => tree.unmount());
   });

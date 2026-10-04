@@ -4,6 +4,7 @@
 // перерахувати рамку й силует) — чисті функції, їх перевіряє jest без
 // камери; ImageManipulator торкаються лише кілька асинхронних обгорток.
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
+import { File } from 'expo-file-system';
 
 // Наліпка зберігається 600 px: на картці «поділитись» (1080×1920) вона
 // займає близько половини ширини і має лишатись чіткою.
@@ -151,6 +152,31 @@ export async function captureScene(source, W, H) {
     image: { uri: shown.uri, width: shown.width || showW, height: shown.height || Math.round(showW / SCENE_RATIO) },
     base64: sent.base64,
   };
+}
+
+// Кадр 9:16 з того самого знімка — тло для «Stories з цим фото» (share.md
+// §7). Лише кеш: у словник він не йде, а сканер стирає файл, щойно аркуш
+// результату закрився (dropFile). Рендериться, поки модель думає над
+// предметом (≈150 мс проти 1–3 с запиту).
+export async function scanBackdrop(source, W, H) {
+  const c = sceneCrop(W, H);
+  const r = await renderAndSave(
+    ImageManipulator.manipulate(source)
+      .crop({ originX: c.x, originY: c.y, width: c.width, height: c.height })
+      .resize({ width: Math.min(SCENE_SHOW_W, c.width) }),
+    { compress: 0.82, format: SaveFormat.JPEG }
+  );
+  return r.uri;
+}
+
+// Стирає тимчасовий файл із кешу. Його вже могло не бути (система чистить
+// кеш сама) — тоді нічого не робимо й нічого не кидаємо.
+export function dropFile(uri) {
+  if (!uri) return;
+  try {
+    const f = new File(uri);
+    if (f.exists) f.delete();
+  } catch (_) {}
 }
 
 // Наліпки предметів сцени. Результат показуємо одразу, а наліпки потрібні
