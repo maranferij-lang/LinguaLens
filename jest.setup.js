@@ -76,20 +76,24 @@ jest.mock('expo-widgets', () => {
 
 // ── v1.3: нові нативні пакети (план §5.16) ──
 
-// Які нативні модулі «є» в цій збірці: requireOptionalNativeModule з 'expo'
-// повертає лише те, що тест сам «встановив». Типово — нічого, як в Expo Go
-// чи в старій dev-збірці до перезбирання: нові кнопки там ховаються.
+// Які нативні модулі «є» в цій збірці. requireOptionalNativeModule з 'expo'
+// для модулів v1.3 (ExpoClipboard, ExpoMediaLibraryNext, ExponentImagePicker
+// — імена з ios/*Module.swift — і нашого InstagramStories) повертає лише те,
+// що тест сам «встановив»; типово — нічого, як в Expo Go чи в старій
+// dev-збірці до перезбирання: нові кнопки там ховаються. Решта імен
+// (ExpoHaptics тощо) — як і раніше, із заглушок jest-expo.
 //   nativeModules.set('ExpoClipboard')            — модуль є (порожній об'єкт)
 //   nativeModules.set('InstagramStories', nativeModules.instagramStories())
-//   nativeModules.reset()                          — знову нічого
-// Імена — з ios/*Module.swift: ExpoClipboard, ExpoMediaLibraryNext,
-// ExponentImagePicker, InstagramStories (наш модуль у modules/).
+//   nativeModules.set('ExpoWidgets', {})           — будь-яке інше ім'я теж
+//   nativeModules.delete(name) / reset()           — знову немає
 // Модуль, що читає requireOptionalNativeModule при імпорті
 // (modules/instagram-stories), бачить мапу на момент require: «встановіть»
 // модуль до нього (jest.isolateModules або require після set).
 global.nativeModules = {
   map: new Map(),
+  managed: new Set(['ExpoClipboard', 'ExpoMediaLibraryNext', 'ExponentImagePicker', 'InstagramStories']),
   set(name, impl = {}) {
+    this.managed.add(name);
     this.map.set(name, impl);
     return impl;
   },
@@ -102,6 +106,10 @@ global.nativeModules = {
   get(name) {
     return this.map.has(name) ? this.map.get(name) : null;
   },
+  resolve(name, fallback) {
+    if (this.map.has(name)) return this.map.get(name);
+    return this.managed.has(name) ? null : fallback(name);
+  },
   // InstagramStories з copyPng (наліпка PNG з альфою в буфер, план S20)
   instagramStories: () => ({
     isAvailable: jest.fn(async () => true),
@@ -109,11 +117,14 @@ global.nativeModules = {
     copyPng: jest.fn(async () => true),
   }),
 };
-jest.mock('expo', () => ({
-  ...jest.requireActual('expo'),
-  __esModule: true,
-  requireOptionalNativeModule: jest.fn((name) => global.nativeModules.get(name)),
-}));
+jest.mock('expo', () => {
+  const actual = jest.requireActual('expo');
+  return {
+    ...actual,
+    __esModule: true,
+    requireOptionalNativeModule: jest.fn((name) => global.nativeModules.resolve(name, actual.requireOptionalNativeModule)),
+  };
+});
 
 // Буфер обміну (expo-clipboard): пам'ятає останню картинку й рядок.
 jest.mock('expo-clipboard', () => {

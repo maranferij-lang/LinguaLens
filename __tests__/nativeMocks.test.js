@@ -19,6 +19,11 @@ describe('requireOptionalNativeModule', () => {
     }
   });
 
+  test('other native modules still come from jest-expo (haptics keeps working)', async () => {
+    const Haptics = require('expo-haptics');
+    await expect(Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)).resolves.toBeUndefined();
+  });
+
   test('a test installs and removes modules', () => {
     const clip = global.nativeModules.set('ExpoClipboard');
     expect(requireOptionalNativeModule('ExpoClipboard')).toBe(clip);
