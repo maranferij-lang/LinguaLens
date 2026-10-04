@@ -1,5 +1,6 @@
 import ExpoModulesCore
 import UIKit
+import UniformTypeIdentifiers
 
 // Що JS передає в share(): локальні PNG (file://) і кольори тла "#RRGGBB".
 struct StoriesShareOptions: Record {
@@ -56,6 +57,21 @@ public class InstagramStoriesModule: Module {
       UIApplication.shared.open(url, options: [:]) { opened in
         promise.resolve(opened)
       }
+    }
+    .runOnQueue(.main)
+
+    // «Копіювати» в аркуші наліпок: кладемо в буфер самі байти PNG під типом
+    // public.png. UIPasteboard.general.image (так робить expo-clipboard)
+    // перекодовує UIImage і може віддати її JPEG-ом — тоді прозоре тло
+    // наліпки стало б білим чи чорним. Байти файлу view-shot ідуть як є, з
+    // альфою. Без строку дії: людина вставляє наліпку тоді, коли сама захоче.
+    // false — файлу немає або він порожній.
+    AsyncFunction("copyPng") { (url: URL) -> Bool in
+      guard let data = try? Data(contentsOf: url), !data.isEmpty else {
+        return false
+      }
+      UIPasteboard.general.setItems([[UTType.png.identifier: data]])
+      return true
     }
     .runOnQueue(.main)
   }

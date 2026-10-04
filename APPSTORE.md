@@ -951,7 +951,35 @@ _Заповнює потік W3._
 
 ## v1.3 · W4 Наліпки без тла: Stories, «Копіювати», «Зберегти»
 
-_Заповнює потік W4._
+Інтеграція вставляє ці рядки в описи вище замість нинішніх рядків про
+картки 9:16.
+
+**Опис — блок «SHARE THE BEST FINDS»** (замість «Turn a word, a scene, an
+achievement or your week into a clean 9:16 card…»):
+
+| Локаль | Текст |
+|---|---|
+| en (U.S., U.K.) | Every word you scan becomes a sticker with no background: put it on your own photo in Instagram Stories, paste it into a chat or save it to Photos. A word, a whole scene or an achievement — or a clean 9:16 card, if you prefer. |
+| uk | Кожне відскановане слово стає наліпкою без тла: поклади її на своє фото в Instagram Stories, встав у чат чи збережи у «Фото». Слово, ціла сцена чи досягнення — або охайна картка 9:16, якщо так зручніше. |
+| es (México) | Cada palabra que escaneas se convierte en una pegatina sin fondo: ponla sobre tu propia foto en Instagram Stories, pégala en un chat o guárdala en Fotos. Una palabra, una escena entera o un logro, o una tarjeta 9:16 si lo prefieres. |
+
+**Що нового у v1.3 (рядок про наліпки):**
+- en: Share as a sticker: no background, straight onto your photo in Instagram Stories — or copy it into any chat and save it to Photos.
+- uk: Ділися наліпкою: без тла, просто на твоє фото в Instagram Stories — або скопіюй у будь-який чат і збережи у «Фото».
+
+**Скриншот** (за бажанням, слот «Поділитися»): аркуш з наліпкою чашки на
+шахівниці й кнопкою «Stories з цим фото» поруч зі Stories, де ця наліпка
+лежить на фото (макети `v13/mockups/share-sheet-uk.png`,
+`share-stories-uk.png`; знімки екрана — з телефона з Instagram).
+
+**App Privacy — без змін.** Обране фото тлом і кадр скану не залишають
+телефон (їх отримує лише Instagram після дотику людини), PNG наліпки
+лишається на пристрої; нічого з цього ми не збираємо.
+
+**Нотатки для рецензента — додати абзац:**
+```
+Sharing as a sticker (v1.3): the Share sheet now makes a transparent PNG sticker of a word, a scene or an achievement. "Copy" puts the PNG on the pasteboard; "Save" adds it to Photos and asks only for add-only Photos access (NSPhotoLibraryAddUsageDescription). "Or pick a photo from your library" opens the system photo picker (PHPicker), which needs no Photos permission: the app receives only the one photo the person picks, uses it as the Instagram Stories background and deletes its temporary copy right after. LinguaLens never asks for read access to the photo library; NSPhotoLibraryUsageDescription is present only because the photo picker and Photos frameworks reference it. Instagram buttons appear only when Instagram is installed; without it the sheet offers Copy, Save and the system share sheet.
+```
 
 ## v1.3 · W5 Pro: кольорові теми, пейвол, умови тарифів
 
