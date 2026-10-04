@@ -321,6 +321,9 @@ test('a free scan used on an earlier day still blocks today: the paywall, and no
   await returning({ seen: ALL_ACH });
   await AsyncStorage.setItem('ll_usage_v1', JSON.stringify({ day: '2000-01-01', scans: 1, limit: 1 }));
   const tree = await renderApp();
+  // без сканів застосунок відкривається на навчанні — сканер на своїй вкладці
+  expect(one(tree, ScannerScreen)).toBeNull();
+  await openTab(tree, 'scan');
   const scanner = () => one(tree, ScannerScreen);
   expect(scanner().props.scansLeft).toBe(0);
   let allowed;

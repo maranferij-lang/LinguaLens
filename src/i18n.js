@@ -33,7 +33,7 @@ export const STRINGS = {
     scanShutter: 'Scan',
     scansLeftN: '{n} free {n|scan|scans} left',
     scanErrSlow: 'The server is taking too long. Try again.',
-    scanErrOffline: 'No internet connection.',
+    scanErrOffline: 'No internet connection. Check your connection and try again.',
     scanErrRate: 'Too many scans. Wait a moment.',
     scanErrAuth: 'Connection refreshed. Try again.',
     scanErrServer: 'Something went wrong. Try again.',
@@ -61,8 +61,8 @@ export const STRINGS = {
     quizQ: '{i} / {n}', quizStreak: '{n} in a row', quizDone: 'Quiz complete!', quizScore: 'Score: {s} of {n}', quizAgain: 'Play again',
 
     // ── слово дня ──
-    wordOfDay: 'WORD OF THE DAY', saveWord: 'Save',
-    dailyPush: 'Word of the day', dailyPushHint: 'Learn a new word every day', pushTime: 'Remind me at',
+    wordOfDay: 'Word of the day', saveWord: 'Save',
+    dailyPush: 'Daily reminder', dailyPushHint: 'A notification with the word of the day at the hour you pick', pushTime: 'Remind me at',
     notifText: 'One word a day. Nothing else.',
 
     // ── профіль і прогрес ──
@@ -339,7 +339,7 @@ export const STRINGS = {
     heard_friend: 'From a friend',
     heard_other: 'Other',
     notifTextTopic: 'Every day at {h} — a new word {topic}. Nothing else.',
-    pfRowTitle: 'Tailored to you',
+    pfRowTitle: 'Personalize word of the day',
     pfNotSet: 'Not set up',
     pfTipTitle: 'Tailor your word of the day',
     pfTipText: 'Three quick questions — and your words will match your field and level.',
@@ -399,6 +399,20 @@ export const STRINGS = {
     pwContinueFree: 'Continue for free — {n} {n|scan|scans} left',
     // ── «Ще вирази» в аркуші скану ──
     moreExpr: 'More phrases',
+    // ── полірування: застосунок ──
+    scanUsedUp: 'Free scan used',
+    scanProChip: 'Pro: unlimited scans',
+    fcPracticeNow: 'Practice now · next review {t}',
+    learnSaveWod: 'Save the word of the day',
+    learnGoScan: 'Scan',
+    sceneSaveNew: 'Save {n} new',
+    sceneAllDone: 'All saved',
+    finishBtn: 'Done',
+    quizTimeUp: 'Time’s up',
+    collStage: 'Collection · stage {n}',
+    collWords: '{c} of {n} {n|word|words}',
+    streakStartTitle: 'Start a streak today',
+    dowShort: 'Su|Mo|Tu|We|Th|Fr|Sa',
     // ── онбординг 2.0 і пейвол онбордингу ──
     obStepOf: 'Step {n} of {m}',
     obHookTitle: 'Point your camera at anything — and learn the word for it',
@@ -521,7 +535,7 @@ export const STRINGS = {
     scanShutter: 'Сканувати',
     scansLeftN: '{n|Лишився|Лишилося|Лишилося} {n} {n|безкоштовний скан|безкоштовні скани|безкоштовних сканів}',
     scanErrSlow: 'Сервер довго не відповідає. Спробуй ще раз.',
-    scanErrOffline: 'Немає інтернету.',
+    scanErrOffline: 'Немає інтернету. Перевір зʼєднання і спробуй ще раз.',
     scanErrRate: 'Забагато сканів. Зачекай хвилинку.',
     scanErrAuth: 'Зʼєднання оновлено. Спробуй ще раз.',
     scanErrServer: 'Не вийшло. Спробуй ще раз.',
@@ -546,8 +560,8 @@ export const STRINGS = {
     done: 'Готово!', resultOf: 'Правильно: {c} з {n}', next: 'Далі',
     quizQ: '{i} / {n}', quizStreak: '{n} поспіль', quizDone: 'Квіз завершено!', quizScore: 'Результат: {s} з {n}', quizAgain: 'Ще раз',
 
-    wordOfDay: 'СЛОВО ДНЯ', saveWord: 'Зберегти',
-    dailyPush: 'Слово дня', dailyPushHint: 'Вивчай щодня нове слово', pushTime: 'О котрій нагадувати',
+    wordOfDay: 'Слово дня', saveWord: 'Зберегти',
+    dailyPush: 'Щоденне нагадування', dailyPushHint: 'Сповіщення зі словом дня о вибраній годині', pushTime: 'О котрій нагадувати',
     notifText: 'Одне слово на день. Більше жодних сповіщень.',
 
     level: 'Рівень {n}', achievements: 'Досягнення', unlocked: 'Відкрито',
@@ -880,6 +894,20 @@ export const STRINGS = {
     pwContinueFree: 'Продовжити безкоштовно — ще {n} {n|скан|скани|сканів}',
     // ── «Ще вирази» в аркуші скану ──
     moreExpr: 'Ще вирази',
+    // ── полірування: застосунок ──
+    scanUsedUp: 'Безкоштовний скан використано',
+    scanProChip: 'Pro: скани без обмежень',
+    fcPracticeNow: 'Можна потренуватись зараз · наступне повторення {t}',
+    learnSaveWod: 'Зберегти слово дня',
+    learnGoScan: 'Сканувати',
+    sceneSaveNew: 'Зберегти нові ({n})',
+    sceneAllDone: 'Усе збережено',
+    finishBtn: 'Готово',
+    quizTimeUp: 'Час вийшов',
+    collStage: 'Колекція · етап {n}',
+    collWords: '{c} із {n} {n|слова|слів|слів}',
+    streakStartTitle: 'Почни серію сьогодні',
+    dowShort: 'Нд|Пн|Вт|Ср|Чт|Пт|Сб',
     // ── онбординг 2.0 і пейвол онбордингу ──
     obStepOf: 'Крок {n} з {m}',
     obHookTitle: 'Наведи камеру на будь‑що — і вивчи це слово',
@@ -1000,7 +1028,7 @@ export const STRINGS = {
     scanShutter: 'Scannen',
     scansLeftN: '{n} {n|Gratis-Scan|Gratis-Scans} übrig',
     scanErrSlow: 'Der Server braucht zu lange. Versuch es nochmal.',
-    scanErrOffline: 'Keine Internetverbindung.',
+    scanErrOffline: 'Keine Internetverbindung. Prüfe die Verbindung und versuch es noch einmal.',
     scanErrRate: 'Zu viele Scans. Warte einen Moment.',
     scanErrAuth: 'Verbindung erneuert. Versuch es nochmal.',
     scanErrServer: 'Hat nicht geklappt. Versuch es nochmal.',
@@ -1025,8 +1053,8 @@ export const STRINGS = {
     done: 'Fertig!', resultOf: 'Richtig: {c} von {n}', next: 'Weiter',
     quizQ: '{i} / {n}', quizStreak: '{n} in Folge', quizDone: 'Quiz geschafft!', quizScore: 'Ergebnis: {s} von {n}', quizAgain: 'Nochmal spielen',
 
-    wordOfDay: 'WORT DES TAGES', saveWord: 'Speichern',
-    dailyPush: 'Wort des Tages', dailyPushHint: 'Lerne jeden Tag ein neues Wort', pushTime: 'Erinnern um',
+    wordOfDay: 'Wort des Tages', saveWord: 'Speichern',
+    dailyPush: 'Tägliche Erinnerung', dailyPushHint: 'Eine Mitteilung mit dem Wort des Tages zur gewählten Uhrzeit', pushTime: 'Erinnern um',
     notifText: 'Ein Wort pro Tag. Sonst nichts.',
 
     level: 'Level {n}', achievements: 'Erfolge', unlocked: 'Freigeschaltet',
@@ -1359,6 +1387,20 @@ export const STRINGS = {
     pwContinueFree: 'Kostenlos weiter – noch {n} {n|Scan|Scans}',
     // ── «Ще вирази» в аркуші скану ──
     moreExpr: 'Weitere Ausdrücke',
+    // ── полірування: застосунок ──
+    scanUsedUp: 'Gratis-Scan aufgebraucht',
+    scanProChip: 'Pro: unbegrenzt scannen',
+    fcPracticeNow: 'Jetzt üben · nächste Wiederholung {t}',
+    learnSaveWod: 'Wort des Tages speichern',
+    learnGoScan: 'Scannen',
+    sceneSaveNew: 'Neue speichern ({n})',
+    sceneAllDone: 'Alles gespeichert',
+    finishBtn: 'Fertig',
+    quizTimeUp: 'Zeit ist um',
+    collStage: 'Sammlung · Etappe {n}',
+    collWords: '{c} von {n} {n|Wort|Wörtern}',
+    streakStartTitle: 'Starte heute eine Serie',
+    dowShort: 'So|Mo|Di|Mi|Do|Fr|Sa',
     // ── онбординг 2.0 і пейвол онбордингу ──
     obStepOf: 'Schritt {n} von {m}',
     obHookTitle: 'Halte die Kamera auf irgendetwas — und lerne das Wort dafür',
@@ -1479,7 +1521,7 @@ export const STRINGS = {
     scanShutter: 'Escanear',
     scansLeftN: '{n|Te queda|Te quedan} {n} {n|escaneo gratis|escaneos gratis}',
     scanErrSlow: 'El servidor tarda demasiado. Inténtalo otra vez.',
-    scanErrOffline: 'Sin conexión a internet.',
+    scanErrOffline: 'Sin conexión a internet. Revisa la conexión e inténtalo de nuevo.',
     scanErrRate: 'Demasiados escaneos. Espera un momento.',
     scanErrAuth: 'Conexión renovada. Inténtalo otra vez.',
     scanErrServer: 'Algo salió mal. Inténtalo otra vez.',
@@ -1504,8 +1546,8 @@ export const STRINGS = {
     done: '¡Listo!', resultOf: 'Correctas: {c} de {n}', next: 'Continuar',
     quizQ: '{i} / {n}', quizStreak: '{n} seguidas', quizDone: '¡Quiz terminado!', quizScore: 'Resultado: {s} de {n}', quizAgain: 'Jugar otra vez',
 
-    wordOfDay: 'PALABRA DEL DÍA', saveWord: 'Guardar',
-    dailyPush: 'Palabra del día', dailyPushHint: 'Aprende una palabra nueva cada día', pushTime: 'Avisarme a las',
+    wordOfDay: 'Palabra del día', saveWord: 'Guardar',
+    dailyPush: 'Recordatorio diario', dailyPushHint: 'Una notificación con la palabra del día a la hora que elijas', pushTime: 'Avisarme a las',
     notifText: 'Una palabra al día. Nada más.',
 
     level: 'Nivel {n}', achievements: 'Logros', unlocked: 'Desbloqueado',
@@ -1838,6 +1880,20 @@ export const STRINGS = {
     pwContinueFree: 'Seguir gratis: {n|te queda|te quedan} {n} {n|escaneo|escaneos}',
     // ── «Ще вирази» в аркуші скану ──
     moreExpr: 'Más expresiones',
+    // ── полірування: застосунок ──
+    scanUsedUp: 'Escaneo gratis usado',
+    scanProChip: 'Pro: escaneos ilimitados',
+    fcPracticeNow: 'Practica ya · próximo repaso {t}',
+    learnSaveWod: 'Guardar la palabra del día',
+    learnGoScan: 'Escanear',
+    sceneSaveNew: 'Guardar nuevas ({n})',
+    sceneAllDone: 'Todo guardado',
+    finishBtn: 'Listo',
+    quizTimeUp: 'Se acabó el tiempo',
+    collStage: 'Colección · etapa {n}',
+    collWords: '{c} de {n} {n|palabra|palabras}',
+    streakStartTitle: 'Empieza una racha hoy',
+    dowShort: 'Do|Lu|Ma|Mi|Ju|Vi|Sá',
     // ── онбординг 2.0 і пейвол онбордингу ──
     obStepOf: 'Paso {n} de {m}',
     obHookTitle: 'Apunta la cámara a cualquier cosa y aprende cómo se dice',

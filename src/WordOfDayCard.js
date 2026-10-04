@@ -1,4 +1,7 @@
-// Картка «Слово дня» — розгортається дотиком, озвучується, зберігається у словник.
+// Картка «Слово дня» — озвучується, зберігається у словник. Дії («Слухати»,
+// «Знаю», «Зберегти») видно завжди: для безкоштовного рівня слово дня —
+// головна щоденна цінність, і ховати «Зберегти» за дотиком не можна. Дотик
+// розгортає лише приклад.
 //
 // Тема в рядку-кепсі («СЛОВО ДНЯ · ФІНАНСИ») каже, що слово підібране під
 // людину; загальні слова теми не мають. «Знаю» прибирає слово й одразу
@@ -40,7 +43,11 @@ export default function WordOfDayCard({
   // картка-заглушка лише заважала б — з'явиться, щойно прийде слово.
   if (!word) return null;
 
+  // Розгортати є що, лише коли є приклад
+  const canOpen = !!word.example;
+
   function toggle() {
+    if (!canOpen) return;
     Haptics.selectionAsync();
     layoutNext();
     setOpen(!open);
@@ -52,7 +59,11 @@ export default function WordOfDayCard({
     onKnow();
   }
 
-  const caps = topic ? `${t('wordOfDay')} · ${topic}` : t('wordOfDay');
+  // Сам рядок — звичайними словами («Слово дня»), бейдж показує його капсом.
+  // VoiceOver отримує підпис словами: капс він читав би по літерах.
+  const title = t('wordOfDay');
+  const caps = topic ? `${title.toLocaleUpperCase()} · ${topic}` : title.toLocaleUpperCase();
+  const capsLabel = topic ? `${title}, ${topic}` : title;
 
   return (
     <FadeIn>
@@ -62,14 +73,16 @@ export default function WordOfDayCard({
         <View style={[s.card, SHADOW]}>
           <View style={s.head}>
             <View style={s.badge}>
-              <Text style={s.badgeText} numberOfLines={1}>
+              <Text style={s.badgeText} numberOfLines={1} accessibilityLabel={capsLabel}>
                 {caps}
               </Text>
             </View>
             <View style={{ flex: 1 }} />
-            <View style={open ? { transform: [{ rotate: '180deg' }] } : null}>
-              <IcChevron color={C.faint} size={18} />
-            </View>
+            {canOpen ? (
+              <View style={open ? { transform: [{ rotate: '180deg' }] } : null}>
+                <IcChevron color={C.faint} size={18} />
+              </View>
+            ) : null}
           </View>
 
           {/* key — нове слово після «Знаю» мʼяко проявляється, а не підміняється */}
@@ -77,10 +90,10 @@ export default function WordOfDayCard({
             <View
               style={s.row}
               accessible
-              accessibilityRole="button"
-              accessibilityState={{ expanded: open }}
-              accessibilityActions={[{ name: 'activate' }]}
-              onAccessibilityAction={toggle}
+              accessibilityRole={canOpen ? 'button' : undefined}
+              accessibilityState={canOpen ? { expanded: open } : undefined}
+              accessibilityActions={canOpen ? [{ name: 'activate' }] : undefined}
+              onAccessibilityAction={canOpen ? toggle : undefined}
             >
               <View style={{ flex: 1 }}>
                 <Text style={s.word}>{word.word}</Text>
@@ -105,47 +118,45 @@ export default function WordOfDayCard({
             ) : null}
           </FadeIn>
 
-          {open ? (
-            <View style={s.actions}>
-              {/* Три дії в ряд: «Слухати» — іконкою, щоб «Знаю» й «Зберегти»
-                  мали місце для слів навіть німецькою. */}
-              <Press style={s.listenBtn} onPress={() => speak(word.word, lang)} accessibilityLabel={t('listen')}>
-                <IcSpeaker size={19} color={C.accent} />
+          {/* Три дії в ряд і завжди на виду: «Слухати» — іконкою, щоб «Знаю»
+              й «Зберегти» мали місце для слів навіть німецькою. */}
+          <View style={s.actions}>
+            <Press style={s.listenBtn} onPress={() => speak(word.word, lang)} accessibilityLabel={t('listen')}>
+              <IcSpeaker size={19} color={C.accent} />
+            </Press>
+
+            {onKnow ? (
+              <Press
+                style={s.actionBtn}
+                onPress={know}
+                accessibilityLabel={t('wodKnowA11y')}
+                accessibilityState={{ busy: knowing }}
+              >
+                {knowing ? (
+                  <ActivityIndicator size="small" color={C.dim} />
+                ) : (
+                  <Text style={s.actionText} numberOfLines={1}>
+                    {t('wodKnow')}
+                  </Text>
+                )}
               </Press>
+            ) : null}
 
-              {onKnow ? (
-                <Press
-                  style={s.actionBtn}
-                  onPress={know}
-                  accessibilityLabel={t('wodKnowA11y')}
-                  accessibilityState={{ busy: knowing }}
-                >
-                  {knowing ? (
-                    <ActivityIndicator size="small" color={C.dim} />
-                  ) : (
-                    <Text style={s.actionText} numberOfLines={1}>
-                      {t('wodKnow')}
-                    </Text>
-                  )}
-                </Press>
-              ) : null}
-
-              {saved ? (
-                <View style={[s.actionBtn, { backgroundColor: C.greenSoft }]}>
-                  <IcCheck size={15} color={C.green} />
-                  <Text style={[s.actionText, { color: C.green }]} numberOfLines={1}>
-                    {t('saved')}
-                  </Text>
-                </View>
-              ) : (
-                <Press style={[s.actionBtn, s.saveBtn]} onPress={onSave}>
-                  <Text style={[s.actionText, { color: C.onAccent }]} numberOfLines={1}>
-                    {t('saveWord')}
-                  </Text>
-                </Press>
-              )}
-            </View>
-          ) : null}
+            {saved ? (
+              <View style={[s.actionBtn, { backgroundColor: C.greenSoft }]}>
+                <IcCheck size={15} color={C.green} />
+                <Text style={[s.actionText, { color: C.green }]} numberOfLines={1}>
+                  {t('saved')}
+                </Text>
+              </View>
+            ) : (
+              <Press style={[s.actionBtn, s.saveBtn]} onPress={onSave}>
+                <Text style={[s.actionText, { color: C.onAccent }]} numberOfLines={1}>
+                  {t('saveWord')}
+                </Text>
+              </Press>
+            )}
+          </View>
 
           {/* Нове слово не прийшло (офлайн): кажемо, що «Знаю» запамʼятали */}
           {knowNote ? (

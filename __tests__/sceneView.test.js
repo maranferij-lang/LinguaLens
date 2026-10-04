@@ -4,7 +4,7 @@ import { Image, Modal, Switch } from 'react-native';
 import { act, create } from 'react-test-renderer';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import SceneView from '../src/scene/SceneView';
-import { LiftedObjects } from '../src/scene/SceneArt';
+import { LiftedObjects, SceneChip } from '../src/scene/SceneArt';
 import ShareSheet from '../src/share/ShareSheet';
 import { makeT } from '../src/i18n';
 
@@ -84,20 +84,42 @@ const byLabel = (tree, label) => tree.root.findAll((n) => n.props.accessibilityL
 const chip = (tree, o) => byLabel(tree, `${o.word}, ${o.translation}`);
 const sheet = (tree) => tree.root.findAllByType(ShareSheet)[0];
 
-test('title and the save-all button count only words still missing from the list', async () => {
+test('title and the save button count only words still missing from the list', async () => {
   const { tree, props } = await render({ savedWords: [{ word: 'Mug', lang: 'en' }] });
   expect(texts(tree)).toContain(t('sceneTitle', { n: 3 }));
-  const saveAll = byLabel(tree, t('sceneSaveAll', { n: 2 }));
-  expect(saveAll).toBeTruthy();
+  // частина вже в словнику — «Зберегти нові (2)», а не «Зберегти всі (2)»
+  expect(byLabel(tree, t('sceneSaveAll', { n: 2 }))).toBeUndefined();
+  const saveNew = byLabel(tree, t('sceneSaveNew', { n: 2 }));
+  expect(saveNew).toBeTruthy();
 
-  await run(() => saveAll.props.onPress());
+  await run(() => saveNew.props.onPress());
   const list = props.onSaveWords.mock.calls[0][0];
   expect(list.map((w) => w.word)).toEqual(['lamp', 'book']);
   // кожне слово — з наліпкою з кадру, мовами сцени й посиланням на неї
   expect(list[0]).toMatchObject({ photo: 'file:///sticker-o1.jpg', shape: [[0, 0]], lang: 'en', nativeLang: 'uk', sceneId: 'sc1', translation: 'лампа' });
   expect(props.onClose).not.toHaveBeenCalled();
-  expect(texts(tree)).toContain(t('sceneAllSaved'));
+  // усе збережено — неактивна плашка замість кнопки
+  expect(texts(tree)).toContain(t('sceneAllDone'));
+  const done = tree.root.find((n) => typeof n.type === 'string' && n.props.accessibilityState?.disabled === true);
+  expect(done.props.accessibilityRole).toBe('button');
   await act(async () => tree.unmount());
+});
+
+test('chips of words already in the list carry a check, and VoiceOver hears it', async () => {
+  const { tree } = await render({ savedWords: [{ word: 'Mug', lang: 'en' }] });
+  const chips = tree.root.findAllByType(SceneChip);
+  expect(chips.map((c) => [c.props.word, c.props.saved])).toEqual([
+    ['mug', true],
+    ['lamp', false],
+    ['book', false],
+  ]);
+  expect(chip(tree, SCENE.objects[0]).props.accessibilityValue).toEqual({ text: t('saved') });
+  expect(chip(tree, SCENE.objects[1]).props.accessibilityValue).toBeUndefined();
+  // нічого ще не збережено — «Зберегти всі»
+  await act(async () => tree.unmount());
+  const fresh = await render();
+  expect(byLabel(fresh.tree, t('sceneSaveAll', { n: 3 }))).toBeTruthy();
+  await act(async () => fresh.tree.unmount());
 });
 
 test('the free cap stops part of the list: the scene closes so the paywall is visible', async () => {

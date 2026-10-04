@@ -1,6 +1,6 @@
 // «Навчання»: хаб — флешкартки (3D-фліп) + квіз
 import { useMemo, useRef, useState } from 'react';
-import { Animated, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Animated, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { dueWords, nextDueText, practiceWords } from './srs';
 import { speak } from './speech';
@@ -17,6 +17,12 @@ import { UNDER_TAB } from './Chrome';
 
 import { F, R, type, useTheme } from './theme';
 import { DUR, EASE, useReducedMotion } from './motion';
+
+// Останні два слова рядка тримаються разом (нерозривний пробіл): підпис
+// картки на SE не лишає одне слово сиротою в другому рядку.
+export function noOrphan(text) {
+  return String(text).replace(/ (\S+)$/, '\u00A0$1');
+}
 
 function shuffle(arr) {
   const a = [...arr];
@@ -37,6 +43,8 @@ export default function FlashcardsScreen({
   targetLang,
   onQuizDone,
   onOpenPro,
+  // порожнє навчання: «Сканувати» веде на вкладку сканера
+  onGoScan,
   isPro,
   // слово дня під людину: тема, «Знаю» і пропозиція підняти рівень (App)
   wodTopic = '',
@@ -53,9 +61,12 @@ export default function FlashcardsScreen({
   widgetTip = false,
   onHideWidgetTip,
 }) {
-  const { C, SHADOW } = useTheme();
+  const { C, T, SHADOW } = useTheme();
   const s = useMemo(() => makeStyles(C), [C]);
   const reduced = useReducedMotion();
+  // iPhone SE: порожній стан компактніший, щоб кнопка під ним не ховалась
+  // під таб-бар
+  const compact = useWindowDimensions().height < 700;
 
   const [mode, setMode] = useState('hub');
   const [session, setSession] = useState(null);
@@ -136,7 +147,9 @@ export default function FlashcardsScreen({
         showsVerticalScrollIndicator={false}
       >
         <View style={s.hubHead}>
-          <Text style={s.title}>{t('learnTitle')}</Text>
+          <Text style={T.largeTitle} accessibilityRole="header">
+            {t('learnTitle')}
+          </Text>
           {/* Pro завжди на очах, але не кричить: маленький піл замість
               попапа. Попап, що вилітає сам, бісить і псує оцінку. */}
           {onOpenPro && !isPro ? (
@@ -164,14 +177,20 @@ export default function FlashcardsScreen({
           t={t}
         />
 
-        {profileTip ? <ProfileTip onOpen={onOpenProfile} onHide={onHideProfileTip} t={t} /> : null}
-        {widgetTip ? <WidgetTip word={wordOfDay} onHide={onHideWidgetTip} t={t} /> : null}
-
+        {/* Щоденне повторення — одразу під словом дня, ще до підказок: на SE
+            підказки інакше виштовхували «Картки» за край екрана. */}
         {!words.length ? (
-          <FadeIn delay={45} style={{ alignItems: 'center', paddingVertical: 30 }}>
-            <MascotBob pose="think" size={140} />
+          <FadeIn delay={45} style={{ alignItems: 'center', paddingVertical: compact ? 14 : 30 }}>
+            <MascotBob pose="think" size={compact ? 100 : 140} />
             <Text style={s.bigTitle}>{t('cardsEmptyTitle')}</Text>
             <Text style={s.dimText}>{t('cardsEmptyText')}</Text>
+            {/* Порожній стан без виходу — глухий кут. Слово дня не збережене —
+                це єдиний безкоштовний спосіб отримати слово без скану. */}
+            {wordOfDay && !wodSaved && onSaveWod ? (
+              <GradBtn title={t('learnSaveWod')} onPress={onSaveWod} style={s.emptyBtn} />
+            ) : onGoScan ? (
+              <GradBtn title={t('learnGoScan')} onPress={onGoScan} style={s.emptyBtn} />
+            ) : null}
           </FadeIn>
         ) : (
           <>
@@ -183,10 +202,13 @@ export default function FlashcardsScreen({
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={s.hubCardTitle}>{t('flashcards')}</Text>
+                    {/* Нічого не на часі — не «наступне через 2 дні» (звучить як
+                        «нема чого робити»), а запрошення потренуватись: тап
+                        однаково запускає тренування. */}
                     <Text style={s.hubCardHint}>
                       {due.length
                         ? t('dueToday', { n: due.length })
-                        : t('nextRep', { t: nextDueText(words, t) })}
+                        : noOrphan(t('fcPracticeNow', { t: nextDueText(words, t) }))}
                     </Text>
                   </View>
                   {due.length ? (
@@ -220,6 +242,9 @@ export default function FlashcardsScreen({
             </FadeIn>
           </>
         )}
+
+        {profileTip ? <ProfileTip onOpen={onOpenProfile} onHide={onHideProfileTip} t={t} /> : null}
+        {widgetTip ? <WidgetTip onHide={onHideWidgetTip} t={t} /> : null}
       </ScrollView>
     );
   }
@@ -239,7 +264,8 @@ export default function FlashcardsScreen({
           ) : words.length ? (
             <Text style={s.note}>{t('nextRep', { t: nextDueText(words, t) })}</Text>
           ) : null}
-          <GradBtn title={t('next')} onPress={close} style={{ alignSelf: 'stretch', marginTop: 22 }} />
+          {/* «Готово», а не «Далі»: кнопка лише вертає в хаб, наступного кроку немає */}
+          <GradBtn title={t('finishBtn')} onPress={close} style={{ alignSelf: 'stretch', marginTop: 22 }} />
         </FadeIn>
       </View>
     );
@@ -302,7 +328,16 @@ export default function FlashcardsScreen({
         </Animated.View>
 
         <Animated.View style={[s.card, SHADOW, backStyle]} pointerEvents={flipped ? 'auto' : 'none'}>
-          <Press style={s.cardInner} onPress={() => doFlip(false)}>
+          {/* На звороті — і саме слово (дрібно, з динаміком) над перекладом:
+              оцінюючи себе, людина бачить слово й значення разом. */}
+          <Press
+            style={s.cardInner}
+            onPress={() => doFlip(false)}
+            accessibilityActions={[{ name: 'activate' }, { name: 'listen', label: t('listen') }]}
+            onAccessibilityAction={(e) =>
+              e.nativeEvent.actionName === 'listen' ? speak(current.word, current.lang) : doFlip(false)
+            }
+          >
             {current.photo ? (
               <StickerLarge
                 uri={photoUri(current.photo)}
@@ -313,6 +348,17 @@ export default function FlashcardsScreen({
                 style={{ marginBottom: 16 }}
               />
             ) : null}
+            <View style={s.backWordRow}>
+              <Text style={s.backWord}>{current.word}</Text>
+              <Press
+                style={s.backSpeak}
+                onPress={() => speak(current.word, current.lang)}
+                hitSlop={10}
+                accessibilityLabel={t('listen')}
+              >
+                <IcSpeaker size={16} color={C.dim} />
+              </Press>
+            </View>
             <Text style={s.cardTranslation}>{current.translation}</Text>
             {current.example ? (
               <View style={s.exampleBox}>
@@ -360,7 +406,9 @@ const makeStyles = (C) =>
       paddingVertical: 6,
     },
     proPillText: { color: C.accent, fontSize: 11, fontFamily: F.extra, letterSpacing: 1.2 },
-    hubHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 },
+    // Висота рядка = висоті заголовка: він стоїть там само, як на інших
+    // вкладках, а пігулка PRO чи маскот центруються відносно нього.
+    hubHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', height: 37, marginBottom: 18 },
     // UNDER_TAB знизу — щоб блок центрувався у видимій частині, а не під панеллю
     center: {
       flex: 1,
@@ -371,12 +419,10 @@ const makeStyles = (C) =>
       paddingTop: 20,
       paddingBottom: UNDER_TAB,
     },
-    // без власного marginBottom: відступ дає hubHead, інакше заголовок
-    // з'їжджав угору відносно PRO-пігулки в тому ж рядку
-    title: { color: C.text, ...type(34, F.bold) },
     bigTitle: { color: C.text, ...type(22, F.bold), marginTop: 14, textAlign: 'center' },
     dimText: { color: C.dim, ...type(15, F.reg), textAlign: 'center', marginTop: 8 },
-    note: { color: C.faint, ...type(13, F.reg), textAlign: 'center', marginTop: 6 },
+    note: { color: C.dim, ...type(13, F.reg), textAlign: 'center', marginTop: 6 },
+    emptyBtn: { alignSelf: 'stretch', marginTop: 22 },
 
     hubCard: {
       backgroundColor: C.card,
@@ -431,7 +477,10 @@ const makeStyles = (C) =>
       alignItems: 'center',
       justifyContent: 'center',
     },
-    tapHint: { color: C.faint, ...type(12, F.reg), position: 'absolute', bottom: 18 },
+    tapHint: { color: C.dim, ...type(12, F.reg), position: 'absolute', bottom: 18 },
+    backWordRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
+    backWord: { color: C.dim, ...type(17, F.semi), textAlign: 'center', flexShrink: 1 },
+    backSpeak: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: C.card2 },
     cardTranslation: { color: C.text, ...type(28, F.bold), textAlign: 'center' },
     exampleBox: { marginTop: 24, backgroundColor: C.card2, borderRadius: R.md, padding: 14, alignSelf: 'stretch' },
     example: { color: C.text, ...type(15, F.reg), textAlign: 'center' },
