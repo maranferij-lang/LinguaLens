@@ -483,9 +483,11 @@ const makeStyles = (C) =>
       borderTopLeftRadius: R.xl,
       borderTopRightRadius: R.xl,
     },
+    // Юридичний рядок — частина розкриття умов (App Review 3.1.2): дрібний,
+    // але читабельний — dim, а не faint (у темній темі faint ледь видно).
     legal: {
-      color: C.faint,
-      ...type(11, F.reg),
+      color: C.dim,
+      ...type(12, F.reg),
       textAlign: 'center',
       marginTop: 10,
     },

@@ -127,14 +127,13 @@ export default function OnboardingScreen({
   // його (не довше FLAG_WAIT_MS від старту), щоб варіант не змінився посеред шляху.
   const [variant, setVariant] = useState(replay ? 'replay' : null);
   const variantP = useRef(null);
-  if (!replay && !variantP.current) {
+  useEffect(() => {
+    if (replay) return;
+    let alive = true;
     variantP.current = flag('onboarding-flow', 'control', FLAG_WAIT_MS)
       .then((v) => (v === 'short' ? 'short' : 'control'))
       .catch(() => 'control');
-  }
-  useEffect(() => {
-    let alive = true;
-    if (variantP.current) variantP.current.then((v) => alive && setVariant(v));
+    variantP.current.then((v) => alive && setVariant(v));
     return () => {
       alive = false;
     };
@@ -180,14 +179,25 @@ export default function OnboardingScreen({
   const steps = flow.filter((k) => k !== 'welcome');
 
   // ── Статистика: кожен показаний крок (у повторі — ні: це не воронка) ────
+  // Вітання рахуємо, щойно відомий варіант; якщо прапорець прийшов лише
+  // після «Почати», його надсилає start() — і лише один раз.
+  const welcomeSent = useRef(false);
+  function trackStep(step, v, f = flow) {
+    if (step === 'welcome') {
+      if (welcomeSent.current) return;
+      welcomeSent.current = true;
+    }
+    const k = step === 'pushDenied' ? 'push' : step;
+    track('onboarding_step', {
+      step: step === 'pushDenied' ? 'push_denied' : step,
+      index: f.indexOf(k) + 1,
+      total: f.length,
+      flow: v,
+    });
+  }
   useEffect(() => {
     if (replay || !variant) return;
-    track('onboarding_step', {
-      step: phase === 'pushDenied' ? 'push_denied' : phase,
-      index: flow.indexOf(at) + 1,
-      total: flow.length,
-      flow: variant,
-    });
+    trackStep(phase, variant);
   }, [phase, variant]);
 
   function event(name, props) {
@@ -250,8 +260,10 @@ export default function OnboardingScreen({
   async function start() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const v = (await variantP.current) || 'control';
+    const f = flowWith({ variant: v });
+    trackStep('welcome', v, f);
     setVariant(v);
-    go(flowWith({ variant: v })[1]);
+    go(f[1]);
   }
 
   function result() {

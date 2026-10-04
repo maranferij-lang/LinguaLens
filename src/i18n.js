@@ -442,7 +442,7 @@ export const STRINGS = {
     opwRemindText: 'No surprises: you’ll know exactly when the trial ends and what it costs after.',
     opwNoRemindTitle: 'No surprises',
     opwNoRemindText: 'Here’s exactly what happens next — no fine print.',
-    opwCancel: 'You can cancel any time in your Apple ID settings.',
+    opwCancel: 'You can cancel any time in your Apple ID settings.',
     pwPlansTitle: 'Choose your plan',
     pwContinueFreeTomorrow: 'Continue for free — next scan tomorrow',
     // назва мови, яку вчать, у реченні-обіцянці («вчитиму англійську»)
@@ -896,7 +896,7 @@ export const STRINGS = {
     opwRemindText: 'Жодних сюрпризів: ти точно знатимеш, коли закінчиться пробний період і скільки коштуватиме далі.',
     opwNoRemindTitle: 'Жодних сюрпризів',
     opwNoRemindText: 'Ось що буде далі — без дрібного шрифту.',
-    opwCancel: 'Скасувати можна будь-коли в налаштуваннях Apple ID.',
+    opwCancel: 'Скасувати можна будь-коли в налаштуваннях Apple ID.',
     pwPlansTitle: 'Обери свій план',
     pwContinueFreeTomorrow: 'Продовжити безкоштовно — наступний скан завтра',
     // назва мови, яку вчать, у реченні-обіцянці («вчитиму англійську»)
@@ -1800,7 +1800,7 @@ export const STRINGS = {
     opwRemindText: 'Sin sorpresas: sabrás exactamente cuándo termina la prueba y cuánto costará después.',
     opwNoRemindTitle: 'Sin sorpresas',
     opwNoRemindText: 'Esto es lo que pasará, sin letra pequeña.',
-    opwCancel: 'Puedes cancelar cuando quieras en los ajustes de tu Apple ID.',
+    opwCancel: 'Puedes cancelar cuando quieras en los ajustes de tu Apple ID.',
     pwPlansTitle: 'Elige tu plan',
     pwContinueFreeTomorrow: 'Seguir gratis: próximo escaneo mañana',
     // назва мови, яку вчать, у реченні-обіцянці («вчитиму англійську»)

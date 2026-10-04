@@ -331,6 +331,11 @@ test('the variant is asked once and “Start” waits for it', async () => {
   });
   expect(title(tree)).toBe(t('pfGoalsTitle'));
   expect(flag).toHaveBeenCalledTimes(1);
+  // вітання пораховане рівно раз, уже з варіантом
+  expect(events('onboarding_step').map((e) => [e.step, e.flow])).toEqual([
+    ['welcome', 'short'],
+    ['goals', 'short'],
+  ]);
 });
 
 test('skipping every question changes nothing: no name, no profile, default plan lines', async () => {
