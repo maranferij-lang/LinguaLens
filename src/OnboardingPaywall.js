@@ -13,11 +13,20 @@
 // цифра — сума списання в рядку тарифу; тривалість пробного періоду, що
 // буде після нього й як скасувати, видно до натиску.
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import PaywallScreen, { TrialTimeline, defaultPlan } from './PaywallScreen';
+import {
+  AccessibilityInfo,
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from 'react-native';
+import PaywallScreen, { SHORT_SCREEN, TrialTimeline, defaultPlan } from './PaywallScreen';
 import { PRO_BENEFITS } from './subscription';
 import { ProIcon, PCrown } from './ProIcons';
-import { IcBell, IcClose } from './icons';
+import { IcBell, IcCheck, IcClose } from './icons';
 import { MascotBob } from './Mascot';
 import { FadeIn, GradBtn } from './ui';
 import { stagger, useScreenReader } from './motion';
@@ -59,6 +68,9 @@ export default function OnboardingPaywall({
 }) {
   const { C, SHADOW_LG } = useTheme();
   const s = useMemo(() => makeStyles(C), [C]);
+  // SE і подібні: менші Lingo й коло, тісніші відступи — (а) показує всі
+  // три переваги, а (б) — рядок списання й «скасувати можна будь-коли»
+  const short = useWindowDimensions().height < SHORT_SCREEN;
   // Набір екранів фіксуємо на старті: тарифи, що дозавантажились посеред
   // показу, не мають перекидати людину назад на (а).
   const [steps] = useState(() => paywallSteps(plans));
@@ -126,29 +138,37 @@ export default function OnboardingPaywall({
   }
 
   const trial = step === 'trial';
+  // Без нагадування дзвоник обіцяв би те, від чого текст щойно відмовився:
+  // тоді галочка «усе прозоро»
+  const Glyph = canRemind ? IcBell : IcCheck;
   return (
     <View style={s.root}>
-      <Pressable style={s.close} onPress={close} hitSlop={12} accessibilityRole="button" accessibilityLabel={t('close')}>
-        <IcClose size={22} color={C.faint} />
-      </Pressable>
+      {/* Хрестик — у власній смужці поза прокруткою, як у PaywallScreen */}
+      <View style={s.topBar}>
+        <Pressable style={s.close} onPress={close} hitSlop={4} accessibilityRole="button" accessibilityLabel={t('close')}>
+          <View style={s.closeDot}>
+            <IcClose size={20} color={C.dim} />
+          </View>
+        </Pressable>
+      </View>
 
-      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false} bounces={false}>
+      <ScrollView contentContainerStyle={[s.scroll, short && s.scrollShort]} showsVerticalScrollIndicator={false} bounces={false}>
         {/* key — новий екран мʼяко зʼявляється, а не підміняється миттєво */}
         <FadeIn key={step} style={{ alignItems: 'center' }}>
           {trial ? (
             <>
-              <MascotBob pose="celebrate" size={150} />
+              <MascotBob pose="celebrate" size={short ? 100 : 150} />
               <View style={s.proBadge}>
                 <PCrown size={17} color={C.onAccent} />
                 <Text style={s.proBadgeText}>PRO</Text>
               </View>
             </>
           ) : (
-            <View style={s.bell}>
-              <IcBell size={46} color={C.accent} />
+            <View style={[s.bell, short && s.bellShort]} testID={canRemind ? 'opw-bell' : 'opw-check'}>
+              <Glyph size={short ? 36 : 46} color={C.accent} />
             </View>
           )}
-          <Text ref={titleRef} style={s.title} accessibilityRole="header">
+          <Text ref={titleRef} style={[s.title, short && s.titleShort]} accessibilityRole="header">
             {trial
               ? t('opwTrialTitle', { n: plan.trialDays })
               : canRemind
@@ -161,7 +181,7 @@ export default function OnboardingPaywall({
         </FadeIn>
 
         {trial ? (
-          <View style={s.benefits}>
+          <View style={[s.benefits, short && s.benefitsShort]}>
             {TRIAL_BENEFITS.map((b, n) => (
               <FadeIn key={b.id} delay={stagger(n + 1)} style={s.benefitRow}>
                 <View style={s.benefitIcon}>
@@ -190,11 +210,17 @@ const makeStyles = (C) =>
   StyleSheet.create({
     root: { flex: 1, backgroundColor: C.bg },
     center: { alignItems: 'center', justifyContent: 'center' },
-    close: {
-      position: 'absolute',
-      top: 14,
-      right: 18,
-      zIndex: 10,
+    // Смужка під хрестик: тло екрана, ціль 44 pt
+    topBar: {
+      height: 52,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'flex-end',
+      paddingHorizontal: 10,
+      backgroundColor: C.bg,
+    },
+    close: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+    closeDot: {
       width: 36,
       height: 36,
       borderRadius: 18,
@@ -202,7 +228,9 @@ const makeStyles = (C) =>
       alignItems: 'center',
       justifyContent: 'center',
     },
-    scroll: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24, paddingTop: 48, paddingBottom: 24 },
+    // хрестик тепер у смужці над прокруткою — згори лише невеликий відступ
+    scroll: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24, paddingTop: 12, paddingBottom: 24 },
+    scrollShort: { paddingTop: 0, paddingBottom: 16 },
     proBadge: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -223,9 +251,12 @@ const makeStyles = (C) =>
       justifyContent: 'center',
       marginBottom: 6,
     },
+    bellShort: { width: 76, height: 76, borderRadius: 38, marginBottom: 2 },
     title: { color: C.text, ...type(28, F.extra), textAlign: 'center', marginTop: 14 },
+    titleShort: { ...type(26, F.extra), marginTop: 10 },
     text: { color: C.dim, ...type(15, F.reg), textAlign: 'center', marginTop: 8, maxWidth: 320 },
     benefits: { marginTop: 28, gap: 14, alignSelf: 'stretch' },
+    benefitsShort: { marginTop: 20, gap: 10 },
     benefitRow: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -249,7 +280,8 @@ const makeStyles = (C) =>
       backgroundColor: C.card,
       paddingHorizontal: 22,
       paddingTop: 16,
-      paddingBottom: 30,
+      // App уже додає відступ домашнього індикатора — свій лише невеликий
+      paddingBottom: 16,
       borderTopLeftRadius: R.xl,
       borderTopRightRadius: R.xl,
     },

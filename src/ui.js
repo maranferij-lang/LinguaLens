@@ -1,6 +1,6 @@
 // Спільні UI-компоненти. Рух — за src/motion.js.
 import { useEffect, useRef } from 'react';
-import { Animated, Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, Animated, Pressable, Text, View } from 'react-native';
 import { DUR, EASE, SPRING, travel } from './motion';
 import { CAPS, F, R, type, useTheme } from './theme';
 
@@ -16,7 +16,9 @@ const APressable = Animated.createAnimatedComponent(Pressable);
 
 // Решта пропсів (accessibilityLabel, accessibilityRole, testID…) іде прямо
 // в Pressable: кнопки-іконки без підпису VoiceOver читає як «кнопка».
-export function Press({ children, style, onPress, onLongPress, disabled, scaleTo = 0.97, hitSlop = 6, ...rest }) {
+// busy — дія вже виконується: натиснути не можна, але кнопка не блякне —
+// вона не вимкнена, вона працює (див. GradBtn loading).
+export function Press({ children, style, onPress, onLongPress, disabled, busy, scaleTo = 0.97, hitSlop = 6, ...rest }) {
   const scale = useRef(new Animated.Value(1)).current;
   const press = (to, cfg) => Animated.spring(scale, { toValue: to, ...cfg }).start();
 
@@ -26,12 +28,12 @@ export function Press({ children, style, onPress, onLongPress, disabled, scaleTo
       {...rest}
       onPress={onPress}
       onLongPress={onLongPress}
-      disabled={disabled}
+      disabled={disabled || busy}
       hitSlop={hitSlop}
       // вниз — швидко й різко (система почула), вгору — трохи спокійніше
       onPressIn={() => press(scaleTo, SPRING.snappy)}
       onPressOut={() => press(1, SPRING.ui)}
-      style={[style, { transform: [{ scale }] }, disabled && { opacity: 0.45 }]}
+      style={[style, { transform: [{ scale }] }, disabled && !busy && { opacity: 0.45 }]}
     >
       {children}
     </APressable>
@@ -80,11 +82,23 @@ export function Caps({ children, style }) {
   return <Text style={[{ color: C.faint }, CAPS, style]}>{children}</Text>;
 }
 
-// Головна кнопка
-export function GradBtn({ title, onPress, disabled, style, small }) {
+// Головна кнопка. loading — дія вже йде (покупка чекає на App Store):
+// замість підпису — індикатор у кольорі тексту, кнопка в повному кольорі
+// (бліда виглядала б вимкненою, наче нічого не сталося), другий натиск не
+// проходить, а VoiceOver чує підпис і «зайнято».
+export function GradBtn({ title, onPress, disabled, loading = false, style, small }) {
   const { C, SHADOW } = useTheme();
+  const size = small ? 15 : 17;
   return (
-    <Press onPress={onPress} disabled={disabled} style={style}>
+    <Press
+      onPress={onPress}
+      disabled={disabled && !loading}
+      busy={loading}
+      style={style}
+      // без підпису на екрані VoiceOver бере його звідси
+      accessibilityLabel={loading ? title : undefined}
+      accessibilityState={loading ? { disabled: true, busy: true } : undefined}
+    >
       <View
         style={[
           {
@@ -96,9 +110,12 @@ export function GradBtn({ title, onPress, disabled, style, small }) {
           SHADOW,
         ]}
       >
-        <Text style={{ color: C.onAccent, ...type(small ? 15 : 17, F.extra, { noLead: true }) }}>
-          {title}
-        </Text>
+        {loading ? (
+          // висота — як у рядка тексту (Nunito ≈ 1.36 кегля): кнопка не стрибає
+          <ActivityIndicator color={C.onAccent} style={{ height: Math.round(size * 1.36) }} />
+        ) : (
+          <Text style={{ color: C.onAccent, ...type(size, F.extra, { noLead: true }) }}>{title}</Text>
+        )}
       </View>
     </Press>
   );

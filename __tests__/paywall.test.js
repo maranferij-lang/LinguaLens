@@ -8,6 +8,13 @@ import { makeT, STRINGS } from '../src/i18n';
 const t = makeT('en');
 const texts = (tree) =>
   tree.root.findAll((n) => typeof n.props?.children === 'string').map((n) => n.props.children);
+// Мʼякий пейвол тримає обидві шапки (з пробним і без) в одній клітинці, щоб
+// тарифи не стрибали; невидима схована й від VoiceOver — її людина не бачить
+// і не чує, тож і перевірки її не бачать.
+function shown(n) {
+  for (let p = n; p; p = p.parent) if (p.props?.accessibilityElementsHidden) return false;
+  return true;
+}
 
 async function render(props) {
   let tree;
@@ -71,7 +78,7 @@ describe('intro after the first scan', () => {
   // Рядки таймлайну — «День 7» і дата в одному Text, тож беремо й рядки з масивів
   const strings = (tree) =>
     tree.root
-      .findAll((n) => typeof n.props?.children === 'string' || Array.isArray(n.props?.children))
+      .findAll((n) => (typeof n.props?.children === 'string' || Array.isArray(n.props?.children)) && shown(n))
       .flatMap((n) => [n.props.children].flat())
       .filter((c) => typeof c === 'string');
 
@@ -110,10 +117,11 @@ describe('intro after the first scan', () => {
 
   test('the free option counts the scans left with the right plural', async () => {
     const uk = makeT('uk');
+    // коротко, щоб на SE кнопка була в один рядок
     for (const [n, text] of [
-      [1, 'Продовжити безкоштовно — лишився 1 скан'],
-      [3, 'Продовжити безкоштовно — лишилося 3 скани'],
-      [5, 'Продовжити безкоштовно — лишилося 5 сканів'],
+      [1, 'Продовжити безкоштовно — ще 1 скан'],
+      [3, 'Продовжити безкоштовно — ще 3 скани'],
+      [5, 'Продовжити безкоштовно — ще 5 сканів'],
     ]) {
       const tree = await open({ reason: 'intro', plans: PLANS, freeScans: 10, scansLeft: n, t: uk });
       expect(strings(tree)).toContain(text);
@@ -129,6 +137,9 @@ describe('intro after the first scan', () => {
     expect(all).not.toContain(t('tlRemindText'));
   });
 
+  // Без пробного — ні «безкоштовно», ні таймлайну, і таблиця не вискакує:
+  // замість таймлайну один рядок про сьогоднішнє списання, а юридичний
+  // рядок називає ціну й період.
   test('a plan without a trial: no “free” title and no timeline over a button that charges today', async () => {
     const tree = await open({ reason: 'intro', plans: PLANS, freeScans: 5 });
     await press(tree, t('planMonth'));
@@ -136,9 +147,14 @@ describe('intro after the first scan', () => {
     expect(all).not.toContain(t('pwIntroTitle'));
     expect(all).not.toContain(t('tlToday'));
     expect(all).toContain(t('pwTitle'));
-    expect(all).toContain(t('colFree'));
+    expect(all).not.toContain(t('colFree'));
+    expect(all).toContain('Today — $6.99, then every month');
+    expect(all).toContain('$6.99 a month, renews automatically. Cancel anytime in your Apple ID settings.');
     expect(all).toContain('Continue for free — 5 scans left');
     expect(tree.root.findAll((n) => n.props.title === t('subscribe')).length).toBeGreaterThan(0);
+    await press(tree, t('planLifetime'));
+    expect(strings(tree)).toContain(t('pwTodayLifetime'));
+    expect(strings(tree)).not.toContain(t('colFree'));
   });
 
   test('no trial in the offering at all: the regular paywall plus the free option', async () => {
@@ -160,7 +176,7 @@ describe('v1.2 paywall', () => {
   const open = async (props) => (mounted = await render(props));
   const strings = (tree) =>
     tree.root
-      .findAll((n) => typeof n.props?.children === 'string' || Array.isArray(n.props?.children))
+      .findAll((n) => (typeof n.props?.children === 'string' || Array.isArray(n.props?.children)) && shown(n))
       .flatMap((n) => [n.props.children].flat())
       .filter((c) => typeof c === 'string');
   const press = (tree, text) =>
@@ -229,10 +245,17 @@ describe('v1.2 paywall', () => {
     expect(price).toBeLessThan(all.indexOf(t('pro_scans')));
   });
 
-  test('other walls keep the comparison first', async () => {
-    const tree = await open({ reason: 'scans', plans: PLANS });
-    const all = strings(tree);
-    expect(all.indexOf(t('cmp_scans'))).toBeLessThan(all.indexOf('$34.99'));
+  // Так само на кожній стіні: тарифи з ціною — одразу під заголовком, таблиця
+  // — під ними (на SE інакше жодного тарифу не видно без прокрутки).
+  test('every other wall shows the plans first, the comparison under them', async () => {
+    for (const reason of ['scans', 'scene', 'langs', 'info']) {
+      const tree = await open({ reason, plans: PLANS });
+      const all = strings(tree);
+      expect(all.indexOf('$34.99')).toBeGreaterThan(-1);
+      expect(all.indexOf('$34.99')).toBeLessThan(all.indexOf(t('cmp_wod')));
+      await act(async () => tree.unmount());
+      mounted = null;
+    }
   });
 
   test('compact (onboarding, third screen): plans and timeline only', async () => {
@@ -251,8 +274,8 @@ describe('v1.2 paywall', () => {
   });
 
   // Безкоштовний скан один на все життя: витрачено — кнопка не обіцяє ні
-  // ще одного сьогодні, ні «наступного завтра», а каже, що лишається.
-  test('once the free scan is used, the free way out offers the word list and cards — never a scan tomorrow', async () => {
+  // ще одного сьогодні, ні «наступного завтра»: просто «продовжити».
+  test('once the free scan is used, the free way out just continues — never a scan tomorrow', async () => {
     const TIME = /today|tomorrow|a day|per day|сьогодні|завтра|щодня|на день|heute|morgen|pro Tag|hoy|mañana|al día/i;
     for (const lang of ['en', 'uk', 'de', 'es']) {
       const tl = makeT(lang);
@@ -264,8 +287,9 @@ describe('v1.2 paywall', () => {
       await act(async () => tree.unmount());
       mounted = null;
     }
-    expect(t('pwContinueFreeNoScans')).toBe('Continue for free — word list and cards');
-    expect(makeT('uk')('pwContinueFreeNoScans')).toBe('Продовжити безкоштовно — словник і картки');
+    // в один рядок на SE: без переліку того, що лишається
+    expect(t('pwContinueFreeNoScans')).toBe('Continue for free');
+    expect(makeT('uk')('pwContinueFreeNoScans')).toBe('Продовжити безкоштовно');
   });
 
   // Скільки сканів ЛИШИЛОСЬ, а не скільки їх було на старті

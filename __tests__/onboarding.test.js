@@ -208,7 +208,8 @@ test('the full path: name → work in finance → B2+ → struggles → honest p
 
   // Сповіщення: пояснення й попередній перегляд, єдина кнопка — «Далі»
   expect(title(tree)).toBe(t('obPushTitle'));
-  expect(has(tree, 'Every day at 10:00 — a new word from finance. Nothing else.')).toBe(true);
+  // година — як її покаже iPhone з англійською мовою: «10:00 AM»
+  expect(texts(tree).some((s) => /^Every day at 10:00\sAM — a new word from finance\. Nothing else\.$/u.test(s))).toBe(true);
   expect(has(tree, 'Word of the day · Finance')).toBe(true);
   expect(texts(tree).some((s) => /allow/i.test(s))).toBe(false); // App Review 5.1.1(iv)
   expect(requestPermission).not.toHaveBeenCalled();
@@ -350,8 +351,10 @@ test('skipping every question changes nothing: no name, no profile, default plan
   await tap(tree, t('struggle_boring'));
   await tap(tree, t('obSkip'));
   expect(title(tree)).toBe(t('obPlanTitle')); // без імені
-  expect(has(tree, 'General')).toBe(true);
-  expect(has(tree, t('obPlanDaily'))).toBe(true); // одна тема — щодня
+  // одна тема — «Загальне» лише раз і один рядок замість легенди
+  expect(tree.root.findAll((n) => typeof n.type === 'string' && n.props.children === 'General')).toHaveLength(1);
+  expect(has(tree, t('obPlanSingleSub'))).toBe(true);
+  expect(has(tree, t('obPlanDaily'))).toBe(false);
   for (const k of ['boring', 'forget', 'time']) expect(has(tree, t('plan_' + k))).toBe(true);
   await tap(tree, t('obNext'));
   // без профілю — загальний текст про сповіщення

@@ -2,9 +2,10 @@
 // рівень → що заважає → звідки дізнались. Ті самі екрани живуть в
 // онбордингу і в редакторі з Параметрів — тут лише їхній вигляд; хто веде
 // по кроках і що зберігає, вирішує OnboardingScreen чи ProfileEditor.
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AccessibilityInfo, Animated, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import LevelSlider from './LevelSlider';
 import { FIELDS, GOALS, HEARD, HEARD_BRANDS, NAME_MAX, STRUGGLES, levelResult, needsField } from './profile';
 import { flagFor, nameFor } from './speech';
@@ -45,10 +46,17 @@ const STRUGGLE_ICONS = { forget: IcCards, time: IcClock, boring: IcBook, start: 
 // Смужку VoiceOver не читає: «Крок 3 з 9» він чує в самому заголовку, а
 // на новому кроці фокус переходить на заголовок — інакше незряча людина
 // лишилась би на кнопці «Далі» й не знала б, що екран змінився.
+//
+// Кожен крок відкривається згори: прокрутка в кожного кроку своя (key),
+// інакше після довгого переліку сфер наступний крок відкривався б уже
+// прокрученим, з обрізаним заголовком. Вміст не вміщається — смужка
+// прокрутки один раз мигає, а над кнопкою лежить згасання: видно, що
+// внизу є ще.
 export function StepFrame({ stepKey, progress, onBack, right, header, title, text, children, footer, t }) {
   const { C } = useTheme();
   const s = useMemo(() => makeStyles(C), [C]);
   const titleRef = useRef(null);
+  const scrollRef = useRef(null);
   const reader = useScreenReader();
   useEffect(() => {
     if (!reader || !titleRef.current) return;
@@ -56,6 +64,28 @@ export function StepFrame({ stepKey, progress, onBack, right, header, title, tex
       AccessibilityInfo.sendAccessibilityEvent?.(titleRef.current, 'focus');
     } catch (_) {}
   }, [stepKey, reader]);
+
+  // Висота вікна прокрутки, вмісту й де зараз палець — свої для кожного кроку
+  const dims = useRef({});
+  const [fit, setFit] = useState({ key: null, over: false, more: false });
+  function measure(patch) {
+    if (dims.current.key !== stepKey) dims.current = { key: stepKey, view: 0, content: 0, y: 0 };
+    Object.assign(dims.current, patch);
+    const { view, content, y } = dims.current;
+    const over = view > 0 && content > view + 1;
+    const more = over && y + view < content - 4;
+    setFit((f) => (f.key === stepKey && f.over === over && f.more === more ? f : { key: stepKey, over, more }));
+  }
+  const over = fit.key === stepKey && fit.over;
+  const more = fit.key === stepKey && fit.more;
+  const flashed = useRef(null);
+  useEffect(() => {
+    if (!over || flashed.current === stepKey) return;
+    flashed.current = stepKey;
+    try {
+      scrollRef.current?.flashScrollIndicators?.();
+    } catch (_) {}
+  }, [over, stepKey]);
   const label = progress ? `${t('obStepOf', { n: progress.step, m: progress.total })}. ${title}` : undefined;
   return (
     <View style={s.frame}>
@@ -80,10 +110,16 @@ export function StepFrame({ stepKey, progress, onBack, right, header, title, tex
       </View>
 
       <ScrollView
+        key={stepKey}
+        ref={scrollRef}
         style={{ flex: 1 }}
         contentContainerStyle={s.body}
-        showsVerticalScrollIndicator={false}
+        showsVerticalScrollIndicator={over}
         keyboardShouldPersistTaps="handled"
+        onLayout={(e) => measure({ view: e.nativeEvent.layout.height })}
+        onContentSizeChange={(w, h) => measure({ content: h })}
+        onScroll={(e) => measure({ y: e.nativeEvent.contentOffset.y })}
+        scrollEventThrottle={32}
       >
         {/* key — новий крок мʼяко зʼявляється, а не підміняється миттєво */}
         <FadeIn key={stepKey} dy={10}>
@@ -96,7 +132,34 @@ export function StepFrame({ stepKey, progress, onBack, right, header, title, tex
         </FadeIn>
       </ScrollView>
 
-      <View style={s.footer}>{footer}</View>
+      <View style={s.footer}>
+        {more ? <FooterFade color={C.bg} /> : null}
+        {footer}
+      </View>
+    </View>
+  );
+}
+
+// Згасання над кнопкою: вміст іде під неї, а не обрізається рівною лінією
+const FADE = 16;
+function FooterFade({ color }) {
+  return (
+    <View
+      testID="step-fade"
+      pointerEvents="none"
+      style={{ position: 'absolute', left: 0, right: 0, top: -FADE, height: FADE }}
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+    >
+      <Svg width="100%" height={FADE}>
+        <Defs>
+          <LinearGradient id="stepFade" x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0" stopColor={color} stopOpacity={0} />
+            <Stop offset="1" stopColor={color} stopOpacity={1} />
+          </LinearGradient>
+        </Defs>
+        <Rect x="0" y="0" width="100%" height={FADE} fill="url(#stepFade)" />
+      </Svg>
     </View>
   );
 }
@@ -160,14 +223,36 @@ export function CloseButton({ onPress, t }) {
 
 // Мова, яку вчать, — над питанням про рівень: «🇬🇧 English». Ендонім із
 // прапорцем, як у Параметрах: відмінювати 29 назв мов у реченні не треба.
-export function LangPill({ code }) {
+// onPress — мову можна змінити просто тут (перше знайомство): тоді це
+// кнопка «змінити ›». Без нього (повтор, редактор у Параметрах) — підпис.
+export function LangPill({ code, onPress, t }) {
   const { C } = useTheme();
   const s = useMemo(() => makeStyles(C), [C]);
+  if (!onPress) {
+    return (
+      <View style={s.langPill}>
+        <Text style={s.langFlag}>{flagFor(code)}</Text>
+        <Text style={s.langName}>{nameFor(code)}</Text>
+      </View>
+    );
+  }
   return (
-    <View style={s.langPill}>
+    <Press
+      style={[s.langPill, s.langBtn]}
+      onPress={() => {
+        Haptics.selectionAsync();
+        onPress();
+      }}
+      accessibilityRole="button"
+      accessibilityLabel={t('obLangA11y', { lang: nameFor(code) })}
+    >
       <Text style={s.langFlag}>{flagFor(code)}</Text>
       <Text style={s.langName}>{nameFor(code)}</Text>
-    </View>
+      <Text style={s.langChange}>{t('obLangChange')}</Text>
+      <View style={{ transform: [{ rotate: '-90deg' }] }}>
+        <IcChevron size={14} color={C.accent} />
+      </View>
+    </Press>
   );
 }
 
@@ -180,7 +265,7 @@ function CheckList({ items, icons, value, onChange, label, s, C }) {
     onChange(value.includes(k) ? value.filter((x) => x !== k) : items.filter((x) => x === k || value.includes(x)));
   }
   return (
-    <View style={{ gap: 10 }}>
+    <View style={{ gap: 8 }}>
       {items.map((k) => {
         const on = value.includes(k);
         const Icon = icons[k];
@@ -301,8 +386,9 @@ export function LevelBody({ value, onChange, lang, t }) {
   return (
     <View>
       <LevelSlider value={value} onChange={onChange} label={label} t={t} />
-      {/* «8/10 · B2+ — пропускаємо базові слова…»: людина одразу бачить,
-          що її відповідь щось міняє. VoiceOver оголосить сам рядок. */}
+      {/* «Пропускаємо базові слова…»: людина одразу бачить, що її відповідь
+          щось міняє. Число й CEFR уже великі над доріжкою — тут лише
+          наслідок. VoiceOver оголосить сам рядок. */}
       <View style={s.result}>
         <Text style={s.resultText} accessibilityLiveRegion="polite">
           {levelResult(value, t)}
@@ -321,7 +407,9 @@ const makeStyles = (C) =>
     progress: { flex: 1, height: 4, borderRadius: 2, backgroundColor: C.card3, overflow: 'hidden', marginHorizontal: 6 },
     progressFill: { height: 4, width: '100%', borderRadius: 2, backgroundColor: C.accent },
     skip: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 8 },
-    skipText: { color: C.faint, ...type(15, F.semi, { noLead: true }) },
+    // dim, а не faint: «Пропустити» — єдиний вихід з непотрібного питання,
+    // і він мусить читатися (≥ 4.5:1 в обох темах)
+    skipText: { color: C.dim, ...type(15, F.semi, { noLead: true }) },
     close: {
       width: 36,
       height: 36,
@@ -348,8 +436,11 @@ const makeStyles = (C) =>
       paddingVertical: 6,
       marginBottom: 14,
     },
+    // кнопка: ціль не менша за 44 pt, «змінити» — акцентом, як посилання
+    langBtn: { minHeight: 44, paddingLeft: 14, paddingRight: 10, gap: 6 },
     langFlag: { fontSize: 16 },
     langName: { color: C.text, ...type(14, F.bold, { noLead: true }) },
+    langChange: { color: C.accent, ...type(13, F.semi, { noLead: true }), marginLeft: 2 },
 
     option: {
       flexDirection: 'row',
@@ -357,16 +448,18 @@ const makeStyles = (C) =>
       gap: 14,
       backgroundColor: C.card,
       borderRadius: R.lg,
-      paddingVertical: 12,
+      // щільніше, щоб на SE всі пʼять цілей влазили без прокрутки; рядок
+      // однаково вищий за 44 pt
+      paddingVertical: 9,
       paddingHorizontal: 14,
       borderWidth: 2,
       borderColor: 'transparent',
     },
     optionOn: { borderColor: C.accent },
     optIcon: {
-      width: 44,
-      height: 44,
-      borderRadius: 14,
+      width: 40,
+      height: 40,
+      borderRadius: 13,
       backgroundColor: C.accentSoft,
       alignItems: 'center',
       justifyContent: 'center',

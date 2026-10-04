@@ -8,6 +8,11 @@
 // Без жесту: з «Менше руху» чи VoiceOver тримати палець на кільці, що
 // повзе, — або незручно, або неможливо. Тоді це звичайна кнопка: один
 // дотик (для VoiceOver — дія activate) і готово.
+//
+// Хто просто тапає, бачив би лише, як кільце спадає, — а пропустити цей
+// крок нема як. Тож відпустив, не дотягнувши й третини кільця, — підказка
+// на мить стає акцентною «Тримай довше» з легким дотиком, а після двох
+// таких спроб кільце здається і стає звичайною кнопкою, як для «Менше руху».
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
@@ -17,6 +22,12 @@ import { DUR, EASE, SPRING, useReducedMotion, useScreenReader } from './motion';
 import { F, type, useTheme } from './theme';
 
 export const HOLD_MS = 1200;
+// Відпустив раніше за цю частку кільця — це був тап, а не спроба втримати
+export const SHORT_AT = 0.3;
+// Скільки «Тримай довше» лишається на екрані
+export const NUDGE_MS = 1500;
+// Після стількох коротких дотиків кільце стає звичайною кнопкою
+export const SHORTS_TO_TAP = 2;
 const TICKS = [
   { at: 0.25, style: 'Light' },
   { at: 0.5, style: 'Medium' },
@@ -27,13 +38,16 @@ const STROKE = 9;
 const ACircle = Animated.createAnimatedComponent(Circle);
 
 // label — що робить кнопка («Пообіцяти»), holdHint / tapHint — підказка
-// під кільцем для жесту й для дотику, doneText — після обіцянки.
-export default function HoldToCommit({ onCommit, label, holdHint, tapHint, doneText, size = 184 }) {
+// під кільцем для жесту й для дотику, longerHint — «Тримай довше» після
+// надто короткого натиску, doneText — після обіцянки.
+export default function HoldToCommit({ onCommit, label, holdHint, tapHint, longerHint, doneText, size = 184 }) {
   const { C } = useTheme();
   const s = useMemo(() => makeStyles(C, size), [C, size]);
   const reduced = useReducedMotion();
   const reader = useScreenReader();
-  const tapMode = reduced || reader;
+  // двічі поспіль лише тапнули — далі кільце приймає звичайний дотик
+  const [tapFallback, setTapFallback] = useState(false);
+  const tapMode = reduced || reader || tapFallback;
 
   const [done, setDone] = useState(false);
   const doneRef = useRef(false);
@@ -42,12 +56,18 @@ export default function HoldToCommit({ onCommit, label, holdHint, tapHint, doneT
   // скільки кільця вже заповнено: друге натискання продовжує звідти
   const level = useRef(0);
   const timers = useRef([]);
+  // коли почався натиск і звідки: щоб при відпусканні знати, скільки встигли
+  const press = useRef(null);
+  const shorts = useRef(0);
+  const [nudge, setNudge] = useState(false);
+  const nudgeTimer = useRef(null);
 
   useEffect(() => {
     const id = fill.addListener(({ value }) => (level.current = value));
     return () => {
       fill.removeListener(id);
       clearTimers();
+      clearTimeout(nudgeTimer.current);
     };
   }, []);
 
@@ -73,6 +93,7 @@ export default function HoldToCommit({ onCommit, label, holdHint, tapHint, doneT
     fill.stopAnimation();
     const from = level.current;
     const left = Math.max(0, HOLD_MS * (1 - from));
+    press.current = { at: Date.now(), from };
     Haptics.selectionAsync();
     Animated.spring(scale, { toValue: 0.96, ...SPRING.snappy }).start();
     // Кільце малює Animated (властивість SVG — лише без native driver), а
@@ -93,12 +114,27 @@ export default function HoldToCommit({ onCommit, label, holdHint, tapHint, doneT
     clearTimers();
     fill.stopAnimation();
     Animated.timing(fill, { toValue: 0, duration: DUR.exit, easing: EASE.out, useNativeDriver: false }).start();
+    const p = press.current;
+    press.current = null;
+    if (p && p.from + (Date.now() - p.at) / HOLD_MS < SHORT_AT) tooShort();
+  }
+
+  // Це був тап, а не спроба втримати: кажемо, що робити, і після кількох
+  // таких спроб перестаємо вимагати жест
+  function tooShort() {
+    shorts.current += 1;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setNudge(true);
+    clearTimeout(nudgeTimer.current);
+    nudgeTimer.current = setTimeout(() => setNudge(false), NUDGE_MS);
+    if (shorts.current >= SHORTS_TO_TAP) setTapFallback(true);
   }
 
   const r = (size - STROKE) / 2;
   const circ = 2 * Math.PI * r;
   const offset = fill.interpolate({ inputRange: [0, 1], outputRange: [circ, 0] });
-  const hint = done ? doneText : tapMode ? tapHint : holdHint;
+  const nudging = nudge && !done && !!longerHint;
+  const hint = done ? doneText : nudging ? longerHint : tapMode ? tapHint : holdHint;
 
   return (
     <View style={s.wrap}>
@@ -139,7 +175,7 @@ export default function HoldToCommit({ onCommit, label, holdHint, tapHint, doneT
           </View>
         </Animated.View>
       </Pressable>
-      <Text style={[s.hint, done && s.hintDone]} accessibilityLiveRegion="polite">
+      <Text style={[s.hint, nudging && s.hintNudge, done && s.hintDone]} accessibilityLiveRegion="polite">
         {hint}
       </Text>
     </View>
@@ -161,5 +197,6 @@ const makeStyles = (C, size) =>
       overflow: 'hidden',
     },
     hint: { color: C.dim, ...type(15, F.bold), marginTop: 16, textAlign: 'center' },
+    hintNudge: { color: C.accent },
     hintDone: { color: C.accent, ...type(17, F.extra) },
   });
