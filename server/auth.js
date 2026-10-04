@@ -13,6 +13,7 @@
 const crypto = require('crypto');
 const store = require('./store');
 const sync = require('./sync');
+const billing = require('./billing');
 
 // Секрет для підпису токенів. У проді ОБОВ'ЯЗКОВО задати AUTH_SECRET.
 const SECRET =
@@ -73,21 +74,28 @@ async function createUser(fields = {}) {
   return user;
 }
 
-async function createDevice() {
-  const user = await createUser();
+// previous — токен, з яким телефон виходить з акаунта (необов'язковий):
+// його лічильники сканів і проб сцени переходять у новий запис (див.
+// billing.mergeCounters). Недійсний чи чужий токен просто ігноруємо — з
+// нього можна взяти лише обмеження, а не щось цінне.
+async function createDevice({ previous } = {}) {
+  const user = await createUser({ ...billing.mergeCounters({}, await userFromToken(previous)) });
   return { user: publicUser(user), token: makeToken(user.id) };
 }
 
-// Витягує користувача з заголовка Authorization: Bearer <token>.
 // Підписане тим самим секретом, але з purpose (nonce для Apple) — не
 // токен пристрою, і в ролі токена не годиться.
-async function userFromRequest(req) {
-  const h = req.headers.authorization || '';
-  const token = h.startsWith('Bearer ') ? h.slice(7) : '';
-  if (!token) return null;
+async function userFromToken(token) {
+  if (typeof token !== 'string' || !token) return null;
   const payload = verify(token);
   if (!payload || payload.purpose || typeof payload.uid !== 'string') return null;
   return (await store.get(USERS, payload.uid)) || null;
+}
+
+// Витягує користувача з заголовка Authorization: Bearer <token>.
+async function userFromRequest(req) {
+  const h = req.headers.authorization || '';
+  return userFromToken(h.startsWith('Bearer ') ? h.slice(7) : '');
 }
 
 // ---------- Sign in with Apple ----------
@@ -153,13 +161,19 @@ async function linkApple(caller, sub) {
       }
       const owner = await store.get(USERS, mapping.userId);
       if (owner) {
+        // Лічильники телефона йдуть з ним в акаунт: інакше запис, що вже
+        // витратив денний скан і пробу сцени, входом отримав би нові.
+        // Акаунт стерли саме зараз — перечитуємо зв'язок і вирішуємо знову.
+        if (!(await addCounters(owner, caller))) continue;
         if (fresh) await dropUser(fresh);
         if (callerFree) await dropUser(caller);
         return { account: owner, switched: true };
       }
       // Зв'язок лишився від стертого акаунта — займаємо його (нижче, умовно).
     }
-    const account = callerFree ? caller : (fresh = fresh || (await createUser({ apple: true, appleKey: key })));
+    const account = callerFree
+      ? caller
+      : (fresh = fresh || (await createUser({ apple: true, appleKey: key, ...billing.mergeCounters({}, caller) })));
     if (!(await markApple(account, key))) return { gone: true };
     const doc = { userId: account.id, linkedAt: Date.now() };
     const r = mapping
@@ -170,6 +184,24 @@ async function linkApple(caller, sub) {
   }
   if (fresh) await dropUser(fresh);
   return { busy: true };
+}
+
+// Дописує лічильники from в акаунт умовним записом, як billing.reserveScan:
+// скан, що саме займає слот в акаунті з іншого телефона, не загубиться.
+// → false, якщо акаунт тим часом стерто.
+async function addCounters(account, from) {
+  let current = account;
+  for (let attempt = 0; attempt < 6; attempt++) {
+    if (attempt > 0) current = await store.get(USERS, account.id);
+    if (!current) return false;
+    const fields = billing.mergeCounters(current, from);
+    if (!fields) return true;
+    const r = await store.update(USERS, account.id, fields, { version: current.__version });
+    if (r.ok) return true;
+    if (r.reason === 'missing') return false;
+  }
+  // Акаунт без упину сканує з інших телефонів — вхід важливіший за лічильник.
+  return true;
 }
 
 // false — запис уже стерто (паралельний DELETE /me).

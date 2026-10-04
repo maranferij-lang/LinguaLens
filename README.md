@@ -37,6 +37,12 @@ iPhone (Expo SDK 57 · React Native 0.86 · React 19.2)
 │
 ├─ HTTPS ─► сервер (Node, без npm-залежностей, Google Cloud Run)
 │            POST /auth/device          новий пристрій → випадковий id + токен
+│                                       ({ previous } — токен, з яким телефон виходить з
+│                                       акаунта: лічильники сканів і сцен переходять)
+│            POST /auth/apple           вхід через Apple: прив'язати пристрій до Apple ID
+│            POST /sync                 словник між iPhone одного Apple ID: { since, words }
+│                                       → { rev, words, reset, stale } (stale — since
+│                                       старіший за прибрані надгробки: звірити словник)
 │            POST /scan                 кадр → AI → слово, рамка, силует
 │                                       (1 безкоштовний скан на день, далі 402 SCAN_LIMIT;
 │                                       mode 'scene' — уся кімната: Pro, без нього 1 раз

@@ -515,7 +515,12 @@ async function handle(req, res) {
   // ---------- ІДЕНТИЧНІСТЬ ПРИСТРОЮ ----------
   if (req.method === 'POST' && route === '/auth/device') {
     if (deviceLimited(clientIp(req))) return json(res, 429, { error: 'TOO_MANY_ATTEMPTS' });
-    const out = await auth.createDevice();
+    // { previous } — токен, з яким телефон виходить з акаунта: лічильники
+    // сканів і проби сцени переходять у новий запис (див. auth.createDevice).
+    // Тіло, що не розібралось, — просто без нього: пристрій однаково
+    // потрібен, а старі версії застосунку шлють {}.
+    const body = await readJson(req, 4 * 1024);
+    const out = await auth.createDevice({ previous: profile.isPlainObject(body) ? body.previous : undefined });
     console.log(new Date().toISOString(), '/auth/device → ok');
     return json(res, 200, out);
   }

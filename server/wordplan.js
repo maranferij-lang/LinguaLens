@@ -131,17 +131,34 @@ function buildPlan({ seed, profile, known = new Set(), lex = LEXICON }) {
 
   // Термін, що є в кількох активних темах, лишається лише в найважливішій
   // (більша вага, далі — за ключем): інакше «deadline» прийшов би двічі за
-  // тиждень — з «роботи» і з «фінансів».
+  // тиждень — з «роботи» і з «фінансів». Власника обираємо з ПОВНИХ списків,
+  // до фільтрів рівня, «Знаю» й інтернаціоналізмів. Інакше слово, яке список
+  // сфери вважає базовим (invoice у фінансах — 1), для 9/10 випало б із
+  // фінансів і повернулося б із загальних, де воно позначене 3.
+  // Заразом запам'ятовуємо найлегший рівень терміна серед усіх активних
+  // списків: якщо хоч один із них ставить слово нижче за нижню межу слайдера,
+  // людина його не отримує, хоч би звідки воно прийшло (lean: management 3,
+  // але workplace 2 — для 9/10 це не слово).
   const priority = [...weights.keys()].sort((a, b) => weights.get(b) - weights.get(a) || byKey(a, b));
-  const claimed = new Set();
+  const owner = new Map();
+  const easiest = new Map();
+  for (const key of priority) {
+    const topic = lex.topics.get(key);
+    if (!topic) continue;
+    for (const w of topic.words) {
+      if (!owner.has(w.norm)) owner.set(w.norm, key);
+      easiest.set(w.norm, Math.min(easiest.get(w.norm) ?? w.level, w.level));
+    }
+  }
+  const floor = bands ? Math.min(...bands) : 1;
+  const tooEasy = (w) => easiest.get(w.norm) < floor;
   let sources = [];
   for (const key of priority) {
     const topic = lex.topics.get(key);
     if (!topic) continue;
     const list = ordered(topic, seed, bands).filter(
-      (w) => !(hideIntl && lex.intl.has(w.norm)) && !known.has(w.norm) && !claimed.has(w.norm)
+      (w) => owner.get(w.norm) === key && !tooEasy(w) && !(hideIntl && lex.intl.has(w.norm)) && !known.has(w.norm)
     );
-    for (const w of list) claimed.add(w.norm);
     // Тема, де після фільтрів нічого не лишилось, випадає з циклу.
     if (list.length) sources.push({ key, weight: weights.get(key), list });
   }
@@ -150,7 +167,7 @@ function buildPlan({ seed, profile, known = new Set(), lex = LEXICON }) {
     // Усе позначене «Знаю» (чи списків немає): загальні слова знову, але
     // рівень і далі тримаємо — повтор кращий за слова, нижчі за рівень.
     const general = lex.topics.get('general');
-    const list = general ? ordered(general, seed, bands) : [];
+    const list = general ? ordered(general, seed, bands).filter((w) => !tooEasy(w)) : [];
     sources = list.length
       ? [{ key: 'general', weight: 1, list }]
       : // Останній запасний варіант — список v1: слово дня є завжди.

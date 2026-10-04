@@ -140,6 +140,29 @@ function scenesUsed(user) {
   return Number.isInteger(n) && n > 0 ? n : 0;
 }
 
+// Лічильники телефона, що переходить в інший запис (вхід в існуючий акаунт,
+// вихід у нову анонімну ідентичність), йдуть разом із ним. Інакше «вийти й
+// увійти знову» щоразу давало б новий денний скан і нову пробу сцени.
+// Сцен — більше з двох; сканів — більше з двох того самого дня, а з різних
+// днів — пізнішого: день лічильника не йде назад (див. counterDay).
+// → поля, які треба дописати в into, або null, якщо в into уже не менше.
+function mergeCounters(into, from) {
+  const fields = {};
+  const scenes = scenesUsed(from);
+  if (scenes > scenesUsed(into)) fields.scenes = scenes;
+  const mine = cleanUsage(into && into.usage);
+  const theirs = cleanUsage(from && from.usage);
+  if (theirs && (!mine || theirs.day > mine.day || (theirs.day === mine.day && theirs.scans > mine.scans))) {
+    fields.usage = theirs;
+  }
+  return Object.keys(fields).length ? fields : null;
+}
+
+function cleanUsage(u) {
+  if (!u || typeof u.day !== 'string' || !DAY_RE.test(u.day)) return null;
+  return Number.isInteger(u.scans) && u.scans >= 0 ? { day: u.day, scans: u.scans } : null;
+}
+
 // null у лімітах — «без меж» (Pro).
 function usageView(user, day, pro) {
   return {
@@ -299,6 +322,7 @@ module.exports = {
   localDay,
   proStatus,
   usageView,
+  mergeCounters,
   reserveScan,
   webhookAuthorized,
   handleWebhook,

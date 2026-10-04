@@ -1053,7 +1053,7 @@ export default function App() {
     account.forget();
     const session = await leaveAccount();
     setDeviceId(session ? session.userId : null);
-    // у нової ідентичності свій денний лічильник сканів
+    // лічильники сканів сервер переніс у нову ідентичність — /me їх покаже
     if (session) refreshMe();
   }
 

@@ -86,9 +86,9 @@ export async function ensureSession() {
 // Нова ідентичність від сервера. Старі токен і id переписуємо лише ПІСЛЯ
 // того, як сервер видав нові: збій мережі посередині не має лишати пристрій
 // зовсім без ідентичності.
-async function createIdentity() {
+async function createIdentity(previous) {
   try {
-    const d = await apiCreateDevice();
+    const d = await apiCreateDevice(previous);
     await writeToken(d.token);
     await AsyncStorage.setItem(USER_KEY, d.user.id).catch(() => {});
     setSessionToken(d.token);
@@ -135,9 +135,13 @@ export async function adoptSession(token, userId) {
 // нову анонімну ідентичність. Старий токен прибираємо ДО запиту: інакше
 // збій мережі лишив би телефон в акаунті, з якого людина щойно вийшла, —
 // наступний старт тихо повернув би її туди.
-export async function startOver() {
+// carry — вихід, а не стирання: старий токен іде в запит, і сервер переносить
+// його лічильники сканів і проби сцени в нову ідентичність. Інакше «вийти й
+// увійти знову» щоразу давало б новий безкоштовний скан і нову пробу сцени.
+export async function startOver({ carry = false } = {}) {
+  const previous = carry ? await readToken() : '';
   await writeToken('');
   await AsyncStorage.removeItem(USER_KEY).catch(() => {});
   setSessionToken('');
-  return createIdentity();
+  return createIdentity(previous);
 }

@@ -1,7 +1,7 @@
 // Синхронізація словника між телефонами одного Apple ID.
 //
 // Увесь словник акаунта — ОДИН документ dicts/<userId>:
-//   { rev, data: base64(gzip(JSON)), updatedAt }
+//   { rev, prunedRev, data: base64(gzip(JSON)), updatedAt }
 //   JSON = { words: { [id]: WordEntry & { rev } }, activity, stats, seen }
 // Один документ, а не документ на слово: синхронізація коштує одне читання
 // й один запис за будь-якого розміру словника, а gzip стискає типовий
@@ -12,7 +12,11 @@
 // (since) і отримує лише слова, змінені після нього. Конфлікти — «пізніша
 // зміна перемагає» за updatedAt кожного слова. Видалення — надгробки
 // { id, deleted: true, updatedAt }: без них слово, стерте на одному
-// телефоні, повернулося б з іншого.
+// телефоні, повернулося б з іншого. Надгробки живуть 60 днів; prunedRev —
+// найбільший rev серед уже прибраних. Телефон, чий since менший за нього,
+// міг пропустити видалення, яких сервер уже не пам'ятає: він отримує все з
+// reset і stale і має звірити словник, а не надіслати своє назад (інакше
+// стерте слово воскресло б на всіх телефонах).
 //
 // Усе, що приходить від клієнта, — недовірене: беремо лише відомі поля,
 // обрізаємо рядки, відкидаємо записи з поганим id.
@@ -119,11 +123,12 @@ function cleanEntry(raw, now) {
 // ---------- документ ----------
 // Map, а не звичайний об'єкт: id «__proto__» тоді лишається просто id.
 async function decode(doc) {
-  if (!doc) return { rev: 0, words: new Map(), activity: new Map(), stats: new Map(), seen: [] };
+  if (!doc) return { rev: 0, prunedRev: 0, words: new Map(), activity: new Map(), stats: new Map(), seen: [] };
   const raw = await gunzip(Buffer.from(String(doc.data || ''), 'base64'), { maxOutputLength: MAX_JSON_BYTES });
   const json = JSON.parse(raw.toString('utf8'));
   return {
     rev: Number(doc.rev) || 0,
+    prunedRev: Number(doc.prunedRev) || 0,
     words: new Map(Object.entries(json.words || {})),
     activity: new Map(Object.entries(json.activity || {})),
     stats: new Map(Object.entries(json.stats || {})),
@@ -197,7 +202,11 @@ function liveCount(words) {
 
 function prune(state, now) {
   for (const [id, w] of state.words) {
-    if (w.deleted && (w.at || w.updatedAt) < now - TOMBSTONE_TTL_MS) state.words.delete(id);
+    if (w.deleted && (w.at || w.updatedAt) < now - TOMBSTONE_TTL_MS) {
+      state.words.delete(id);
+      // Хто бачив словник раніше за цей rev, міг не отримати видалення.
+      state.prunedRev = Math.max(state.prunedRev, Number(w.rev) || 0);
+    }
   }
   // Найстаріші дні йдуть першими: ключі YYYY-MM-DD сортуються як рядки.
   if (state.activity.size > MAX_ACTIVITY_DAYS) {
@@ -227,7 +236,7 @@ async function sync(userId, body, now = Date.now()) {
     const state = await decode(doc);
     // since більший за rev — сервер втратив дані (або це чужий rev):
     // клієнт має отримати все й надіслати своє заново.
-    const reset = since === 0 || since > state.rev;
+    let reset = since === 0 || since > state.rev;
     const rev = state.rev + 1;
     const liveBefore = liveCount(state.words);
     const words = mergeWords(state.words, incoming, rev, now);
@@ -243,7 +252,7 @@ async function sync(userId, body, now = Date.now()) {
       prune(state, now);
       const data = await encode(state);
       if (data.length > MAX_DATA_CHARS) return { status: 413, body: { error: 'DICT_FULL', max: MAX_LIVE_WORDS } };
-      const fields = { rev, data, updatedAt: now };
+      const fields = { rev, prunedRev: state.prunedRev, data, updatedAt: now };
       const r = doc
         ? await store.update(DICTS, userId, fields, { version: doc.__version })
         : await store.create(DICTS, userId, fields);
@@ -257,6 +266,12 @@ async function sync(userId, body, now = Date.now()) {
       state.rev = rev;
     }
 
+    // since старіший за прибрані надгробки (рахуємо вже після prune цього
+    // запису): частковою відповіддю видалення не передати — віддаємо все,
+    // а stale каже клієнтові звірити словник, а не відсилати його назад.
+    const stale = !reset && since < state.prunedRev;
+    if (stale) reset = true;
+
     return {
       status: 200,
       body: {
@@ -266,6 +281,7 @@ async function sync(userId, body, now = Date.now()) {
         stats: Object.fromEntries(state.stats),
         seen: state.seen,
         reset,
+        stale,
       },
     };
   }

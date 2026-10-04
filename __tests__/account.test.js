@@ -168,6 +168,10 @@ test('signing out clears the personal data, keeps settings and gets a fresh anon
   server({ 'POST /auth/device': [200, { token: 'anon-token', user: { id: 'anon2', createdAt: 2 } }] });
 
   expect(await signOut()).toEqual({ token: 'anon-token', userId: 'anon2' });
+  // старий токен — у тілі, щоб сервер переніс лічильники сканів і проби
+  // сцени; сам запит уже без нього в заголовку
+  expect(bodyOf('POST /auth/device')).toEqual({ previous: 'acc-token' });
+  expect(callTo('POST /auth/device')[1].headers.authorization).toBeUndefined();
   for (const k of Object.keys(wipe)) expect(await AsyncStorage.getItem(k)).toBeNull();
   for (const [k, v] of Object.entries(keep)) expect(await AsyncStorage.getItem(k)).toBe(v);
   expect(keychain.get('ll_token')).toBe('anon-token');

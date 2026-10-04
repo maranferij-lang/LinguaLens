@@ -111,4 +111,7 @@ test('erasing a device the server already forgot still starts fresh', async () =
   server({ 'DELETE /me': [401, { error: 'UNAUTHORIZED' }], 'POST /auth/device': NEW_DEVICE });
   expect(await eraseServerData()).toEqual({ token: 'new', userId: 'u2' });
   expect(keychain.get('ll_token')).toBe('new');
+  // стирання — не вихід: старого токена сервер не отримує, лічильники з нуля
+  const [, init] = global.fetch.mock.calls.find(([url]) => new URL(url).pathname === '/auth/device');
+  expect(JSON.parse(init.body)).toEqual({});
 });
