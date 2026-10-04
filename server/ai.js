@@ -57,6 +57,74 @@ const ARTICLE_EXAMPLES = {
 // Версія підказки входить у ключ кешу перекладів: змінили правила (артиклі,
 // регістр) — старі записи більше не підтягуються.
 const PROMPT_VERSION = 2;
+// Тематичні слова (персональне слово дня) перекладаються іншою підказкою —
+// з темою й значенням — і кешуються окремо від загальних: «ledger» з фінансів
+// і «ledger» без контексту — різні переклади.
+const TOPIC_PROMPT_VERSION = 3;
+
+// Назви тем для підказки моделі (ключі — як у server/topics). general тут
+// немає: загальні слова перекладаються без теми, як і до персоналізації.
+const TOPIC_NAMES = {
+  workplace: 'office and workplace communication',
+  academic: 'academic study and university life',
+  travel: 'travel',
+  relocation: 'moving abroad and settling in a new country',
+  it: 'IT and software development',
+  marketing: 'marketing',
+  finance: 'finance and accounting',
+  sales: 'sales',
+  management: 'management',
+  design: 'design',
+  medicine: 'medicine and healthcare',
+  law: 'law',
+  engineering: 'engineering',
+  education: 'teaching and education',
+  hospitality: 'hospitality and tourism',
+};
+
+// Рівень зі слайдера онбордингу (1–10) змінює приклад: до 3 — коротке просте
+// речення (новачок спотикається на «he knocked on the door and nobody
+// answered»), від 7 — живе речення і ще 2–3 вирази зі словом (саме слово
+// «mug» просунутому нічого не дає). Без рівня — рівно як до персоналізації:
+// старі версії застосунку його не надсилають.
+const SIMPLE_UP_TO_LEVEL = 3;
+const EXTRAS_FROM_LEVEL = 7;
+const MAX_EXTRAS = 3;
+
+function levelOf(level) {
+  return Number.isInteger(level) && level >= 1 && level <= 10 ? level : null;
+}
+
+function wantsExtras(level) {
+  const lv = levelOf(level);
+  return lv !== null && lv >= EXTRAS_FROM_LEVEL;
+}
+
+function exampleSpec(L, level) {
+  const lv = levelOf(level);
+  if (lv !== null && lv <= SIMPLE_UP_TO_LEVEL) {
+    return `one very short, simple ${L} sentence using the word: at most 8 words, present tense`;
+  }
+  if (lv !== null && lv >= EXTRAS_FROM_LEVEL) {
+    return `one natural, richer ${L} sentence using the word, the way a fluent speaker would say it`;
+  }
+  return `one short natural ${L} sentence using the word`;
+}
+
+// Рядки правил під рівень (порожньо без рівня і для 4–6).
+function levelRules(L, N, level, extras) {
+  const lv = levelOf(level);
+  if (lv !== null && lv <= SIMPLE_UP_TO_LEVEL) {
+    return '\nThe learner is a beginner: the example must be very short and simple — at most 8 words, present tense, everyday vocabulary.';
+  }
+  if (lv === null || lv < EXTRAS_FROM_LEVEL) return '';
+  return (
+    '\nThe learner is advanced: make the example natural and idiomatic, not a textbook sentence.' +
+    (extras
+      ? `\n"extras" are 2-3 useful ${L} collocations, idioms or phrasal verbs with this word that fluent speakers really use, each at most 5 words, with "translation" into ${N}. Never the word on its own.`
+      : '')
+  );
+}
 
 function langName(code, fallback) {
   return LANG_NAMES[code] || fallback;
@@ -70,15 +138,17 @@ function wordRules(lang) {
   return `Write "word" in dictionary form: lowercase unless ${L} spelling requires a capital letter (German nouns are always capitalised).${article}`;
 }
 
-function buildScanPrompt(lang, nativeLang) {
+function buildScanPrompt(lang, nativeLang, level = null) {
   const L = langName(lang, 'English');
   const N = langName(nativeLang, 'Ukrainian');
+  const extras = wantsExtras(level);
+  const extrasJson = extras ? `"extras":[{"phrase":"<${L} phrase with the word>","translation":"<its translation into ${N}>"}],` : '';
   return `You are the recognition engine inside a language-learning app.
 The user is learning ${L}; their native language is ${N}.
 Identify the single most prominent object in the photo.
 Reply with ONLY minified JSON, no markdown, no extra text:
-{"word":"<specific common ${L} name of the object, 1-3 words>","ipa":"<IPA transcription of that ${L} word>","translation":"<translation of the word into ${N}>","example":"<one short natural ${L} sentence using the word>","example_translation":"<translation of that sentence into ${N}>","box":[<ymin>,<xmin>,<ymax>,<xmax>],"outline":[[<y>,<x>],...]}
-${wordRules(lang)}
+{"word":"<specific common ${L} name of the object, 1-3 words>","ipa":"<IPA transcription of that ${L} word>","translation":"<translation of the word into ${N}>","example":"<${exampleSpec(L, level)}>","example_translation":"<translation of that sentence into ${N}>",${extrasJson}"box":[<ymin>,<xmin>,<ymax>,<xmax>],"outline":[[<y>,<x>],...]}
+${wordRules(lang)}${levelRules(L, N, level, extras)}
 Prefer specific but commonly used words (e.g. "mug", not "container").
 "box" is the tight bounding box of that object, four integers 0-1000,
 normalised to the image (y first, like Gemini spatial output). The app crops
@@ -99,15 +169,17 @@ If no clear object is visible, return {"word":"unknown"}.`;
 // вирішує, що варте картки, а людина бачить результат як готову підбірку.
 const MAX_SCENE_OBJECTS = 8;
 
-function buildScenePrompt(lang, nativeLang) {
+// Рівень змінює лише приклади: вирази (extras) для восьми предметів
+// роздули б відповідь і час очікування, тож вони тільки в одиночному скані.
+function buildScenePrompt(lang, nativeLang, level = null) {
   const L = langName(lang, 'English');
   const N = langName(nativeLang, 'Ukrainian');
   return `You are the recognition engine inside a language-learning app.
 The user is learning ${L}; their native language is ${N}.
 The photo shows a whole scene (a room, a desk, a shelf, a street). Find up to ${MAX_SCENE_OBJECTS} distinct, clearly visible physical objects that a learner can name.
 Reply with ONLY minified JSON, no markdown, no extra text:
-{"objects":[{"word":"<specific common ${L} name of the object, 1-3 words>","ipa":"<IPA transcription of that ${L} word>","translation":"<translation of the word into ${N}>","example":"<one short natural ${L} sentence using the word>","example_translation":"<translation of that sentence into ${N}>","box":[<ymin>,<xmin>,<ymax>,<xmax>],"outline":[[<y>,<x>],...]}]}
-${wordRules(lang)}
+{"objects":[{"word":"<specific common ${L} name of the object, 1-3 words>","ipa":"<IPA transcription of that ${L} word>","translation":"<translation of the word into ${N}>","example":"<${exampleSpec(L, level)}>","example_translation":"<translation of that sentence into ${N}>","box":[<ymin>,<xmin>,<ymax>,<xmax>],"outline":[[<y>,<x>],...]}]}
+${wordRules(lang)}${levelRules(L, N, level, false)}
 Which objects to include:
 - Everyday vocabulary that is useful to a learner. Prefer specific but commonly used words (e.g. "mug", not "container").
 - Variety: one entry per kind of object. Three books are one "book" — describe the most visible one.
@@ -120,18 +192,62 @@ Which objects to include:
 If no suitable object is visible, return {"objects":[]}.`;
 }
 
-function buildTranslatePrompt(enWord, lang, nativeLang) {
+// Тема, яку знає підказка, або 'general' (невідома тема — як загальне слово).
+function topicOf(topic) {
+  return typeof topic === 'string' && Object.hasOwn(TOPIC_NAMES, topic) ? topic : 'general';
+}
+
+// Значення слова з тематичного списку (наші дані, ≤ 70 символів) — щоб
+// «ledger» став «головною книгою», а не «полицею». Крапку в кінці ставить
+// buildTranslatePrompt.
+function hintText(hint) {
+  return typeof hint === 'string' ? hint.trim().replace(/[.\s]+$/, '').slice(0, 200) : '';
+}
+
+// Загальне слово — та сама підказка, що й до персоналізації (і той самий
+// кеш), лише зі значенням, якщо список його дає. Тематичне — з темою,
+// значенням і прикладом із живої ситуації цієї теми.
+function buildTranslatePrompt(enWord, lang, nativeLang, { topic, hint } = {}) {
   const L = langName(lang, 'English');
   const N = langName(nativeLang, 'Ukrainian');
+  const t = topicOf(topic);
+  const meaning = hintText(hint);
+  if (t === 'general') {
+    return (
+      `Translate the English concept "${enWord}" for a language learner.\n` +
+      (meaning ? `Meaning: ${meaning}.\n` : '') +
+      `Target language: ${L}. Learner's native language: ${N}.\n` +
+      `${wordRules(lang)}\n` +
+      `Reply with ONLY minified JSON, no markdown:\n` +
+      `{"word":"<the word in ${L}>","ipa":"<IPA of that ${L} word>",` +
+      `"translation":"<the word in ${N}>","example":"<one short natural ${L} sentence using it>",` +
+      `"example_translation":"<that sentence in ${N}>"}`
+    );
+  }
+  const name = TOPIC_NAMES[t];
   return (
-    `Translate the English concept "${enWord}" for a language learner.\n` +
+    `Translate "${enWord}", an English term from ${name}, for a language learner.\n` +
+    (meaning ? `Meaning in this context: ${meaning}.\n` : '') +
     `Target language: ${L}. Learner's native language: ${N}.\n` +
+    `Give the equivalents that people really use in ${name} in both languages, not word-for-word calques.\n` +
     `${wordRules(lang)}\n` +
     `Reply with ONLY minified JSON, no markdown:\n` +
-    `{"word":"<the word in ${L}>","ipa":"<IPA of that ${L} word>",` +
-    `"translation":"<the word in ${N}>","example":"<one short natural ${L} sentence using it>",` +
+    `{"word":"<the term in ${L}>","ipa":"<IPA of that ${L} term>",` +
+    `"translation":"<the term in ${N}>","example":"<one natural ${L} sentence using it in a realistic situation from ${name}>",` +
     `"example_translation":"<that sentence in ${N}>"}`
   );
+}
+
+// Ключ кешу перекладу. Загальні слова — формат до персоналізації, тож уже
+// перекладені слова не перекладаються вдруге; тематичні — свій простір.
+// Firestore не приймає «/» в id, тому все, крім букв, цифр, «|» і «-», — «_».
+function wordCacheKey(enWord, lang, nativeLang, topic) {
+  const t = topicOf(topic);
+  const raw =
+    t === 'general'
+      ? `v${PROMPT_VERSION}|${enWord}|${lang}|${nativeLang}`
+      : `v${TOPIC_PROMPT_VERSION}|${t}|${enWord}|${lang}|${nativeLang}`;
+  return raw.replace(/[^\w|-]/g, '_');
 }
 
 function parseModelJson(text) {
@@ -166,6 +282,8 @@ const TEXT_BUDGET_MS = 40000;
 // токенів, вісім — до ~3200. Зі стелею одиночного скану сцена обривалась
 // би на півслові й не розбиралась як JSON.
 const SCAN_MAX_TOKENS = 600;
+// Вирази для просунутих і довший приклад — ще ~150 токенів.
+const SCAN_EXTRAS_MAX_TOKENS = 800;
 const SCENE_MAX_TOKENS = 3500;
 
 // fetch у межах дедлайну і з одним повтором при 503 (перевантаження AI),
@@ -249,10 +367,37 @@ const MOCK_OUTLINE = [
   [708, 500], [705, 400], [690, 370], [640, 355], [520, 352], [400, 352],
 ];
 
-function mockScan(lang, nativeLang) {
+// Вирази для просунутих (рівень 7+). Переклад — українською, для решти
+// рідних мов англійською, як у MOCK_NATIVE.
+const MOCK_EXTRAS = {
+  en: [
+    { phrase: 'a mug of tea', uk: 'кружка чаю', en: 'a mug full of tea' },
+    { phrase: 'travel mug', uk: 'термокружка', en: 'a lidded mug for drinks on the go' },
+    { phrase: 'refill a mug', uk: 'знову наповнити кружку', en: 'fill a mug again' },
+  ],
+  de: [
+    { phrase: 'eine Tasse Tee', uk: 'чашка чаю', en: 'a cup of tea' },
+    { phrase: 'die Kaffeetasse', uk: 'кавова чашка', en: 'coffee cup' },
+    { phrase: 'nicht alle Tassen im Schrank haben', uk: 'бути не сповна розуму', en: 'to be a bit crazy' },
+  ],
+  es: [
+    { phrase: 'una taza de café', uk: 'чашка кави', en: 'a cup of coffee' },
+    { phrase: 'la taza de té', uk: 'чашка для чаю', en: 'teacup' },
+    { phrase: 'llenar la taza', uk: 'наповнити чашку', en: 'fill the cup' },
+  ],
+};
+
+function mockScan(lang, nativeLang, level) {
   const w = MOCK_SCAN[lang] || MOCK_SCAN.en;
   const n = MOCK_NATIVE[nativeLang] || MOCK_NATIVE.en;
-  return { ...w, ...n, box: [290, 350, 710, 740], outline: MOCK_OUTLINE };
+  const out = { ...w, ...n, box: [290, 350, 710, 740], outline: MOCK_OUTLINE };
+  if (wantsExtras(level)) {
+    out.extras = (MOCK_EXTRAS[lang] || MOCK_EXTRAS.en).map((x) => ({
+      phrase: x.phrase,
+      translation: nativeLang === 'uk' ? x.uk : x.en,
+    }));
+  }
+  return out;
 }
 
 // Сцена без мережі: чотири предмети в кадрі 9:16, від найпомітнішого.
@@ -321,22 +466,23 @@ function mockTranslate(enWord, lang, nativeLang) {
 }
 
 // ---------- ПУБЛІЧНЕ ----------
-async function recognize(base64, lang, nativeLang) {
-  if (PROVIDER === 'mock') return mockScan(lang, nativeLang);
-  const prompt = buildScanPrompt(lang, nativeLang);
+// level — 1–10 зі слайдера або null (як до персоналізації).
+async function recognize(base64, lang, nativeLang, level = null) {
+  if (PROVIDER === 'mock') return mockScan(lang, nativeLang, level);
+  const prompt = buildScanPrompt(lang, nativeLang, level);
   if (PROVIDER === 'anthropic') {
     return callAnthropic([
       { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: base64 } },
       { type: 'text', text: prompt },
-    ], SCAN_BUDGET_MS);
+    ], SCAN_BUDGET_MS, wantsExtras(level) ? SCAN_EXTRAS_MAX_TOKENS : SCAN_MAX_TOKENS);
   }
   return callGemini([{ inline_data: { mime_type: 'image/jpeg', data: base64 } }, { text: prompt }], SCAN_BUDGET_MS);
 }
 
 // Сирий JSON моделі для сцени; розбирає й чистить його cleanScene.
-async function recognizeScene(base64, lang, nativeLang) {
+async function recognizeScene(base64, lang, nativeLang, level = null) {
   if (PROVIDER === 'mock') return mockScene(lang, nativeLang);
-  const prompt = buildScenePrompt(lang, nativeLang);
+  const prompt = buildScenePrompt(lang, nativeLang, level);
   if (PROVIDER === 'anthropic') {
     return callAnthropic([
       { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: base64 } },
@@ -351,16 +497,18 @@ async function callText(prompt) {
   return callGemini([{ text: prompt }], TEXT_BUDGET_MS);
 }
 
-// Переклад слова дня з кешем (щоб не витрачати квоту на однакові пари)
-async function translateWord(enWord, lang, nativeLang) {
-  const key = `v${PROMPT_VERSION}|${enWord}|${lang}|${nativeLang}`.replace(/[^\w|-]/g, '_');
+// Переклад слова дня з кешем (щоб не витрачати квоту на однакові пари).
+// topic і hint — з тематичного списку (wordplan.js); без них — загальне
+// слово, як у GET /word-of-day.
+async function translateWord(enWord, lang, nativeLang, { topic, hint } = {}) {
+  const key = wordCacheKey(enWord, lang, nativeLang, topic);
   const cached = await store.get('wordCache', key);
   if (cached && cached.word) return cached;
 
   const parsed =
     PROVIDER === 'mock'
       ? mockTranslate(enWord, lang, nativeLang)
-      : await callText(buildTranslatePrompt(enWord, lang, nativeLang));
+      : await callText(buildTranslatePrompt(enWord, lang, nativeLang, { topic, hint }));
   if (!parsed || !parsed.word) throw new Error('bad translation');
   const out = { ...cleanWord(parsed), source: enWord };
   if (PROVIDER !== 'mock') await store.put('wordCache', key, out);
@@ -381,6 +529,25 @@ function cleanWord(o) {
     example: clean(o.example, 240),
     example_translation: clean(o.example_translation, 240),
   };
+}
+
+// Вирази для просунутих: до трьох пар «вираз — переклад». Відповідь моделі
+// недовірена: лише рядки, обрізані під картку, без повторів і без самого
+// слова (воно й так на картці). Не масив чи порожньо — виразів немає.
+function cleanExtras(raw, word) {
+  if (!Array.isArray(raw)) return [];
+  const seen = new Set([String(word == null ? '' : word).trim().toLowerCase()]);
+  const out = [];
+  for (const x of raw.slice(0, MAX_EXTRAS * 4)) {
+    if (!x || typeof x !== 'object' || typeof x.phrase !== 'string' || typeof x.translation !== 'string') continue;
+    const phrase = clean(x.phrase, 60);
+    const translation = clean(x.translation, 80);
+    if (!phrase || !translation || seen.has(phrase.toLowerCase())) continue;
+    seen.add(phrase.toLowerCase());
+    out.push({ phrase, translation });
+    if (out.length === MAX_EXTRAS) break;
+  }
+  return out;
 }
 
 function coord(v) {
@@ -443,15 +610,23 @@ function cleanScene(parsed) {
 module.exports = {
   PROVIDER,
   LANG_NAMES,
+  TOPIC_NAMES,
   MAX_SCENE_OBJECTS,
+  MAX_EXTRAS,
+  EXTRAS_FROM_LEVEL,
   recognize,
   recognizeScene,
   translateWord,
+  wantsExtras,
   clean,
   cleanWord,
+  cleanExtras,
   cleanBox,
   cleanOutline,
   cleanScene,
   parseModelJson,
+  buildScanPrompt,
   buildScenePrompt,
+  buildTranslatePrompt,
+  wordCacheKey,
 };
