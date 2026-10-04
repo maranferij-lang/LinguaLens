@@ -629,7 +629,11 @@ export default function ScannerScreen({
   const hintText = loading ? (sceneMode ? sceneStatus[statusIdx] : t('scanning')) : idleHint;
   const shutterState = loading ? 'busy' : usedUp ? 'pro' : sceneMode ? 'room' : 'lens';
   // Підказка: під кадром предмета; у високому кадрі сцени — усередині, згори
-  const hintMax = L.hintInside ? Math.min(300, L.frame.w - 24) : 300;
+  // Усередині вузького кадру сцени (SE) довга підказка (de) займає більше
+  // рядків — краще так, ніж обрізати її трикрапкою; на iOS текст ще й трохи
+  // зменшується, щоб уміститись.
+  const hintMax = L.hintInside ? Math.min(300, L.frame.w - 20) : 300;
+  const hintLines = L.hintInside ? 5 : 3;
   const cx = win.width / 2;
 
   return (
@@ -688,7 +692,14 @@ export default function ScannerScreen({
           </FadeIn>
         ) : (
           <CamGlass radius={20} style={[s.hintPill, { maxWidth: hintMax }]} pointerEvents="none">
-            <Text style={s.hint} maxFontSizeMultiplier={CAM_FONT} numberOfLines={3} accessibilityLiveRegion="polite">
+            <Text
+              style={s.hint}
+              maxFontSizeMultiplier={CAM_FONT}
+              numberOfLines={hintLines}
+              adjustsFontSizeToFit
+              minimumFontScale={0.85}
+              accessibilityLiveRegion="polite"
+            >
               {hintText}
             </Text>
           </CamGlass>

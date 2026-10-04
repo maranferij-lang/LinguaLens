@@ -226,6 +226,20 @@ test('modes: a pill of two tabs; a locked scene opens the paywall and the mode s
   await act(async () => tree.unmount());
 });
 
+test('a long scene hint inside the narrow frame of an SE is never cut off with an ellipsis', async () => {
+  const de = makeT('de');
+  const hint = (tree, text) => tree.root.findAll((n) => n.type === 'Text' && n.props.children === text)[0];
+  let tree = await render({ scanMode: 'scene', t: de });
+  const scene = hint(tree, de('sceneHint'));
+  expect(scene.props.numberOfLines).toBeGreaterThanOrEqual(5);
+  expect(scene.props.adjustsFontSizeToFit).toBe(true);
+  await act(async () => tree.unmount());
+  // під кадром предмета — як і було, до трьох рядків
+  tree = await render({ scanMode: 'object', t: de });
+  expect(hint(tree, de('hint')).props.numberOfLines).toBe(3);
+  await act(async () => tree.unmount());
+});
+
 // 5 ───────────────────────────────────────────────────────────────────────
 describe('shutter', () => {
   test('VoiceOver labels for lens, room, busy and the Pro crown', async () => {
