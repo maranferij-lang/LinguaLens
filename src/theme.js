@@ -9,7 +9,14 @@
 //   • бурштин — тільки серія днів
 //   • червоний — тільки помилка й видалення
 // Тіні теплі, а не сірі: сіра тінь на теплому тлі виглядає брудно.
+//
+// v1.3: «Крейда» лишається фірмовою й безкоштовною, а Pro отримує ще чотири
+// палітри (Океан, Ягода, Графіт, Какао) — кожну у світлому й темному
+// вигляді. Правило те саме: насичений лише акцент; зелений, бурштин і
+// червоний однакові в усіх палітрах, тож акценти обрано так, щоб із ними не
+// плутатись (синій, маджента, графіт, какао — бірюзу й корал відкинуто).
 import { createContext, useContext } from 'react';
+import { PALETTES_ENABLED } from './flags';
 
 // Радіуси з макета: картка 28, рядок 22, поле 16, чип-пігулка 999.
 export const R = { xl: 28, lg: 22, md: 16, sm: 12, pill: 999 };
@@ -65,45 +72,11 @@ function tint(hex, a) {
   return `rgba(${r},${g},${b},${a})`;
 }
 
-// ===== ДВІ ТЕМИ =====
-// Замість галереї з восьми напівпродуманих — одна фірмова, доведена до ладу,
-// у світлому й темному варіанті. Значення один-в-один із токенами Figma.
-export const THEME_DEFS = [
-  {
-    key: 'light',
-    name: 'Світла',
-    dark: false,
-    bg: '#FAF8F4',
-    card: '#FFFFFF',
-    accent: '#5B4FD6',
-    swatch: '#FAF8F4',
-  },
-  {
-    key: 'dark',
-    name: 'Темна',
-    dark: true,
-    bg: '#151412',
-    card: '#201F1C',
-    accent: '#9B8FFF',
-    swatch: '#151412',
-  },
-];
-
-const PALETTE = {
+// ===== ПАЛІТРИ =====
+// Зелений (успіх), бурштин (серія) і червоний (помилка) — спільні для всіх
+// палітр: людина вчиться читати їх раз і назавжди.
+const SHARED = {
   light: {
-    bg: '#FAF8F4',
-    card: '#FFFFFF',
-    card2: '#F1EEE8',
-    card3: '#E9E5DC',
-    text: '#1C1B19',
-    dim: '#6E6A62',
-    // faint — лише декор (шеврони, доріжки, вимкнене): ≥3:1 і на тлі, і на
-    // картці. Текст, який щось означає, — dim (≥4.5:1).
-    faint: '#8A857C',
-    sep: '#E8E4DC',
-    accent: '#5B4FD6',
-    accentSoft: '#E4E1FB',
-    onAccent: '#FFFFFF',
     green: '#0E8C82',
     greenSoft: '#E0F5F2',
     red: '#D2483F',
@@ -112,17 +85,6 @@ const PALETTE = {
     warmSoft: '#FBF1DF',
   },
   dark: {
-    bg: '#151412',
-    card: '#201F1C',
-    card2: '#2A2825',
-    card3: '#35322E',
-    text: '#F5F2EC',
-    dim: '#A9A49B',
-    faint: '#8A857D',
-    sep: '#302D29',
-    accent: '#9B8FFF',
-    accentSoft: '#221E45',
-    onAccent: '#100C2E',
     green: '#3ED8CB',
     greenSoft: '#123330',
     red: '#FF7A6E',
@@ -132,9 +94,196 @@ const PALETTE = {
   },
 };
 
-function buildTheme(def) {
-  const dark = def.dark;
-  const p = PALETTE[def.key];
+// Кожна палітра — світла й темна версії однакового набору токенів (core.md
+// E.7). Контраст перевіряє __tests__/themes.test.js: text, dim і accent на
+// тлі й картці, accent на accentSoft, onAccent на акценті — усе ≥ 4.5:1;
+// faint — лише декор (шеврони, доріжки, вимкнене), ≥ 3:1 і на тлі, і на
+// картці. Текст, який щось означає, — dim.
+// shadow — колір тіні у світлому вигляді: теплий для теплих палітр,
+// холодний для Океану, нейтральний для Графіту (у темному — завжди чорний).
+// pro — палітра лише з Pro; «Крейда» безкоштовна.
+export const PALETTES = [
+  {
+    key: 'chalk',
+    pro: false,
+    shadow: '#5C4F3D',
+    light: {
+      bg: '#FAF8F4',
+      card: '#FFFFFF',
+      card2: '#F1EEE8',
+      card3: '#E9E5DC',
+      text: '#1C1B19',
+      dim: '#6E6A62',
+      faint: '#8A857C',
+      sep: '#E8E4DC',
+      accent: '#5B4FD6',
+      accentSoft: '#E4E1FB',
+      onAccent: '#FFFFFF',
+    },
+    dark: {
+      bg: '#151412',
+      card: '#201F1C',
+      card2: '#2A2825',
+      card3: '#35322E',
+      text: '#F5F2EC',
+      dim: '#A9A49B',
+      faint: '#8A857D',
+      sep: '#302D29',
+      accent: '#9B8FFF',
+      accentSoft: '#221E45',
+      onAccent: '#100C2E',
+    },
+  },
+  {
+    key: 'ocean',
+    pro: true,
+    shadow: '#34465C',
+    light: {
+      bg: '#F5F8FC',
+      card: '#FFFFFF',
+      card2: '#EBF0F7',
+      card3: '#DFE6F0',
+      text: '#14202E',
+      dim: '#5B6878',
+      faint: '#808D9D',
+      sep: '#E1E7EF',
+      accent: '#1F5BD1',
+      accentSoft: '#E1EAFB',
+      onAccent: '#FFFFFF',
+    },
+    dark: {
+      bg: '#0E141C',
+      card: '#18212C',
+      card2: '#212C39',
+      card3: '#2B3746',
+      text: '#EEF3F9',
+      dim: '#9AA8B8',
+      faint: '#7D8B9B',
+      sep: '#243040',
+      accent: '#7AA7FF',
+      accentSoft: '#16294A',
+      onAccent: '#08162E',
+    },
+  },
+  {
+    key: 'berry',
+    pro: true,
+    shadow: '#5C4F3D',
+    light: {
+      bg: '#FCF7F9',
+      card: '#FFFFFF',
+      card2: '#F5ECF0',
+      card3: '#ECDFE6',
+      text: '#24171D',
+      dim: '#735F68',
+      faint: '#9A8790',
+      sep: '#F0E3E9',
+      accent: '#B02E7C',
+      accentSoft: '#F8DCEC',
+      onAccent: '#FFFFFF',
+    },
+    dark: {
+      bg: '#161013',
+      card: '#21181C',
+      card2: '#2C2126',
+      card3: '#382A31',
+      text: '#F7EEF2',
+      dim: '#B5A2AB',
+      faint: '#937F88',
+      sep: '#32252B',
+      accent: '#F07CC0',
+      accentSoft: '#3D1730',
+      onAccent: '#2A0619',
+    },
+  },
+  {
+    key: 'graphite',
+    pro: true,
+    shadow: '#2A2A2A',
+    light: {
+      bg: '#F4F4F2',
+      card: '#FFFFFF',
+      card2: '#EAEAE6',
+      card3: '#DEDED9',
+      text: '#151514',
+      dim: '#62625E',
+      faint: '#8C8C87',
+      sep: '#E4E4E0',
+      accent: '#24262B',
+      accentSoft: '#E2E3E6',
+      onAccent: '#FFFFFF',
+    },
+    dark: {
+      bg: '#0F0F10',
+      card: '#1B1B1D',
+      card2: '#252528',
+      card3: '#303033',
+      text: '#F2F2F0',
+      dim: '#A3A3A0',
+      faint: '#82827F',
+      sep: '#2A2A2D',
+      accent: '#ECECE8',
+      accentSoft: '#2E2E31',
+      onAccent: '#121214',
+    },
+  },
+  {
+    key: 'cocoa',
+    pro: true,
+    shadow: '#5C4F3D',
+    light: {
+      bg: '#F7F1EA',
+      card: '#FFFCF8',
+      card2: '#EFE6DB',
+      card3: '#E5D9CB',
+      text: '#21180F',
+      dim: '#6F6253',
+      faint: '#958777',
+      sep: '#EADFD2',
+      accent: '#8A4F2A',
+      accentSoft: '#F0DFD0',
+      onAccent: '#FFFFFF',
+    },
+    dark: {
+      bg: '#17120E',
+      card: '#221B15',
+      card2: '#2D241C',
+      card3: '#392E24',
+      text: '#F6EEE6',
+      dim: '#B3A493',
+      faint: '#928372',
+      sep: '#30261D',
+      accent: '#D4A78C',
+      accentSoft: '#3A2717',
+      onAccent: '#24130A',
+    },
+  },
+];
+
+export const PALETTE_KEYS = PALETTES.map((p) => p.key);
+// Палітри з короною — лише з Pro (рядок «Кольорові теми — / 4» у пейволі)
+export const PRO_PALETTES = PALETTES.filter((p) => p.pro).map((p) => p.key);
+export const FREE_PALETTE = 'chalk';
+
+// Ключ теми: «Крейда» — це 'light' / 'dark', як і до v1.3 (так їх уже
+// знають збережені налаштування, тести й віджети), палітри Pro —
+// '<палітра>-light' / '<палітра>-dark'.
+export function themeKeyOf(palette, dark) {
+  const mode = dark ? 'dark' : 'light';
+  return palette === FREE_PALETTE || !PALETTE_KEYS.includes(palette) ? mode : `${palette}-${mode}`;
+}
+
+// Плитки режиму в Параметрах (Авто — окремо, це не тема, а правило).
+export const THEME_DEFS = [
+  { key: 'light', name: 'Світла', dark: false, ...pick(PALETTES[0].light), swatch: PALETTES[0].light.bg },
+  { key: 'dark', name: 'Темна', dark: true, ...pick(PALETTES[0].dark), swatch: PALETTES[0].dark.bg },
+];
+function pick(p) {
+  return { bg: p.bg, card: p.card, accent: p.accent };
+}
+
+function buildTheme(palette, dark) {
+  const p = { ...palette[dark ? 'dark' : 'light'], ...SHARED[dark ? 'dark' : 'light'] };
   const c = {
     ...p,
     sheet: p.card,
@@ -144,10 +293,14 @@ function buildTheme(def) {
     // лишатись читабельним. Прозоріше — і підпис під іконкою «попливе».
     chrome: tint(p.card, dark ? 0.62 : 0.7),
   };
+  // Колір тіні: у світлому вигляді — з палітри (теплий на теплому тлі, сіра
+  // тінь там виглядає брудно), у темному — чорний.
+  const sh = palette.shadow;
 
   return {
-    key: def.key,
-    name: def.name,
+    key: themeKeyOf(palette.key, dark),
+    palette: palette.key,
+    name: palette.key === FREE_PALETTE ? (dark ? 'Темна' : 'Світла') : palette.key,
     isDark: dark,
     C: c,
     R,
@@ -168,29 +321,51 @@ function buildTheme(def) {
       number: { color: p.text, ...type(28, F.extra) },
     },
     // Шкала тіней: більша поверхня має читатись товщою.
-    // Колір теплий (#5C4F3D), не чорний — інакше крейда сіріє.
     SHADOW_SM: dark
       ? { shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 3 }
-      : { shadowColor: '#5C4F3D', shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 2 },
+      : { shadowColor: sh, shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 2 },
     SHADOW: dark
       ? { shadowColor: '#000', shadowOpacity: 0.45, shadowRadius: 20, shadowOffset: { width: 0, height: 9 }, elevation: 6 }
-      : { shadowColor: '#5C4F3D', shadowOpacity: 0.07, shadowRadius: 24, shadowOffset: { width: 0, height: 10 }, elevation: 4 },
+      : { shadowColor: sh, shadowOpacity: 0.07, shadowRadius: 24, shadowOffset: { width: 0, height: 10 }, elevation: 4 },
     SHADOW_LG: dark
       ? { shadowColor: '#000', shadowOpacity: 0.55, shadowRadius: 34, shadowOffset: { width: 0, height: 18 }, elevation: 12 }
-      : { shadowColor: '#5C4F3D', shadowOpacity: 0.1, shadowRadius: 40, shadowOffset: { width: 0, height: 20 }, elevation: 9 },
+      : { shadowColor: sh, shadowOpacity: 0.1, shadowRadius: 40, shadowOffset: { width: 0, height: 20 }, elevation: 9 },
   };
 }
 
-export const THEMES = Object.fromEntries(THEME_DEFS.map((d) => [d.key, buildTheme(d)]));
+// light, dark (це «Крейда») + ocean-light, ocean-dark, berry-…, graphite-…,
+// cocoa-… (план §5.9). Віджети (src/widgets/palette.js) лише читають їх.
+export const THEMES = Object.fromEntries(
+  PALETTES.flatMap((p) => [false, true].map((dark) => buildTheme(p, dark))).map((th) => [th.key, th])
+);
 
-// Міграція зі старих ключів: у користувача могла лишитись одна з восьми
-// попередніх тем — світлі йдуть у light, темні в dark.
+// ===== ЯКУ ТЕМУ ПОКАЗАТИ =====
+// mode — settings.theme: 'system' | 'light' | 'dark'. Міграція зі старих
+// ключів: у користувача могла лишитись одна з восьми тем до v1.1 — темні
+// йдуть у темний вигляд, світлі у світлий (тодішній 'ocean' був темною
+// темою, а не палітрою Океан).
 const LEGACY_DARK = ['charcoal', 'ocean', 'violet', 'neon'];
+const LEGACY_LIGHT = ['snow', 'matcha', 'sand', 'lavender'];
+export function isDarkMode(mode, scheme) {
+  if (mode === 'dark' || LEGACY_DARK.includes(mode)) return true;
+  if (mode === 'light' || LEGACY_LIGHT.includes(mode)) return false;
+  return scheme === 'dark';
+}
+
+// Палітра, яку справді видно: без Pro (чи з вимкненими палітрами) — «Крейда».
+// Сам вибір у налаштуваннях лишається, і з Pro він повертається.
+export function shownPalette(palette, pro) {
+  return PALETTES_ENABLED && pro && PRO_PALETTES.includes(palette) ? palette : FREE_PALETTE;
+}
+
+// → ключ THEMES. scheme — useColorScheme() ('light' | 'dark' | null).
+export function resolveTheme({ mode = 'system', palette = FREE_PALETTE, scheme = null, pro = false } = {}) {
+  return themeKeyOf(shownPalette(palette, pro), isDarkMode(mode, scheme));
+}
+
+// Як до v1.3: лише режим, «Крейда». Лишається для наявних викликів.
 export function resolveThemeKey(stored, systemScheme) {
-  if (THEMES[stored]) return stored;
-  if (LEGACY_DARK.includes(stored)) return 'dark';
-  if (['snow', 'matcha', 'sand', 'lavender'].includes(stored)) return 'light';
-  return systemScheme === 'dark' ? 'dark' : 'light';
+  return resolveTheme({ mode: stored, scheme: systemScheme });
 }
 
 const ThemeCtx = createContext(THEMES.light);
