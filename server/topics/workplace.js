@@ -192,4 +192,13 @@ module.exports = {
     ['dress code', 2],
     ['mute', 2, 'turn off your microphone in a call'],
   ],
+  // Інтернаціоналізми: зрозумілі українцю без перекладу — не показуємо як слово дня з рівня 4/10
+  intl: [
+    'presentation', 'slide', 'consensus', 'email', 'deadline', 'calendar', 'prioritize', 'delegate',
+    'colleague', 'project', 'progress', 'cross-functional', 'initiative', 'boss', 'manager', 'department',
+    'client', 'role', 'CEO', 'freelancer', 'contract', 'HR', 'confidential', 'bonus',
+    'compensation', 'interview', 'résumé', 'candidate', 'vacancy', 'qualified', 'recruiter', 'career',
+    'training', 'mentor', 'leadership', 'time management', 'productive', 'KPI', 'proactive', 'detail-oriented',
+    'constructive criticism', 'escalate', 'office', 'dress code',
+  ],
 };

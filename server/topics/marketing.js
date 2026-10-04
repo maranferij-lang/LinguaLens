@@ -190,4 +190,16 @@ module.exports = {
     ['backlash', 3, 'strong negative public reaction'],
     ['endorse', 3, 'publicly support or recommend a product'],
   ],
+  // Інтернаціоналізми: зрозумілі українцю без перекладу — не показуємо як слово дня з рівня 4/10
+  intl: [
+    'strategy', 'marketer', 'niche', 'differentiate', 'marketing mix', 'segment', 'demographics', 'focus group',
+    'SWOT analysis', 'psychographics', 'brand', 'logo', 'slogan', 'loyal', 'brand identity', 'positioning',
+    'rebrand', 'mass-market', 'premium', 'brand ambassador', 'campaign', 'agency', 'brief', 'sponsor',
+    'creative', 'media plan', 'retargeting', 'cannibalize', 'SEO', 'email marketing', 'traffic', 'organic',
+    'optimize', 'personalize', 'cookie', 'social media', 'platform', 'post', 'hashtag', 'influencer',
+    'viral', 'algorithm', 'trending', 'content creator', 'content', 'blog', 'publish', 'copywriting',
+    'content marketing', 'storytelling', 'content calendar', 'analytics', 'metric', 'KPI', 'conversion', 'ROI',
+    'A/B test', 'dashboard', 'attribution', 'lead', 'lead generation', 'B2B', 'B2C', 'convert',
+    'loyalty program', 'monetize', 'press release', 'media', 'announce', 'press conference', 'crisis management',
+  ],
 };

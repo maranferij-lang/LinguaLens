@@ -187,4 +187,13 @@ module.exports = {
     ['economies of scale', 3, 'lower costs per unit as production grows'],
     ['downsize', 3, 'reduce the number of employees in a company'],
   ],
+  // Інтернаціоналізми: зрозумілі українцю без перекладу — не показуємо як слово дня з рівня 4/10
+  intl: [
+    'strategy', 'priority', 'business plan', 'vision', 'mission', 'business model', 'initiative', 'leadership',
+    'motivate', 'conflict', 'delegate', 'coordinate', 'company culture', 'recruit', 'micromanage', 'cross-functional',
+    'process', 'operations', 'resource', 'productivity', 'automate', 'outsource', 'optimize', 'project',
+    'deadline', 'budget', 'risk', 'project manager', 'prioritize', 'sprint', 'escalate', 'analysis',
+    'KPI', 'metric', 'dashboard', 'contract', 'partner', 'compromise', 'startup', 'MVP',
+    'iterate', 'investor', 'venture capital', 'angel investor', 'department', 'CEO', 'restructure',
+  ],
 };

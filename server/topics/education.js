@@ -172,4 +172,10 @@ module.exports = {
     ['proficient', 3, 'highly skilled in a subject or language'],
     ['disengaged', 3, 'not interested or involved in learning'],
   ],
+  // Інтернаціоналізми: зрозумілі українцю без перекладу — не показуємо як слово дня з рівня 4/10
+  intl: [
+    'student', 'class', 'STEM', 'test', 'exam', 'portfolio', 'standardized test', 'discipline',
+    'routine', 'bullying', 'pedagogy', 'student-centered', 'differentiate', 'mentor', 'semester', 'accreditation',
+    'qualified', 'reflective practice', 'monitor', 'motivate',
+  ],
 };

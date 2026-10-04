@@ -191,4 +191,11 @@ module.exports = {
     ['emigrate', 3, 'leave your country to live in another'],
     ['relocation package', 3, 'employer support for moving: costs, housing, etc.'],
   ],
+  // Інтернаціоналізми: зрозумілі українцю без перекладу — не показуємо як слово дня з рівня 4/10
+  intl: [
+    'contract', 'deposit', 'guarantor', 'passport', 'visa', 'ID card', 'passport photo', 'certified copy',
+    'apostille', 'naturalization', 'form', 'register', 'immigration office', 'notarize', 'appeal', 'debit card',
+    'balance', 'IBAN', 'declare', 'credit history', 'electricity', 'SIM card', 'provider', 'specialist',
+    'pediatrician', 'integration course', 'immigrant', 'culture shock', 'adapt', 'integrate', 'emigrate',
+  ],
 };

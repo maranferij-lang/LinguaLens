@@ -207,4 +207,14 @@ module.exports = {
     ['tenure', 3, 'permanent academic position'],
     ['sabbatical', 3, 'paid leave from teaching for research'],
   ],
+  // Інтернаціоналізми: зрозумілі українцю без перекладу — не показуємо як слово дня з рівня 4/10
+  intl: [
+    'university', 'college', 'campus', 'professor', 'lecturer', 'semester', 'laboratory', 'diploma',
+    'course', 'lecture', 'seminar', 'credit', 'PhD', 'exam', 'final exam', 'deadline',
+    'theory', 'experiment', 'analysis', 'hypothesis', 'methodology', 'correlation', 'control group', 'empirical',
+    'ethics committee', 'essay', 'dissertation', 'objective', 'subjective', 'counterargument', 'plagiarism', 'journal',
+    'citation', 'bibliography', 'impact factor', 'conference', 'publish', 'discipline', 'interdisciplinary', 'poster session',
+    'argument', 'analyze', 'demonstrate', 'interpret', 'contrast', 'theoretical', 'critique', 'phenomenon',
+    'criterion', 'synthesize', 'grant',
+  ],
 };

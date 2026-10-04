@@ -191,4 +191,12 @@ module.exports = {
     ['lockout', 3, 'safety: locking a machine off before maintenance'],
     ['confined space', 3, 'safety: enclosed area with limited entry, e.g. a tank'],
   ],
+  // Інтернаціоналізми: зрозумілі українцю без перекладу — не показуємо як слово дня з рівня 4/10
+  intl: [
+    'engineer', 'technician', 'specification', 'design', 'optimize', 'prototype', 'schematic', 'aluminum',
+    'corrosion', 'insulation', 'composite', 'bolt', 'vibration', 'hydraulic', 'pneumatic', 'motor',
+    'sensor', 'transformer', 'relay', 'crane', 'column', 'structural', 'excavate', 'install',
+    'operator', 'automation', 'drill', 'standard', 'inspect', 'defect', 'calibrate', 'verify',
+    'toxic', 'evacuate',
+  ],
 };

@@ -192,4 +192,11 @@ module.exports = {
     ['pushy', 3, 'too aggressive when trying to sell'],
     ['elevator pitch', 3, 'very short summary of what you offer'],
   ],
+  // Інтернаціоналізми: зрозумілі українцю без перекладу — не показуємо як слово дня з рівня 4/10
+  intl: [
+    'client', 'retail', 'B2B', 'lead', 'lead generation', 'referral', 'qualify', 'demo',
+    'convert', 'compromise', 'budget', 'margin', 'deposit', 'contract', 'deadline', 'recommend',
+    'escalate', 'call center', 'empathy', 'defective', 'account manager', 'loyalty', 'upgrade', 'quota',
+    'commission', 'KPI', 'metric', 'territory', 'CRM', 'catalog', 'script', 'dashboard',
+  ],
 };

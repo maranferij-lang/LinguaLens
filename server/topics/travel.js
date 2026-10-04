@@ -189,4 +189,11 @@ module.exports = {
     ['motion sickness', 3, 'nausea caused by travel in a car, ship or plane'],
     ['evacuate', 3],
   ],
+  // Інтернаціоналізми: зрозумілі українцю без перекладу — не показуємо як слово дня з рівня 4/10
+  intl: [
+    'peak season', 'package tour', 'airport', 'passenger', 'terminal', 'economy class', 'duty-free', 'turbulence',
+    'compensation', 'roaming', 'platform', 'map', 'cruise', 'reception', 'hostel', 'deposit',
+    'safe', 'concierge', 'souvenir', 'tour guide', 'menu', 'authentic', 'commission', 'passport',
+    'visa', 'passport control', 'ID card', 'declare', 'consulate', 'police station', 'evacuate',
+  ],
 };

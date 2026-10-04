@@ -194,4 +194,14 @@ module.exports = {
     ['annotation', 3, 'note explaining a design detail for developers'],
     ['pixel-perfect', 3, 'matching the design exactly, down to the pixel'],
   ],
+  // Інтернаціоналізми: зрозумілі українцю без перекладу — не показуємо як слово дня з рівня 4/10
+  intl: [
+    'design brief', 'redesign', 'iterate', 'persona', 'card sorting', 'mental model', 'navigation', 'intuitive',
+    'information architecture', 'interactive', 'icon', 'menu', 'form', 'component', 'card', 'design system',
+    'design token', 'prototype', 'pixel', 'export', 'vector', 'pixelated', 'raster', 'sitemap',
+    'typography', 'palette', 'contrast', 'gradient', 'accent color', 'monochrome', 'RGB', 'complementary color',
+    'CMYK', 'visual hierarchy', 'balance', 'minimalist', 'gestalt principles', 'logo', 'branding', 'graphic design',
+    'illustration', 'brand identity', 'style guide', 'visualize', 'retouch', 'DPI', 'inclusive design', 'portfolio',
+    'critique',
+  ],
 };

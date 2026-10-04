@@ -212,4 +212,15 @@ module.exports = {
     ['robust', 3, 'software: handles errors and unusual input well'],
     ['redundancy', 3, 'IT: duplicate components as a safeguard'],
   ],
+  // Інтернаціоналізми: зрозумілі українцю без перекладу — не показуємо як слово дня з рівня 4/10
+  intl: [
+    'algorithm', 'operating system', 'function', 'framework', 'object', 'class', 'parameter', 'syntax',
+    'compile', 'script', 'recursion', 'asynchronous', 'initialize', 'architecture', 'backend', 'frontend',
+    'server', 'API', 'client', 'microservice', 'cache', 'integrate', 'monolith', 'abstraction',
+    'repository', 'version control', 'documentation', 'refactor', 'bug', 'integration test', 'regression', 'release',
+    'infrastructure', 'backup', 'automate', 'container', 'configure', 'monitoring', 'incident', 'patch',
+    'orchestration', 'virtual machine', 'migrate', 'dashboard', 'metric', 'synchronize', 'schema', 'index',
+    'authentication', 'authorization', 'phishing', 'token', 'certificate', 'hash', 'specification', 'intuitive',
+    'A/B testing', 'cross-platform', 'sprint', 'retrospective', 'iterate', 'optimize', 'timeout', 'stable',
+  ],
 };

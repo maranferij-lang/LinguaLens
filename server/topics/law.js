@@ -189,4 +189,11 @@ module.exports = {
     ['notarize', 3, 'to have a document certified by a notary'],
     ['revoke', 3, 'to officially cancel a right, license or law'],
   ],
+  // Інтернаціоналізми: зрозумілі українцю без перекладу — не показуємо як слово дня з рівня 4/10
+  intl: [
+    'regulation', 'jurisdiction', 'precedent', 'notary', 'partner', 'mediator', 'contract', 'confidential',
+    'contractual', 'exclusive', 'force majeure', 'appeal', 'verdict', 'arbitration', 'corporation', 'resolution',
+    'bankruptcy', 'compliance', 'regulator', 'regulatory', 'audit', 'conflict of interest', 'sanctions', 'GDPR',
+    'patent', 'license', 'royalty', 'discrimination', 'interpret', 'authorize', 'notarize',
+  ],
 };

@@ -505,4 +505,17 @@ module.exports = {
     ['sarcasm', 3],
     ['adaptation', 3, 'film or series based on a book'],
   ],
+  // Інтернаціоналізми: зрозумілі українцю без перекладу — не показуємо як слово дня з рівня 4/10
+  intl: [
+    'lamp', 'sandal', 'sweater', 'uniform', 'bronze', 'plastic', 'ceramics', 'dessert',
+    'yogurt', 'volcano', 'horizon', 'dolphin', 'penguin', 'crab', 'tunnel', 'helicopter',
+    'fountain', 'statue', 'museum', 'stadium', 'balcony', 'trophy', 'racket', 'colleague',
+    'volunteer', 'nostalgia', 'empathy', 'melancholy', 'spontaneous', 'naive', 'pragmatic', 'cynical',
+    'prioritize', 'secret', 'chance', 'rhythm', 'balance', 'tradition', 'legend', 'nuance',
+    'dilemma', 'paradox', 'intuition', 'irony', 'skepticism', 'consensus', 'authentic', 'weekend',
+    'moment', 'deadline', 'pause', 'routine', 'season', 'exam', 'diploma', 'lecture',
+    'contract', 'client', 'project', 'battery', 'printer', 'subtitles', 'episode', 'spoiler',
+    'genre', 'documentary', 'trailer', 'compliment', 'memoir', 'satire', 'metaphor', 'cliché',
+    'sarcasm', 'adaptation',
+  ],
 };

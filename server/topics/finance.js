@@ -203,4 +203,12 @@ module.exports = {
     ['disburse', 3, 'pay out money from a fund'],
     ['lucrative', 3],
   ],
+  // Інтернаціоналізми: зрозумілі українцю без перекладу — не показуємо як слово дня з рівня 4/10
+  intl: [
+    'debit', 'amortization', 'goodwill', 'consolidate', 'margin', 'EBITDA', 'liquidity', 'deposit',
+    'balance', 'transaction', 'overdraft', 'credit', 'creditor', 'default', 'refinance', 'line of credit',
+    'investment', 'invest', 'inflation', 'dividend', 'portfolio', 'fund', 'broker', 'volatile',
+    'diversify', 'derivative', 'hedge', 'IPO', 'venture capital', 'capital', 'bankruptcy', 'restructure',
+    'liquidate', 'budget', 'reserve', 'deficit', 'audit', 'compliance', 'risk management',
+  ],
 };

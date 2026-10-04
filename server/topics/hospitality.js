@@ -168,4 +168,10 @@ module.exports = {
     ['front of house', 3, 'staff and areas that deal with guests directly'],
     ['back of house', 3, 'staff and areas that guests do not see'],
   ],
+  // Інтернаціоналізми: зрозумілі українцю без перекладу — не показуємо як слово дня з рівня 4/10
+  intl: [
+    'deposit', 'commission', 'receptionist', 'concierge', 'upgrade', 'registration card', 'inspect', 'menu',
+    'bartender', 'recommend', 'allergen', 'chef', 'recipe', 'grill', 'sous chef', 'banquet',
+    'catering', 'tour guide', 'tour operator', 'transfer', 'peak season', 'boutique hotel', 'compensate', 'escalate',
+  ],
 };

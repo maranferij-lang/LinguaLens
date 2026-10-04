@@ -201,4 +201,15 @@ module.exports = {
     ['isolation', 3, 'medicine: separating infectious patients from others'],
     ['pathogen', 3],
   ],
+  // Інтернаціоналізми: зрозумілі українцю без перекладу — не показуємо як слово дня з рівня 4/10
+  intl: [
+    'hospital', 'clinic', 'patient', 'pharmacist', 'specialist', 'paramedic', 'medical history', 'confidentiality',
+    'symptom', 'chronic', 'asymptomatic', 'diagnosis', 'diagnose', 'pulse', 'screening', 'positive',
+    'negative', 'biopsy', 'differential diagnosis', 'prognosis', 'palpate', 'injection', 'vaccine', 'therapy',
+    'procedure', 'operate', 'physical therapy', 'rehabilitation', 'anesthesia', 'infusion', 'monitor', 'invasive',
+    'transplant', 'medication', 'dose', 'tablet', 'antibiotic', 'dosage', 'sedative', 'active ingredient',
+    'allergy', 'diabetes', 'hypertension', 'pneumonia', 'sepsis', 'anaphylaxis', 'remission', 'organ',
+    'artery', 'vein', 'immune system', 'circulation', 'stable', 'shock', 'defibrillator', 'trauma',
+    'infection', 'virus', 'hygiene', 'sterile', 'disinfect', 'quarantine', 'isolation', 'pathogen',
+  ],
 };
