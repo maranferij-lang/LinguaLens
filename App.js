@@ -109,6 +109,12 @@ import {
 // ── v1.3: імпорти потоків. Кожен потік пише лише між своїми маркерами
 // (план §5.6), тож гілки зливаються без конфліктів. ──
 // <v13:W1>
+import { AppState } from 'react-native';
+import LangSheet from './src/LangSheet';
+import StreakCelebration from './src/streak/StreakCelebration';
+import { isQuizReady } from './src/QuizScreen';
+import { bestStreak, phase as dayPhase } from './src/streak';
+import { cancelStreakRisk, syncStreakRisk } from './src/streakNotify';
 // </v13:W1>
 // <v13:W2>
 // </v13:W2>
@@ -517,14 +523,8 @@ export default function App() {
     }
   }, [words, activity, stats, streak, ready]);
 
-  // Поки відкритий аркуш скану, вітання чекає: під Modal воно відіграло б
-  // невидимим і зникло. Покажемо (і дамо відгук), щойно аркуш закриється.
-  // Пейвол і редактор профілю теж його притримують: тост ліг би поверх
-  // хрестика, а закрити пейвол мусить бути легко завжди.
-  const shownAch = scanSheetOpen || paywall || profileEdit ? null : toastAch;
-  useEffect(() => {
-    if (shownAch) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [shownAch]);
+  // Коли тост показати — вирішує черга оверлеїв (регіон W1 перед рендером):
+  // він чекає, поки закриються аркуш скану, пейвол, сесія карток тощо.
 
   // ---------- ДАНІ ----------
   // Активність дня — з неї серія і графік тижня: збережені слова, кожна
@@ -832,6 +832,8 @@ export default function App() {
     const cur = settingsRef.current;
     const next = { ...cur, knownWords: addKnown(cur.knownWords, known), knowStreak: (cur.knowStreak || 0) + 1 };
     commitSettings(next);
+    // «Знаю» — справжня навчальна дія: серія її рахує (core.md C.1)
+    logActivity(1);
     track('wod_known', { streak: next.knowStreak, level: cur.profile?.level ?? null });
     setWodNote('');
     setWodKnowing(true);
@@ -1335,6 +1337,135 @@ export default function App() {
   // (план §5.6): між вставками різних гілок лишаються незмінені рядки, і
   // git зливає їх без конфліктів. Усе тут — до першого return.
   // <v13:W1>
+  // ---------- СЕРІЯ 2.0 ----------
+  // Годинник серії: фраза, чип і вечірній банер міняються о 18:00 і 22:00, а
+  // день — опівночі. Перераховуємо на цих межах і щойно застосунок
+  // повернувся з фону (таймери там стоять); саму серію — завжди «на зараз».
+  const [streakClock, setStreakClock] = useState(() => Date.now());
+  const [appActive, setAppActive] = useState(true);
+  useEffect(() => {
+    const now = new Date();
+    const next = [18, 22, 24]
+      .map((h) => new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, 0, 1).getTime())
+      .find((ms) => ms > now.getTime());
+    const timer = setTimeout(() => setStreakClock(Date.now()), Math.max(1000, next - now.getTime()));
+    return () => clearTimeout(timer);
+  }, [streakClock]);
+  const streakLive = useMemo(() => {
+    const now = new Date();
+    return { ...streakInfo({ activeDays, now }), phase: dayPhase(now) };
+  }, [activeDays, streakClock]);
+  const streakRef = useRef(streakLive);
+  streakRef.current = streakLive;
+
+  // Фон: нагадування о 20:00, якщо серія під загрозою (src/streakNotify.js);
+  // повернення — свіжий годинник. Ліхтарик сканера гасне сам (ScannerScreen).
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      setAppActive(state === 'active');
+      if (state === 'active') setStreakClock(Date.now());
+      if (state !== 'background') return;
+      const cur = streakRef.current;
+      syncStreakRisk({ n: cur.n, doneToday: cur.doneToday, enabled: settingsRef.current.streakRemind !== false, t: tRef.current })
+        .then((ok) => ok && track('streak_reminder', { action: 'scheduled' }))
+        .catch(() => {});
+    });
+    return () => sub?.remove?.();
+  }, []);
+  // Дія дня є — вечірнє нагадування вже ні до чого (решту сповіщень не чіпаємо)
+  useEffect(() => {
+    if (ready && streakLive.doneToday) cancelStreakRisk();
+  }, [ready, streakLive.doneToday, streakLive.todayKey]);
+
+  async function toggleStreakRemind(on) {
+    if (on && !(await askPush('streak'))) return;
+    commitSettings({ ...settingsRef.current, streakRemind: !!on });
+    track('streak_reminder', { action: on ? 'on' : 'off' });
+    if (!on) cancelStreakRisk();
+  }
+
+  // Свято першої дії дня (core.md C.3): щойно дія перевела «сьогодні ще ні»
+  // в «сьогодні так», а сьогодні ще не святкували. Позначку пишемо одразу,
+  // щоб не показати двічі. Не на старті (день почався раніше — на іншому
+  // iPhone чи до оновлення) і не посеред онбордингу (там своє свято): тоді
+  // лише тиха позначка. Рекорд серії (best) теж тут.
+  const [celebration, setCelebration] = useState(null);
+  const streakStarted = useRef(false);
+  useEffect(() => {
+    if (!ready) return;
+    const first = !streakStarted.current;
+    streakStarted.current = true;
+    const cur = settingsRef.current;
+    const seen = cur.streakSeen || {};
+    const best = Math.max(seen.best || 0, bestStreak(activeDays));
+    const fresh = streakLive.doneToday && seen.celebrated !== streakLive.todayKey;
+    if (!fresh && best === (seen.best || 0)) return;
+    commitSettings({ ...cur, streakSeen: { ...seen, best, ...(fresh ? { celebrated: streakLive.todayKey } : null) } });
+    if (fresh && !first && onboarded) setCelebration({ from: Math.max(0, streakLive.n - 1), to: streakLive.n });
+  }, [ready, streakLive]);
+
+  // ---------- ЧЕРГА ОВЕРЛЕЇВ (план §5.13) ----------
+  // Тост досягнення й свято серії показуються лише тоді, коли нічого не
+  // заважає: немає онбордингу, пейвола (і нашого, і RevenueCat), аркуша скану
+  // чи сцени (нативний Modal сховав би їх під собою), сесії карток чи квізу,
+  // аркуша «Поділитися», редактора профілю, вибору мови, і застосунок на
+  // екрані. Інакше вони чекають. Свято — першим; тост streak_N тієї ж віхи
+  // не потрібен: його медаль є в самому святі.
+  const [learnSession, setLearnSession] = useState(false);
+  const [langSheet, setLangSheet] = useState(false);
+  const overlayFree =
+    onboarded && !paywall && !rcPaywallOpen.current && !scanSheetOpen && !learnSession && !share && !profileEdit && !langSheet && appActive;
+  useEffect(() => {
+    if (celebration && toastAch?.id === 'streak_' + celebration.to) setToastAch(null);
+  }, [celebration, toastAch]);
+  const shownAch = overlayFree && !celebration ? toastAch : null;
+  useEffect(() => {
+    if (shownAch) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }, [shownAch]);
+
+  // ---------- «НАВЧАННЯ» ДО ПЕРШОГО СЛОВА ----------
+  // «Відкрито!» — один раз на картки й один на квіз (settings.unlockSeen).
+  // Хто оновився зі старої версії вже зі словами, давно все відкрив: їм
+  // позначаємо тихо. Збережене до цього запуску читаємо ще до будь-якого
+  // запису, а до відповіді «Навчання» нічого не святкує.
+  const unlockRaw = useRef(null);
+  const [unlockKnown, setUnlockKnown] = useState(false);
+  useEffect(() => {
+    unlockRaw.current = loadSettings()
+      .then((raw) => !raw || raw.unlockSeen === undefined)
+      .catch(() => false);
+  }, []);
+  useEffect(() => {
+    if (!ready || !unlockRaw.current) return;
+    const pending = unlockRaw.current;
+    unlockRaw.current = null;
+    pending.then((missing) => {
+      const have = wordsRef.current;
+      if (missing && have.length) {
+        commitSettings({ ...settingsRef.current, unlockSeen: { cards: true, quiz: isQuizReady(have) } });
+      }
+      setUnlockKnown(true);
+    });
+  }, [ready]);
+  function markUnlockSeen(card) {
+    const cur = settingsRef.current;
+    const was = cur.unlockSeen || {};
+    if (was[card]) return;
+    commitSettings({ ...cur, unlockSeen: { ...was, [card]: true } });
+  }
+
+  // Чип серії → Профіль, «Прогрес», картка серії на виду
+  const [profileFocus, setProfileFocus] = useState(false);
+  function openStreak() {
+    setProfileFocus(true);
+    switchTab('profile');
+  }
+
+  // Наліпка останнього слова біля затвора — найсвіжіше за addedAt
+  const lastWord = useMemo(
+    () => words.reduce((best, w) => (!best || (w.addedAt || 0) >= (best.addedAt || 0) ? w : best), null),
+    [words]
+  );
   // </v13:W1>
   // <v13:W2>
   // </v13:W2>
@@ -1349,6 +1480,7 @@ export default function App() {
   // кожен потік додає свої поля між своїми маркерами.
   const settingsExtra = {
     // <v13:W1>
+    onToggleStreakRemind: toggleStreakRemind,
     // </v13:W1>
     // <v13:W2>
     // </v13:W2>
@@ -1443,8 +1575,13 @@ export default function App() {
                 aiConsent={!!settings.aiConsent}
                 onAiConsent={() => saveSetting({ aiConsent: true })}
                 scansLeft={scansLeft({ pro: sub.pro, usage })}
-                // безкоштовний скан використано: чип «Pro: скани без обмежень»
+                // безкоштовний скан використано: чип «Pro · скани без обмежень»
                 onOpenPro={() => openPaywall('scans')}
+                // чип мови скану — той самий вибір мови, що в онбордингу
+                onChangeLang={() => setLangSheet(true)}
+                // наліпка останнього слова → його аркуш у словнику
+                lastWord={lastWord}
+                onOpenWord={openWord}
                 t={t}
               />
             ) : null}
@@ -1517,6 +1654,16 @@ export default function App() {
                     track('widget_tip', { action: 'hide' });
                     commitSettings({ ...settingsRef.current, widgetTipShown: true });
                   }}
+                  // до першого слова: «Сканувати» лише зі сканом у запасі
+                  scansLeft={scansLeft({ pro: sub.pro, usage })}
+                  onOpenPaywall={openPaywall}
+                  unlockSeen={unlockKnown ? settings.unlockSeen || {} : null}
+                  onUnlockSeen={markUnlockSeen}
+                  onSessionChange={setLearnSession}
+                  // серія: чип у шапці й вечірній банер
+                  streak={streakLive}
+                  onOpenStreak={openStreak}
+                  lang={ui}
                 />
               </FadeIn>
             ) : null}
@@ -1536,6 +1683,9 @@ export default function App() {
                   }
                   onShareWeek={shareWeek}
                   onShareAchievement={(a) => shareAchievement(a)}
+                  best={settings.streakSeen?.best || 0}
+                  focusStreak={profileFocus}
+                  onFocusDone={() => setProfileFocus(false)}
                   t={t}
                 />
               </FadeIn>
@@ -1694,6 +1844,28 @@ export default function App() {
             t={t}
           />
         </View>
+
+        {/* Свято першої дії дня — над усім, коли черга вільна */}
+        <StreakCelebration
+          data={overlayFree ? celebration : null}
+          activeDays={activeDays}
+          onDone={() => setCelebration(null)}
+          onShare={(a) => shareAchievement(a, true)}
+          t={t}
+        />
+
+        {/* Чип мови скану: вибір мови навчання (безкоштовно — одна мова) */}
+        <LangSheet
+          visible={langSheet}
+          current={settings.targetLang}
+          native={settings.nativeLang}
+          onPick={(code) => {
+            setLangSheet(false);
+            if (code !== settings.targetLang) setTargetLang(code);
+          }}
+          onClose={() => setLangSheet(false)}
+          t={t}
+        />
 
         <ShareSheet visible={!!share} payload={share} onClose={() => setShare(null)} t={t} />
       </View>
