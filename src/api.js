@@ -144,14 +144,39 @@ function wordFields(d) {
 
 const validBox = (b) => Array.isArray(b) && b.length === 4 && b.every(Number.isFinite) && b[2] > b[0] && b[3] > b[1];
 
-export async function recognizeImage(base64Jpeg, lang = 'en', nativeLang = 'uk') {
-  const data = await scanRequest({ image: base64Jpeg, lang, nativeLang }, SCAN_TIMEOUT);
+// Рівень людини (1–10) з її профілю. Від нього сервер робить приклад
+// простішим для новачка чи багатшим для просунутого, а від 7/10 додає ще
+// кілька виразів зі словом. Без профілю поле не йде зовсім — сервер робить,
+// як завжди.
+function levelField(level) {
+  return Number.isInteger(level) && level >= 1 && level <= 10 ? { level } : null;
+}
+
+const str = (v, max) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
+
+// «Ще вирази» з одиночного скану: до трьох пар «вираз — переклад».
+// Сервер їх уже чистить, але аркуш не має впасти й від старого чи кривого.
+export function cleanExtras(list) {
+  if (!Array.isArray(list)) return [];
+  const out = [];
+  for (const x of list) {
+    const phrase = str(x?.phrase, 60);
+    if (!phrase || out.some((o) => o.phrase.toLowerCase() === phrase.toLowerCase())) continue;
+    out.push({ phrase, translation: str(x?.translation, 80) });
+    if (out.length === 3) break;
+  }
+  return out;
+}
+
+export async function recognizeImage(base64Jpeg, lang = 'en', nativeLang = 'uk', level) {
+  const data = await scanRequest({ image: base64Jpeg, lang, nativeLang, ...levelField(level) }, SCAN_TIMEOUT);
   if (!data || !data.word) throw codeError('SCAN_EMPTY');
 
   return {
     ...wordFields(data),
     box: Array.isArray(data.box) && data.box.length === 4 ? data.box : null,
     outline: Array.isArray(data.outline) && data.outline.length >= 6 ? data.outline : null,
+    extras: cleanExtras(data.extras),
     usage: data.usage || null,
   };
 }
@@ -166,8 +191,8 @@ export const SCENE_MAX_OBJECTS = 8;
 // Кадр — уже обрізаний до 9:16 (див. src/cutout.js), рамки й силуети —
 // відносно нього. Предмет без слова чи без рамки поставити на фото нікуди:
 // такі відкидаємо тут, навіть якщо сервер їх пропустив.
-export async function recognizeScene(base64Jpeg, lang = 'en', nativeLang = 'uk') {
-  const data = await scanRequest({ image: base64Jpeg, lang, nativeLang, mode: 'scene' }, SCENE_TIMEOUT);
+export async function recognizeScene(base64Jpeg, lang = 'en', nativeLang = 'uk', level) {
+  const data = await scanRequest({ image: base64Jpeg, lang, nativeLang, mode: 'scene', ...levelField(level) }, SCENE_TIMEOUT);
   const objects = (Array.isArray(data?.objects) ? data.objects : [])
     .filter((o) => o && typeof o.word === 'string' && o.word.trim() && validBox(o.box))
     .slice(0, SCENE_MAX_OBJECTS)
@@ -181,9 +206,37 @@ export async function recognizeScene(base64Jpeg, lang = 'en', nativeLang = 'uk')
 }
 
 // ---------- СЛОВО ДНЯ ----------
-export function apiWordOfDay(days, lang, native) {
-  const q = `days=${days}&lang=${lang}&native=${native}&today=${localDayKey()}`;
-  return request('/word-of-day?' + q, { timeout: 45000 });
+// POST, бо разом із мовами йде профіль і список «знаю» (до 500 слів) — у
+// рядок адреси таке не влазить. profile — уже очищений (cleanProfile) або
+// null: тоді сервер дає загальні слова, як і раніше.
+// Сервер, що ще не вміє POST (404), отримує старий GET: застосунок із новою
+// версією не лишається без слова дня, поки сервер не оновили.
+// На холодному кеші сервер перекладає до 14 слів — звідси довгий таймаут.
+export async function apiWordOfDay({ days, lang, native, profile = null, known = [] }) {
+  const today = localDayKey();
+  const body = {
+    days,
+    lang,
+    native,
+    today,
+    ...(profile ? { profile } : null),
+    ...(known.length ? { known } : null),
+  };
+  try {
+    return await request('/word-of-day', { method: 'POST', body, timeout: 45000 });
+  } catch (e) {
+    if (e.status !== 404 && e.status !== 405) throw e;
+    const q = `days=${days}&lang=${lang}&native=${native}&today=${today}`;
+    return request('/word-of-day?' + q, { timeout: 45000 });
+  }
+}
+
+// ---------- ПРОФІЛЬ ----------
+// Відповіді онбордингу (цілі, сфера, рівень, звідки дізнались) — без
+// жодних особистих даних. Власник рахує їх, щоб знати, для кого застосунок
+// і який автор приводить людей.
+export function apiProfile(body) {
+  return request('/me/profile', { method: 'POST', body });
 }
 
 // ---------- ПЕРЕВІРКА ЗВ'ЯЗКУ ----------

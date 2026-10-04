@@ -1,15 +1,37 @@
 // Картка «Слово дня» — розгортається дотиком, озвучується, зберігається у словник.
+//
+// Тема в рядку-кепсі («СЛОВО ДНЯ · ФІНАНСИ») каже, що слово підібране під
+// людину; загальні слова теми не мають. «Знаю» прибирає слово й одразу
+// просить у сервера інше; після кількох «Знаю» поспіль картка сама
+// пропонує підняти рівень — лише пропонує, рішення за людиною.
 import { useMemo, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { speak } from './speech';
 import { IcCheck, IcChevron, IcSpeaker } from './icons';
 import { Mascot } from './Mascot';
 import { FadeIn, Press } from './ui';
 import { layoutNext } from './motion';
-import { F, R, useTheme } from './theme';
+import { CAPS, F, R, type, useTheme } from './theme';
 
-export default function WordOfDayCard({ word, lang, saved, onSave, t }) {
+// topic — назва теми ('' — загальні слова); onKnow — «Знаю» (App шукає нове
+// слово); knowing — нове слово ще в дорозі; knowNote — пояснення, якщо нове
+// не прийшло (офлайн); levelUp — до якого рівня запропонувати піднятись
+// (null — не пропонуємо), onLevelUp / onKeepLevel — відповіді на пропозицію.
+export default function WordOfDayCard({
+  word,
+  lang,
+  saved,
+  onSave,
+  t,
+  topic = '',
+  onKnow,
+  knowing = false,
+  knowNote = '',
+  levelUp = null,
+  onLevelUp,
+  onKeepLevel,
+}) {
   const { C, SHADOW } = useTheme();
   const s = useMemo(() => makeStyles(C), [C]);
   const [open, setOpen] = useState(false);
@@ -24,6 +46,14 @@ export default function WordOfDayCard({ word, lang, saved, onSave, t }) {
     setOpen(!open);
   }
 
+  function know() {
+    if (knowing) return;
+    Haptics.selectionAsync();
+    onKnow();
+  }
+
+  const caps = topic ? `${t('wordOfDay')} · ${topic}` : t('wordOfDay');
+
   return (
     <FadeIn>
       {/* Уся картка — ціль для пальця, але не для VoiceOver: інакше «Слухати»
@@ -32,7 +62,9 @@ export default function WordOfDayCard({ word, lang, saved, onSave, t }) {
         <View style={[s.card, SHADOW]}>
           <View style={s.head}>
             <View style={s.badge}>
-              <Text style={s.badgeText}>{t('wordOfDay')}</Text>
+              <Text style={s.badgeText} numberOfLines={1}>
+                {caps}
+              </Text>
             </View>
             <View style={{ flex: 1 }} />
             <View style={open ? { transform: [{ rotate: '180deg' }] } : null}>
@@ -40,52 +72,104 @@ export default function WordOfDayCard({ word, lang, saved, onSave, t }) {
             </View>
           </View>
 
-          <View
-            style={s.row}
-            accessible
-            accessibilityRole="button"
-            accessibilityState={{ expanded: open }}
-            accessibilityActions={[{ name: 'activate' }]}
-            onAccessibilityAction={toggle}
-          >
-            <View style={{ flex: 1 }}>
-              <Text style={s.word}>{word.word}</Text>
-              {word.ipa ? <Text style={s.ipa}>{word.ipa}</Text> : null}
-              <Text style={s.translation}>{word.translation}</Text>
+          {/* key — нове слово після «Знаю» мʼяко проявляється, а не підміняється */}
+          <FadeIn key={word.date + word.word} dy={6}>
+            <View
+              style={s.row}
+              accessible
+              accessibilityRole="button"
+              accessibilityState={{ expanded: open }}
+              accessibilityActions={[{ name: 'activate' }]}
+              onAccessibilityAction={toggle}
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={s.word}>{word.word}</Text>
+                {word.ipa ? <Text style={s.ipa}>{word.ipa}</Text> : null}
+                <Text style={s.translation}>{word.translation}</Text>
+              </View>
+              <Mascot pose="think" size={62} />
             </View>
-            <Mascot pose="think" size={62} />
-          </View>
+
+            {open ? (
+              <View style={s.details}>
+                {word.example ? (
+                  <Press onPress={() => speak(word.example, lang)} style={s.exampleBox}>
+                    <View style={s.exampleSpeaker}>
+                      <IcSpeaker size={14} color={C.dim} />
+                    </View>
+                    <Text style={s.example}>“{word.example}”</Text>
+                    <Text style={s.exampleTr}>{word.example_translation}</Text>
+                  </Press>
+                ) : null}
+              </View>
+            ) : null}
+          </FadeIn>
 
           {open ? (
-            <View style={s.details}>
-              {word.example ? (
-                <Press onPress={() => speak(word.example, lang)} style={s.exampleBox}>
-                  <View style={s.exampleSpeaker}>
-                    <IcSpeaker size={14} color={C.dim} />
-                  </View>
-                  <Text style={s.example}>“{word.example}”</Text>
-                  <Text style={s.exampleTr}>{word.example_translation}</Text>
+            <View style={s.actions}>
+              {/* Три дії в ряд: «Слухати» — іконкою, щоб «Знаю» й «Зберегти»
+                  мали місце для слів навіть німецькою. */}
+              <Press style={s.listenBtn} onPress={() => speak(word.word, lang)} accessibilityLabel={t('listen')}>
+                <IcSpeaker size={19} color={C.accent} />
+              </Press>
+
+              {onKnow ? (
+                <Press
+                  style={s.actionBtn}
+                  onPress={know}
+                  accessibilityLabel={t('wodKnowA11y')}
+                  accessibilityState={{ busy: knowing }}
+                >
+                  {knowing ? (
+                    <ActivityIndicator size="small" color={C.dim} />
+                  ) : (
+                    <Text style={s.actionText} numberOfLines={1}>
+                      {t('wodKnow')}
+                    </Text>
+                  )}
                 </Press>
               ) : null}
 
-              <View style={s.actions}>
-                <Press style={s.actionBtn} onPress={() => speak(word.word, lang)}>
-                  <IcSpeaker size={17} color={C.accent} />
-                  <Text style={s.actionText}>{t('listen')}</Text>
+              {saved ? (
+                <View style={[s.actionBtn, { backgroundColor: C.greenSoft }]}>
+                  <IcCheck size={15} color={C.green} />
+                  <Text style={[s.actionText, { color: C.green }]} numberOfLines={1}>
+                    {t('saved')}
+                  </Text>
+                </View>
+              ) : (
+                <Press style={[s.actionBtn, s.saveBtn]} onPress={onSave}>
+                  <Text style={[s.actionText, { color: C.onAccent }]} numberOfLines={1}>
+                    {t('saveWord')}
+                  </Text>
                 </Press>
-
-                {saved ? (
-                  <View style={[s.actionBtn, { backgroundColor: C.greenSoft }]}>
-                    <IcCheck size={15} color={C.green} />
-                    <Text style={[s.actionText, { color: C.green }]}>{t('saved')}</Text>
-                  </View>
-                ) : (
-                  <Press style={[s.actionBtn, s.saveBtn]} onPress={onSave}>
-                    <Text style={[s.actionText, { color: C.onAccent }]}>{t('saveWord')}</Text>
-                  </Press>
-                )}
-              </View>
+              )}
             </View>
+          ) : null}
+
+          {/* Нове слово не прийшло (офлайн): кажемо, що «Знаю» запамʼятали */}
+          {knowNote ? (
+            <Text style={s.note} accessibilityLiveRegion="polite">
+              {knowNote}
+            </Text>
+          ) : null}
+
+          {levelUp ? (
+            <FadeIn dy={6} style={s.offer}>
+              <Text style={s.offerText}>{t('wodLevelUp', { n: levelUp })}</Text>
+              <View style={s.offerBtns}>
+                <Press style={[s.offerBtn, s.offerYes]} onPress={onLevelUp}>
+                  <Text style={[s.offerBtnText, { color: C.onAccent }]} numberOfLines={1}>
+                    {t('wodLevelUpYes', { n: levelUp })}
+                  </Text>
+                </Press>
+                <Press style={s.offerBtn} onPress={onKeepLevel}>
+                  <Text style={s.offerBtnText} numberOfLines={1}>
+                    {t('wodLevelUpNo')}
+                  </Text>
+                </Press>
+              </View>
+            </FadeIn>
           ) : null}
         </View>
       </Press>
@@ -98,12 +182,14 @@ const makeStyles = (C) =>
     card: { backgroundColor: C.card, borderRadius: R.xl, padding: 16 },
     head: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
     badge: {
+      flexShrink: 1,
       backgroundColor: C.accentSoft,
       borderRadius: R.pill,
       paddingHorizontal: 10,
       paddingVertical: 4,
     },
-    badgeText: { color: C.accent, fontSize: 11, fontFamily: F.extra, letterSpacing: 0.5 },
+    // Кепс задає стиль: тема приходить звичайним словом («Фінанси»)
+    badgeText: { color: C.accent, ...CAPS, letterSpacing: 0.5 },
     row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     word: { color: C.text, fontSize: 26, fontFamily: F.extra },
     ipa: { color: C.dim, fontSize: 14, fontFamily: F.reg, marginTop: 2 },
@@ -114,6 +200,13 @@ const makeStyles = (C) =>
     example: { color: C.text, fontSize: 15, lineHeight: 21, fontFamily: F.reg },
     exampleTr: { color: C.dim, fontSize: 13, marginTop: 5, lineHeight: 18, fontFamily: F.reg },
     actions: { flexDirection: 'row', gap: 10, marginTop: 12 },
+    listenBtn: {
+      width: 48,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: C.accentSoft,
+      borderRadius: R.md,
+    },
     actionBtn: {
       flex: 1,
       flexDirection: 'row',
@@ -123,7 +216,25 @@ const makeStyles = (C) =>
       backgroundColor: C.card2,
       borderRadius: R.md,
       paddingVertical: 12,
+      paddingHorizontal: 8,
+      minHeight: 46,
     },
     saveBtn: { backgroundColor: C.accent },
     actionText: { color: C.text, fontSize: 15, fontFamily: F.bold },
+    note: { color: C.dim, ...type(13, F.semi), marginTop: 10, textAlign: 'center' },
+
+    offer: { marginTop: 12, backgroundColor: C.accentSoft, borderRadius: R.md, padding: 14 },
+    offerText: { color: C.text, ...type(15, F.semi) },
+    offerBtns: { flexDirection: 'row', gap: 10, marginTop: 12 },
+    offerBtn: {
+      flex: 1,
+      minHeight: 42,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: R.sm,
+      backgroundColor: C.card,
+      paddingHorizontal: 8,
+    },
+    offerYes: { backgroundColor: C.accent },
+    offerBtnText: { color: C.text, ...type(14, F.bold, { noLead: true }) },
   });

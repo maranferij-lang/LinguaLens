@@ -20,6 +20,7 @@ import { PRIVACY_URL, SERVER_SOURCE, SERVER_URL, SUPPORT_EMAIL, TERMS_URL } from
 import { formatDate } from './locale';
 import { uiLang } from './i18n';
 import { restoreNote } from './purchases';
+import { profileSummary } from './profile';
 import { version as APP_VERSION } from '../package.json';
 import { LANGS, flagFor, nameFor } from './speech';
 import { IcCheck, IcChevron, IcCloud } from './icons';
@@ -277,6 +278,8 @@ export default function SettingsScreen({
   onSignIn,
   onSignOut,
   onSyncNow,
+  profile = null,
+  onEditProfile,
   t,
 }) {
   const { C, isDark } = useTheme();
@@ -425,6 +428,27 @@ export default function SettingsScreen({
         {/* Слово дня */}
         <Text style={s.sectionLabel}>{t('wordOfDay')}</Text>
         <Glass>
+          {/* Під кого підбирається слово: «Фінанси · B2+». Відкриває ті самі
+              кроки, що в онбордингу, власним шаром поверх вкладок. */}
+          {onEditProfile ? (
+            <>
+              <Pressable
+                style={s.profileRow}
+                onPress={onEditProfile}
+                accessibilityRole="button"
+                accessibilityLabel={`${t('pfRowTitle')}, ${profileSummary(profile, t)}`}
+              >
+                <View style={{ flex: 1, paddingRight: 12 }}>
+                  <Text style={s.switchTitle}>{t('pfRowTitle')}</Text>
+                  <Text style={[s.dimText, profile && { color: C.accent, fontFamily: F.bold }]}>{profileSummary(profile, t)}</Text>
+                </View>
+                <View style={{ transform: [{ rotate: '-90deg' }] }}>
+                  <IcChevron color={C.faint} />
+                </View>
+              </Pressable>
+              <View style={s.sepInner} />
+            </>
+          ) : null}
           <View style={s.switchRow}>
             <View style={{ flex: 1, paddingRight: 12 }}>
               <Text style={s.switchTitle}>{t('dailyPush')}</Text>
@@ -688,6 +712,7 @@ const makeStyles = (C) =>
     listName: { color: C.text, fontSize: 15, flex: 1, opacity: 0.85, fontFamily: F.semi },
 
     switchRow: { flexDirection: 'row', alignItems: 'center' },
+    profileRow: { flexDirection: 'row', alignItems: 'center', minHeight: 44 },
     switchTitle: { color: C.text, fontSize: 16, letterSpacing: -0.1, fontFamily: F.bold, marginBottom: 3 },
     hourRow: { flexDirection: 'row', gap: 7, marginTop: 10, flexWrap: 'wrap' },
     hourChip: {
