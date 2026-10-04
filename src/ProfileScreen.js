@@ -1,15 +1,16 @@
 // Профіль: аватар-Lingo, колекція слів, стрік, статистика, графік, досягнення.
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import Svg, { Path } from 'react-native-svg';
 import { localDayKey } from './storage';
-import { activeDaySet, streakInfo } from './streak';
+import { activeDaySet, bestStreak, streakInfo } from './streak';
+import StreakCard from './streak/StreakCard';
 import { cleanName } from './profile';
 import { flagFor, nameFor } from './speech';
 import { weekdayLabels } from './share/layout';
 import { evaluate, computeMetrics, levelFromWords, unlockedCount } from './achievements';
-import { IcCheck, IcFlame, IcShare } from './icons';
+import { IcCheck, IcShare } from './icons';
 import { Mascot, MascotBob } from './Mascot';
 import { AchIcon } from './AchIcons';
 import { Bar, FadeIn, Glass, GradBtn, Press } from './ui';
@@ -37,7 +38,22 @@ function Pencil({ size = 12, color }) {
   );
 }
 
-export default function ProfileScreen({ words, activity, stats, profile, onUpdateProfile, onShareWeek, onShareAchievement, t }) {
+// best — рекорд серії, який памʼятає App (settings.streakSeen.best);
+// focusStreak — щойно відкрили з чипа серії на «Навчанні»: «Прогрес» і
+// прокрутка до картки серії (onFocusDone — App скидає прохання).
+export default function ProfileScreen({
+  words,
+  activity,
+  stats,
+  profile,
+  onUpdateProfile,
+  onShareWeek,
+  onShareAchievement,
+  best = 0,
+  focusStreak = false,
+  onFocusDone,
+  t,
+}) {
   const { C, T, SHADOW } = useTheme();
   const s = useMemo(() => makeStyles(C), [C]);
 
@@ -46,7 +62,27 @@ export default function ProfileScreen({ words, activity, stats, profile, onUpdat
   const [draftName, setDraftName] = useState(profile.name || '');
 
   // Серія — з src/streak.js, та сама, що в App і віджеті
-  const streak = streakInfo({ activeDays: activeDaySet(activity, words) }).n;
+  const activeDays = useMemo(() => activeDaySet(activity, words), [activity, words]);
+  const streak = streakInfo({ activeDays }).n;
+  const record = Math.max(best || 0, bestStreak(activeDays));
+
+  // Із чипа серії: вкладка «Прогрес» і картка серії на виду
+  const scroll = useRef(null);
+  const cardY = useRef(null);
+  const [focus, setFocus] = useState(focusStreak);
+  useEffect(() => {
+    if (!focusStreak) return;
+    setFocus(true);
+    if (tab !== 'stats') setTab('stats');
+    onFocusDone?.();
+  }, [focusStreak]);
+  function onCardLayout(e) {
+    cardY.current = e.nativeEvent.layout.y;
+    if (focus && scroll.current) {
+      setFocus(false);
+      scroll.current.scrollTo?.({ y: Math.max(0, cardY.current - 12), animated: true });
+    }
+  }
   const weekWords = words.filter((w) => Date.now() - (w.addedAt || 0) < WEEK).length;
   const reviews = words.reduce((sum, w) => sum + (w.srs?.reps || 0), 0);
 
@@ -101,6 +137,7 @@ export default function ProfileScreen({ words, activity, stats, profile, onUpdat
 
   return (
     <ScrollView
+      ref={scroll}
       style={s.root}
       contentContainerStyle={{ paddingBottom: UNDER_TAB + 24 }}
       showsVerticalScrollIndicator={false}
@@ -165,18 +202,12 @@ export default function ProfileScreen({ words, activity, stats, profile, onUpdat
 
       {tab === 'stats' ? (
         <>
-          <FadeIn delay={80}>
-            <Glass style={s.streakCard}>
-              <View style={[s.flameWrap, streak ? { backgroundColor: C.accentSoft } : null]}>
-                <IcFlame size={28} color={streak ? C.accent : C.faint} />
-              </View>
-              <View style={{ flex: 1 }}>
-                {/* Нуль днів — не провал, а старт: перший день так і кличе */}
-                <Text style={s.streakNum}>{streak ? t('streakN', { n: streak }) : t('streakStartTitle')}</Text>
-                <Text style={s.streakHint}>{streak ? t('streakGo') : t('streakStart')}</Text>
-              </View>
-            </Glass>
-          </FadeIn>
+          {/* Серія 2.0: вогник росте день у день, тиждень крапками, віха */}
+          <View onLayout={onCardLayout}>
+            <FadeIn delay={80}>
+              <StreakCard activeDays={activeDays} best={record} t={t} />
+            </FadeIn>
+          </View>
 
           <FadeIn delay={120} style={s.rowCards}>
             <Glass style={s.miniCard}>
@@ -380,17 +411,6 @@ const makeStyles = (C) =>
     segmentText: { color: C.dim, fontSize: 14, fontFamily: F.semi },
     segmentTextActive: { color: C.text, fontFamily: F.extra },
 
-    streakCard: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 12 },
-    flameWrap: {
-      width: 50,
-      height: 50,
-      borderRadius: 14,
-      backgroundColor: C.card2,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    streakNum: { color: C.text, fontSize: 19, letterSpacing: -0.11, fontFamily: F.bold },
-    streakHint: { color: C.dim, fontSize: 13, marginTop: 2, fontFamily: F.reg },
     rowCards: { flexDirection: 'row', gap: 10 },
     miniCard: { flex: 1, paddingVertical: 14, alignItems: 'center', borderRadius: R.lg },
     miniNum: { color: C.text, fontSize: 24, fontFamily: F.extra },
