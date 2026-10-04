@@ -225,17 +225,20 @@ describe('402 from the server', () => {
 describe('scene is Pro once the free one is used', () => {
   const sceneTab = (tree, label) => tab(tree, label);
 
-  test('a PRO badge on the scene chip, and VoiceOver says so', async () => {
+  // v1.3: замість значка «PRO» — корона в кружечку на сегменті «Сцена»
+  const crown = (tree) => tree.root.findAll((n) => n.props.testID === 'mode-scene-pro');
+
+  test('a crown on the scene segment, and VoiceOver says it is Pro', async () => {
     const tree = await render(scanner({ sceneLocked: true, onScenePro: jest.fn() }));
     expect(sceneTab(tree, t('modeScenePro'))).toBeTruthy();
-    expect(texts(tree)).toContain('PRO');
+    expect(crown(tree).length).toBeGreaterThan(0);
     await act(async () => tree.unmount());
   });
 
-  test('no badge while the free scene is still there', async () => {
+  test('no crown while the free scene is still there', async () => {
     const tree = await render(scanner({ sceneLocked: false }));
     expect(sceneTab(tree, t('modeScene'))).toBeTruthy();
-    expect(texts(tree)).not.toContain('PRO');
+    expect(crown(tree)).toHaveLength(0);
     await act(async () => tree.unmount());
   });
 
@@ -750,9 +753,10 @@ describe('camera permission on the Scan tab', () => {
 describe('the free scans counter over the camera', () => {
   // нуль сканів — не «0 лишилось», а «використано» і чип Pro (polishApp.test.js)
   test('says how many free scans are left, never “today”', async () => {
+    // v1.3: лічильник переїхав у статус над камерою — «1 безкоштовний скан»
     for (const [n, en, uk] of [
-      [1, '1 free scan left', 'Лишився 1 безкоштовний скан'],
-      [3, '3 free scans left', 'Лишилося 3 безкоштовні скани'],
+      [1, '1 free scan', '1 безкоштовний скан'],
+      [3, '3 free scans', '3 безкоштовні скани'],
     ]) {
       let tree = await render(scanner({ scansLeft: n }));
       expect(texts(tree)).toContain(en);
@@ -767,7 +771,7 @@ describe('the free scans counter over the camera', () => {
 
   test('with Pro (no ceiling) there is no counter at all', async () => {
     const tree = await render(scanner({ scansLeft: Infinity }));
-    expect(texts(tree).some((s) => /free scans? left/.test(s))).toBe(false);
+    expect(texts(tree).some((s) => /free scans?/.test(s))).toBe(false);
     await act(async () => tree.unmount());
   });
 });

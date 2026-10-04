@@ -6,6 +6,7 @@ import { act, create } from 'react-test-renderer';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import App from '../App';
 import AchievementToast from '../src/AchievementToast';
+import StreakCelebration from '../src/streak/StreakCelebration';
 import DictionaryScreen from '../src/DictionaryScreen';
 import FlashcardsScreen from '../src/FlashcardsScreen';
 import OnboardingScreen from '../src/OnboardingScreen';
@@ -160,6 +161,8 @@ test('the free dictionary has no ceiling', async () => {
   await act(async () => tree.unmount());
 });
 
+// v1.3 (черга оверлеїв, план §5.13): перше слово — це й перша дія дня, тож
+// першим іде свято серії, а тост досягнення — одразу після нього.
 test('an achievement unlocked from the scan result waits until the sheet closes', async () => {
   await returning();
   const tree = await renderApp();
@@ -167,7 +170,11 @@ test('an achievement unlocked from the scan result waits until the sheet closes'
   await run(() => scanner().props.onResultVisible(true));
   await run(() => scanner().props.onSaveWord({ word: 'la taza', translation: 'mug', lang: 'es' }));
   expect(one(tree, AchievementToast).props.achievement).toBeNull();
+  expect(one(tree, StreakCelebration).props.data).toBeNull();
   await run(() => scanner().props.onResultVisible(false));
+  expect(one(tree, StreakCelebration).props.data).toMatchObject({ from: 0, to: 1 });
+  expect(one(tree, AchievementToast).props.achievement).toBeNull();
+  await run(() => one(tree, StreakCelebration).props.onDone());
   expect(one(tree, AchievementToast).props.achievement).not.toBeNull();
   await act(async () => tree.unmount());
 });
@@ -476,7 +483,8 @@ describe('the streak is kept by learning, not by scanning', () => {
     await openTab(tree, 'profile');
     const all = texts(tree);
     expect(all).toContain('2 days in a row');
-    expect(all).toContain('Keep it up — review your words every day.');
+    // v1.3: фразу картки серії вибирає streakMessage (src/streak.js)
+    expect(all).toContain('5 more days to a week — then your flame catches fire');
     // картка «Мій тиждень»: нових слів немає, а повторення — і вчора, і сьогодні
     await run(() => one(tree, ProfileScreen).props.onShareWeek());
     expect(openShare(tree).stats).toMatchObject({ streak: 2, weekWords: 0, reviews: 7 });
@@ -487,7 +495,8 @@ describe('the streak is kept by learning, not by scanning', () => {
     await returning({ words: known(), seen: ALL_ACH });
     const tree = await renderApp();
     await openTab(tree, 'profile');
-    expect(texts(tree)).toContain('Review your cards or save the word of the day to start a streak.');
+    // v1.3: колись (60 днів тому) серія вже була — «згасла, почни нову»
+    expect(texts(tree)).toContain('Your streak went out. Start a new one today');
     await openTab(tree, 'cards');
     await run(() => one(tree, FlashcardsScreen).props.onReview('w1', true));
     await run(() => one(tree, FlashcardsScreen).props.onReview('w2', true));

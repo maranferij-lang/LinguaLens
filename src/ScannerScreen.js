@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Animated,
+  AppState,
   Image,
   Linking,
   Modal,
@@ -15,15 +15,16 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import { Asset } from 'expo-asset';
 import * as Haptics from 'expo-haptics';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { recognizeImage, recognizeScene } from './api';
 import { track } from './analytics';
-import { captureScene, createCutter, cropToObject, objectJpeg } from './cutout';
+import { captureScene, createCutter, cropToObject, dropFile, objectJpeg, scanBackdrop } from './cutout';
+import { DEV_SAMPLE, isSimulatorShot } from './devSample';
 import { speak } from './speech';
-import { IcClose, IcShare, IcSpeaker } from './icons';
+import { IcClose, IcShare, IcSpeaker, IcWarn } from './icons';
 import { MascotBob } from './Mascot';
-import { PCrown } from './ProIcons';
 import { StickerLarge } from './Sticker';
 import ShareSheet from './share/ShareSheet';
 import ConsentSheet from './ConsentSheet';
@@ -31,23 +32,20 @@ import SceneView from './scene/SceneView';
 import { fitContain } from './scene/sceneLayout';
 import { newSceneId } from './scene/scenes';
 import { useSafeAreaInsets } from './SafeArea';
-import { UNDER_TAB } from './Chrome';
 import { FadeIn, GradBtn, Press, SecBtn } from './ui';
-import { EASE, SPRING, layoutNext, useReducedMotion } from './motion';
+import { EASE, layoutNext, useReducedMotion } from './motion';
 import { CAPS, F, R, useTheme } from './theme';
+import { CAM, CAM_FONT, CamGlass } from './scanner/CamGlass';
+import TopBar from './scanner/TopBar';
+import Viewfinder from './scanner/Viewfinder';
+import ModeSwitch, { MODES } from './scanner/ModeSwitch';
+import Shutter from './scanner/Shutter';
+import LastWord from './scanner/LastWord';
+import ZoomButton from './scanner/ZoomButton';
+import { SHUTTER, SIDE_OFFSET, scannerLayout } from './scanner/layout';
 
-// Пресети зуму. Точної кратності тут не буде: iOS рахує зум як
-// maxZoom^value, а maxZoom залежить від моделі телефону. Тому показуємо лише
-// мітки пресетів, без «1.4×», яке нічого не означає.
-const ZOOM_PRESETS = [
-  { label: '1×', value: 0 },
-  { label: '2×', value: 0.12 },
-];
+// Зум щипком: найбільше значення (iOS рахує зум як maxZoom^value).
 const MAX_ZOOM = 0.6;
-
-// Режими сканера — як у Камері iOS: підписи над затвором, свайп по
-// видошукачу перемикає. Сцена — уся кімната чи стіл одним кадром.
-const MODES = ['object', 'scene'];
 
 // Відмови сервера за оплатою (402): безкоштовний скан витрачено або
 // безкоштовна сцена вже використана. Це не помилки, а пейвол — його
@@ -58,6 +56,22 @@ const PAYWALL_CODES = ['SCAN_LIMIT', 'SCENE_PRO'];
 // мовчазне очікування здається довшим, ніж є.
 const STATUS_EVERY = 2600;
 
+// Сканер у стилі застосунку (core.md A): темний «хром» з одного рецепта
+// скла, затвор-лінза, кадр із кутами R28, пігулка режимів, верхній ряд
+// (мова скану, статус, ліхтарик) і ряд затвора (останнє слово, зум).
+// Розкладка — src/scanner/layout.js, частини хрому — src/scanner/*.
+//
+// Контракт для онбордингу й наліпок (план §5.8):
+//   onExit(reason) — 'closed' (хрестик першого скану) | 'camera_denied'
+//     (камеру заборонено: хрестик чи «Далі»); 'limit' дає App зі своїх
+//     onGuardScan / onLimitReached — сканер сам його не шле, щоб онбординг не
+//     отримав вихід двічі. Збереження слова — onFirstSaved(word), як і раніше;
+//   firstScan — хрестик ліворуч угорі, без режимів, статусу, наліпки й
+//     таб-бару, підказка scanFirstHint, той самий видошукач;
+//   тестове фото — у розробці кадр симулятора (рівно 200×200) підміняється
+//     src/devSample.js;
+//   кадр 9:16 (result.backdrop) — тло для «Stories з цим фото»: іде лише в
+//     «Поділитися», у словник — ні, файл стирається при закритті результату.
 export default function ScannerScreen({
   targetLang,
   nativeLang,
@@ -80,24 +94,34 @@ export default function ScannerScreen({
   // чесно каже, що скан використано, і пропонує Pro (onOpenPro)
   scansLeft,
   onOpenPro,
+  // мова скану: чип «EN ⌄» угорі ліворуч відкриває вибір мови (App)
+  onChangeLang,
+  // найсвіжіше збережене слово — наліпка біля затвора; тап — onOpenWord(id)
+  lastWord = null,
+  onOpenWord,
   // рівень людини 1–10 з профілю (undefined — профілю немає): від нього
   // сервер робить приклад простішим чи багатшим і додає «Ще вирази»
   level,
   // Сцена — функція Pro, і безкоштовну пробу вже використано: на перемикачі
-  // режиму біля «Сцени» маленький значок PRO, а вибір сцени відкриває
-  // пейвол (onScenePro) замість режиму, який однаково не спрацює.
+  // режиму біля «Сцени» корона, а вибір сцени відкриває пейвол
+  // (onScenePro) замість режиму, який однаково не спрацює.
   sceneLocked = false,
   onScenePro,
   // звідки скан — для статистики: 'app' або 'onboarding' (перший скан у
   // онбордингу)
   scanSource = 'app',
-  // Перший скан в онбордингу («Спробуй зараз»): лише один предмет, без
+  // Перший скан в онбордингу («Спробувати»): лише один предмет, без
   // перемикача режимів і лічильника сканів, з хрестиком, що вертає в
-  // онбординг (onExit). Щойно слово збережено — аркуш закривається, і
-  // онбординг іде далі вже зі словом (onFirstSaved(слово)).
+  // онбординг (onExit('closed')). Щойно слово збережено — аркуш закривається,
+  // і онбординг іде далі вже зі словом (onFirstSaved(слово)).
   firstScan = false,
   onExit,
   onFirstSaved,
+  // На скільки сканер заходить під статус-бар (App дає безпечну зону згори):
+  // камера тоді йде до самого верху екрана, як у макеті, а світлий текст
+  // статус-бару лежить на ній, а не на тлі застосунку. Хром камери
+  // лишається там само — нижче статус-бару. 0 — сканер лише в своїй зоні.
+  bleedTop = 0,
   t,
 }) {
   const { C } = useTheme();
@@ -115,9 +139,10 @@ export default function ScannerScreen({
   const [sharing, setSharing] = useState(null);
   const [askConsent, setAskConsent] = useState(false);
   const [zoom, setZoom] = useState(0);
+  const [torch, setTorch] = useState(false);
   // Висота самого сканера (екран мінус безпечна зона й таб-бар): від неї
-  // рахуються видошукач сцени й заморожений кадр.
-  const [rootH, setRootH] = useState(win.height - insets.top - insets.bottom);
+  // рахуються кадр, ряд затвора й заморожений кадр сцени.
+  const [rootH, setRootH] = useState(win.height - insets.top - insets.bottom + bleedTop);
 
   // Сцена: заморожений кадр, поки модель думає, і готовий результат.
   const [frozen, setFrozen] = useState(null);
@@ -141,40 +166,59 @@ export default function ScannerScreen({
   // Перший скан: «Збережено» видно мить, потім аркуш їде вниз і онбординг
   // продовжується
   const firstDone = useRef([]);
+  // Кадр 9:16 останнього скану (тло для Stories) — лише до закриття
+  // результату; при демонтажі сканера файл теж стираємо.
+  const backdropRef = useRef(null);
   useEffect(
     () => () => {
       clearTimeout(thaw.current);
       firstDone.current.forEach(clearTimeout);
+      dropFile(backdropRef.current);
+      backdropRef.current = null;
     },
     []
   );
 
-  // Промінь розгортки: рівномірний хід згори вниз. Тут linear доречний —
-  // він читається як робота приладу, а не як «оживлення» інтерфейсу.
+  // ── Ліхтарик ──
+  // Світить, лише поки людина наводить: гасне, щойно відкрився результат чи
+  // сцена (камера тоді стоїть), коли застосунок пішов у фон і перед екраном
+  // дозволу. Зміна вкладки розмонтовує сканер разом із камерою — і ліхтарем.
+  const cameraLive = !result && !scene && !frozen;
+  useEffect(() => {
+    if (!cameraLive) setTorch(false);
+  }, [cameraLive]);
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state !== 'active') setTorch(false);
+    });
+    return () => sub?.remove?.();
+  }, []);
+  const granted = !!permission?.granted;
+  useEffect(() => {
+    if (!granted) setTorch(false);
+  }, [granted]);
+
+  function toggleTorch() {
+    const on = !torch;
+    setTorch(on);
+    Haptics.selectionAsync();
+    track('scan_torch', { on });
+  }
+
+  // Відблиск, що проходить замороженим кадром сцени, поки модель думає.
+  // Рівномірний хід: linear тут читається як робота приладу. «Менше руху» —
+  // без нього.
   const sweep = useRef(new Animated.Value(0)).current;
   useEffect(() => {
-    if (!loading) { sweep.stopAnimation(); sweep.setValue(0); return; }
-    const loop = Animated.loop(
-      Animated.timing(sweep, { toValue: 1, duration: frozen ? 1700 : 1100, easing: EASE.linear, useNativeDriver: true })
-    );
+    if (!loading || !frozen || reduced) {
+      sweep.stopAnimation();
+      sweep.setValue(0);
+      return undefined;
+    }
+    const loop = Animated.loop(Animated.timing(sweep, { toValue: 1, duration: 1700, easing: EASE.linear, useNativeDriver: true }));
     loop.start();
     return () => loop.stop();
-  }, [loading, !!frozen]);
-
-  const pulse = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    if (loading) {
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(pulse, { toValue: 1, duration: 700, useNativeDriver: true }),
-          Animated.timing(pulse, { toValue: 0, duration: 700, useNativeDriver: true }),
-        ])
-      ).start();
-    } else {
-      pulse.stopAnimation();
-      pulse.setValue(0);
-    }
-  }, [loading]);
+  }, [loading, !!frozen, reduced]);
 
   // Рядки статусу сцени: по черзі від самого тапу, останній лишається до кінця.
   useEffect(() => {
@@ -204,10 +248,11 @@ export default function ScannerScreen({
 
   const zoomRef = useRef(0);
   const pinchBase = useRef(null);
-  // Свайп одним пальцем по видошукачу перемикає режим, як у Камері iOS.
+  // Свайп одним пальцем по кадру перемикає режим, як у Камері iOS.
   // Свіжі значення беремо з ref: PanResponder створюється один раз.
   const swipeRef = useRef(null);
   swipeRef.current = (dx) => {
+    if (firstScan) return;
     const next = MODES[Math.max(0, Math.min(MODES.length - 1, MODES.indexOf(mode) + (dx < 0 ? 1 : -1)))];
     switchMode(next);
   };
@@ -242,7 +287,6 @@ export default function ScannerScreen({
   function setZoomPreset(v) {
     zoomRef.current = v;
     setZoom(v);
-    Haptics.selectionAsync();
   }
 
   function switchMode(next) {
@@ -253,7 +297,7 @@ export default function ScannerScreen({
       return;
     }
     Haptics.selectionAsync();
-    // видошукач і підказка плавно перебудовуються під новий режим
+    // кадр і підказка плавно перебудовуються під новий режим
     layoutNext();
     setError('');
     onScanModeChange?.(next);
@@ -281,6 +325,19 @@ export default function ScannerScreen({
     return () => onResultVisible(false);
   }, [resultOpen]);
 
+  // Симулятор iOS: замість згенерованого квадрата — тестове фото (лише в
+  // розробці). Не вийшло завантажити — лишається кадр симулятора.
+  async function devSample() {
+    try {
+      const a = Asset.fromModule(DEV_SAMPLE);
+      await a.downloadAsync();
+      if (!a.localUri) return null;
+      return { uri: a.localUri, width: a.width || 1080, height: a.height || 1440 };
+    } catch (_) {
+      return null;
+    }
+  }
+
   async function scan() {
     if (!cameraRef.current || busy.current) return;
     // Перший знімок: спершу кажемо, куди піде фото, і питаємо дозволу
@@ -306,17 +363,40 @@ export default function ScannerScreen({
       // диск, щоб потім двічі читатись назад. Веб так не вміє — там файл.
       const native = Platform.OS !== 'web';
       photo = await cameraRef.current.takePictureAsync({ quality: 0.7, ...(native ? { pictureRef: true } : null) });
-      const source = native ? photo : photo.uri;
+      let source = native ? photo : photo.uri;
+      if (DEV_SAMPLE && isSimulatorShot(photo, Platform.OS)) {
+        const sample = await devSample();
+        if (sample) {
+          if (typeof photo.release === 'function') photo.release();
+          photo = { uri: sample.uri, width: sample.width, height: sample.height };
+          source = sample.uri;
+        }
+      }
       if (sceneMode) {
         handedOver = await scanScene(source, photo);
       } else {
-        const res = await recognize(recognizeImage, await objectJpeg(source, photo.width));
+        const jpeg = await objectJpeg(source, photo.width);
+        // Тло 9:16 для «Stories з цим фото» рендериться, поки модель думає;
+        // його помилка скан не ламає — просто не буде цієї кнопки.
+        const backdropP = scanBackdrop(source, photo.width, photo.height).catch(() => null);
+        let res;
+        try {
+          res = await recognize(recognizeImage, jpeg);
+        } catch (e) {
+          backdropP.then(dropFile);
+          throw e;
+        }
         if (onScanned) onScanned(res);
+        // Два декодування великого кадру одночасно не йдуть: спершу тло
+        // дорендерюється, потім вирізаємо наліпку.
+        const backdrop = await backdropP;
         // Вирізаємо САМ предмет по рамці від моделі, а не весь кадр.
         // Скріншот екрана з обрізаними краями виглядає випадковим і губить стиль;
         // вирізаний предмет читається як наліпка, яку ти зловив.
         const cut = await cropToObject(source, photo.width, photo.height, res.box, res.outline);
-        setResult({ ...res, photo: cut.uri, shape: cut.shape });
+        dropFile(backdropRef.current);
+        backdropRef.current = backdrop;
+        setResult({ ...res, photo: cut.uri, shape: cut.shape, backdrop });
         setJustSaved(false);
       }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -408,9 +488,9 @@ export default function ScannerScreen({
 
   // Слово з результату скану в тому вигляді, в якому його зберігає словник.
   // usage — службове поле відповіді сервера, extras — підказка до цього
-  // скану: у словник вони не йдуть.
+  // скану, backdrop — тимчасове тло для Stories: у словник вони не йдуть.
   function resultWord() {
-    const { usage, extras, ...word } = result;
+    const { usage, extras, backdrop, ...word } = result;
     return { ...word, lang: targetLang, nativeLang };
   }
 
@@ -436,12 +516,16 @@ export default function ScannerScreen({
     }
   }
 
+  // Картка «поділитись» отримує й кадр 9:16 цього скану — тло для «Stories з
+  // цим фото» (share.md §7). null — тло не вдалося, кнопки просто не буде.
   function share() {
     Haptics.selectionAsync();
-    setSharing({ kind: 'word', word: resultWord() });
+    setSharing({ kind: 'word', word: resultWord(), backdrop: result.backdrop || null });
   }
 
   function closeResult() {
+    dropFile(backdropRef.current);
+    backdropRef.current = null;
     setSharing(null);
     setResult(null);
   }
@@ -470,6 +554,11 @@ export default function ScannerScreen({
     if (!unsaved && !firstDone.current.length) closeResult();
   }
 
+  function openLastWord(id) {
+    track('scan_last_word');
+    onOpenWord?.(id);
+  }
+
   if (!permission) return <View style={s.center} />;
 
   if (!permission.granted) {
@@ -484,11 +573,22 @@ export default function ScannerScreen({
     // Перший скан в онбордингу після відмови в Параметри не веде: зміна
     // доступу до камери там змушує iOS вбити застосунок, і людина
     // повернулась би на початок знайомства. Головна кнопка просто веде
-    // онбординг далі, а камеру можна увімкнути потім.
+    // онбординг далі (onExit('camera_denied')), а камеру можна увімкнути потім.
     const later = denied && firstScan && !!onExit;
+    const leave = () => onExit('camera_denied');
     return (
       <View style={s.center}>
-        {later ? <ExitButton onPress={onExit} t={t} s={s} dark={false} C={C} /> : null}
+        {later ? (
+          <Pressable
+            style={[s.permExit, { top: 12 }]}
+            onPress={leave}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel={t('close')}
+          >
+            <IcClose size={20} color={C.dim} />
+          </Pressable>
+        ) : null}
         <FadeIn>
           <View style={{ alignItems: 'center' }}>
             <MascotBob pose="wave" size={150} />
@@ -497,36 +597,53 @@ export default function ScannerScreen({
           <Text style={s.permText}>{later ? t('permDeniedLater') : denied ? t('permDeniedText') : t('permText')}</Text>
           <GradBtn
             title={denied && !later ? t('openSettings') : t('obNext')}
-            onPress={later ? onExit : denied ? () => Linking.openSettings() : requestPermission}
+            onPress={later ? leave : denied ? () => Linking.openSettings() : requestPermission}
           />
         </FadeIn>
       </View>
     );
   }
 
-  const frameOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.9, 0.3] });
   // iPhone SE і подібні: аркуш результату компактніший
   const compact = win.height < 700;
+  // Розкладка рахується для зони під статус-баром і зсувається на bleedTop:
+  // відступи від низу (затвор, режими) від цього не змінюються.
+  const L0 = scannerLayout({ width: win.width, height: rootH - bleedTop, firstScan, scene: sceneMode });
+  const L = { ...L0, frame: { ...L0.frame, y: L0.frame.y + bleedTop }, hintTop: L0.hintTop + bleedTop };
   // Безкоштовні скани. Нуль — не «0 лишилось» поруч із затвором, який
-  // відкриє лише пейвол, а чесне «використано» і чип Pro. Мало (1–3) —
-  // другий, дрібніший рядок у тій самій пігулці, що й підказка: так він не
-  // налазить на кути видошукача. Постійний лічильник над камерою тисне.
+  // відкриє лише пейвол, а чесне «використано», корона на затворі й чип Pro
+  // угорі (поки аркуш результату закриває камеру, чип ні до чого).
   const usedUp = !firstScan && scansLeft === 0;
-  const showLeft = !firstScan && !loading && Number.isFinite(scansLeft) && scansLeft > 0 && scansLeft <= 3;
-  // поки відкритий аркуш результату, чип під ним ні до чого
-  const proChip = usedUp && !loading && !result && !!onOpenPro;
-  const vf = viewfinder(sceneMode, win.width, rootH, (showLeft ? COUNTER_H : 0) + (proChip ? CHIP_H : 0));
-  const status = [t('sceneStatus1'), t('sceneStatus2'), t('sceneStatus3')];
-  const idleHint = usedUp ? t('scanUsedUp') : sceneMode ? t('sceneHint') : t('hint');
-  const hintText = loading ? (sceneMode ? status[statusIdx] : t('scanning')) : idleHint;
+  const status =
+    firstScan || scansLeft === undefined || scansLeft === null
+      ? null
+      : !Number.isFinite(scansLeft)
+        ? { kind: 'pro' }
+        : scansLeft > 0
+          ? { kind: 'free', n: scansLeft }
+          : onOpenPro && !loading && !result
+            ? { kind: 'chip' }
+            : null;
+  const sceneStatus = [t('sceneStatus1'), t('sceneStatus2'), t('sceneStatus3')];
+  const idleHint = usedUp ? t('scanUsedUp') : firstScan ? t('scanFirstHint') : sceneMode ? t('sceneHint') : t('hint');
+  const hintText = loading ? (sceneMode ? sceneStatus[statusIdx] : t('scanning')) : idleHint;
+  const shutterState = loading ? 'busy' : usedUp ? 'pro' : sceneMode ? 'room' : 'lens';
+  // Підказка: під кадром предмета; у високому кадрі сцени — усередині, згори
+  // Усередині вузького кадру сцени (SE) довга підказка (de) займає більше
+  // рядків — краще так, ніж обрізати її трикрапкою; на iOS текст ще й трохи
+  // зменшується, щоб уміститись.
+  const hintMax = L.hintInside ? Math.min(300, L.frame.w - 20) : 300;
+  const hintLines = L.hintInside ? 5 : 3;
+  const cx = win.width / 2;
 
   return (
-    <View style={s.root} onLayout={(e) => setRootH(e.nativeEvent.layout.height)}>
+    <View style={[s.root, bleedTop ? { marginTop: -bleedTop } : null]} onLayout={(e) => setRootH(e.nativeEvent.layout.height)}>
       <CameraView
         ref={cameraRef}
         style={StyleSheet.absoluteFill}
         facing="back"
         zoom={zoom}
+        enableTorch={torch && cameraLive}
         // Сцена закриває екран повністю: камеру під нею зупиняємо — не гріємо
         // телефон і не світимо індикатором камери, поки людина роздивляється фото
         active={!scene}
@@ -542,121 +659,104 @@ export default function ScannerScreen({
           sweep={sweep}
           loading={loading}
           win={win}
-          top={insets.top}
+          top={insets.top - bleedTop}
           rootH={rootH}
           reduced={reduced}
         />
       ) : (
-        // Видошукач: чотири кути + промінь, що проходить кадр під час
-        // розпізнавання. Маскот тут не зʼявляється — стрибаючий персонаж
-        // посеред камери перекриває саме той предмет, який людина наводить.
-        <Animated.View
-          pointerEvents="none"
-          style={[s.frameWrap, { top: vf.top, width: vf.w, height: vf.h, opacity: frameOpacity }]}
-        >
-          <View style={[s.corner, s.tl, loading && s.cornerActive]} />
-          <View style={[s.corner, s.tr, loading && s.cornerActive]} />
-          <View style={[s.corner, s.bl, loading && s.cornerActive]} />
-          <View style={[s.corner, s.br, loading && s.cornerActive]} />
-
-          {loading ? (
-            <Animated.View
-              style={[
-                s.scanBeam,
-                {
-                  transform: [
-                    { translateY: sweep.interpolate({ inputRange: [0, 1], outputRange: [4, vf.h - 4] }) },
-                  ],
-                  opacity: sweep.interpolate({ inputRange: [0, 0.1, 0.9, 1], outputRange: [0, 1, 1, 0] }),
-                },
-              ]}
-            />
-          ) : null}
-        </Animated.View>
+        // Кадр із «прожектором» довкола. Маскот тут не зʼявляється —
+        // стрибаючий персонаж посеред камери перекриває саме той предмет,
+        // який людина наводить.
+        <Viewfinder frame={L.frame} rootW={win.width} rootH={rootH} loading={loading} reduced={reduced} />
       )}
 
-      {/* Підказка стоїть низом над видошукачем: хоч у два рядки, хоч із
-          лічильником чи чипом Pro — на кути кадру вона не налазить. */}
-      <View pointerEvents="box-none" style={[s.hintWrap, { height: Math.max(0, vf.top - HINT_GAP) }]}>
-        <View pointerEvents="none" style={s.hintPill}>
-          <Text style={s.hint} accessibilityLiveRegion="polite">
-            {hintText}
-          </Text>
-          {showLeft ? <Text style={s.scansLeft}>{t('scansLeftN', { n: scansLeft })}</Text> : null}
-        </View>
-        {proChip ? (
-          <Pressable
-            style={s.proChip}
-            onPress={onOpenPro}
-            hitSlop={{ top: 4, bottom: 4 }}
-            accessibilityRole="button"
-            accessibilityLabel={t('scanProChip')}
-          >
-            <PCrown size={14} color={C.onAccent} />
-            <Text style={s.proChipText} maxFontSizeMultiplier={1.3}>
-              {t('scanProChip')}
+      {/* Підказка (чи помилка на її місці): погляд іде кадр → підказка → затвор */}
+      <View pointerEvents="box-none" style={[s.hintWrap, { top: L.hintTop }]}>
+        {error ? (
+          <FadeIn dy={6}>
+            <CamGlass radius={22} style={[s.errorPill, { maxWidth: Math.min(360, win.width - 32) }]}>
+              <IcWarn size={19} color={CAM.warn} />
+              <Text style={s.errorText} maxFontSizeMultiplier={CAM_FONT} accessibilityLiveRegion="polite">
+                {error}
+              </Text>
+              <Pressable
+                onPress={() => setError('')}
+                hitSlop={12}
+                accessibilityRole="button"
+                accessibilityLabel={t('close')}
+                style={s.errorClose}
+              >
+                <IcClose size={17} color={CAM.dim} />
+              </Pressable>
+            </CamGlass>
+          </FadeIn>
+        ) : (
+          <CamGlass radius={20} style={[s.hintPill, { maxWidth: hintMax }]} pointerEvents="none">
+            <Text
+              style={s.hint}
+              maxFontSizeMultiplier={CAM_FONT}
+              numberOfLines={hintLines}
+              adjustsFontSizeToFit
+              minimumFontScale={0.85}
+              accessibilityLiveRegion="polite"
+            >
+              {hintText}
             </Text>
-          </Pressable>
-        ) : null}
+          </CamGlass>
+        )}
       </View>
 
-      {/* Зум */}
-      {frozen ? null : (
-        <View style={[s.zoomRow, firstScan && { bottom: ZOOM_BOTTOM - FIRST_LIFT - MODE_H - 10 }]}>
-          {ZOOM_PRESETS.map((p) => {
-            const active = Math.abs(zoom - p.value) < 0.015;
-            return (
-              <Pressable
-                key={p.label}
-                style={[s.zoomChip, active && s.zoomChipActive]}
-                onPress={() => setZoomPreset(p.value)}
-                // 32 pt на вигляд, 44 pt для пальця
-                hitSlop={{ top: 6, bottom: 6 }}
-              >
-                <Text style={[s.zoomChipText, active && s.zoomChipTextActive]}>{p.label}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      )}
+      <TopBar
+        firstScan={firstScan}
+        lang={targetLang}
+        onLang={
+          onChangeLang
+            ? () => {
+                track('scan_lang_chip');
+                onChangeLang();
+              }
+            : undefined
+        }
+        langDisabled={loading}
+        status={status}
+        onPro={onOpenPro}
+        torch={torch && cameraLive}
+        onTorch={toggleTorch}
+        onClose={onExit ? () => onExit('closed') : undefined}
+        wide={win.width >= 390}
+        offset={bleedTop}
+        t={t}
+      />
 
       {firstScan ? null : (
-        <ModePicker mode={mode} onChange={switchMode} disabled={loading} locked={sceneLocked} reduced={reduced} s={s} t={t} />
+        <ModeSwitch
+          mode={mode}
+          onChange={switchMode}
+          disabled={loading}
+          locked={sceneLocked}
+          reduced={reduced}
+          bottom={L.modeBottom}
+          t={t}
+        />
       )}
 
-      {/* Затвор як в Apple Camera: біле кільце + біле коло. Без таб-бара
-          (перший скан в онбордингу) — ближче до низу, під великий палець. */}
-      <View style={[s.shutterWrap, firstScan && { bottom: SHUTTER_BOTTOM - FIRST_LIFT }]}>
-        <Press
-          onPress={scan}
-          disabled={loading}
-          testID="shutter"
-          accessibilityLabel={sceneMode ? t('sceneShutter') : t('scanShutter')}
-        >
-          <View style={s.shutterRing}>
-            <View style={s.shutter}>
-              {loading ? <ActivityIndicator color="#000" /> : null}
-            </View>
+      {/* Ряд затвора: ліворуч наліпка останнього слова, по центру затвор,
+          праворуч зум. Без таб-бара (перший скан) — нижче, під великий палець. */}
+      <View pointerEvents="box-none" style={[s.shutterRow, { bottom: L.shutterBottom }]}>
+        {!firstScan && lastWord && !frozen ? (
+          <View style={{ position: 'absolute', left: cx - SIDE_OFFSET - 25, top: (SHUTTER - 50) / 2 }}>
+            <LastWord word={lastWord} onPress={openLastWord} reduced={reduced} t={t} />
           </View>
-        </Press>
+        ) : null}
+        <View style={{ position: 'absolute', left: cx - SHUTTER / 2, top: 0 }}>
+          <Shutter state={shutterState} onPress={scan} reduced={reduced} t={t} />
+        </View>
+        {frozen ? null : (
+          <View style={{ position: 'absolute', left: cx + SIDE_OFFSET - 24, top: (SHUTTER - 48) / 2 }}>
+            <ZoomButton zoom={zoom} onChange={setZoomPreset} t={t} />
+          </View>
+        )}
       </View>
-
-      {firstScan && onExit ? <ExitButton onPress={onExit} t={t} s={s} dark C={C} /> : null}
-
-      {error ? (
-        <FadeIn style={[s.errorWrap, firstScan && { bottom: ZOOM_BOTTOM - FIRST_LIFT + 40 + 14 - MODE_H - 10 }]}>
-          <Text style={s.errorText}>{error}</Text>
-          <Pressable
-            onPress={() => setError('')}
-            style={s.errorClose}
-            hitSlop={10}
-            accessibilityRole="button"
-            accessibilityLabel={t('close')}
-          >
-            <IcClose color="rgba(235,235,245,0.6)" />
-          </Pressable>
-        </FadeIn>
-      ) : null}
 
       <Modal visible={!!result} transparent animationType="slide" onRequestClose={backFromResult}>
         {/* Тло — лише для пальця; VoiceOver закриває аркуш кнопкою або жестом виходу */}
@@ -781,85 +881,6 @@ export default function ScannerScreen({
   );
 }
 
-// Хрестик першого скану: назад в онбординг без слова. Над камерою — темне
-// напівпрозоре коло з білим хрестиком, як у системній Камері; на екрані
-// дозволу камери — звичайне, у кольорах застосунку.
-function ExitButton({ onPress, t, s, dark, C }) {
-  return (
-    <Pressable
-      style={[s.exit, dark ? s.exitDark : { backgroundColor: C.card2 }]}
-      onPress={onPress}
-      hitSlop={10}
-      accessibilityRole="button"
-      accessibilityLabel={t('close')}
-    >
-      <IcClose size={20} color={dark ? '#fff' : C.dim} />
-    </Pressable>
-  );
-}
-
-// ─── Перемикач режимів ─────────────────────────────────────────────────────
-// Як у Камері iOS: рядок підписів капсом над затвором, обраний — жовтий і
-// стоїть по центру; їде весь рядок, а не підсвічування стрибає між словами.
-// locked — сцена лише в Pro: біля підпису маленький значок PRO, і VoiceOver
-// теж про це каже.
-function ModePicker({ mode, onChange, disabled, locked, reduced, s, t }) {
-  const [widths, setWidths] = useState({});
-  const labels = { object: t('modeObject'), scene: t('modeScene') };
-  const pro = (m) => locked && m === 'scene';
-  const idx = MODES.indexOf(mode);
-  const measured = MODES.every((m) => widths[m]);
-  const total = measured ? MODES.reduce((sum, m) => sum + widths[m], 0) : 0;
-  const before = measured ? MODES.slice(0, idx).reduce((sum, m) => sum + widths[m], 0) : 0;
-  const shift = measured ? total / 2 - (before + widths[mode] / 2) : 0;
-
-  const x = useRef(new Animated.Value(shift)).current;
-  useEffect(() => {
-    if (reduced) x.setValue(shift);
-    else Animated.spring(x, { toValue: shift, ...SPRING.snappy }).start();
-  }, [shift, reduced]);
-
-  return (
-    <View style={s.modeRow} accessibilityRole="tablist" pointerEvents="box-none">
-      <Animated.View style={{ flexDirection: 'row', transform: [{ translateX: x }], opacity: measured ? 1 : 0 }}>
-        {MODES.map((m) => {
-          const active = m === mode;
-          return (
-            <Pressable
-              key={m}
-              onPress={() => onChange(m)}
-              disabled={disabled}
-              hitSlop={{ top: 10, bottom: 10 }}
-              // поки кадр у роботі, режим не міняється — і видно, що не міняється
-              style={[s.modeBtn, disabled && { opacity: 0.45 }]}
-              onLayout={(e) => {
-                const w = e.nativeEvent.layout.width;
-                setWidths((prev) => (prev[m] === w ? prev : { ...prev, [m]: w }));
-              }}
-              accessibilityRole="tab"
-              accessibilityLabel={pro(m) ? t('modeScenePro') : labels[m]}
-              accessibilityState={{ selected: active, disabled }}
-            >
-              <View style={s.modeInner}>
-                <Text style={[s.modeText, active && s.modeTextActive]} maxFontSizeMultiplier={1.2}>
-                  {labels[m]}
-                </Text>
-                {pro(m) ? (
-                  <View style={s.modePro}>
-                    <Text style={s.modeProText} maxFontSizeMultiplier={1.2}>
-                      PRO
-                    </Text>
-                  </View>
-                ) : null}
-              </View>
-            </Pressable>
-          );
-        })}
-      </Animated.View>
-    </View>
-  );
-}
-
 // ─── Заморожений кадр сцени ────────────────────────────────────────────────
 // Фото стоїть рівно там, де його покаже екран сцени (вписане в екран), тож
 // перехід до результату не стрибає. Спершу воно збігається з прев'ю (як
@@ -879,12 +900,12 @@ function FrozenFrame({ image, a, sweep, loading, win, top, rootH, reduced }) {
       ];
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: a }]} />
+      <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: CAM.black, opacity: a }]} />
       <Animated.View
         style={{ position: 'absolute', left: f.x, top: y, width: f.w, height: f.h, overflow: 'hidden', transform: motion }}
       >
         <Image source={{ uri: image.uri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-        <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.28)' }]} />
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: CAM.frozenDim }]} />
         {loading && !reduced ? (
           <Animated.View
             style={{
@@ -898,9 +919,9 @@ function FrozenFrame({ image, a, sweep, loading, win, top, rootH, reduced }) {
             <Svg width={band} height={f.h}>
               <Defs>
                 <LinearGradient id="sceneSweep" x1="0" y1="0" x2="1" y2="0">
-                  <Stop offset="0" stopColor="#FFFFFF" stopOpacity={0} />
-                  <Stop offset="0.5" stopColor="#FFFFFF" stopOpacity={0.3} />
-                  <Stop offset="1" stopColor="#FFFFFF" stopOpacity={0} />
+                  <Stop offset="0" stopColor={CAM.glint} stopOpacity={0} />
+                  <Stop offset="0.5" stopColor={CAM.glint} stopOpacity={0.3} />
+                  <Stop offset="1" stopColor={CAM.glint} stopOpacity={0} />
                 </LinearGradient>
               </Defs>
               <Rect width={band} height={f.h} fill="url(#sceneSweep)" />
@@ -912,165 +933,19 @@ function FrozenFrame({ image, a, sweep, loading, win, top, rootH, reduced }) {
   );
 }
 
-// Видошукач. Предмет — квадрат на третині екрана.
-// Сцена — високий кадр 9:16 майже на весь сканер: від підказки до
-// перемикача режимів, кнопки зуму лягають усередину, як у Камері iOS.
-// Підказка сцени довша і може лягти у два рядки — над кадром для неї
-// лишаємо місце, щоб пігулка не налазила на верхні кути; extra — ще стільки
-// ж під лічильник сканів чи чип Pro під нею.
-function viewfinder(scene, width, rootH, extra = 0) {
-  if (!scene) return { w: FRAME, h: FRAME, top: rootH * 0.27 };
-  const bottom = rootH - MODE_BOTTOM - MODE_H - 12;
-  const h = Math.max(FRAME, Math.min(bottom - 84 - extra, ((width - 56) * 16) / 9));
-  return { w: Math.round((h * 9) / 16), h, top: bottom - h };
-}
-
-const FRAME = 240;
-// Підказка над видошукачем: відступ до кадру і місце під її другий рядок
-// (лічильник сканів) та чип Pro
-const HINT_GAP = 14;
-const COUNTER_H = 20;
-const CHIP_H = 46;
-const SHUTTER_BOTTOM = UNDER_TAB + 12;
-// Перший скан в онбордингу: таб-бара немає — затвор і зум нижче на стільки
-const FIRST_LIFT = UNDER_TAB - 22;
 // Перший скан: скільки видно «Збережено» і скільки їде вниз аркуш
 export const FIRST_SAVED_MS = 650;
 export const FIRST_SHEET_MS = 320;
-// Перемикач режимів — одразу над затвором, зум — над перемикачем.
-const MODE_BOTTOM = SHUTTER_BOTTOM + 78 + 10;
-const MODE_H = 28;
-const ZOOM_BOTTOM = MODE_BOTTOM + MODE_H + 10;
 
 const makeStyles = (C) =>
   StyleSheet.create({
-    root: { flex: 1, backgroundColor: '#000' },
+    root: { flex: 1, backgroundColor: CAM.black },
     center: { flex: 1, backgroundColor: C.bg, alignItems: 'center', justifyContent: 'center', padding: 30 },
     permTitle: { color: C.text, fontSize: 22, letterSpacing: -0.31, fontFamily: F.bold, marginTop: 14, marginBottom: 8, textAlign: 'center' },
     permText: { color: C.dim, fontSize: 15, textAlign: 'center', marginBottom: 24, lineHeight: 21, fontFamily: F.reg },
-
-    frameWrap: { position: 'absolute', alignSelf: 'center' },
-    corner: { position: 'absolute', width: 26, height: 26, borderColor: 'rgba(255,255,255,0.95)' },
-    tl: { top: 0, left: 0, borderTopWidth: 2, borderLeftWidth: 2, borderTopLeftRadius: 6 },
-    tr: { top: 0, right: 0, borderTopWidth: 2, borderRightWidth: 2, borderTopRightRadius: 6 },
-    bl: { bottom: 0, left: 0, borderBottomWidth: 2, borderLeftWidth: 2, borderBottomLeftRadius: 6 },
-    br: { bottom: 0, right: 0, borderBottomWidth: 2, borderRightWidth: 2, borderBottomRightRadius: 6 },
-
-    // під час скану кути наливаються акцентом — видно, що прилад працює
-    cornerActive: { borderColor: '#9B8FFF' },
-    // другий рядок пігулки підказки: дрібніший, але повної яскравості
-    scansLeft: { color: '#fff', fontSize: 12, lineHeight: 16, fontFamily: F.reg, marginTop: 2, textAlign: 'center' },
-    // Безкоштовний скан використано: чип веде в пейвол — так камера каже,
-    // що робити далі, а не лише що «не можна»
-    proChip: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 6,
-      minHeight: 36,
-      marginTop: 8,
-      paddingHorizontal: 14,
-      borderRadius: R.pill,
-      backgroundColor: C.accent,
-    },
-    proChipText: { color: C.onAccent, fontSize: 14, fontFamily: F.bold },
-    scanBeam: {
+    // хрестик на екрані дозволу — у кольорах застосунку, а не камери
+    permExit: {
       position: 'absolute',
-      left: 10,
-      right: 10,
-      height: 2,
-      borderRadius: 2,
-      backgroundColor: '#9B8FFF',
-      shadowColor: '#9B8FFF',
-      shadowOpacity: 0.9,
-      shadowRadius: 8,
-      shadowOffset: { width: 0, height: 0 },
-    },
-    hintWrap: { position: 'absolute', top: 0, width: '100%', alignItems: 'center', justifyContent: 'flex-end' },
-    hintPill: {
-      backgroundColor: 'rgba(0,0,0,0.55)',
-      paddingHorizontal: 14,
-      paddingVertical: 7,
-      borderRadius: 18,
-      // довга підказка сцени ламається на два рівні рядки, а не на
-      // широку смугу з одним словом у другому рядку
-      maxWidth: 300,
-      alignItems: 'center',
-    },
-    hint: { color: '#fff', fontSize: 13, lineHeight: 18, fontFamily: F.semi, textAlign: 'center' },
-
-    zoomRow: {
-      position: 'absolute',
-      bottom: ZOOM_BOTTOM,
-      alignSelf: 'center',
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 2,
-      backgroundColor: 'rgba(0,0,0,0.5)',
-      borderRadius: R.pill,
-      padding: 4,
-    },
-    zoomChip: { width: 40, height: 32, borderRadius: R.pill, alignItems: 'center', justifyContent: 'center' },
-    zoomChipActive: { backgroundColor: 'rgba(255,255,255,0.22)' },
-    zoomChipText: { color: 'rgba(255,255,255,0.65)', fontSize: 13, fontFamily: F.semi },
-    zoomChipTextActive: { color: '#FFD60A' },
-
-    // Режими: капс із розрядкою, як у Камері iOS. Тло не потрібне — тінь
-    // під літерами тримає їх читабельними і на білій стіні.
-    modeRow: { position: 'absolute', bottom: MODE_BOTTOM, height: MODE_H, left: 0, right: 0, alignItems: 'center', justifyContent: 'center' },
-    modeBtn: { paddingHorizontal: 11, height: MODE_H, justifyContent: 'center' },
-    modeText: {
-      color: 'rgba(255,255,255,0.9)',
-      fontSize: 13,
-      fontFamily: F.extra,
-      letterSpacing: 1.3,
-      textTransform: 'uppercase',
-      textShadowColor: 'rgba(0,0,0,0.45)',
-      textShadowRadius: 4,
-      textShadowOffset: { width: 0, height: 1 },
-    },
-    modeTextActive: { color: '#FFD60A' },
-    modeInner: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-    // Значок PRO біля «Сцени»: маленька пігулка кольору акценту, як бейдж
-    // PRO в пейволі, — щоб людина впізнала його там, куди він веде.
-    modePro: { backgroundColor: C.accent, borderRadius: R.pill, paddingHorizontal: 5, paddingVertical: 1.5 },
-    modeProText: { color: C.onAccent, fontSize: 9, fontFamily: F.extra, letterSpacing: 0.8 },
-
-    // Таб-бар лежить поверх камери, тож затвор стоїть над ним, а не під ним.
-    shutterWrap: { position: 'absolute', bottom: SHUTTER_BOTTOM, width: '100%', alignItems: 'center' },
-    shutterRing: {
-      width: 78,
-      height: 78,
-      borderRadius: 39,
-      borderWidth: 4,
-      borderColor: '#fff',
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    shutter: {
-      width: 62,
-      height: 62,
-      borderRadius: 31,
-      backgroundColor: '#fff',
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-
-    errorWrap: {
-      position: 'absolute',
-      bottom: ZOOM_BOTTOM + 40 + 14,
-      alignSelf: 'center',
-      backgroundColor: 'rgba(28,28,30,0.97)',
-      borderRadius: R.md,
-      padding: 16,
-      paddingRight: 38,
-      maxWidth: '86%',
-      alignItems: 'center',
-    },
-    errorText: { color: '#fff', fontSize: 14, textAlign: 'center', lineHeight: 20, fontFamily: F.reg },
-    errorClose: { position: 'absolute', top: 8, right: 10, padding: 4 },
-    exit: {
-      position: 'absolute',
-      top: 12,
       left: 14,
       zIndex: 20,
       width: 40,
@@ -1078,10 +953,19 @@ const makeStyles = (C) =>
       borderRadius: 20,
       alignItems: 'center',
       justifyContent: 'center',
+      backgroundColor: C.card2,
     },
-    exitDark: { backgroundColor: 'rgba(0,0,0,0.45)' },
 
-    modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
+    // ── хром камери: фіксовані кольори темної палітри (src/scanner/CamGlass.js) ──
+    hintWrap: { position: 'absolute', left: 16, right: 16, alignItems: 'center' },
+    hintPill: { paddingHorizontal: 16, paddingVertical: 9 },
+    hint: { color: CAM.text, fontSize: 14, lineHeight: 19, fontFamily: F.semi, textAlign: 'center' },
+    errorPill: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingLeft: 14, paddingRight: 10, paddingVertical: 11 },
+    errorText: { color: CAM.text, fontSize: 14, lineHeight: 19, fontFamily: F.semi, flexShrink: 1 },
+    errorClose: { padding: 4, alignSelf: 'flex-start' },
+    shutterRow: { position: 'absolute', left: 0, right: 0, height: SHUTTER },
+
+    modalBackdrop: { flex: 1, backgroundColor: CAM.scrim },
     sheet: {
       backgroundColor: C.sheet,
       borderTopLeftRadius: R.xl,

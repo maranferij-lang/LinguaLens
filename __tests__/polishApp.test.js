@@ -325,16 +325,18 @@ describe('the camera after the free scan', () => {
     await act(async () => tree.unmount());
   });
 
-  test('a scan left: the counter is a second line of the hint pill; Pro has neither', async () => {
+  // v1.3: лічильник — не другий рядок підказки, а статус угорі (core.md A10)
+  test('a scan left: the counter is the status pill over the camera, not the hint; Pro has neither', async () => {
     let tree = await render(scanner({ scansLeft: 1, onOpenPro: jest.fn() }));
     let pill = tree.root.findAll((n) => n.type === 'Text' && n.props.children === t('hint'))[0];
     while (pill.type !== 'View') pill = pill.parent;
-    expect(texts(pill)).toEqual([t('hint'), t('scansLeftN', { n: 1 })]);
+    expect(texts(pill)).toEqual([t('hint')]);
+    expect(texts(tree.root)).toContain(t('scanFreeLeft', { n: 1 }));
     expect(byLabel(tree.root, t('scanProChip'))).toBeUndefined();
     await act(async () => tree.unmount());
 
     tree = await render(scanner({ scansLeft: Infinity, onOpenPro: jest.fn() }));
-    expect(texts(tree.root).some((s) => /free scans? left/.test(s))).toBe(false);
+    expect(texts(tree.root).some((s) => /free scans?/.test(s))).toBe(false);
     expect(byLabel(tree.root, t('scanProChip'))).toBeUndefined();
     await act(async () => tree.unmount());
   });
@@ -689,6 +691,8 @@ describe('Learn hub', () => {
     await act(async () => tree.unmount());
   });
 
+  // v1.3 (core.md B): «Як отримати перше слово» — обидва шляхи поруч:
+  // зберегти слово дня і сканувати
   test('empty Learn: save the word of the day, or go and scan', async () => {
     const onSaveWod = jest.fn();
     const onGoScan = jest.fn();
@@ -696,7 +700,7 @@ describe('Learn hub', () => {
     let tree = await render(hub({ wordOfDay: wod, onSaveWod, onGoScan }));
     await press(() => byTitle(tree.root, t('learnSaveWod')).props.onPress());
     expect(onSaveWod).toHaveBeenCalledTimes(1);
-    expect(byTitle(tree.root, t('learnGoScan'))).toBeUndefined();
+    await press(() => byTitle(tree.root, t('learnGoScan')).props.onPress());
     await act(async () => tree.unmount());
 
     for (const props of [{ wordOfDay: null }, { wordOfDay: wod, wodSaved: true }]) {
@@ -705,26 +709,21 @@ describe('Learn hub', () => {
       await press(() => byTitle(tree.root, t('learnGoScan')).props.onPress());
       await act(async () => tree.unmount());
     }
-    expect(onGoScan).toHaveBeenCalledTimes(2);
+    expect(onGoScan).toHaveBeenCalledTimes(3);
   });
 
-  test('on a small phone the empty state is compact, so its button clears the tab bar', async () => {
+  // v1.3: великого Lingo з «Поки нема чого повторювати» більше немає — на
+  // його місці закриті картки й блок «Як отримати», тож на SE кнопки
+  // «Як отримати» стоять одразу під ними
+  test('on a small phone the empty state has no big Lingo: locked cards, then how to get a word', async () => {
     const MascotBob = require('../src/Mascot').MascotBob;
-    const was = Dimensions.get('window');
-    const size = async () => {
-      const tree = await render(hub({ wordOfDay: null, onGoScan: () => {} }));
-      const v = tree.root.findByType(MascotBob).props.size;
-      await act(async () => tree.unmount());
-      return v;
-    };
-    try {
-      act(() => Dimensions.set({ window: { width: 375, height: 667, scale: 2, fontScale: 1 }, screen: { width: 375, height: 667, scale: 2, fontScale: 1 } }));
-      expect(await size()).toBe(100);
-      act(() => Dimensions.set({ window: { width: 440, height: 956, scale: 3, fontScale: 1 }, screen: { width: 440, height: 956, scale: 3, fontScale: 1 } }));
-      expect(await size()).toBe(140);
-    } finally {
-      act(() => Dimensions.set({ window: was, screen: was }));
-    }
+    const tree = await render(hub({ wordOfDay: null, onGoScan: () => {} }));
+    expect(tree.root.findAllByType(MascotBob)).toHaveLength(0);
+    const all = texts(tree.root);
+    expect(all).not.toContain(t('cardsEmptyTitle'));
+    expect(all.indexOf(t('flashcards'))).toBeLessThan(all.indexOf(t('learnHowTitle')));
+    expect(all.indexOf(t('quiz'))).toBeLessThan(all.indexOf(t('learnHowTitle')));
+    await act(async () => tree.unmount());
   });
 
   test('App: saving the word of the day from the empty state gives one card due', async () => {
