@@ -58,6 +58,13 @@ export const HEARD_BRANDS = {
   appstore: 'App Store',
 };
 
+// Що заважало вчити мову (онбординг, необовʼязково). Лише ключі в
+// settings.struggles — на сервер не йдуть; план показує, яка функція
+// застосунку відповідає на кожну з них.
+export const STRUGGLES = ['forget', 'time', 'boring', 'start'];
+// Імʼя — лише на телефоні (settings.profileName): ні на сервер, ні в статистику.
+export const NAME_MAX = 30;
+
 export const LEVEL_MIN = 1;
 export const LEVEL_MAX = 10;
 // Середина шкали. Нею стартує слайдер і її ж бере профіль, якщо крок рівня
@@ -178,6 +185,39 @@ export function topicWeights(profile) {
   return w;
 }
 
+// Порядок тем на днях — той самий плавний зважений round-robin, що в
+// server/wordplan.js (smoothPattern): теми за ключем, нічия — першій. Для
+// роботи з фінансами 4/2/1 це «f w f g f w f». Свіжий профіль починає
+// цикл сьогодні, тож план в онбордингу показує справжні наступні дні.
+export function topicCycle(profile) {
+  const w = topicWeights(profile);
+  const keys = Object.keys(w).sort();
+  const total = keys.reduce((sum, k) => sum + w[k], 0);
+  const current = Object.fromEntries(keys.map((k) => [k, 0]));
+  const out = [];
+  for (let i = 0; i < total; i++) {
+    let best = null;
+    for (const k of keys) {
+      current[k] += w[k];
+      if (best === null || current[k] > current[best]) best = k;
+    }
+    current[best] -= total;
+    out.push(best);
+  }
+  return out;
+}
+
+// Теми плану від найчастішої: [{ topic, days }] з циклу topicCycle.
+// Нічия — у порядку першої появи в циклі (так її й побачить людина).
+export function planTopics(profile) {
+  const cycle = topicCycle(profile);
+  const days = {};
+  for (const k of cycle) days[k] = (days[k] || 0) + 1;
+  return Object.keys(days)
+    .sort((a, b) => days[b] - days[a] || cycle.indexOf(a) - cycle.indexOf(b))
+    .map((topic) => ({ topic, days: days[topic] }));
+}
+
 // Головна тема профілю — та, з якої приходитиме найбільше слів і про яку
 // чесно сказати «нове слово з фінансів». Студентові ІТ це «навчання» (3 дні
 // з 5), а не «ІТ» (1 з 5). Нічия — на користь названої теми: сфера, робота,
@@ -253,4 +293,15 @@ export function profileReport(profile, heardFrom) {
     ...(p ? { goals: p.goals, field: p.field, level: p.level } : null),
     ...(HEARD.includes(heardFrom) ? { heardFrom } : null),
   };
+}
+
+// Відповідь «що заважає»: лише відомі ключі, без повторів, у порядку STRUGGLES.
+export function cleanStruggles(list) {
+  return Array.isArray(list) ? STRUGGLES.filter((k) => list.includes(k)) : [];
+}
+
+// Імʼя з онбордингу: без пробілів по краях, не довше NAME_MAX. Не рядок —
+// порожньо (імені немає).
+export function cleanName(name) {
+  return typeof name === 'string' ? name.trim().slice(0, NAME_MAX).trim() : '';
 }

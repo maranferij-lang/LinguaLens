@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { localDayKey } from './storage';
+import { cleanName } from './profile';
 import { flagFor, nameFor } from './speech';
 import { evaluate, computeMetrics, levelFromWords, unlockedCount } from './achievements';
 import { IcCheck, IcFlame, IcShare } from './icons';
@@ -88,7 +89,7 @@ export default function ProfileScreen({ words, activity, stats, profile, onUpdat
 
   function saveName() {
     setEditing(false);
-    const n = draftName.trim().slice(0, 40);
+    const n = cleanName(draftName);
     if (n !== (profile.name || '')) onUpdateProfile({ name: n });
   }
 

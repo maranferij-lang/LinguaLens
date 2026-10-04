@@ -11,6 +11,7 @@ import { Platform } from 'react-native';
 import { apiWordOfDay } from './api';
 import { cleanProfile, topicName } from './profile';
 import { loadWod, persistWod, localDayKey } from './storage';
+import { TRIAL_REMIND_DAYS } from './subscription';
 
 export const WOD_DAYS = 14;
 // Оновлюємо, коли наперед лишилось менше тижня: хто відкриває застосунок
@@ -86,6 +87,21 @@ export async function canRemind() {
     return p.status === 'granted' || p.canAskAgain !== false;
   } catch (_) {
     return false;
+  }
+}
+
+// Стан дозволу для онбордингу: 'undetermined' — ще не питали (тоді й
+// показуємо екран-пояснення перед системним запитом), 'granted', 'denied'
+// (iOS більше не спитає — лише Параметри), 'unavailable' — модуля немає.
+export async function permissionStatus() {
+  if (!Notifications) return 'unavailable';
+  try {
+    const p = await Notifications.getPermissionsAsync();
+    if (p.status === 'granted') return 'granted';
+    if (p.canAskAgain === false) return 'denied';
+    return 'undetermined';
+  } catch (_) {
+    return 'unavailable';
   }
 }
 
@@ -230,14 +246,35 @@ export async function rescheduleNotifications(cache, enabled, hour = DEFAULT_HOU
   }
 }
 
+// Коли нагадати про кінець пробного періоду: за 2 дні до списання, як
+// обіцяє пейвол («День 5 — нагадаємо» для тижня). Купили о 23:40 чи о 2-й
+// ночі — нагадування в ту саму годину прийшло б уночі й загубилось би серед
+// нічних сповіщень. Тоді переносимо його РАНІШЕ, на 20:00 того ж (пізня
+// ніч) чи попереднього (рання ніч) вечора: людина дізнається трохи раніше,
+// але ніколи пізніше, ніж за 2 дні. → мс або null, якщо вже запізно.
+export function trialReminderAt(untilMs, now = Date.now()) {
+  if (!Number.isFinite(untilMs)) return null;
+  const at = new Date(untilMs - TRIAL_REMIND_DAYS * 86400000);
+  const h = at.getHours();
+  if (h >= 22 || h < 8) {
+    const evening = new Date(at);
+    if (h < 8) evening.setDate(evening.getDate() - 1);
+    evening.setHours(20, 0, 0, 0);
+    // вечір уже минув (короткий пробний період) — лишаємо точну годину
+    if (evening.getTime() > now + 60000) return evening.getTime();
+  }
+  return at.getTime() > now + 60000 ? at.getTime() : null;
+}
+
 // Нагадування про кінець пробного періоду.
 // Apple надсилає своє, але ми не покладаємось на це: людина має дізнатись
 // про майбутнє списання від нас, а не з виписки по картці.
 export async function scheduleTrialReminder(untilMs, title, body) {
   if (!Notifications) return false;
   try {
-    const when = new Date(untilMs - 2 * 86400000); // за 2 дні до кінця
-    if (when.getTime() <= Date.now() + 60000) return false;
+    const at = trialReminderAt(untilMs);
+    if (!at) return false;
+    const when = new Date(at);
     if (!(await hasPermission())) return false;
     await Notifications.scheduleNotificationAsync({
       identifier: 'trial-end',

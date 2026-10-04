@@ -86,6 +86,13 @@ export default function ScannerScreen({
   // звідки скан — для статистики: 'app' або 'onboarding' (перший скан у
   // онбордингу)
   scanSource = 'app',
+  // Перший скан в онбордингу («Спробуй зараз»): лише один предмет, без
+  // перемикача режимів і лічильника сканів, з хрестиком, що вертає в
+  // онбординг (onExit). Щойно слово збережено — аркуш закривається, і
+  // онбординг іде далі вже зі словом (onFirstSaved(слово)).
+  firstScan = false,
+  onExit,
+  onFirstSaved,
   t,
 }) {
   const { C } = useTheme();
@@ -107,7 +114,9 @@ export default function ScannerScreen({
   // рахуються видошукач сцени й заморожений кадр.
   const [rootH, setRootH] = useState(win.height - insets.top - insets.bottom);
 
-  const mode = MODES.includes(scanMode) ? scanMode : 'object';
+  // Перший скан — завжди один предмет: сцена довша (5–12 с) і в
+  // безкоштовному рівні разова; вау-момент має бути швидким.
+  const mode = firstScan ? 'object' : MODES.includes(scanMode) ? scanMode : 'object';
   const sceneMode = mode === 'scene';
   // Сцена: заморожений кадр, поки модель думає, і готовий результат.
   const [frozen, setFrozen] = useState(null);
@@ -116,7 +125,16 @@ export default function ScannerScreen({
   const [statusIdx, setStatusIdx] = useState(0);
   // Таймер, що прибирає заморожений кадр після закриття сцени (див. closeScene)
   const thaw = useRef(null);
-  useEffect(() => () => clearTimeout(thaw.current), []);
+  // Перший скан: «Збережено» видно мить, потім аркуш їде вниз і онбординг
+  // продовжується
+  const firstDone = useRef([]);
+  useEffect(
+    () => () => {
+      clearTimeout(thaw.current);
+      firstDone.current.forEach(clearTimeout);
+    },
+    []
+  );
 
   // Промінь розгортки: рівномірний хід згори вниз. Тут linear доречний —
   // він читається як робота приладу, а не як «оживлення» інтерфейсу.
@@ -385,6 +403,15 @@ export default function ScannerScreen({
     }
     setJustSaved(true);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    if (firstScan && onFirstSaved && !firstDone.current.length) {
+      const word = resultWord();
+      firstDone.current.push(
+        setTimeout(() => {
+          closeResult();
+          firstDone.current.push(setTimeout(() => onFirstSaved(word), FIRST_SHEET_MS));
+        }, FIRST_SAVED_MS)
+      );
+    }
   }
 
   function share() {
@@ -414,6 +441,7 @@ export default function ScannerScreen({
     const denied = !permission.canAskAgain;
     return (
       <View style={s.center}>
+        {firstScan && onExit ? <ExitButton onPress={onExit} t={t} s={s} dark={false} C={C} /> : null}
         <FadeIn>
           <View style={{ alignItems: 'center' }}>
             <MascotBob pose="wave" size={150} />
@@ -495,14 +523,14 @@ export default function ScannerScreen({
         </Text>
         {/* Скільки сканів лишилось. Показуємо лише коли реально мало —
             постійний лічильник над камерою тисне і псує враження. */}
-        {Number.isFinite(scansLeft) && scansLeft <= 3 && !loading ? (
+        {Number.isFinite(scansLeft) && scansLeft <= 3 && !loading && !firstScan ? (
           <Text style={s.scansLeft}>{t('scansLeftN', { n: scansLeft })}</Text>
         ) : null}
       </View>
 
       {/* Зум */}
       {frozen ? null : (
-        <View style={s.zoomRow}>
+        <View style={[s.zoomRow, firstScan && { bottom: ZOOM_BOTTOM - FIRST_LIFT - MODE_H - 10 }]}>
           {ZOOM_PRESETS.map((p) => {
             const active = Math.abs(zoom - p.value) < 0.015;
             return (
@@ -518,10 +546,13 @@ export default function ScannerScreen({
         </View>
       )}
 
-      <ModePicker mode={mode} onChange={switchMode} disabled={loading} locked={sceneLocked} reduced={reduced} s={s} t={t} />
+      {firstScan ? null : (
+        <ModePicker mode={mode} onChange={switchMode} disabled={loading} locked={sceneLocked} reduced={reduced} s={s} t={t} />
+      )}
 
-      {/* Затвор як в Apple Camera: біле кільце + біле коло */}
-      <View style={s.shutterWrap}>
+      {/* Затвор як в Apple Camera: біле кільце + біле коло. Без таб-бара
+          (перший скан в онбордингу) — ближче до низу, під великий палець. */}
+      <View style={[s.shutterWrap, firstScan && { bottom: SHUTTER_BOTTOM - FIRST_LIFT }]}>
         <Press
           onPress={scan}
           disabled={loading}
@@ -536,8 +567,10 @@ export default function ScannerScreen({
         </Press>
       </View>
 
+      {firstScan && onExit ? <ExitButton onPress={onExit} t={t} s={s} dark C={C} /> : null}
+
       {error ? (
-        <FadeIn style={s.errorWrap}>
+        <FadeIn style={[s.errorWrap, firstScan && { bottom: ZOOM_BOTTOM - FIRST_LIFT + 40 + 14 - MODE_H - 10 }]}>
           <Text style={s.errorText}>{error}</Text>
           <Pressable
             onPress={() => setError('')}
@@ -652,6 +685,23 @@ export default function ScannerScreen({
           читала, камера могла дивитись уже не туди. */}
       <ConsentSheet visible={askConsent} onAllow={allowUpload} onClose={() => setAskConsent(false)} t={t} />
     </View>
+  );
+}
+
+// Хрестик першого скану: назад в онбординг без слова. Над камерою — темне
+// напівпрозоре коло з білим хрестиком, як у системній Камері; на екрані
+// дозволу камери — звичайне, у кольорах застосунку.
+function ExitButton({ onPress, t, s, dark, C }) {
+  return (
+    <Pressable
+      style={[s.exit, dark ? s.exitDark : { backgroundColor: C.card2 }]}
+      onPress={onPress}
+      hitSlop={10}
+      accessibilityRole="button"
+      accessibilityLabel={t('close')}
+    >
+      <IcClose size={20} color={dark ? '#fff' : C.dim} />
+    </Pressable>
   );
 }
 
@@ -783,6 +833,11 @@ function viewfinder(scene, width, rootH) {
 
 const FRAME = 240;
 const SHUTTER_BOTTOM = UNDER_TAB + 12;
+// Перший скан в онбордингу: таб-бара немає — затвор і зум нижче на стільки
+const FIRST_LIFT = UNDER_TAB - 22;
+// Перший скан: скільки видно «Збережено» і скільки їде вниз аркуш
+export const FIRST_SAVED_MS = 650;
+export const FIRST_SHEET_MS = 320;
 // Перемикач режимів — одразу над затвором, зум — над перемикачем.
 const MODE_BOTTOM = SHUTTER_BOTTOM + 78 + 10;
 const MODE_H = 28;
@@ -914,6 +969,18 @@ const makeStyles = (C) =>
     },
     errorText: { color: '#fff', fontSize: 14, textAlign: 'center', lineHeight: 20, fontFamily: F.reg },
     errorClose: { position: 'absolute', top: 8, right: 10, padding: 4 },
+    exit: {
+      position: 'absolute',
+      top: 12,
+      left: 14,
+      zIndex: 20,
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    exitDark: { backgroundColor: 'rgba(0,0,0,0.45)' },
 
     modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
     sheet: {

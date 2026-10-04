@@ -11,8 +11,14 @@ import {
   GOALS,
   HEARD,
   MAX_KNOWN,
+  NAME_MAX,
+  STRUGGLES,
   TOPICS,
   addKnown,
+  cleanName,
+  cleanStruggles,
+  planTopics,
+  topicCycle,
   cefrFor,
   cleanProfile,
   levelBand,
@@ -230,5 +236,50 @@ describe('POST /me/profile body', () => {
     expect(profileReport(null, null)).toEqual({});
     const stored = serverProfile.forStorage(profileReport(p, 'tiktok'), null);
     expect(stored).toEqual({ goals: ['work'], field: null, level: 4, heardFrom: 'tiktok' });
+  });
+});
+
+// План в онбордингу показує цикл тем — той самий, що складе сервер.
+describe('the plan shown in onboarding', () => {
+  test('the day-by-day topic cycle matches server/wordplan.js smoothPattern', () => {
+    const sets = [];
+    for (let mask = 1; mask < 1 << GOALS.length; mask++) sets.push(GOALS.filter((_, i) => mask & (1 << i)));
+    for (const goals of sets) {
+      for (const field of [null, ...FIELDS]) {
+        const p = { goals, field, level: 5, since: TODAY };
+        const server = wordplan.smoothPattern(wordplan.weightsFor(serverProfile.forSchedule(p, TODAY)));
+        expect(topicCycle(p)).toEqual(server);
+      }
+    }
+    expect(topicCycle(null)).toEqual(wordplan.smoothPattern(wordplan.weightsFor(null)));
+  });
+
+  test('work in finance: 4 of 7 days finance, 2 work, 1 general — spread out, not in a row', () => {
+    const p = { goals: ['work'], field: 'finance', level: 8, since: TODAY };
+    expect(topicCycle(p)).toEqual(['finance', 'workplace', 'finance', 'general', 'finance', 'workplace', 'finance']);
+    expect(planTopics(p)).toEqual([
+      { topic: 'finance', days: 4 },
+      { topic: 'workplace', days: 2 },
+      { topic: 'general', days: 1 },
+    ]);
+    // без профілю — лише загальні
+    expect(planTopics(null)).toEqual([{ topic: 'general', days: 1 }]);
+    // навчання з ІТ: академічна лексика переважає
+    expect(planTopics({ goals: ['study'], field: 'it', level: 5 })[0]).toEqual({ topic: 'academic', days: 3 });
+  });
+
+  test('struggles: known keys only, in a fixed order', () => {
+    expect(STRUGGLES).toEqual(['forget', 'time', 'boring', 'start']);
+    expect(cleanStruggles(['start', 'x', 'forget', 'forget'])).toEqual(['forget', 'start']);
+    expect(cleanStruggles(null)).toEqual([]);
+  });
+
+  test('the name: trimmed, at most 30 characters, never anything but a string', () => {
+    expect(NAME_MAX).toBe(30);
+    expect(cleanName('  Олена ')).toBe('Олена');
+    expect(cleanName('a'.repeat(40))).toHaveLength(30);
+    expect(cleanName('a'.repeat(29) + '  b')).toBe('a'.repeat(29));
+    expect(cleanName(null)).toBe('');
+    expect(cleanName(42)).toBe('');
   });
 });

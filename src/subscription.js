@@ -96,6 +96,11 @@ export const PLANS = [
 // `default` у RevenueCat: місяць, рік, назавжди.
 export const SIMULATED_PLANS = PLANS.filter((p) => ['month', 'year', 'lifetime'].includes(p.id));
 
+// За скільки днів до кінця пробного періоду нагадуємо (див. пункт 2 вище):
+// і таймлайн пейволу, і саме сповіщення (scheduleTrialReminder) беруть
+// число звідси — обіцянка й дія не можуть розійтись.
+export const TRIAL_REMIND_DAYS = 2;
+
 // Що дає безкоштовний рівень. Стелі задає сервер (FREE_SCANS_PER_DAY,
 // FREE_SCENES) і віддає разом із лічильниками; тут — запасні значення на
 // випадок, коли сервер ще не відповідав.

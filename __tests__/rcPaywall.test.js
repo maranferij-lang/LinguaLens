@@ -201,3 +201,61 @@ test('Apple Ads attribution is collected once the SDK is configured', async () =
   expect(sdk.configure).toHaveBeenCalledTimes(1);
   expect(sdk.enableAdServicesAttributionTokenCollection).toHaveBeenCalledTimes(1);
 });
+
+// ---------- пейвол онбордингу з RevenueCat ----------
+// metadata поточної пропозиції вирішує і чи показувати пейвол наприкінці
+// онбордингу (onboarding_paywall), і чий третій екран (paywall_ui).
+describe('onboarding paywall', () => {
+  const OnboardingScreen = require('../src/OnboardingScreen').default;
+  const OnboardingPaywall = require('../src/OnboardingPaywall').default;
+  const yearlyWithTrial = (metadata) => ({
+    current: {
+      identifier: 'default',
+      metadata,
+      availablePackages: [
+        {
+          packageType: 'ANNUAL',
+          product: { identifier: 'yearly', price: 34.99, priceString: '$34.99', introPrice: { price: 0, periodUnit: 'WEEK', periodNumberOfUnits: 1, cycles: 1 } },
+        },
+      ],
+    },
+  });
+  async function finishOnboarding() {
+    await AsyncStorage.removeItem('ll_onboarded_v1');
+    const tree = await renderApp();
+    await run(() => one(tree, OnboardingScreen).props.onDone({ profile: null, heardFrom: null, scanned: false, flow: 'control' }));
+    return tree;
+  }
+  const settings = async () => JSON.parse(await AsyncStorage.getItem('ll_settings_v1'));
+
+  test('onboarding_paywall: "skip" — straight to the app; the post-scan paywall stays as the fallback', async () => {
+    sdk.getOfferings.mockImplementation(async () => offering({ onboarding_paywall: 'skip' }));
+    const tree = await finishOnboarding();
+    expect(one(tree, OnboardingPaywall)).toBeNull();
+    expect(RevenueCatUI.presentPaywall).not.toHaveBeenCalled();
+    expect((await settings()).onbPaywallShown).not.toBe(true);
+  });
+
+  test('paywall_ui: "revenuecat" — our trial and reminder screens, then the RevenueCat paywall', async () => {
+    sdk.checkTrialOrIntroductoryPriceEligibility.mockImplementation(async () => ({ yearly: { status: 2 } }));
+    sdk.getOfferings.mockImplementation(async () => yearlyWithTrial({ paywall_ui: 'revenuecat' }));
+    const tree = await finishOnboarding();
+    expect(one(tree, OnboardingPaywall).props.ui).toBe('revenuecat');
+    expect(texts(tree)).toContain('Try Pro free for 7 days');
+    const next = () => tree.root.findAll((n) => n.props.title === t('obNext') && n.props.onPress)[0].props.onPress();
+    await run(next);
+    await run(next);
+    expect(RevenueCatUI.presentPaywall).toHaveBeenCalledTimes(1);
+    // закрили пейвол RevenueCat — нашого шару теж немає
+    expect(one(tree, OnboardingPaywall)).toBeNull();
+    expect(one(tree, PaywallScreen)).toBeNull();
+  });
+
+  test('no trial and the RevenueCat paywall fails: our plans screen right away', async () => {
+    RevenueCatUI.presentPaywall.mockImplementation(async () => 'ERROR');
+    const tree = await finishOnboarding();
+    expect(RevenueCatUI.presentPaywall).toHaveBeenCalledTimes(1);
+    expect(one(tree, OnboardingPaywall)).not.toBeNull();
+    expect(one(tree, PaywallScreen).props).toMatchObject({ reason: 'intro', compact: true });
+  });
+});

@@ -2,7 +2,16 @@
 // «Знаю», кеш із підписом профілю, тема в заголовку сповіщення.
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
-import { needsRefresh, notificationTitle, syncWordOfDay, wodSignature } from '../src/wordOfDay';
+import {
+  needsRefresh,
+  notificationTitle,
+  permissionStatus,
+  scheduleTrialReminder,
+  syncWordOfDay,
+  trialReminderAt,
+  wodSignature,
+} from '../src/wordOfDay';
+import { TRIAL_REMIND_DAYS } from '../src/subscription';
 import { localDayKey } from '../src/storage';
 import { setSessionToken } from '../src/api';
 import { makeT } from '../src/i18n';
@@ -182,5 +191,75 @@ describe('notifications', () => {
     const titles = Notifications.scheduleNotificationAsync.mock.calls.map(([n]) => n.content.title);
     expect(titles.length).toBeGreaterThanOrEqual(13);
     expect(titles.every((x) => x.startsWith('Фінанси · '))).toBe(true);
+  });
+});
+
+// Нагадування про кінець пробного періоду: пейвол обіцяє його «за 2 дні до
+// кінця» (таймлайн: «День 5» для тижня), тож дата має бути саме така — і
+// не вночі.
+describe('trial-end reminder', () => {
+  const DAY = 86400000;
+  const at = (y, m, d, h, min = 0) => new Date(y, m - 1, d, h, min).getTime();
+  const NOW = at(2026, 10, 4, 12);
+
+  test('exactly 2 days before the end in the daytime', () => {
+    expect(TRIAL_REMIND_DAYS).toBe(2);
+    // пробний тиждень з 4 жовтня 14:30 → списання 11-го → нагадування 9-го о 14:30
+    expect(trialReminderAt(at(2026, 10, 11, 14, 30), NOW)).toBe(at(2026, 10, 9, 14, 30));
+  });
+
+  test('a late-night purchase is reminded the same evening at 20:00, never later', () => {
+    expect(trialReminderAt(at(2026, 10, 11, 23, 40), NOW)).toBe(at(2026, 10, 9, 20));
+  });
+
+  test('an early-morning purchase is reminded the evening before', () => {
+    const r = trialReminderAt(at(2026, 10, 11, 2, 15), NOW);
+    expect(r).toBe(at(2026, 10, 8, 20));
+    expect(at(2026, 10, 11, 2, 15) - r).toBeGreaterThan(2 * DAY);
+  });
+
+  test('too late or no date: nothing to schedule; a short trial keeps the exact hour when the evening has passed', () => {
+    expect(trialReminderAt(NOW + DAY, NOW)).toBeNull();
+    expect(trialReminderAt(null, NOW)).toBeNull();
+    // списання 7-го о 23:00 → мінус 2 дні — 5-те о 23:00, це ніч → 20:00 того ж дня
+    expect(trialReminderAt(at(2026, 10, 7, 23), NOW)).toBe(at(2026, 10, 5, 20));
+    // вечір того ж дня вже минув (зараз 21:00) — точна година, щоб не втратити нагадування
+    expect(trialReminderAt(at(2026, 10, 6, 22, 30), at(2026, 10, 4, 21))).toBe(at(2026, 10, 4, 22, 30));
+  });
+
+  test('scheduled as a one-off date notification with the trial copy', async () => {
+    Notifications.scheduleNotificationAsync.mockClear();
+    const until = Date.now() + 7 * DAY;
+    expect(await scheduleTrialReminder(until, 'Title', 'Body')).toBe(true);
+    const [req] = Notifications.scheduleNotificationAsync.mock.calls[0];
+    expect(req).toMatchObject({ identifier: 'trial-end', content: { title: 'Title', body: 'Body', data: { type: 'trial-end' } } });
+    expect(req.trigger.type).toBe('date');
+    expect(req.trigger.date.getTime()).toBe(trialReminderAt(until));
+    expect(until - req.trigger.date.getTime()).toBeGreaterThanOrEqual(2 * DAY);
+  });
+
+  test('without permission — not scheduled', async () => {
+    Notifications.scheduleNotificationAsync.mockClear();
+    Notifications.getPermissionsAsync.mockImplementationOnce(async () => ({ status: 'denied', canAskAgain: false }));
+    expect(await scheduleTrialReminder(Date.now() + 7 * DAY, 'T', 'B')).toBe(false);
+    expect(Notifications.scheduleNotificationAsync).not.toHaveBeenCalled();
+  });
+});
+
+describe('permission status for onboarding', () => {
+  test('undetermined only while iOS can still ask', async () => {
+    const cases = [
+      [{ status: 'granted', canAskAgain: true }, 'granted'],
+      [{ status: 'undetermined', canAskAgain: true }, 'undetermined'],
+      [{ status: 'denied', canAskAgain: false }, 'denied'],
+    ];
+    for (const [p, want] of cases) {
+      Notifications.getPermissionsAsync.mockImplementationOnce(async () => p);
+      expect(await permissionStatus()).toBe(want);
+    }
+    Notifications.getPermissionsAsync.mockImplementationOnce(async () => {
+      throw new Error('no module');
+    });
+    expect(await permissionStatus()).toBe('unavailable');
   });
 });

@@ -19,7 +19,9 @@ import * as Speech from 'expo-speech';
 import PaywallScreen from '../src/PaywallScreen';
 
 // Камера віддає кадр 3:4 (1200×1600) і вміє його «звільнити», як PictureRef.
+// Дозвіл камери можна підмінити в тесті (mockCamPerm).
 const shots = [];
+let mockCamPerm = { granted: true, canAskAgain: true };
 jest.mock('expo-camera', () => {
   const React = require('react');
   const { View } = require('react-native');
@@ -33,7 +35,7 @@ jest.mock('expo-camera', () => {
     }));
     return React.createElement(View, null);
   });
-  return { CameraView, useCameraPermissions: () => [{ granted: true, canAskAgain: true }, jest.fn()] };
+  return { CameraView, useCameraPermissions: () => [mockCamPerm, jest.fn()] };
 });
 
 // Записуємо кожен ланцюжок ImageManipulator: що різали і до якого розміру.
@@ -81,6 +83,7 @@ const t = makeT('en');
 
 beforeEach(async () => {
   await AsyncStorage.clear();
+  mockCamPerm = { granted: true, canAskAgain: true };
   shots.length = 0;
   chains.length = 0;
   recognizeImage.mockReset();
@@ -544,6 +547,18 @@ describe('intro paywall after the first scan', () => {
     await act(async () => tree.unmount());
   });
 
+  test('only a fallback: never after the onboarding paywall was shown', async () => {
+    await AsyncStorage.setItem('ll_onboarded_v1', '1');
+    await AsyncStorage.setItem(
+      'll_settings_v1',
+      JSON.stringify({ nativeLang: 'en', targetLang: 'es', aiConsent: true, onbPaywallShown: true })
+    );
+    const tree = await render(<App />);
+    await scanAndClose(tree);
+    expect(paywall(tree)).toBeNull();
+    await act(async () => tree.unmount());
+  });
+
   test('people who scanned before this version already had their first scan', async () => {
     await AsyncStorage.setItem('ll_onboarded_v1', '1');
     await AsyncStorage.setItem('ll_settings_v1', JSON.stringify({ nativeLang: 'en', targetLang: 'es', aiConsent: true }));
@@ -555,6 +570,69 @@ describe('intro paywall after the first scan', () => {
     await scanAndClose(tree);
     expect(paywall(tree)).toBeNull();
     expect((await storedSettings()).introPaywallShown).toBe(true);
+    await act(async () => tree.unmount());
+  });
+});
+
+// ---------- перший скан в онбордингу ----------
+// Той самий сканер, але лише один предмет, без перемикача режимів і
+// лічильника, з хрестиком назад в онбординг; збережене слово закриває
+// аркуш і вертає онбординг уже з ним.
+describe('first-scan mode (onboarding)', () => {
+  const { FIRST_SAVED_MS, FIRST_SHEET_MS } = require('../src/ScannerScreen');
+  const resultSheet = (tree) =>
+    tree.root.findAllByType(Modal).find((m) => m.parent?.type !== ConsentSheet && m.parent?.type !== SceneView);
+  const exit = (tree) => tree.root.findAll((n) => n.props.accessibilityLabel === t('close') && typeof n.props.onPress === 'function').at(-1);
+
+  test('one object only: no mode picker and no scans counter, even if the saved mode is scene', async () => {
+    const onExit = jest.fn();
+    const tree = await render(scanner({ firstScan: true, onExit, scanMode: 'scene', scansLeft: 1, scanSource: 'onboarding' }));
+    expect(tree.root.findAll((n) => n.props.accessibilityRole === 'tablist')).toHaveLength(0);
+    expect(texts(tree)).not.toContain(t('scansLeftN', { n: 1 }));
+    await press(tree, () => shutter(tree).props.onPress());
+    expect(recognizeImage).toHaveBeenCalledTimes(1);
+    expect(recognizeScene).not.toHaveBeenCalled();
+    // хрестик над камерою — назад в онбординг
+    await press(tree, () => resultSheet(tree).props.onRequestClose());
+    await press(tree, () => exit(tree).props.onPress());
+    expect(onExit).toHaveBeenCalledTimes(1);
+    await act(async () => tree.unmount());
+  });
+
+  test('saving the word closes the sheet and hands the word back', async () => {
+    const onFirstSaved = jest.fn();
+    const onSaveWord = jest.fn(() => true);
+    const tree = await render(scanner({ firstScan: true, onExit: jest.fn(), onFirstSaved, onSaveWord }));
+    await press(tree, () => shutter(tree).props.onPress());
+    await press(tree, () => tree.root.findAll((n) => n.props.title === t('save') && n.props.onPress)[0].props.onPress());
+    expect(onSaveWord).toHaveBeenCalledTimes(1);
+    expect(texts(tree)).toContain(t('saved')); // «Збережено» видно мить
+    expect(onFirstSaved).not.toHaveBeenCalled();
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, FIRST_SAVED_MS + 20));
+    });
+    expect(resultSheet(tree).props.visible).toBe(false);
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, FIRST_SHEET_MS + 20));
+    });
+    expect(onFirstSaved).toHaveBeenCalledTimes(1);
+    expect(onFirstSaved.mock.calls[0][0]).toMatchObject({ word: 'la taza', translation: 'mug', lang: 'es', nativeLang: 'en' });
+    await act(async () => tree.unmount());
+  });
+
+  test('without camera access there is still a way back', async () => {
+    mockCamPerm = { granted: false, canAskAgain: false };
+    const onExit = jest.fn();
+    const tree = await render(scanner({ firstScan: true, onExit }));
+    expect(texts(tree)).toContain(t('permTitle'));
+    await press(tree, () => exit(tree).props.onPress());
+    expect(onExit).toHaveBeenCalledTimes(1);
+    await act(async () => tree.unmount());
+  });
+
+  test('the regular scanner has no exit button', async () => {
+    const tree = await render(scanner());
+    expect(tree.root.findAll((n) => n.props.accessibilityLabel === t('close') && typeof n.props.onPress === 'function')).toHaveLength(0);
     await act(async () => tree.unmount());
   });
 });

@@ -23,6 +23,7 @@ import SettingsScreen from './src/SettingsScreen';
 import OnboardingScreen from './src/OnboardingScreen';
 import AchievementToast from './src/AchievementToast';
 import PaywallScreen from './src/PaywallScreen';
+import OnboardingPaywall from './src/OnboardingPaywall';
 import ProfileEditor from './src/ProfileEditor';
 import ShareSheet from './src/share/ShareSheet';
 import { weekStats } from './src/share/layout';
@@ -54,7 +55,16 @@ import { touch } from './src/sync';
 import { deletePhoto, persistPhoto } from './src/photos';
 import { addScene, clearScenes, hasWord, loadScenes, persistScenes, removeScene, updateScene } from './src/scene/scenes';
 import { apiMe, apiProfile, deviceForgotten } from './src/api';
-import { addKnown, cleanProfile, levelUpOffer, profileReport, sameProfile, topicName } from './src/profile';
+import {
+  addKnown,
+  cleanName,
+  cleanProfile,
+  cleanStruggles,
+  levelUpOffer,
+  profileReport,
+  sameProfile,
+  topicName,
+} from './src/profile';
 import { computeMetrics, evaluate, newlyUnlocked } from './src/achievements';
 import { maybeAskForReview } from './src/review';
 import {
@@ -131,7 +141,8 @@ function defaultSettings() {
     wodEnabled: true,
     wodHour: DEFAULT_HOUR,
     // Профіль локальний: ім'я й аватар живуть на телефоні й не синхронізуються
-    // навіть в акаунті Apple — на сервер іде лише словник.
+    // навіть в акаунті Apple — на сервер іде лише словник. Імʼя питає й
+    // онбординг («Як до тебе звертатися?») — воно те саме, що в профілі.
     profileName: '',
     avatar: 'wave',
     // Згода надсилати кадр на сервер і AI-сервісу (App Review 5.1.2(i)).
@@ -152,8 +163,14 @@ function defaultSettings() {
     // відповіді не зміняться: так після «Стерти мої дані» їх не відновлюємо).
     heardFrom: null,
     profileSyncedFor: null,
+    // Що заважало вчити мову (онбординг): ключі з STRUGGLES. Лише на
+    // телефоні — з них план онбордингу вибирає, про які функції розповісти.
+    struggles: [],
     // Разові підказки: мʼякий пейвол після першого скану, віджет, профіль.
+    // onbPaywallShown — пейвол наприкінці онбордингу вже показали: тоді
+    // мʼякий після першого скану не потрібен (він лише запасний).
     introPaywallShown: false,
+    onbPaywallShown: false,
     widgetTipShown: false,
     profileTipOff: false,
     // «Анонімна статистика» (src/analytics.js): за замовчуванням увімкнена,
@@ -260,6 +277,7 @@ export default function App() {
       const merged = mergeSettings(defaultSettings(), st);
       merged.profile = cleanProfile(merged.profile);
       merged.knownWords = addKnown(merged.knownWords, '');
+      merged.struggles = cleanStruggles(merged.struggles);
       // Мʼякий пейвол — «після першого скану». Хто вже сканував до цієї
       // версії, свій перший скан давно зробив: йому не показуємо.
       if (st.introPaywallShown === undefined && ob && (w.length || sc.length)) {
@@ -839,10 +857,12 @@ export default function App() {
   // закрили); false — він вимкнений, недоступний чи впав, і треба показати
   // наш PaywallScreen. Покупка в ньому — те саме, що наша: Pro одразу,
   // сервер перепитує RevenueCat, нагадування про кінець пробного періоду.
+  // view — рахувати показ (пейвол онбордингу вже порахував свій на першому
+  // екрані); step — номер екрана для paywall_close.
   const rcPaywallOpen = useRef(false);
-  async function showRcPaywall(source) {
+  async function showRcPaywall(source, { view = true, step = 0 } = {}) {
     if (pro.config.ui !== 'revenuecat' || rcPaywallOpen.current) return false;
-    track('paywall_view', { source, ui: 'revenuecat', offering: pro.offeringId });
+    if (view) track('paywall_view', { source, ui: 'revenuecat', offering: pro.offeringId });
     rcPaywallOpen.current = true;
     let res;
     try {
@@ -857,7 +877,7 @@ export default function App() {
       else track('restore', { ok: true, pro: !!res.state?.pro, error: null });
       if (res.state?.pro) proActivated(res.state);
     } else {
-      track('paywall_close', { source, step: 0, ui: 'revenuecat' });
+      track('paywall_close', { source, step, ui: 'revenuecat' });
     }
     return true;
   }
@@ -875,16 +895,19 @@ export default function App() {
   }
 
   // ---------- МʼЯКИЙ ПЕЙВОЛ ПІСЛЯ ПЕРШОГО СКАНУ ----------
-  // Один раз за все життя застосунку: людина щойно побачила, що він уміє, —
-  // найчесніший момент запропонувати пробний період. Не одразу, а коли
-  // аркуш результату закрився: під нативним Modal пейвол було б не видно,
-  // і слово людина має встигнути зберегти. З Pro — ніколи. У збірці без
-  // магазину (пробний період нема де оформити) — теж ні, і прапорець не
+  // Запасний варіант пейволу онбордингу: лише якщо той ще ні разу не
+  // показали (metadata пропозиції сказала «skip» чи магазин тоді не
+  // відповів). Один раз за все життя застосунку: людина щойно побачила, що
+  // він уміє, — найчесніший момент запропонувати пробний період. Не одразу,
+  // а коли аркуш результату закрився: під нативним Modal пейвол було б не
+  // видно, і слово людина має встигнути зберегти. З Pro — ніколи. У збірці
+  // без магазину (пробний період нема де оформити) — теж ні, і прапорець не
   // ставимо: пропозиція дочекається збірки, де її можна прийняти.
   const introArmed = useRef(false);
   function scanned(res) {
     if (res?.usage) updateUsage(res.usage);
-    if (!settingsRef.current.introPaywallShown && !sub.pro && pro.mode !== 'unavailable') introArmed.current = true;
+    const st = settingsRef.current;
+    if (!st.introPaywallShown && !st.onbPaywallShown && !sub.pro && pro.mode !== 'unavailable') introArmed.current = true;
   }
   const sheetWas = useRef(false);
   useEffect(() => {
@@ -903,12 +926,40 @@ export default function App() {
 
   // Пейвол закрили без покупки (хрестик, «Продовжити безкоштовно», жест
   // «назад» VoiceOver). Після відновлення його закриває сам PaywallScreen —
-  // тоді paywallRef уже порожній, і це не рахується як відмова.
-  function closePaywall() {
+  // тоді paywallRef уже порожній, і це не рахується як відмова. step — на
+  // якому екрані пейволу онбордингу закрили (у решти пейволів екран один).
+  function closePaywall(step) {
     const source = paywallRef.current;
-    if (source) track('paywall_close', { source, step: 0, ui: 'custom' });
+    const at = Number.isInteger(step) ? step : source === 'onboarding' ? onbPaywallStep.current : 0;
+    if (source) track('paywall_close', { source, step: at, ui: 'custom' });
     paywallRef.current = null;
     setPaywall(null);
+  }
+
+  // ---------- ПЕЙВОЛ ОНБОРДИНГУ ----------
+  // Крок 12: лише в перший запуск, без Pro, коли магазин відповів тарифами
+  // і metadata поточної пропозиції не каже onboarding_paywall: "skip".
+  // Показуємо поверх вкладки навчання: закрили — людина вже там, де чекає
+  // слово дня під її профіль (крок 13).
+  const onbPaywallStep = useRef(0);
+  function openOnboardingPaywall() {
+    if (sub.pro || pro.mode === 'unavailable' || !pro.plans.length || pro.config.onboardingPaywall === 'skip') return;
+    commitSettings({ ...settingsRef.current, onbPaywallShown: true });
+    onbPaywallStep.current = 0;
+    track('paywall_view', { source: 'onboarding', ui: pro.config.ui, offering: pro.offeringId });
+    paywallRef.current = 'onboarding';
+    setPaywall('onboarding');
+  }
+
+  // Третій екран пейволу онбордингу — пейвол RevenueCat (paywall_ui:
+  // "revenuecat"). Показали — наш шар більше не потрібен; ні — лишаємо свій.
+  async function onboardingRcPaywall() {
+    const shown = await showRcPaywall('onboarding', { view: false, step: 2 });
+    if (shown && paywallRef.current === 'onboarding') {
+      paywallRef.current = null;
+      setPaywall(null);
+    }
+    return shown;
   }
 
   // Перемикач «Анонімна статистика»
@@ -1013,6 +1064,9 @@ export default function App() {
     onbReplay.current = false;
     setOnboarded(true);
     persistOnboarded();
+    // Перший запуск — на вкладку навчання: там уже слово дня під щойно
+    // складений профіль. Повтор — туди, звідки прийшли, у Параметри.
+    setTab(replay ? 'settings' : 'cards');
     const cur = settingsRef.current;
     let next = cur;
     // Онбординг уже спитав про сповіщення — зберігаємо відповідь, щоб не
@@ -1031,15 +1085,66 @@ export default function App() {
     if (result?.heardFrom && result.heardFrom !== cur.heardFrom) {
       next = { ...next, heardFrom: result.heardFrom, profileSyncedFor: null };
     }
-    if (next === cur) return;
-    commitSettings(next);
-    syncWordOfDay(wodArgs(next, profileChanged)).then((c) => c && setWod(c));
+    // Імʼя й «що заважає» — лише на телефоні: на сервер не йдуть (див.
+    // profileReport), у статистику — тільки «вказав / пропустив».
+    if (typeof result?.name === 'string') {
+      const name = cleanName(result.name);
+      if (name !== (cur.profileName || '')) next = { ...next, profileName: name };
+    }
+    if (Array.isArray(result?.struggles)) {
+      const pains = cleanStruggles(result.struggles);
+      if (pains.join() !== cleanStruggles(cur.struggles).join()) next = { ...next, struggles: pains };
+    }
+    if (next !== cur) {
+      commitSettings(next);
+      syncWordOfDay(wodArgs(next, profileChanged)).then((c) => c && setWod(c));
+    }
+    if (!replay) openOnboardingPaywall();
   }
 
   function replayOnboarding() {
     onbReplay.current = true;
-    setTab('scan');
     setOnboarded(false);
+  }
+
+  // Перший скан в онбордингу («Спробуй зараз»): справжній сканер — зі
+  // згодою на AI і дозволом камери, як завжди, — але без пейволів посеред
+  // знайомства: скан на сьогодні вже витрачено чи сервер відмовив за
+  // оплатою — просто вертаємось в онбординг, а пропозицію Pro людина
+  // побачить наприкінці. level — рівень, який людина щойно обрала.
+  function renderFirstScan({ onSaved, onClose, level }) {
+    return (
+      <ScannerScreen
+        firstScan
+        onExit={onClose}
+        onFirstSaved={onSaved}
+        scanSource="onboarding"
+        targetLang={settings.targetLang}
+        nativeLang={settings.nativeLang}
+        savedWords={words}
+        onSaveWord={(w) => addWord(w, 'onboarding')}
+        onSaveWords={addWords}
+        onGuardScan={() => {
+          if (!canScan({ pro: sub.pro, usage })) return true;
+          track('scan_denied', { reason: 'scans', mode: 'object', source: 'onboarding' });
+          onClose();
+          return false;
+        }}
+        onScanned={(res) => res?.usage && updateUsage(res.usage)}
+        onLimitReached={async (data, code) => {
+          if (data?.used != null && code !== 'SCENE_PRO') updateUsage({ day: localDayKey(), scans: data.used, limit: data.limit });
+          track('scan_denied', { reason: code === 'SCENE_PRO' ? 'scene' : 'scans', server: true, source: 'onboarding' });
+          onClose();
+          return false;
+        }}
+        onSessionLost={renewIdentity}
+        onResultVisible={setScanSheetOpen}
+        aiConsent={!!settings.aiConsent}
+        onAiConsent={() => saveSetting({ aiConsent: true })}
+        level={level ?? settings.profile?.level}
+        t={t}
+      />
+    );
   }
 
   function shareWeek() {
@@ -1117,8 +1222,15 @@ export default function App() {
             onDone={finishOnboarding}
             profile={settings.profile}
             heardFrom={settings.heardFrom}
+            name={settings.profileName}
+            struggles={settings.struggles}
             targetLang={settings.targetLang}
             wodHour={settings.wodHour}
+            replay={onbReplay.current}
+            // «Спробуй зараз» — лише вперше, з порожнім словником і коли
+            // безкоштовний скан на сьогодні ще є
+            canWow={!onbReplay.current && words.length === 0 && scansLeft({ pro: sub.pro, usage }) > 0}
+            renderScanner={renderFirstScan}
           />
         </SafeAreaView>
       </ThemeProvider>
@@ -1337,22 +1449,45 @@ export default function App() {
           <View
             style={[StyleSheet.absoluteFill, { paddingTop: insets.top, paddingBottom: insets.bottom, backgroundColor: C.bg }]}
             accessibilityViewIsModal
-            onAccessibilityEscape={closePaywall}
+            onAccessibilityEscape={() => closePaywall()}
           >
-            <PaywallScreen
-              reason={paywall}
-              plans={pro.plans}
-              freeScans={freeScansPerDay(usage)}
-              freeScenes={freeScenes(usage)}
-              unavailable={pro.mode === 'unavailable'}
-              canRemind={remindOk}
-              onClose={closePaywall}
-              onPurchase={purchasePlan}
-              onRestore={restorePurchases}
-              onOpen={() => !pro.plans.length && pro.reloadPlans()}
-              lang={settings.nativeLang}
-              t={t}
-            />
+            {paywall === 'onboarding' ? (
+              <OnboardingPaywall
+                plans={pro.plans}
+                freeScans={freeScansPerDay(usage)}
+                scansLeft={scansLeft({ pro: sub.pro, usage })}
+                unavailable={pro.mode === 'unavailable'}
+                canRemind={remindOk}
+                ui={pro.config.ui}
+                onPresentRc={onboardingRcPaywall}
+                onStep={(i, step) => {
+                  onbPaywallStep.current = i;
+                  track('paywall_step', { i, step, source: 'onboarding' });
+                }}
+                onClose={closePaywall}
+                onPurchase={purchasePlan}
+                onRestore={restorePurchases}
+                onOpen={() => !pro.plans.length && pro.reloadPlans()}
+                lang={settings.nativeLang}
+                t={t}
+              />
+            ) : (
+              <PaywallScreen
+                reason={paywall}
+                plans={pro.plans}
+                freeScans={freeScansPerDay(usage)}
+                freeScenes={freeScenes(usage)}
+                scansLeft={scansLeft({ pro: sub.pro, usage })}
+                unavailable={pro.mode === 'unavailable'}
+                canRemind={remindOk}
+                onClose={() => closePaywall()}
+                onPurchase={purchasePlan}
+                onRestore={restorePurchases}
+                onOpen={() => !pro.plans.length && pro.reloadPlans()}
+                lang={settings.nativeLang}
+                t={t}
+              />
+            )}
           </View>
         ) : null}
 

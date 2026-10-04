@@ -278,3 +278,25 @@ export function IcHeart({ size = 24, color = DIM }) {
     </Svg>
   );
 }
+
+// ─── Що заважає (онбординг, src/ProfileSteps.js) ───────────────────────────
+
+// Бракує часу: циферблат зі стрілками на «за п'ять хвилин».
+export function IcClock({ size = 24, color = DIM }) {
+  return (
+    <Svg {...box(size)}>
+      <Circle cx="12" cy="12" r="8.5" {...S(color)} />
+      <Path d="M12 7.5V12l3 2" {...S(color)} />
+    </Svg>
+  );
+}
+
+// Не знаю, з чого почати: компас — коло зі стрілкою-ромбом.
+export function IcCompass({ size = 24, color = DIM }) {
+  return (
+    <Svg {...box(size)}>
+      <Circle cx="12" cy="12" r="8.5" {...S(color)} />
+      <Path d="m15.2 8.8-1.9 4.5-4.5 1.9 1.9-4.5z" {...S(color)} />
+    </Svg>
+  );
+}

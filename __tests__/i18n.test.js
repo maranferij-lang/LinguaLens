@@ -10,7 +10,8 @@ import { STRINGS, makeT, pluralIndex, uiLang } from '../src/i18n';
 import { formatDate } from '../src/locale';
 import { ACHIEVEMENTS } from '../src/achievements';
 import { COMPARISON, PLANS, PRO_BENEFITS } from '../src/subscription';
-import { FIELDS, GOALS, HEARD, HEARD_BRANDS, TOPICS } from '../src/profile';
+import { FIELDS, GOALS, HEARD, HEARD_BRANDS, STRUGGLES, TOPICS } from '../src/profile';
+import { LANGS as LEARN_LANGS } from '../src/speech';
 
 const ROOT = path.join(__dirname, '..');
 const LANGS = ['en', 'uk', 'de', 'es'];
@@ -76,6 +77,13 @@ function usedKeys() {
   for (const k of TOPICS.filter((x) => x !== 'general')) add('topicIn_' + k, 'src/profile.js TOPICS');
   for (const h of HEARD.filter((x) => !HEARD_BRANDS[x])) add('heard_' + h, 'src/profile.js HEARD');
   for (let i = 1; i <= 10; i++) add('lvl' + i, 'src/LevelSlider.js');
+  // Онбординг 2.0: «що заважає» і рядки плану під кожну відповідь, назва
+  // мови, яку вчать, у реченні-обіцянці — для кожної з 29 мов
+  for (const k of STRUGGLES) {
+    add('struggle_' + k, 'src/profile.js STRUGGLES');
+    add('plan_' + k, 'src/OnboardingParts.js');
+  }
+  for (const l of LEARN_LANGS) add('langAcc_' + l.code, 'src/OnboardingScreen.js');
   for (let i = 1; i <= 5; i++) add('levelBand' + i, 'src/profile.js levelBand');
   return used;
 }

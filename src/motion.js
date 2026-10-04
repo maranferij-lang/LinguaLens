@@ -107,6 +107,24 @@ export function useReducedMotion() {
   return reduced;
 }
 
+// Чи увімкнений VoiceOver. Жести, яких незрячій людині не зробити (тримати
+// палець 1,2 с на кільці), з ним стають звичайним дотиком.
+export function useScreenReader() {
+  const [on, setOn] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    AccessibilityInfo.isScreenReaderEnabled?.()
+      .then((v) => alive && setOn(!!v))
+      .catch(() => {});
+    const sub = AccessibilityInfo.addEventListener?.('screenReaderChanged', (v) => setOn(!!v));
+    return () => {
+      alive = false;
+      sub?.remove?.();
+    };
+  }, []);
+  return on;
+}
+
 // Пружина, що поважає системне налаштування: при reduced motion
 // віддаємо коротке загасання без перельоту.
 export function safeSpring(preset = SPRING.ui) {

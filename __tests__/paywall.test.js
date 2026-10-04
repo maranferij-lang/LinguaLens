@@ -216,4 +216,45 @@ describe('v1.2 paywall', () => {
     expect(all).toEqual(expect.arrayContaining([t('pro_scans'), t('pro_scene'), t('pro_langs')]));
     expect(all).not.toContain(t('colFree'));
   });
+
+  // App Review 3.1.2: у мʼякому пейволі сума списання — перша цифра під
+  // заголовком, а не десь під таймлайном і переліком переваг.
+  test('intro: the plans with store prices come before the timeline and the benefits', async () => {
+    const tree = await open({ reason: 'intro', plans: PLANS });
+    const all = strings(tree);
+    const price = all.indexOf('$34.99');
+    expect(price).toBeGreaterThan(-1);
+    expect(price).toBeLessThan(all.indexOf(t('tlToday')));
+    expect(price).toBeLessThan(all.indexOf(t('pro_scans')));
+  });
+
+  test('other walls keep the comparison first', async () => {
+    const tree = await open({ reason: 'scans', plans: PLANS });
+    const all = strings(tree);
+    expect(all.indexOf(t('cmp_scans'))).toBeLessThan(all.indexOf('$34.99'));
+  });
+
+  test('compact (onboarding, third screen): plans and timeline only', async () => {
+    const tree = await open({ reason: 'intro', compact: true, plans: PLANS });
+    const all = strings(tree);
+    expect(all[0]).toBe('PRO');
+    expect(all).toContain(t('pwPlansTitle'));
+    expect(all).not.toContain(t('pwIntroTitle'));
+    expect(all).not.toContain(t('pro_scans'));
+    expect(all).toContain(t('tlToday'));
+    // без пробного періоду в обраного тарифу — ні таблиці, ні таймлайну
+    await press(tree, t('planMonth'));
+    const after = strings(tree);
+    expect(after).not.toContain(t('tlToday'));
+    expect(after).not.toContain(t('colFree'));
+  });
+
+  test('the free way out never promises another scan today once it is used', async () => {
+    let tree = await open({ reason: 'intro', plans: PLANS, freeScans: 1, scansLeft: 0 });
+    expect(strings(tree)).toContain(t('pwContinueFreeTomorrow'));
+    await act(async () => tree.unmount());
+    mounted = null;
+    tree = await open({ reason: 'intro', plans: PLANS, freeScans: 1, scansLeft: 1 });
+    expect(strings(tree)).toContain('Continue for free — 1 scan a day');
+  });
 });
