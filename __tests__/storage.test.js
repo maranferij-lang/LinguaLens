@@ -41,7 +41,8 @@ describe('onboarding draft', () => {
   test('saved, read back and cleared', async () => {
     expect(await loadOnboardingDraft()).toBeNull();
     await persistOnboardingDraft(DRAFT);
-    expect(await loadOnboardingDraft()).toEqual(DRAFT);
+    // онбординг 3.0: кожен запис — з форматом і часом (чернетка живе 15 хв)
+    expect(await loadOnboardingDraft()).toMatchObject({ ...DRAFT, v: 3 });
     await clearOnboardingDraft();
     expect(await loadOnboardingDraft()).toBeNull();
     await AsyncStorage.setItem('ll_onb_draft_v1', '{oops');
