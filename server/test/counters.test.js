@@ -1,8 +1,8 @@
-// Лічильники сканів і проби сцени йдуть за телефоном, коли він міняє запис:
-// вхід через Apple в існуючий акаунт зливає їх з акаунтом, а вихід (POST
-// /auth/device з токеном, з яким телефон іде) переносить у нову анонімну
-// ідентичність. Інакше «вийти й увійти знову» щоразу давало б безкоштовну
-// сцену й скан. Справжній HTTP, підроблений Apple, AI — mock.
+// Довічні лічильники сканів і проби сцени йдуть за телефоном, коли він міняє
+// запис: вхід через Apple в існуючий акаунт зливає їх з акаунтом, а вихід
+// (POST /auth/device з токеном, з яким телефон іде) переносить у нову
+// анонімну ідентичність. Інакше «вийти й увійти знову» щоразу давало б
+// безкоштовну сцену й скан. Справжній HTTP, підроблений Apple, AI — mock.
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const crypto = require('crypto');
@@ -19,8 +19,9 @@ Object.assign(process.env, {
   APPLE_TEAM_ID: '',
   APPLE_KEY_ID: '',
   APPLE_PRIVATE_KEY: '',
-  // Денних сканів із запасом: упираємось саме в пробу сцени.
-  FREE_SCANS_PER_DAY: '10',
+  // Сканів із запасом: у більшості тестів упираємось саме в пробу сцени, а до
+  // ліміту сканів доводимо лічильник напряму.
+  FREE_SCANS: '10',
   FREE_SCENES: '1',
 });
 delete process.env.REVENUECAT_SECRET_KEY;
@@ -47,8 +48,11 @@ after(async () => {
 const sub = () => 'sub.' + crypto.randomBytes(12).toString('hex');
 const day = () => billing.utcDay();
 const headers = () => ({ 'x-local-date': day() });
-const SCENE = { image: 'aGk=', lang: 'en', nativeLang: 'uk', mode: 'scene' };
+const IMAGE = { image: 'aGk=', lang: 'en', nativeLang: 'uk' };
+const SCENE = { ...IMAGE, mode: 'scene' };
 const scene = (token) => call('POST', '/scan', { token, body: SCENE, headers: headers() });
+const single = (token) => call('POST', '/scan', { token, body: IMAGE, headers: headers() });
+const view = (scans, scenes) => ({ day: day(), scans, limit: 10, scenes, sceneLimit: 1, period: 'lifetime' });
 // Вихід, як його робить застосунок (account.signOut → auth.startOver).
 const signOut = (token) => call('POST', '/auth/device', { body: { previous: token } });
 
@@ -73,7 +77,7 @@ test('signing out and back in gives no new free scene or scan', async () => {
     assert.notEqual(out.data.user.id, acc.data.user.id);
     assert.equal(out.data.user.apple, false);
     // новий гість — з тими самими лічильниками, а не з новою пробою
-    assert.deepEqual(await usage(out.data.token), { day: day(), scans: 1, limit: 10, scenes: 1, sceneLimit: 1 });
+    assert.deepEqual(await usage(out.data.token), view(1, 1));
     const r = await scene(out.data.token);
     assert.equal(r.status, 402);
     assert.equal(r.data.error, 'SCENE_PRO');
@@ -102,25 +106,81 @@ test('a guest that used its quota keeps it used after switching into an unused a
   assert.equal(r.data.user.id, acc.data.user.id);
   // анонімний запис стерто, а його лічильники — уже в акаунті
   assert.equal(await store.get('users', guest.user.id), null);
-  assert.deepEqual(await usage(r.data.token), { day: day(), scans: 1, limit: 10, scenes: 1, sceneLimit: 1 });
+  assert.deepEqual(await usage(r.data.token), view(1, 1));
   assert.equal((await scene(r.data.token)).data.error, 'SCENE_PRO');
   // і для першого телефона акаунта теж
   assert.equal((await scene(acc.data.token)).data.error, 'SCENE_PRO');
 });
 
-test('merging counters: scenes take the larger, scans the larger of the same day or the later day', async () => {
-  const today = day();
-  const yesterday = billing.addDays(today, -1);
-  const on = (d, scans, scenes) => ({ usage: { day: d, scans }, ...(scenes === undefined ? {} : { scenes }) });
+test('the lifetime scan limit survives signing out and back in, both ways', async () => {
+  const s = sub();
+  const device = await newDevice();
+  const acc = await signIn(device.token, s);
+  // дев'ять сканів уже витрачено, десятий — останній безкоштовний
+  await store.update('users', acc.data.user.id, { scans: 9 });
+  let token = acc.data.token;
+  assert.equal((await single(token)).status, 200);
+  assert.deepEqual((await single(token)).data, { error: 'SCAN_LIMIT', limit: 10, used: 10 });
+
+  for (let i = 0; i < 3; i++) {
+    // вихід: новий гість приносить довічний лічильник із собою
+    const out = await signOut(token);
+    assert.equal(out.status, 200);
+    assert.deepEqual(await usage(out.data.token), view(10, 0));
+    assert.deepEqual((await single(out.data.token)).data, { error: 'SCAN_LIMIT', limit: 10, used: 10 });
+    assert.deepEqual((await scene(out.data.token)).data, { error: 'SCAN_LIMIT', limit: 10, used: 10 });
+
+    // вхід назад — і акаунт не отримує нового скану
+    const back = await signIn(out.data.token, s);
+    assert.equal(back.data.switched, true);
+    token = back.data.token;
+    assert.deepEqual((await single(token)).data, { error: 'SCAN_LIMIT', limit: 10, used: 10 });
+  }
+  assert.equal((await store.get('users', acc.data.user.id)).scans, 10);
+});
+
+test('a guest at the scan limit takes it into an unused account; an account at the limit keeps it for a fresh guest', async () => {
+  // гість витратив усе → входить в акаунт, що не сканував
+  const s = sub();
+  const owner = await newDevice();
+  const acc = await signIn(owner.token, s);
+  const guest = await newDevice();
+  await store.update('users', guest.user.id, { scans: 10 });
+  const r = await signIn(guest.token, s);
+  assert.equal(r.data.switched, true);
+  assert.equal((await single(r.data.token)).status, 402);
+  assert.equal((await single(acc.data.token)).status, 402);
+
+  // акаунт витратив усе → свіжий гість, що входить у нього, нового не приносить
+  const s2 = sub();
+  const owner2 = await newDevice();
+  const acc2 = await signIn(owner2.token, s2);
+  await store.update('users', acc2.data.user.id, { scans: 10 });
+  const fresh = await newDevice();
+  assert.equal((await usage(fresh.token)).scans, 0);
+  const r2 = await signIn(fresh.token, s2);
+  assert.equal(r2.data.switched, true);
+  assert.deepEqual((await single(r2.data.token)).data, { error: 'SCAN_LIMIT', limit: 10, used: 10 });
+  assert.equal((await store.get('users', acc2.data.user.id)).scans, 10);
+});
+
+test('merging counters: lifetime scans and scenes take the larger of both, the legacy usage counts too', async () => {
+  const yesterday = billing.addDays(day(), -1);
+  const legacy = (scans) => ({ usage: { day: yesterday, scans } });
   const cases = [
-    // [акаунт, гість, що має лишитися в акаунті]
-    [on(today, 3, 2), on(today, 1, 1), on(today, 3, 2)],
-    [on(today, 1), on(today, 4, 1), on(today, 4, 1)],
-    [on(yesterday, 9), on(today, 1), on(today, 1)],
-    [on(today, 1), on(yesterday, 9), on(today, 1)],
+    // [акаунт, гість, що має лишитися в акаунті (лише scans і scenes)]
+    [{ scans: 3, scenes: 2 }, { scans: 1, scenes: 1 }, { scans: 3, scenes: 2 }],
+    [{ scans: 1 }, { scans: 4, scenes: 1 }, { scans: 4, scenes: 1 }],
+    // не сума: це той самий телефон, що ходить між записами
+    [{ scans: 2 }, { scans: 2 }, { scans: 2 }],
+    // лічильник часів денного ліміту в гостя переходить як довічний
+    [{}, legacy(5), { scans: 5 }],
+    [{ scans: 2 }, { scans: 1, ...legacy(6) }, { scans: 6 }],
+    // в акаунта старий лічильник більший — дописувати нічого
+    [legacy(7), { scans: 3 }, {}],
     // зіпсоване в гостя не псує акаунт
-    [on(today, 2, 1), on('x', 50, -3), on(today, 2, 1)],
-    [on(today, 2), { usage: { day: today, scans: 1.5 }, scenes: 'many' }, on(today, 2)],
+    [{ scans: 2, scenes: 1 }, { scans: 'x', scenes: -3, usage: { day: 'x', scans: 1.5 } }, { scans: 2, scenes: 1 }],
+    [{ scans: 2 }, { scans: 50.5, scenes: 'many' }, { scans: 2 }],
     [{}, {}, {}],
   ];
   for (const [mine, theirs, want] of cases) {
@@ -132,20 +192,27 @@ test('merging counters: scenes take the larger, scans the larger of the same day
     await store.update('users', guest.user.id, theirs);
     assert.equal((await signIn(guest.token, s)).data.switched, true);
     const stored = await store.get('users', acc.data.user.id);
-    const got = { usage: stored.usage, scenes: stored.scenes };
-    assert.deepEqual(got, { usage: undefined, scenes: undefined, ...want }, JSON.stringify([mine, theirs]));
+    const got = { scans: stored.scans, scenes: stored.scenes };
+    const expect = { scans: mine.scans, scenes: mine.scenes, ...want };
+    assert.deepEqual(got, expect, JSON.stringify([mine, theirs]));
+    // старий лічильник акаунта лишився як був: його більше не пишемо
+    assert.deepEqual(stored.usage, mine.usage, JSON.stringify([mine, theirs]));
   }
+  // і напряму: null — «в into уже не менше»
+  assert.equal(billing.mergeCounters({ scans: 3, scenes: 1 }, { scans: 3, scenes: 1 }), null);
+  assert.deepEqual(billing.mergeCounters({}, legacy(2)), { scans: 2 });
+  assert.equal(billing.mergeCounters({}, null), null);
 });
 
 test('a device with no previous token, or a bad one, starts with clean counters', async () => {
   const used = await newDevice();
-  await store.update('users', used.user.id, { usage: { day: day(), scans: 7 }, scenes: 1 });
+  await store.update('users', used.user.id, { scans: 7, scenes: 1 });
   const nonce = (await call('POST', '/auth/apple/nonce', { token: used.token })).data.nonce;
   const gone = await newDevice();
   await store.update('users', gone.user.id, { scenes: 1 });
   await call('DELETE', '/me', { token: gone.token });
 
-  const clean = { day: day(), scans: 0, limit: 10, scenes: 0, sceneLimit: 1 };
+  const clean = view(0, 0);
   // чужий підпис, nonce Apple замість токена, стертий запис, сміття в тілі
   const bad = ['', 42, used.token + 'x', nonce, gone.token].map((previous) => ({ previous }));
   for (const body of [{}, '[1]', '{oops', ...bad]) {

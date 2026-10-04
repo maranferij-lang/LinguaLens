@@ -1,9 +1,14 @@
-// Pro-статус, денний ліміт сканів і довічна проба сцени — на сервері, а не в
-// телефоні.
+// Pro-статус, довічний ліміт безкоштовних сканів і довічна проба сцени — на
+// сервері, а не в телефоні.
 //
 // Чому тут: лічильник у AsyncStorage обнуляється перевстановленням, а будь-хто
 // зі скриптом міг би безкоштовно витрачати наш AI-ключ. Тепер сервер сам
-// рахує скани за id пристрою і питає RevenueCat, чи людина має Pro.
+// рахує скани за записом (анонімний пристрій чи акаунт Apple) і питає
+// RevenueCat, чи людина має Pro.
+//
+// Безкоштовний рівень (рішення власника 2026-10-04): FREE_SCANS сканів за все
+// життя запису, а не на день — кожен виклик AI коштує грошей. Сцена теж
+// забирає цей скан. Словник, картки, квізи, слово дня й віджет — без меж.
 //
 // Джерела правди про Pro (обидва необов'язкові, працюють разом):
 //   1) вебхук RevenueCat → user.proUntil (миттєво після покупки/продовження);
@@ -13,8 +18,8 @@ const crypto = require('crypto');
 const store = require('./store');
 
 // Кількість з оточення: ціле ≥ 0, інакше — значення за замовчуванням.
-// Опечатка на кшталт FREE_SCANS_PER_DAY=три дала б NaN, а `used >= NaN`
-// завжди false — тобто безлімітні безкоштовні скани за наш рахунок.
+// Опечатка на кшталт FREE_SCANS=три дала б NaN, а `used >= NaN` завжди
+// false — тобто безлімітні безкоштовні скани за наш рахунок.
 function envCount(name, fallback) {
   const raw = process.env[name];
   if (raw === undefined || String(raw).trim() === '') return fallback;
@@ -24,11 +29,19 @@ function envCount(name, fallback) {
   return fallback;
 }
 
-// Один безкоштовний скан на день: кожен виклик AI коштує грошей, а словник,
-// картки й слово дня лишаються безкоштовними без меж (v1.2).
-const FREE_SCANS_PER_DAY = envCount('FREE_SCANS_PER_DAY', 1);
+// Безкоштовних сканів на все життя запису, за замовчуванням один.
+const FREE_SCANS = envCount('FREE_SCANS', 1);
+// FREE_SCANS_PER_DAY — стара денна ручка. Сервіс Cloud Run міг її зберегти:
+// кажемо в лог, що вона більше нічого не важить, щоб її не крутили даремно.
+if (process.env.FREE_SCANS_PER_DAY !== undefined) {
+  console.warn(
+    `billing: FREE_SCANS_PER_DAY=${process.env.FREE_SCANS_PER_DAY} ігнорую — ` +
+      `ліміт тепер на все життя запису, його задає FREE_SCANS (зараз ${FREE_SCANS})`
+  );
+}
 // Скан цілої кімнати — функція Pro, але з пробою: FREE_SCENES сцен за все
-// життя запису, щоб людина побачила «вау» до того, як побачить ціну.
+// життя запису, щоб людина побачила «вау» до того, як побачить ціну. Окрема
+// ручка: з FREE_SCANS > 1 проба сцени однаково кінчається на FREE_SCENES.
 const FREE_SCENES = envCount('FREE_SCENES', 1);
 const RC_SECRET = process.env.REVENUECAT_SECRET_KEY || '';
 const RC_WEBHOOK_AUTH = process.env.REVENUECAT_WEBHOOK_AUTH || '';
@@ -58,11 +71,12 @@ function addDays(day, n) {
   return utcDay(new Date((dayIndexOf(day) + n) * 86400000));
 }
 
-// Ліміт «на день» має скидатись опівночі ЗА ЧАСОМ ЛЮДИНИ, а не за UTC — інакше
-// в Києві скани «оновлювались» би о третій ночі. Клієнт надсилає свою дату;
-// приймаємо її, якщо вона в межах доби від серверної (часові пояси -12…+14).
-// Лише канонічна дата: «2026-09-31» чи «2026-08-62» Date.UTC мовчки
-// перекотив би в сьогодні, і кожен такий псевдонім мав би свій лічильник.
+// «Сьогодні» ЗА ЧАСОМ ЛЮДИНИ, а не за UTC — для слова дня (інакше ввечері в
+// США картка вже жила б завтрашнім днем) і поля day у usage. На ліміт сканів
+// дата більше не впливає: він довічний. Клієнт надсилає свою дату; приймаємо
+// її, якщо вона в межах доби від серверної (часові пояси -12…+14). Лише
+// канонічна дата: «2026-09-31» чи «2026-08-62» Date.UTC мовчки перекотив би
+// в сьогодні.
 function localDay(value) {
   const today = utcDay();
   if (typeof value === 'string' && DAY_RE.test(value) && addDays(value, 0) === value) {
@@ -119,89 +133,85 @@ async function proStatus(user, { refresh = false } = {}) {
 }
 
 // ---------- ліміт сканів ----------
-// День лічильника ніколи не йде назад. Інакше, чергуючи в x-local-date
-// «сьогодні» і «завтра» (обидва в межах доби), можна було б щоразу обнуляти
-// ліміт. Дати ISO порівнюються як рядки. Людина, що перелетіла на захід через
-// північ, просто продовжить учорашній-завтрашній лічильник — це чесно.
-function counterDay(user, day) {
-  const last = user.usage && user.usage.day;
-  return typeof last === 'string' && DAY_RE.test(last) && last > day ? last : day;
-}
-
-function usedOn(user, day) {
-  const d = counterDay(user, day);
-  return user.usage && user.usage.day === d ? user.usage.scans || 0 : 0;
-}
-
-// Сцен за все життя запису, і в Pro теж: наперед ми не знаємо, чи людина має
-// Pro (див. reserveScan). Хто мав Pro і перестав, пробу вже бачив.
-function scenesUsed(user) {
-  const n = user && user.scenes;
+function count(n) {
   return Number.isInteger(n) && n > 0 ? n : 0;
+}
+
+// Сканів за все життя запису (users/<id>.scans), і в Pro теж: наперед ми не
+// знаємо, чи людина має Pro (див. reserveScan). Хто мав Pro і перестав,
+// безкоштовний скан уже витратив.
+//
+// Записи з часів денного ліміту рахували скани в usage { day, scans }. Беремо
+// більше з двох: тестувальник, що сьогодні вже сканував, не отримає ще один
+// безкоштовний. Саме поле usage більше ніколи не пишемо.
+function scansUsed(user) {
+  if (!user) return 0;
+  const legacy = user.usage && typeof user.usage === 'object' ? count(user.usage.scans) : 0;
+  return Math.max(count(user.scans), legacy);
+}
+
+// Сцен за все життя запису, і в Pro теж — з тієї самої причини.
+function scenesUsed(user) {
+  return count(user && user.scenes);
 }
 
 // Лічильники телефона, що переходить в інший запис (вхід в існуючий акаунт,
 // вихід у нову анонімну ідентичність), йдуть разом із ним. Інакше «вийти й
-// увійти знову» щоразу давало б новий денний скан і нову пробу сцени.
-// Сцен — більше з двох; сканів — більше з двох того самого дня, а з різних
-// днів — пізнішого: день лічильника не йде назад (див. counterDay).
+// увійти знову» щоразу давало б новий безкоштовний скан і нову пробу сцени.
+// І скани, і сцени — більше з двох (не сума: це той самий телефон, що ходить
+// між записами туди й назад).
 // → поля, які треба дописати в into, або null, якщо в into уже не менше.
 function mergeCounters(into, from) {
   const fields = {};
+  const scans = scansUsed(from);
+  if (scans > scansUsed(into)) fields.scans = scans;
   const scenes = scenesUsed(from);
   if (scenes > scenesUsed(into)) fields.scenes = scenes;
-  const mine = cleanUsage(into && into.usage);
-  const theirs = cleanUsage(from && from.usage);
-  if (theirs && (!mine || theirs.day > mine.day || (theirs.day === mine.day && theirs.scans > mine.scans))) {
-    fields.usage = theirs;
-  }
   return Object.keys(fields).length ? fields : null;
 }
 
-function cleanUsage(u) {
-  if (!u || typeof u.day !== 'string' || !DAY_RE.test(u.day)) return null;
-  return Number.isInteger(u.scans) && u.scans >= 0 ? { day: u.day, scans: u.scans } : null;
-}
-
-// null у лімітах — «без меж» (Pro).
+// null у лімітах — «без меж» (Pro). day — локальне «сьогодні» клієнта: старі
+// версії застосунку його читають, на ліміт він не впливає. period каже
+// клієнту, що scans — за все життя, а не за день.
 function usageView(user, day, pro) {
   return {
     day,
-    scans: usedOn(user, day),
-    limit: pro ? null : FREE_SCANS_PER_DAY,
+    scans: scansUsed(user),
+    limit: pro ? null : FREE_SCANS,
     scenes: scenesUsed(user),
     sceneLimit: pro ? null : FREE_SCENES,
+    period: 'lifetime',
   };
 }
 
-// Слот займаємо ДО виклику AI і атомарно. Перевірити ліміт, викликати AI і
+// Скан займаємо ДО виклику AI і атомарно. Перевірити ліміт, викликати AI і
 // потім дописати +1 — це гонка: паралельні скани читали б той самий
 // лічильник і проходили б усі. Тут запис умовний (версія документа): якщо
 // хтось устиг раніше — перечитуємо і пробуємо ще раз.
 //
-// Сцена займає і денний слот, і одну з довічних безкоштовних сцен — ТИМ САМИМ
-// записом. Двома окремими записами паралельні сцени могли б пройти обидві,
-// а невдала сцена повертала б лише половину.
+// Сцена займає і довічний скан, і одну з довічних безкоштовних сцен — ТИМ
+// САМИМ записом. Двома окремими записами паралельні сцени могли б пройти
+// обидві, а невдала сцена повертала б лише половину.
 //
-// Порядок перевірок: спершу денний ліміт (402 SCAN_LIMIT), потім сцени
+// Порядок перевірок: спершу ліміт сканів (402 SCAN_LIMIT), потім сцени
 // (402 SCENE_PRO). Pro питаємо лише тоді, коли безкоштовне скінчилось, і не
-// більше разу на спробу: для більшості сканів це нуль запитів до RevenueCat.
+// більше разу на спробу: безкоштовний скан не коштує запиту до RevenueCat.
 //
-// { ok: true, pro, release } — release() повертає слот (і сцену), якщо скан
+// { ok: true, pro, release } — release() повертає скан (і сцену), якщо скан
 //   не вдався («не бачу предмета» людині не коштує спроби);
-// { ok: false, used, limit } — денний ліміт вичерпано (402, AI не викликаємо);
+// { ok: false, used, limit } — безкоштовні скани вичерпано (402, AI не викликаємо);
 // { ok: false, scene: true, used, limit } — безкоштовні сцени вичерпано;
 // { ok: false, gone: true } — пристрій стерто; { ok: false, busy: true }.
-async function reserveScan(user, day, { scene = false } = {}) {
+async function reserveScan(user, { scene = false } = {}) {
   let current = user;
   for (let attempt = 0; attempt < 6; attempt++) {
     if (attempt > 0) current = await store.get('users', user.id);
     if (!current) return { ok: false, gone: true };
     let pro = null;
     const isPro = async () => (pro ??= (await proStatus(current)).active);
-    const used = usedOn(current, day);
-    if (used >= FREE_SCANS_PER_DAY && !(await isPro())) return { ok: false, used, limit: FREE_SCANS_PER_DAY };
-    const fields = { usage: { day: counterDay(current, day), scans: used + 1 } };
+    const used = scansUsed(current);
+    if (used >= FREE_SCANS && !(await isPro())) return { ok: false, used, limit: FREE_SCANS };
+    const fields = { scans: used + 1 };
     if (scene) {
       const scenes = scenesUsed(current);
       if (scenes >= FREE_SCENES && !(await isPro())) {
@@ -213,24 +223,25 @@ async function reserveScan(user, day, { scene = false } = {}) {
     if (r.ok) {
       Object.assign(user, fields);
       if (current.proUntil !== undefined) user.proUntil = current.proUntil;
-      return { ok: true, pro: !!pro, release: () => releaseScan(user.id, fields.usage.day, scene) };
+      return { ok: true, pro: !!pro, release: () => releaseScan(user.id, scene) };
     }
     if (r.reason === 'missing') return { ok: false, gone: true };
   }
   return { ok: false, busy: true };
 }
 
-// Повертає те, що зайняв reserveScan, одним умовним записом. Денний слот —
-// лише якщо лічильник ще того самого дня; сцену — завжди, вона довічна.
-async function releaseScan(id, day, scene) {
+// Повертає те, що зайняв reserveScan, одним умовним записом: скан і, якщо це
+// була сцена, сцену. Обидва довічні, тож жодних умов про день; нижче нуля —
+// ніколи.
+async function releaseScan(id, scene) {
   for (let attempt = 0; attempt < 6; attempt++) {
     const user = await store.get('users', id);
     if (!user) return;
     const fields = {};
-    if (user.usage && user.usage.day === day && user.usage.scans > 0) {
-      fields.usage = { day, scans: user.usage.scans - 1 };
-    }
-    if (scene && scenesUsed(user) > 0) fields.scenes = scenesUsed(user) - 1;
+    const scans = scansUsed(user);
+    const scenes = scenesUsed(user);
+    if (scans > 0) fields.scans = scans - 1;
+    if (scene && scenes > 0) fields.scenes = scenes - 1;
     if (!Object.keys(fields).length) return;
     const r = await store.update('users', id, fields, { version: user.__version });
     if (r.ok || r.reason === 'missing') return;
@@ -313,7 +324,7 @@ async function handleWebhook(body) {
 }
 
 module.exports = {
-  FREE_SCANS_PER_DAY,
+  FREE_SCANS,
   FREE_SCENES,
   ENTITLEMENT,
   utcDay,

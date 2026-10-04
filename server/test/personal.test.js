@@ -12,7 +12,7 @@ Object.assign(process.env, {
   PROVIDER: 'mock',
   DATA_FILE: path.join(dir, 'data.json'),
   AUTH_SECRET: 'test-secret',
-  FREE_SCANS_PER_DAY: '100',
+  FREE_SCANS: '100',
   REVENUECAT_SECRET_KEY: '',
 });
 const { startServer, nextIp } = require('./helpers/http');

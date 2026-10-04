@@ -55,4 +55,26 @@ async function withClock(offsetMs, fn) {
   }
 }
 
-module.exports = { startServer, withClock, nextIp };
+// Зсув і календаря: new Date() без аргументів теж іде від зсунутого часу —
+// «сьогодні» сервера (billing.utcDay), від якого localDay приймає дату
+// клієнта. withClock його не чіпає. Лише для тестів, що їдуть у майбутнє
+// днями: глобальний Date підмінено на час fn.
+async function withCalendar(offsetMs, fn) {
+  const RealDate = Date;
+  class ShiftedDate extends RealDate {
+    constructor(...a) {
+      super(...(a.length ? a : [RealDate.now() + offsetMs]));
+    }
+    static now() {
+      return RealDate.now() + offsetMs;
+    }
+  }
+  global.Date = ShiftedDate;
+  try {
+    return await fn();
+  } finally {
+    global.Date = RealDate;
+  }
+}
+
+module.exports = { startServer, withClock, withCalendar, nextIp };

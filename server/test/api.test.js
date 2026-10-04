@@ -11,7 +11,7 @@ Object.assign(process.env, {
   PROVIDER: 'mock',
   DATA_FILE: path.join(dir, 'data.json'),
   AUTH_SECRET: 'test-secret',
-  FREE_SCANS_PER_DAY: '2',
+  FREE_SCANS: '2',
   FREE_SCENES: '1',
   REVENUECAT_WEBHOOK_AUTH: 'Bearer hook-secret',
   REVENUECAT_SECRET_KEY: '',
@@ -75,7 +75,7 @@ test('device scans until the free quota, then 402 before calling AI', async () =
   const a = await call('POST', '/scan', { token, body: IMAGE, headers: { 'x-local-date': day } });
   assert.equal(a.status, 200);
   assert.equal(a.data.word, 'mug');
-  assert.deepEqual(a.data.usage, { day, scans: 1, limit: 2, scenes: 0, sceneLimit: 1 });
+  assert.deepEqual(a.data.usage, { day, scans: 1, limit: 2, scenes: 0, sceneLimit: 1, period: 'lifetime' });
   assert.ok(Array.isArray(a.data.outline) && a.data.outline.length >= 6);
   const b = await call('POST', '/scan', { token, body: IMAGE, headers: { 'x-local-date': day } });
   assert.equal(b.status, 200);
@@ -94,7 +94,7 @@ test('a forged far-away local date falls back to the server day', async () => {
   assert.equal(r.data.usage.day, billing.utcDay());
 });
 
-test('alternating today/tomorrow in x-local-date does not reset the quota', async () => {
+test('x-local-date does not touch the quota: today/tomorrow alternation still gets the lifetime two', async () => {
   const { token } = await newDevice();
   const today = billing.utcDay();
   const tomorrow = billing.addDays(today, 1);
@@ -103,11 +103,12 @@ test('alternating today/tomorrow in x-local-date does not reset the quota', asyn
     const r = await call('POST', '/scan', { token, body: IMAGE, headers: { 'x-local-date': day } });
     statuses.push(r.status);
   }
-  // 1 скан за «сьогодні», потім лічильник переходить на «завтра» (ліміт 2)
-  // і назад уже не відкочується. Раніше тут проходило все.
-  assert.deepEqual(statuses, [200, 200, 200, 402, 402]);
-  const me = await call('GET', '/me', { token, headers: { 'x-local-date': today } });
+  // ліміт довічний: два скани за все життя, яку б дату не слав клієнт.
+  // Колись тут проходило все, з денним лімітом — три.
+  assert.deepEqual(statuses, [200, 200, 402, 402, 402]);
+  const me = await call('GET', '/me', { token, headers: { 'x-local-date': tomorrow } });
   assert.equal(me.data.usage.scans, 2);
+  assert.equal(me.data.usage.day, tomorrow);
 });
 
 test('non-canonical date aliases of today fall back to the server day', async () => {
@@ -173,7 +174,7 @@ test('writes after DELETE /me do not resurrect the device', async () => {
   const stale = await store.get('users', user.id);
   assert.ok(stale);
   assert.equal((await call('DELETE', '/me', { token })).status, 200);
-  const slot = await billing.reserveScan(stale, billing.utcDay());
+  const slot = await billing.reserveScan(stale);
   assert.equal(slot.gone, true);
   assert.equal(await store.get('users', user.id), null);
 });
@@ -216,6 +217,11 @@ test('RevenueCat webhook grants Pro and lifts the limit', async () => {
   });
   const after = await call('GET', '/me', { token });
   assert.equal(after.data.pro.active, false);
+  assert.equal(after.data.usage.limit, 2);
+  // Pro скінчився — скани, зроблені в Pro, теж рахуються: знову SCAN_LIMIT
+  const lapsed = await call('POST', '/scan', { token, body: IMAGE, headers: { 'x-local-date': day } });
+  assert.equal(lapsed.status, 402);
+  assert.deepEqual(lapsed.data, { error: 'SCAN_LIMIT', limit: 2, used: 3 });
 });
 
 test('webhook revokes Pro from the previous owner on TRANSFER and on a refund', async () => {
