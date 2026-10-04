@@ -18,7 +18,7 @@ import * as Haptics from 'expo-haptics';
 import { checkServer } from './api';
 import { accountErrorKey, syncErrorKey } from './account';
 import { PRIVACY_URL, SERVER_SOURCE, SERVER_URL, SUPPORT_EMAIL, TERMS_URL } from './config';
-import { formatDate } from './locale';
+import { formatDate, localeFor } from './locale';
 import { restoreNote } from './purchases';
 import { profileSummary } from './profile';
 import { version as APP_VERSION } from '../package.json';
@@ -31,6 +31,22 @@ import { FadeIn, Glass, Press } from './ui';
 import { UNDER_TAB } from './Chrome';
 import { layoutNext } from './motion';
 import { F, R, THEME_DEFS, type, useTheme } from './theme';
+
+// Підпис години нагадування — у форматі годинника для мови інтерфейсу:
+// де годинник 12-годинний (en-US) — «8 AM», де 24-годинний — «08:00».
+export function hourLabel(h, lang) {
+  const loc = localeFor(lang);
+  const at = new Date(2000, 0, 1, h);
+  try {
+    // 13:00 у 12-годинному форматі — «1 PM»: числа 13 там немає
+    const h12 = !/13/.test(new Date(2000, 0, 1, 13).toLocaleTimeString(loc, { hour: 'numeric' }));
+    return h12
+      ? at.toLocaleTimeString(loc, { hour: 'numeric', hour12: true })
+      : at.toLocaleTimeString(loc, { hour: '2-digit', minute: '2-digit', hour12: false });
+  } catch (_) {
+    return String(h).padStart(2, '0') + ':00';
+  }
+}
 
 // Тогл-лист вибору мови: розгортається на ~4 рядки, далі скрол
 function LangPicker({ label, hint, value, onChange, C, s }) {
@@ -330,7 +346,7 @@ export default function SettingsScreen({
   onToggleAnalytics,
   t,
 }) {
-  const { C, isDark } = useTheme();
+  const { C, T, isDark } = useTheme();
   const s = useMemo(() => makeStyles(C), [C]);
   // Без кнопки Apple (веб, Android) про акаунт мовчимо; хто вже увійшов —
   // бачить свій стан будь-де.
@@ -401,7 +417,7 @@ export default function SettingsScreen({
       contentContainerStyle={{ paddingBottom: UNDER_TAB + 24 }}
       showsVerticalScrollIndicator={false}
     >
-      <Text style={s.title}>{t('setTitle')}</Text>
+      <Text style={[T.largeTitle, s.title]}>{t('setTitle')}</Text>
 
       <FadeIn>
         {/* Акаунт — найперше: від нього залежить, чи переживуть слова втрату
@@ -530,9 +546,17 @@ export default function SettingsScreen({
                         Haptics.selectionAsync();
                         onSetWodHour(h);
                       }}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: active }}
                     >
-                      <Text style={[s.hourText, active && { color: C.onAccent, fontFamily: F.extra }]}>
-                        {String(h).padStart(2, '0')}:00
+                      <Text
+                        style={[s.hourText, active && { color: C.onAccent, fontFamily: F.extra }]}
+                        numberOfLines={1}
+                        adjustsFontSizeToFit
+                        minimumFontScale={0.8}
+                        maxFontSizeMultiplier={1.3}
+                      >
+                        {hourLabel(h, uiLang)}
                       </Text>
                     </Pressable>
                   );
@@ -674,7 +698,7 @@ export default function SettingsScreen({
           <View style={s.sepInner} />
           <Text style={s.dimText}>{t(synced ? 'eraseHintAccount' : 'eraseHint')}</Text>
           <Press style={s.dangerBtn} onPress={confirmErase}>
-            <Text style={[s.dangerText, { color: C.faint }]}>{t('eraseAll')}</Text>
+            <Text style={[s.dangerText, { color: C.dim }]}>{t('eraseAll')}</Text>
           </Press>
         </Glass>
 
@@ -730,9 +754,10 @@ export default function SettingsScreen({
 const makeStyles = (C) =>
   StyleSheet.create({
     root: { flex: 1, backgroundColor: C.bg, padding: 20 },
-    title: { color: C.text, fontSize: 32, fontFamily: F.extra },
+    // кегль і накреслення — T.largeTitle, як на інших вкладках
+    title: { marginBottom: 2 },
     sectionLabel: {
-      color: C.faint,
+      color: C.dim,
       fontSize: 12,
       fontFamily: F.extra,
       textTransform: 'uppercase',
@@ -793,10 +818,15 @@ const makeStyles = (C) =>
     switchRow: { flexDirection: 'row', alignItems: 'center' },
     profileRow: { flexDirection: 'row', alignItems: 'center', minHeight: 44 },
     switchTitle: { color: C.text, fontSize: 16, letterSpacing: -0.1, fontFamily: F.bold, marginBottom: 3 },
-    hourRow: { flexDirection: 'row', gap: 7, marginTop: 10, flexWrap: 'wrap' },
+    // П'ять годин в один ряд навіть на SE: кожна — рівна частка ширини,
+    // 44 pt заввишки (мінімум Apple для пальця)
+    hourRow: { flexDirection: 'row', gap: 6, marginTop: 10 },
     hourChip: {
-      paddingHorizontal: 12,
-      paddingVertical: 8,
+      flex: 1,
+      minHeight: 44,
+      paddingHorizontal: 4,
+      alignItems: 'center',
+      justifyContent: 'center',
       borderRadius: R.pill,
       backgroundColor: C.card2,
     },
@@ -874,6 +904,6 @@ const makeStyles = (C) =>
     syncBtnText: { color: C.text, ...type(15, F.bold, { noLead: true }) },
     signOutBtn: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
     dangerText: { color: C.red, fontSize: 16, letterSpacing: -0.1, fontFamily: F.semi },
-    version: { color: C.faint, fontSize: 11, fontFamily: F.reg, marginTop: 2 },
-    footer: { color: C.faint, fontSize: 12, textAlign: 'center', fontFamily: F.semi },
+    version: { color: C.dim, fontSize: 11, fontFamily: F.reg, marginTop: 2 },
+    footer: { color: C.dim, fontSize: 12, textAlign: 'center', fontFamily: F.semi },
   });

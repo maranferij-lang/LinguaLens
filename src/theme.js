@@ -97,7 +97,9 @@ const PALETTE = {
     card3: '#E9E5DC',
     text: '#1C1B19',
     dim: '#6E6A62',
-    faint: '#A6A199',
+    // faint — лише декор (шеврони, доріжки, вимкнене): ≥3:1 і на тлі, і на
+    // картці. Текст, який щось означає, — dim (≥4.5:1).
+    faint: '#8A857C',
     sep: '#E8E4DC',
     accent: '#5B4FD6',
     accentSoft: '#E4E1FB',
@@ -116,7 +118,7 @@ const PALETTE = {
     card3: '#35322E',
     text: '#F5F2EC',
     dim: '#A9A49B',
-    faint: '#757069',
+    faint: '#8A857D',
     sep: '#302D29',
     accent: '#9B8FFF',
     accentSoft: '#221E45',
@@ -152,7 +154,9 @@ function buildTheme(def) {
     SP,
     F,
     T: {
-      largeTitle: { color: p.text, ...type(34, F.extra) },
+      // Заголовок вкладки: однаковий кегль, накреслення й місце на всіх
+      // вкладках (Слова, Навчання, Профіль, Параметри)
+      largeTitle: { color: p.text, ...type(34, F.bold) },
       title: { color: p.text, ...type(26, F.extra) },
       headline: { color: p.text, ...type(19, F.bold) },
       bodyStrong: { color: p.text, ...type(16, F.semi) },

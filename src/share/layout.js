@@ -321,9 +321,17 @@ export function formatCount(n, locale) {
   }
 }
 
-// Літера дня тижня. dowLetters — 7 літер від неділі (як Date#getDay).
+// Підписи днів тижня від неділі (як Date#getDay). Рядок перекладу —
+// «Нд|Пн|Вт|…» через «|»: однією літерою понеділок і пʼятниця («П»), середа
+// й субота («С») однакові. Рядок без «|» — по літері на день, як раніше.
+export function weekdayLabels(list) {
+  const str = String(list || '');
+  return str.includes('|') ? str.split('|') : Array.from(str);
+}
+
+// Підпис дня тижня dow (0 — неділя)
 export function dayLetter(dow, letters) {
-  return Array.from(String(letters || ''))[dow] || '';
+  return weekdayLabels(letters)[dow] || '';
 }
 
 // ─── Графік тижня ──────────────────────────────────────────────────────────

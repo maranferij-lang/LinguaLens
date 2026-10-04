@@ -41,7 +41,8 @@ const TOP_BAR = 52;
 const BTN_H = 54;
 // Підписи на екрані — білі плашки з темним словом: читаються на будь-якому
 // фото і не сперечаються з ним кольором.
-const CHIP_COLORS = { bg: '#FFFFFF', word: '#1C1B19', sub: '#6E6A62' };
+// check — галочка «вже в словнику»: бірюза — колір успіху (див. theme.js)
+const CHIP_COLORS = { bg: '#FFFFFF', word: '#1C1B19', sub: '#6E6A62', check: '#0E8C82' };
 const STAGGER = 60;
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
@@ -248,6 +249,9 @@ function SceneBody({ scene, active, backRef, cutter, savedWords, onSaveWords, on
     .map((c) => ({ key: c.key, from: c.leader.from, to: c.leader.to }));
   const current = selected ? scene.objects.find((o) => o.key === selected) : null;
   const allSaved = visible.length > 0 && !unsaved.length;
+  // Щось уже в словнику — кнопка каже «Зберегти нові (1)», а не «всі»:
+  // інакше «Зберегти всі (1)» під «7 слів у кадрі» збиває з пантелику
+  const saveLabel = t(unsaved.length < visible.length ? 'sceneSaveNew' : 'sceneSaveAll', { n: unsaved.length });
 
   return (
     <View style={s.root} accessibilityViewIsModal onAccessibilityEscape={back}>
@@ -324,10 +328,12 @@ function SceneBody({ scene, active, backRef, cutter, savedWords, onSaveWords, on
               accessibilityRole="button"
               accessibilityLabel={o.translation ? `${o.word}, ${o.translation}` : o.word}
               accessibilityState={{ selected: selected === o.key }}
+              // галочку на плашці VoiceOver читає словами: «У словнику»
+              accessibilityValue={isSaved(o) ? { text: t('saved') } : undefined}
               accessibilityHint={off ? t('sceneHiddenHint') : undefined}
               hitSlop={4}
             >
-              <SceneChip word={o.word} translation={o.translation} size={items[i].size} colors={CHIP_COLORS} />
+              <SceneChip word={o.word} translation={o.translation} size={items[i].size} colors={CHIP_COLORS} saved={isSaved(o)} />
             </Pressable>
           </Animated.View>
         );
@@ -356,17 +362,17 @@ function SceneBody({ scene, active, backRef, cutter, savedWords, onSaveWords, on
         <Scrim width={W} height={bottomH + 40} from="bottom" />
         <View style={{ flex: 1 }}>
           {allSaved ? (
-            <View style={s.savedAll} accessible accessibilityRole="text">
-              <Text style={s.savedAllText}>{t('sceneAllSaved')}</Text>
+            <View style={s.savedAll} accessible accessibilityRole="button" accessibilityState={{ disabled: true }}>
+              <Text style={s.savedAllText}>{t('sceneAllDone')}</Text>
             </View>
           ) : (
-            <Press onPress={() => save(unsaved)} disabled={busy || !unsaved.length} accessibilityLabel={t('sceneSaveAll', { n: unsaved.length })}>
+            <Press onPress={() => save(unsaved)} disabled={busy || !unsaved.length} accessibilityLabel={saveLabel}>
               <View style={s.primary}>
                 {busy && !current ? (
                   <ActivityIndicator color={C.onAccent} />
                 ) : (
                   <Text style={s.primaryText} numberOfLines={1}>
-                    {t('sceneSaveAll', { n: unsaved.length })}
+                    {saveLabel}
                   </Text>
                 )}
               </View>

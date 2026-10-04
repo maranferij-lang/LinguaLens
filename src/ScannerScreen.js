@@ -23,6 +23,7 @@ import { captureScene, createCutter, cropToObject, objectJpeg } from './cutout';
 import { speak } from './speech';
 import { IcClose, IcShare, IcSpeaker } from './icons';
 import { MascotBob } from './Mascot';
+import { PCrown } from './ProIcons';
 import { StickerLarge } from './Sticker';
 import ShareSheet from './share/ShareSheet';
 import ConsentSheet from './ConsentSheet';
@@ -75,7 +76,10 @@ export default function ScannerScreen({
   onShare,
   scanMode = 'object',
   onScanModeChange,
+  // скільки безкоштовних сканів лишилось (Infinity — Pro). Нуль — камера
+  // чесно каже, що скан використано, і пропонує Pro (onOpenPro)
   scansLeft,
+  onOpenPro,
   // рівень людини 1–10 з профілю (undefined — профілю немає): від нього
   // сервер робить приклад простішим чи багатшим і додає «Ще вирази»
   level,
@@ -257,6 +261,11 @@ export default function ScannerScreen({
 
   const alreadySaved =
     result && savedWords.some((w) => w.word.toLowerCase() === result.word.toLowerCase());
+  const unsaved = !!result && !alreadySaved && !justSaved;
+  // Безкоштовний скан щойно витрачено (чи це перший скан онбордингу): слово
+  // в аркуші — єдине, що людина з нього має. «Сканувати ще» тоді немає, а
+  // «назад» спершу зберігає слово, щоб його не можна було випадково втратити.
+  const lastScan = firstScan || scansLeft === 0;
 
   // Аркуш результату й сцена — нативні Modal, і все, що App малює в корені
   // (тост досягнення, пейвол), iOS ховає під ними. Кажемо App, коли такий
@@ -434,11 +443,27 @@ export default function ScannerScreen({
   }
 
   // «Назад» на Android і жест виходу VoiceOver: спершу закривається картка
-  // «поділитись», а не весь результат — інакше незбережене слово пропало б
-  // разом із витраченим сканом.
+  // «поділитись», а не весь результат. Останній скан — слово зберігається
+  // перед закриттям (у першому скані це той самий шлях, що й «Зберегти»:
+  // «Збережено», аркуш їде вниз, онбординг іде далі вже зі словом).
   function backFromResult() {
-    if (sharing) setSharing(null);
-    else closeResult();
+    if (sharing) {
+      setSharing(null);
+      return;
+    }
+    // аркуш першого скану вже їде вниз сам
+    if (firstDone.current.length) return;
+    if (lastScan && unsaved) {
+      save();
+      if (firstScan && onFirstSaved) return;
+    }
+    closeResult();
+  }
+
+  // Тло — лише для пальця: поки слово не збережене, випадковий дотик повз
+  // аркуш нічого не закриває.
+  function tapBackdrop() {
+    if (!unsaved && !firstDone.current.length) closeResult();
   }
 
   if (!permission) return <View style={s.center} />;
@@ -476,9 +501,19 @@ export default function ScannerScreen({
   }
 
   const frameOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.9, 0.3] });
-  const vf = viewfinder(sceneMode, win.width, rootH);
+  // iPhone SE і подібні: аркуш результату компактніший
+  const compact = win.height < 700;
+  // Безкоштовні скани. Нуль — не «0 лишилось» поруч із затвором, який
+  // відкриє лише пейвол, а чесне «використано» і чип Pro. Мало (1–3) —
+  // другий, дрібніший рядок у тій самій пігулці, що й підказка: так він не
+  // налазить на кути видошукача. Постійний лічильник над камерою тисне.
+  const usedUp = !firstScan && scansLeft === 0;
+  const showLeft = !firstScan && !loading && Number.isFinite(scansLeft) && scansLeft > 0 && scansLeft <= 3;
+  const proChip = usedUp && !loading && !!onOpenPro;
+  const vf = viewfinder(sceneMode, win.width, rootH, (showLeft ? COUNTER_H : 0) + (proChip ? CHIP_H : 0));
   const status = [t('sceneStatus1'), t('sceneStatus2'), t('sceneStatus3')];
-  const hintText = loading ? (sceneMode ? status[statusIdx] : t('scanning')) : sceneMode ? t('sceneHint') : t('hint');
+  const idleHint = usedUp ? t('scanUsedUp') : sceneMode ? t('sceneHint') : t('hint');
+  const hintText = loading ? (sceneMode ? status[statusIdx] : t('scanning')) : idleHint;
 
   return (
     <View style={s.root} onLayout={(e) => setRootH(e.nativeEvent.layout.height)}>
@@ -535,14 +570,28 @@ export default function ScannerScreen({
         </Animated.View>
       )}
 
-      <View pointerEvents="none" style={[s.hintWrap, { top: vf.hintTop }]}>
-        <Text style={s.hint} accessibilityLiveRegion="polite">
-          {hintText}
-        </Text>
-        {/* Скільки сканів лишилось. Показуємо лише коли реально мало —
-            постійний лічильник над камерою тисне і псує враження. */}
-        {Number.isFinite(scansLeft) && scansLeft <= 3 && !loading && !firstScan ? (
-          <Text style={s.scansLeft}>{t('scansLeftN', { n: scansLeft })}</Text>
+      {/* Підказка стоїть низом над видошукачем: хоч у два рядки, хоч із
+          лічильником чи чипом Pro — на кути кадру вона не налазить. */}
+      <View pointerEvents="box-none" style={[s.hintWrap, { height: Math.max(0, vf.top - HINT_GAP) }]}>
+        <View pointerEvents="none" style={s.hintPill}>
+          <Text style={s.hint} accessibilityLiveRegion="polite">
+            {hintText}
+          </Text>
+          {showLeft ? <Text style={s.scansLeft}>{t('scansLeftN', { n: scansLeft })}</Text> : null}
+        </View>
+        {proChip ? (
+          <Pressable
+            style={s.proChip}
+            onPress={onOpenPro}
+            hitSlop={{ top: 4, bottom: 4 }}
+            accessibilityRole="button"
+            accessibilityLabel={t('scanProChip')}
+          >
+            <PCrown size={14} color={C.onAccent} />
+            <Text style={s.proChipText} maxFontSizeMultiplier={1.3}>
+              {t('scanProChip')}
+            </Text>
+          </Pressable>
         ) : null}
       </View>
 
@@ -556,6 +605,8 @@ export default function ScannerScreen({
                 key={p.label}
                 style={[s.zoomChip, active && s.zoomChipActive]}
                 onPress={() => setZoomPreset(p.value)}
+                // 32 pt на вигляд, 44 pt для пальця
+                hitSlop={{ top: 6, bottom: 6 }}
               >
                 <Text style={[s.zoomChipText, active && s.zoomChipTextActive]}>{p.label}</Text>
               </Pressable>
@@ -593,6 +644,7 @@ export default function ScannerScreen({
           <Pressable
             onPress={() => setError('')}
             style={s.errorClose}
+            hitSlop={10}
             accessibilityRole="button"
             accessibilityLabel={t('close')}
           >
@@ -603,17 +655,29 @@ export default function ScannerScreen({
 
       <Modal visible={!!result} transparent animationType="slide" onRequestClose={backFromResult}>
         {/* Тло — лише для пальця; VoiceOver закриває аркуш кнопкою або жестом виходу */}
-        <Pressable style={s.modalBackdrop} onPress={closeResult} accessible={false} />
+        <Pressable style={s.modalBackdrop} onPress={tapBackdrop} accessible={false} />
         {/* Від 7/10 під прикладом ще кілька виразів — і на маленькому
-            iPhone аркуш може не влізти. Тоді він гортається, а не обрізається. */}
-        <View style={[s.sheet, { maxHeight: win.height - insets.top - 8 }]} onAccessibilityEscape={backFromResult}>
+            iPhone аркуш може не влізти. Тоді гортається лише вміст, а кнопки
+            стоять унизу: «Зберегти» видно завжди, без жодного гортання. */}
+        <View
+          style={[s.sheet, compact && !insets.bottom && s.sheetCompact, { maxHeight: win.height - insets.top - 8 }]}
+          onAccessibilityEscape={backFromResult}
+        >
           <View style={s.sheetHandle} />
           <ScrollView style={s.sheetScroll} bounces={false} showsVerticalScrollIndicator={false}>
             {result ? (
               <>
                 {result.photo ? (
-                  <View style={{ alignItems: 'center', marginBottom: 14 }}>
-                    <StickerLarge uri={result.photo} shape={result.shape} outline={result.outline} box={result.box} size={150} pop />
+                  // На низькому екрані (SE) наліпка менша — місце потрібне слову й прикладу
+                  <View style={{ alignItems: 'center', marginBottom: compact ? 0 : 14 }}>
+                    <StickerLarge
+                      uri={result.photo}
+                      shape={result.shape}
+                      outline={result.outline}
+                      box={result.box}
+                      size={compact ? 110 : 150}
+                      pop
+                    />
                   </View>
                 ) : null}
                 <FadeIn dy={14}>
@@ -662,27 +726,31 @@ export default function ScannerScreen({
                     ))}
                   </FadeIn>
                 ) : null}
-
-                <FadeIn delay={90} style={s.sheetBtns}>
-                  <View style={s.btnRow}>
-                    <View style={{ flex: 1 }}>
-                      {alreadySaved || justSaved ? (
-                        <View style={s.savedBadge}>
-                          <Text style={s.savedBadgeText}>{t('saved')}</Text>
-                        </View>
-                      ) : (
-                        <GradBtn title={t('save')} onPress={save} />
-                      )}
-                    </View>
-                    <Press style={s.shareBtn} onPress={share} accessibilityLabel={t('share')}>
-                      <IcShare size={22} color={C.accent} />
-                    </Press>
-                  </View>
-                  <SecBtn title={t('scanAgain')} onPress={closeResult} />
-                </FadeIn>
               </>
             ) : null}
           </ScrollView>
+          {result ? (
+            <FadeIn delay={90} style={s.sheetBtns}>
+              <View style={s.btnRow}>
+                <View style={{ flex: 1 }}>
+                  {unsaved ? (
+                    <GradBtn title={t('save')} onPress={save} />
+                  ) : (
+                    <View style={s.savedBadge}>
+                      <Text style={s.savedBadgeText}>{t('saved')}</Text>
+                    </View>
+                  )}
+                </View>
+                <Press style={s.shareBtn} onPress={share} accessibilityLabel={t('share')}>
+                  <IcShare size={22} color={C.accent} />
+                </Press>
+              </View>
+              {/* «Сканувати ще» — явна відмова від слова. Після останнього
+                  безкоштовного скану (і в онбордингу) її немає: затвор однаково
+                  відкрив би лише пейвол, а слово пропало б. */}
+              {lastScan ? null : <SecBtn title={t('scanAgain')} onPress={closeResult} />}
+            </FadeIn>
+          ) : null}
         </View>
         {/* Картка «поділитись» живе всередині цього ж Modal: iOS не покаже
             другий нативний Modal поверх уже відкритого. */}
@@ -837,19 +905,25 @@ function FrozenFrame({ image, a, sweep, loading, win, top, rootH, reduced }) {
   );
 }
 
-// Видошукач і підказка над ним. Предмет — квадрат на третині екрана.
+// Видошукач. Предмет — квадрат на третині екрана.
 // Сцена — високий кадр 9:16 майже на весь сканер: від підказки до
 // перемикача режимів, кнопки зуму лягають усередину, як у Камері iOS.
 // Підказка сцени довша і може лягти у два рядки — над кадром для неї
-// лишаємо місце, щоб пігулка не налазила на верхні кути.
-function viewfinder(scene, width, rootH) {
-  if (!scene) return { w: FRAME, h: FRAME, top: rootH * 0.27, hintTop: rootH * 0.18 };
+// лишаємо місце, щоб пігулка не налазила на верхні кути; extra — ще стільки
+// ж під лічильник сканів чи чип Pro під нею.
+function viewfinder(scene, width, rootH, extra = 0) {
+  if (!scene) return { w: FRAME, h: FRAME, top: rootH * 0.27 };
   const bottom = rootH - MODE_BOTTOM - MODE_H - 12;
-  const h = Math.max(FRAME, Math.min(bottom - 84, ((width - 56) * 16) / 9));
-  return { w: Math.round((h * 9) / 16), h, top: bottom - h, hintTop: Math.max(12, bottom - h - 70) };
+  const h = Math.max(FRAME, Math.min(bottom - 84 - extra, ((width - 56) * 16) / 9));
+  return { w: Math.round((h * 9) / 16), h, top: bottom - h };
 }
 
 const FRAME = 240;
+// Підказка над видошукачем: відступ до кадру і місце під її другий рядок
+// (лічильник сканів) та чип Pro
+const HINT_GAP = 14;
+const COUNTER_H = 20;
+const CHIP_H = 46;
 const SHUTTER_BOTTOM = UNDER_TAB + 12;
 // Перший скан в онбордингу: таб-бара немає — затвор і зум нижче на стільки
 const FIRST_LIFT = UNDER_TAB - 22;
@@ -877,18 +951,21 @@ const makeStyles = (C) =>
 
     // під час скану кути наливаються акцентом — видно, що прилад працює
     cornerActive: { borderColor: '#9B8FFF' },
-    scansLeft: {
-      color: '#fff',
-      opacity: 0.8,
-      fontSize: 12,
-      fontFamily: F.semi,
+    // другий рядок пігулки підказки: дрібніший, але повної яскравості
+    scansLeft: { color: '#fff', fontSize: 12, lineHeight: 16, fontFamily: F.reg, marginTop: 2, textAlign: 'center' },
+    // Безкоштовний скан використано: чип веде в пейвол — так камера каже,
+    // що робити далі, а не лише що «не можна»
+    proChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      minHeight: 36,
       marginTop: 8,
-      backgroundColor: 'rgba(0,0,0,0.35)',
-      paddingHorizontal: 10,
-      paddingVertical: 4,
+      paddingHorizontal: 14,
       borderRadius: R.pill,
-      overflow: 'hidden',
+      backgroundColor: C.accent,
     },
+    proChipText: { color: C.onAccent, fontSize: 14, fontFamily: F.bold },
     scanBeam: {
       position: 'absolute',
       left: 10,
@@ -901,21 +978,18 @@ const makeStyles = (C) =>
       shadowRadius: 8,
       shadowOffset: { width: 0, height: 0 },
     },
-    hintWrap: { position: 'absolute', width: '100%', alignItems: 'center' },
-    hint: {
-      color: '#fff',
-      backgroundColor: 'rgba(0,0,0,0.5)',
+    hintWrap: { position: 'absolute', top: 0, width: '100%', alignItems: 'center', justifyContent: 'flex-end' },
+    hintPill: {
+      backgroundColor: 'rgba(0,0,0,0.55)',
       paddingHorizontal: 14,
       paddingVertical: 7,
-      borderRadius: R.pill,
-      fontSize: 13,
-      fontFamily: F.semi,
-      overflow: 'hidden',
+      borderRadius: 18,
       // довга підказка сцени ламається на два рівні рядки, а не на
       // широку смугу з одним словом у другому рядку
       maxWidth: 300,
-      textAlign: 'center',
+      alignItems: 'center',
     },
+    hint: { color: '#fff', fontSize: 13, lineHeight: 18, fontFamily: F.semi, textAlign: 'center' },
 
     zoomRow: {
       position: 'absolute',
@@ -1008,6 +1082,8 @@ const makeStyles = (C) =>
       padding: 24,
       paddingBottom: 42,
     },
+    // SE без домашнього індикатора: менше порожнього місця під кнопками
+    sheetCompact: { paddingTop: 16, paddingBottom: 18 },
     sheetHandle: {
       width: 36,
       height: 5,

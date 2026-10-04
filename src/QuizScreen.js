@@ -3,15 +3,18 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { speak } from './speech';
-import { IcClose, IcFlame, IcSpeaker } from './icons';
+import { IcClock, IcClose, IcFlame, IcSpeaker } from './icons';
 import { MascotBob } from './Mascot';
-import { FadeIn, Glass, GradBtn, Press } from './ui';
+import { Bar, FadeIn, Glass, GradBtn, Press } from './ui';
 import { UNDER_TAB } from './Chrome';
 import { EASE, SPRING, isReducedMotion } from './motion';
 import { F, R, type, useTheme } from './theme';
 
 const Q_TIME = 10000;
 const Q_COUNT = 10;
+// Пауза між відповіддю й наступним питанням. Час вийшов — так само: людина
+// встигає прочитати «Час вийшов» і побачити правильну відповідь.
+export const Q_PAUSE = 900;
 const OPTIONS = 4;
 // Квіз має сенс лише тоді, коли є з чого вибирати: правильна відповідь
 // і три РІЗНІ хибні. Інакше варіантів буде 2–3 і вгадати можна навмання.
@@ -198,7 +201,7 @@ export default function QuizScreen({ words, t, onExit, onQuizDone, onMiss }) {
         setFinished(true);
         if (onQuizDone) onQuizDone(finalScore === questions.length, finalScore);
       } else setIdx(idx + 1);
-    }, 900);
+    }, Q_PAUSE);
   }
 
   function restart() {
@@ -219,8 +222,9 @@ export default function QuizScreen({ words, t, onExit, onQuizDone, onMiss }) {
           <Text style={s.dimText}>{t('quizScore', { s: score, n: questions.length })}</Text>
           {score < questions.length ? <Text style={s.note}>{t('quizMissNote')}</Text> : null}
           <GradBtn title={t('quizAgain')} onPress={restart} style={{ alignSelf: 'stretch', marginTop: 22 }} />
+          {/* «Готово», а не «Далі»: кнопка лише вертає в хаб */}
           <Press style={s.exitBtn} onPress={onExit}>
-            <Text style={s.exitText}>{t('next')}</Text>
+            <Text style={s.exitText}>{t('finishBtn')}</Text>
           </Press>
         </FadeIn>
       </View>
@@ -236,17 +240,16 @@ export default function QuizScreen({ words, t, onExit, onQuizDone, onMiss }) {
       alwaysBounceVertical={false}
       showsVerticalScrollIndicator={false}
     >
+      {/* Верхній рядок — як у флешкартках: хрестик, прогрес сесії, «1 / 10» */}
       <View style={s.top}>
         <SessionClose onPress={onExit} label={t('close')} />
-        <View style={s.timerTrack}>
-          <Animated.View
-            style={[s.timerFill, { transform: [{ scaleX: timer }], transformOrigin: 'left' }]}
-          />
+        <View style={{ flex: 1 }}>
+          <Bar progress={idx / questions.length} color={C.accent} bg={C.card2} height={6} />
         </View>
+        <Text style={s.meta}>{t('quizQ', { i: idx + 1, n: questions.length })}</Text>
       </View>
 
       <View style={s.metaRow}>
-        <Text style={s.meta}>{t('quizQ', { i: idx + 1, n: questions.length })}</Text>
         {streak > 1 ? (
           <View style={s.streakRow}>
             <IcFlame size={15} color={C.accent} />
@@ -265,7 +268,24 @@ export default function QuizScreen({ words, t, onExit, onQuizDone, onMiss }) {
         {q.word.ipa ? <Text style={s.qIpa}>{q.word.ipa}</Text> : null}
       </Glass>
 
-      <View style={{ gap: 10, marginTop: 18 }}>
+      {/* Таймер — не прогрес: тонка бурштинова смужка під питанням, що
+          тане до нуля. Час вийшов — так і кажемо, перш ніж іти далі. */}
+      <View style={s.timerSlot}>
+        {picked === -1 ? (
+          <View style={s.timeUp}>
+            <IcClock size={15} color={C.warm} />
+            <Text style={s.timeUpText} accessibilityLiveRegion="polite">
+              {t('quizTimeUp')}
+            </Text>
+          </View>
+        ) : (
+          <View style={s.timerTrack} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+            <Animated.View style={[s.timerFill, { transform: [{ scaleX: timer }], transformOrigin: 'left' }]} />
+          </View>
+        )}
+      </View>
+
+      <View style={{ gap: 10, marginTop: 4 }}>
         {q.options.map((opt, i) => {
           const isCorrect = i === q.answer;
           const show = picked !== null;
@@ -313,18 +333,33 @@ const makeStyles = (C) =>
     },
     bigTitle: { color: C.text, ...type(22, F.bold), marginTop: 14 },
     dimText: { color: C.dim, ...type(15, F.reg), textAlign: 'center', marginTop: 8 },
-    note: { color: C.faint, ...type(13, F.reg), textAlign: 'center', marginTop: 6 },
+    note: { color: C.dim, ...type(13, F.reg), textAlign: 'center', marginTop: 6 },
     exitBtn: { marginTop: 12, paddingVertical: 12, alignItems: 'center', alignSelf: 'stretch' },
     exitText: { color: C.accent, ...type(17, F.semi, { noLead: true }) },
     top: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-    timerTrack: { flex: 1, height: 6, backgroundColor: C.card2, borderRadius: 3, overflow: 'hidden' },
-    timerFill: { height: 6, width: '100%', borderRadius: 3, backgroundColor: C.accent },
-    metaRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 14 },
     // табличні цифри — «9 / 10» і «10 / 10» не стрибають по ширині
-    meta: { color: C.dim, ...type(13, F.semi), fontVariant: ['tabular-nums'] },
+    meta: { color: C.dim, ...type(13, F.semi), fontVariant: ['tabular-nums'], minWidth: 44, textAlign: 'right' },
+    // рядок серії тримає висоту й без серії — картка питання не стрибає
+    metaRow: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', marginTop: 10, minHeight: 18 },
     streakRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     streakText: { color: C.accent, ...type(13, F.bold) },
-    qCard: { marginTop: 14, alignItems: 'center', paddingVertical: 26 },
+    qCard: { marginTop: 6, alignItems: 'center', paddingVertical: 26 },
+    // місце під таймер і «Час вийшов» — однакової висоти
+    timerSlot: { height: 34, justifyContent: 'center', paddingHorizontal: 18 },
+    timerTrack: { height: 4, backgroundColor: C.warmSoft, borderRadius: 2, overflow: 'hidden' },
+    timerFill: { height: 4, width: '100%', borderRadius: 2, backgroundColor: C.warm },
+    // текст — кольору тексту на мʼякому бурштині: сам бурштин на крейді не читається
+    timeUp: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      alignSelf: 'center',
+      backgroundColor: C.warmSoft,
+      borderRadius: R.pill,
+      paddingHorizontal: 12,
+      paddingVertical: 5,
+    },
+    timeUpText: { color: C.text, ...type(14, F.bold, { noLead: true }) },
     qRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
     qWord: { color: C.text, ...type(28, F.bold), textAlign: 'center', flexShrink: 1 },
     speakBtn: {

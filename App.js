@@ -248,6 +248,10 @@ export default function App() {
   // це appUserID, тож сервер бачить ту саму покупку.
   const pro = usePro(deviceId);
   const sub = pro.state;
+  // Стан Pro відомий, щойно usePro вперше замінив початковий { pro: false }
+  // (RevenueCat чи імітація відповіли). Без магазину Pro не буває зовсім.
+  const firstSub = useRef(sub);
+  const subKnown = sub !== firstSub.current || pro.mode === 'unavailable';
 
   // Необов'язковий вхід через Apple і синхронізація словника між iPhone
   // (src/account.js, src/sync.js). Гостьовий режим працює й без цього.
@@ -265,6 +269,9 @@ export default function App() {
   // Акаунт, у який щойно перейшли з Pro на руках: щойно RevenueCat увійде
   // в нього, відновлюємо покупки — підписка переїде за людиною.
   const restoreFor = useRef(null);
+  // Стартова вкладка (див. ефект нижче): чи вже вирішено, чи людина сама
+  // перемикала вкладки, і лічильник сканів, збережений на старті
+  const startTab = useRef({ decided: false, moved: false, usage: null });
 
   // ---------- СТАРТ ----------
   useEffect(() => {
@@ -305,6 +312,7 @@ export default function App() {
       setSeenAch(seen);
       setWod(wodCache);
       setUsage(u);
+      startTab.current.usage = u;
       setScenes(sc);
       onbDraft.current = ob ? null : draft;
       setOnboarded(ob);
@@ -320,6 +328,22 @@ export default function App() {
       syncWordOfDay(wodArgs(settingsRef.current)).then((c) => c && setWod(c));
     })();
   }, []);
+
+  // Стартова вкладка — сканер, але безкоштовний скан уже витрачено, а Pro
+  // немає: камера однаково відкрила б лише пейвол, а все, що лишилось
+  // безкоштовним (слово дня, картки, квіз), — у навчанні. Вирішуємо один раз,
+  // коли відомі і лічильник сканів, і стан Pro (Pro може прийти пізніше за
+  // лічильник — тоді чекаємо на нього). Лічильник — той, що був збережений
+  // на старті: відповідь сервера за секунду вже не перекидає людину з
+  // камери, на яку вона дивиться. Людина вже сама перемкнула вкладку (чи її
+  // відкрило сповіщення) — нічого не чіпаємо.
+  useEffect(() => {
+    const st = startTab.current;
+    if (st.decided || !ready || !subKnown) return;
+    st.decided = true;
+    if (!onboarded || st.moved || tab !== 'scan') return;
+    if (!sub.pro && scansLeft({ pro: false, usage: st.usage }) === 0) setTab('cards');
+  }, [ready, subKnown]);
 
   // Тап по сповіщенню «слово дня» відкриває вкладку навчання, де воно чекає.
   useEffect(
@@ -1108,6 +1132,7 @@ export default function App() {
 
   function switchTab(key) {
     if (key !== tab) Haptics.selectionAsync();
+    startTab.current.moved = true;
     setTab(key);
   }
 
@@ -1281,6 +1306,10 @@ export default function App() {
             name={settings.profileName}
             struggles={settings.struggles}
             targetLang={settings.targetLang}
+            // мову навчання онбординг зберігає одразу: перший скан і план
+            // уже беруть її з налаштувань (під час повтору — не чіпаємо)
+            onSetLang={onbReplay.current ? undefined : setTargetLang}
+            nativeLang={settings.nativeLang}
             wodHour={settings.wodHour}
             replay={onbReplay.current}
             // «Спробуй зараз» — лише вперше, з порожнім словником і коли
@@ -1332,6 +1361,8 @@ export default function App() {
                 aiConsent={!!settings.aiConsent}
                 onAiConsent={() => saveSetting({ aiConsent: true })}
                 scansLeft={scansLeft({ pro: sub.pro, usage })}
+                // безкоштовний скан використано: чип «Pro: скани без обмежень»
+                onOpenPro={() => openPaywall('scans')}
                 t={t}
               />
             ) : null}
@@ -1378,6 +1409,8 @@ export default function App() {
                     }
                   }}
                   onOpenPro={() => openPaywall('info')}
+                  // порожнє навчання: «Сканувати» веде на сканер
+                  onGoScan={() => switchTab('scan')}
                   isPro={sub.pro}
                   wodTopic={wodTopic}
                   onKnowWod={knowWordOfDay}
@@ -1464,9 +1497,11 @@ export default function App() {
           </View>
         </SafeAreaView>
 
-        {/* Таб-бар — напівпрозорий матеріал, контент проїжджає під ним */}
-        <Material style={[s.tabbar, { paddingBottom: insets.bottom + 5 }]}>
-          <MaterialEdge />
+        {/* Таб-бар — напівпрозорий матеріал, контент проїжджає під ним. Над
+            камерою — темний, як хром Камери iOS: світлий над яскравою сценою
+            губив підписи вкладок. */}
+        <Material camera={tab === 'scan'} style={[s.tabbar, { paddingBottom: insets.bottom + 5 }]}>
+          <MaterialEdge camera={tab === 'scan'} />
           {TABS.map((tb) => (
             <TabButton
               key={tb.key}
@@ -1474,6 +1509,7 @@ export default function App() {
               active={tab === tb.key}
               badge={tb.key === 'cards' ? dueCount : 0}
               onPress={() => switchTab(tb.key)}
+              onCamera={tab === 'scan'}
               C={C}
               s={s}
               t={t}
@@ -1577,7 +1613,10 @@ export default function App() {
 // Перемикання вкладок — дія, яку роблять десятки разів на день, тож рух тут
 // мінімальний і швидкий: «пігулка» проявляється, іконка ледь підростає.
 // Жодного перельоту — інакше на кожен тап екран підстрибує.
-function TabButton({ tb, active, badge, onPress, C, s, t }) {
+// Неактивні — кольору dim (≥4.5:1), без додаткової прозорості; над камерою
+// (onCamera) — білі, неактивні на 70 %, як у Камері iOS.
+function TabButton({ tb, active, badge, onPress, onCamera, C, s, t }) {
+  const color = onCamera ? (active ? '#FFFFFF' : 'rgba(255,255,255,0.7)') : active ? C.accent : C.dim;
   const a = useRef(new Animated.Value(active ? 1 : 0)).current;
   const press = useRef(new Animated.Value(1)).current;
 
@@ -1606,7 +1645,7 @@ function TabButton({ tb, active, badge, onPress, C, s, t }) {
           style={[
             s.tabPill,
             {
-              backgroundColor: C.accentSoft,
+              backgroundColor: onCamera ? 'rgba(255,255,255,0.18)' : C.accentSoft,
               opacity: a,
               // пігулка не виникає з нуля — стартує з 0.85
               transform: [{ scale: a.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1] }) }],
@@ -1616,7 +1655,7 @@ function TabButton({ tb, active, badge, onPress, C, s, t }) {
         {/* Іконка явно над пігулкою: пігулка має transform, а з ним на
             деяких рушіях (веб) вона малювалась би поверх іконки. */}
         <View style={{ zIndex: 1 }}>
-          <tb.Icon size={24} color={active ? C.accent : C.faint} />
+          <tb.Icon size={24} color={color} />
         </View>
         {badge > 0 ? (
           <View style={s.badge}>
@@ -1624,21 +1663,17 @@ function TabButton({ tb, active, badge, onPress, C, s, t }) {
           </View>
         ) : null}
       </Animated.View>
-      <Animated.Text
+      <Text
         // великий системний шрифт не має обрізати підписи вкладок: кегль
         // обмежений, а довге «Einstellungen» на XXL ще й трохи стискається
         maxFontSizeMultiplier={1.2}
         adjustsFontSizeToFit
         minimumFontScale={0.8}
-        style={[
-          s.tabLabel,
-          active && { color: C.accent },
-          { opacity: a.interpolate({ inputRange: [0, 1], outputRange: [0.8, 1] }) },
-        ]}
+        style={[s.tabLabel, { color }]}
         numberOfLines={1}
       >
         {t(tb.label)}
-      </Animated.Text>
+      </Text>
     </Pressable>
   );
 }
@@ -1660,7 +1695,7 @@ const makeStyles = (C) =>
     tabBtn: { flex: 1, alignItems: 'center', gap: 3, paddingHorizontal: 2 },
     tabIconWrap: { paddingHorizontal: 14, paddingVertical: 5, alignItems: 'center', justifyContent: 'center' },
     tabPill: { ...StyleSheet.absoluteFill, borderRadius: 999 },
-    tabLabel: { color: C.faint, fontSize: 10, letterSpacing: 0.15, fontFamily: F.bold },
+    tabLabel: { color: C.dim, fontSize: 10, letterSpacing: 0.15, fontFamily: F.bold },
     badge: {
       position: 'absolute',
       top: -4,

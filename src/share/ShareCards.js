@@ -472,7 +472,7 @@ function AchievementCard({ payload, pal, t, locale }) {
 // ─── Мій тиждень ───────────────────────────────────────────────────────────
 function WeekChart({ days, pal, t, height }) {
   const hs = barHeights(days, height);
-  const letters = t('dowLetters');
+  const letters = t('dowShort');
   return (
     <View>
       <View style={{ height, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' }}>
