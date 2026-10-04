@@ -129,6 +129,35 @@ describe('the Profile card', () => {
     expect(texts(tree.root)).toContain(t('streakStartTitle'));
     await act(async () => tree.unmount());
   });
+
+  test('Profile scrolls only as far as needed: a tall phone stays put, a small one lifts the card from under the tab bar', async () => {
+    const { ScrollView } = require('react-native');
+    const profile = (focusStreak) => (
+      <ProfileScreen words={[]} activity={{}} stats={{}} profile={{ name: '', avatar: 'wave' }} onUpdateProfile={() => {}} focusStreak={focusStreak} t={t} />
+    );
+    const lay = async (tree, viewport, card) => {
+      const scroll = tree.root.findByType(ScrollView);
+      scroll.instance.scrollTo.mockClear?.();
+      const wrap = tree.root.findAll((n) => n.type === 'View' && typeof n.props.onLayout === 'function' && n.findAll((x) => x.props.testID === 'streak-card-flame').length)[0];
+      await act(async () => wrap.props.onLayout({ nativeEvent: { layout: card } }));
+      await act(async () => scroll.props.onLayout({ nativeEvent: { layout: { height: viewport } } }));
+      return scroll.instance.scrollTo;
+    };
+    // Pro Max: картку видно всю — екран не крутиться, заголовок на місці
+    let tree = await render(profile(true));
+    expect(await lay(tree, 870, { y: 380, height: 330 })).not.toHaveBeenCalled();
+    await act(async () => tree.unmount());
+    // SE: низ картки під таб-баром — рівно настільки, щоб вона вийшла
+    tree = await render(profile(true));
+    const scrollTo = await lay(tree, 600, { y: 380, height: 330 });
+    expect(scrollTo).toHaveBeenCalledTimes(1);
+    expect(scrollTo.mock.calls[0][0].y).toBe(380 + 330 + 78 + 12 - 600);
+    await act(async () => tree.unmount());
+    // без прохання з чипа — ніякої прокрутки
+    tree = await render(profile(false));
+    expect(await lay(tree, 600, { y: 380, height: 330 })).not.toHaveBeenCalled();
+    await act(async () => tree.unmount());
+  });
 });
 
 describe('the chip on Learn', () => {

@@ -66,9 +66,11 @@ export default function ProfileScreen({
   const streak = streakInfo({ activeDays }).n;
   const record = Math.max(best || 0, bestStreak(activeDays));
 
-  // Із чипа серії: вкладка «Прогрес» і картка серії на виду
+  // Із чипа серії: вкладка «Прогрес» і картка серії на виду. Крутимо лише
+  // настільки, щоб картка вийшла з-під таб-бару (на SE), — якщо її й так
+  // видно всю (Pro Max), екран не стрибає і заголовок лишається на місці.
   const scroll = useRef(null);
-  const cardY = useRef(null);
+  const view = useRef({ h: 0, y: null, ch: 0 });
   const [focus, setFocus] = useState(focusStreak);
   useEffect(() => {
     if (!focusStreak) return;
@@ -76,12 +78,17 @@ export default function ProfileScreen({
     if (tab !== 'stats') setTab('stats');
     onFocusDone?.();
   }, [focusStreak]);
+  function tryFocus() {
+    const v = view.current;
+    if (!focus || !scroll.current || !v.h || v.y === null) return;
+    setFocus(false);
+    const need = v.y + v.ch + UNDER_TAB + 12 - v.h;
+    if (need > 0) scroll.current.scrollTo?.({ y: Math.min(need, Math.max(0, v.y - 12)), animated: true });
+  }
   function onCardLayout(e) {
-    cardY.current = e.nativeEvent.layout.y;
-    if (focus && scroll.current) {
-      setFocus(false);
-      scroll.current.scrollTo?.({ y: Math.max(0, cardY.current - 12), animated: true });
-    }
+    view.current.y = e.nativeEvent.layout.y;
+    view.current.ch = e.nativeEvent.layout.height;
+    tryFocus();
   }
   const weekWords = words.filter((w) => Date.now() - (w.addedAt || 0) < WEEK).length;
   const reviews = words.reduce((sum, w) => sum + (w.srs?.reps || 0), 0);
@@ -138,6 +145,10 @@ export default function ProfileScreen({
   return (
     <ScrollView
       ref={scroll}
+      onLayout={(e) => {
+        view.current.h = e.nativeEvent.layout.height;
+        tryFocus();
+      }}
       style={s.root}
       contentContainerStyle={{ paddingBottom: UNDER_TAB + 24 }}
       showsVerticalScrollIndicator={false}
