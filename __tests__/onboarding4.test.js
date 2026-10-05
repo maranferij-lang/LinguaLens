@@ -126,6 +126,36 @@ describe('drafts saved by onboarding 3.0', () => {
   });
 });
 
+// Сповіщення вже дозволено чи заборонено (кроку вибору години немає) — у
+// чернетці плану й серії push не true/false і в новому порядку. Така
+// людина вже бачила «слово дня»: вона продовжує з того ж кроку, а не
+// проходить «слово дня» й план удруге.
+describe('drafts saved by onboarding 4.0', () => {
+  test('at the plan or streak with no push step: restored right there, not rewound to “what is the word of the day”', async () => {
+    permissionStatus.mockImplementation(async () => 'granted');
+    const onDraft = jest.fn();
+    const start = { v: 3, at: Date.now() - 60 * 1000, variant: 'control', target: 'de', native: 'uk', goals: ['travel'], level: 4, phase: 'wod' };
+    const tree = await render({ draft: start, onDraft });
+    expect(title(tree)).toBe(t('obWodTitle'));
+    await tap(tree, t('obNext'));
+    await advance(3000);
+    expect(title(tree)).toBe(t('obPlanTitle'));
+    // так чернетку зберігає App (storage.persistOnboardingDraft)
+    const saved = (phase) => ({ ...onDraft.mock.calls.map(([d]) => d).findLast((d) => d.phase === phase), v: 3, at: Date.now() });
+    const plan = saved('plan');
+    expect(plan.push).toBeUndefined();
+    expect(restoreDraft(plan)).toMatchObject({ phase: 'plan' });
+    await tap(tree, t('obNext'));
+    expect(title(tree)).toBe(t('obStreakTitle'));
+    expect(restoreDraft(saved('streak'))).toMatchObject({ phase: 'streak' });
+
+    // і справді з того ж кроку після перезапуску
+    const again = await render({ draft: plan });
+    await advance(3000);
+    expect(title(again)).toBe(t('obPlanTitle'));
+  });
+});
+
 // ─── Лінго на кроках-питаннях ──────────────────────────────────────────────
 describe('Lingo on the question steps', () => {
   test('beside the title with a pose for each step, hopping on every choice, never read by VoiceOver', async () => {

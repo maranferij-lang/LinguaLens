@@ -212,11 +212,14 @@ const okLang = (c) => (LANG_CODES.includes(c) ? c : null);
 // вже немає в памʼяті) — одразу обіцянка.
 //
 // Формат чернетки той самий, що в онбордингу 3.0, а порядок кроків — ні:
-// тоді план і серія йшли ДО сповіщень. Чернетка на плані чи серії без
-// відповіді про сповіщення (push не true/false) — це людина, якій ще не
-// показали ні «слово дня», ні вибір години: вона продовжує зі «слова дня»,
-// інакше пройшла б повз сповіщення. Чернетка на кроці сповіщень (і
-// pushDenied) — з того ж кроку, далі план.
+// тоді план і серія йшли ДО сповіщень. Чернетка 3.0 (без ver: 4) на плані
+// чи серії без відповіді про сповіщення (push не true/false) — це людина,
+// якій ще не показали ні «слово дня», ні вибір години: вона продовжує зі
+// «слова дня», інакше пройшла б повз сповіщення. Чернетка на кроці
+// сповіщень (і pushDenied) — з того ж кроку, далі план. Чернетка 4.0 несе
+// ver — порядок у ній уже новий: план без відповіді про сповіщення там
+// означає, що кроку години не було (систему вже питали), і «слово дня»
+// людина бачила — тоді з того ж кроку.
 const BEFORE_PUSH_V3 = ['plan', 'streak'];
 export function restoreDraft(d, now = Date.now()) {
   if (!draftFresh(d, now) || typeof d.phase !== 'string') return null;
@@ -226,7 +229,8 @@ export function restoreDraft(d, now = Date.now()) {
   const step = d.phase === 'pushDenied' ? 'push' : d.phase;
   if (step === 'welcome' || !all.includes(step)) return null;
   const hour = PUSH_HOURS.some((h) => h.hour === d.hour) ? d.hour : null;
-  const rewind = BEFORE_PUSH_V3.includes(d.phase) && typeof d.push !== 'boolean';
+  const oldOrder = !(Number(d.ver) >= 4);
+  const rewind = oldOrder && BEFORE_PUSH_V3.includes(d.phase) && typeof d.push !== 'boolean';
   return {
     phase: d.phase === 'celebrate' ? 'commit' : rewind ? 'wod' : d.phase,
     variant,
@@ -521,10 +525,12 @@ export default function OnboardingScreen({
 
   // Чернетка на кожному кроці (див. restoreDraft): iOS може вбити
   // застосунок посеред знайомства — зокрема коли в Параметрах міняють
-  // доступ до камери, — і людина не має відповідати на все вдруге.
+  // доступ до камери, — і людина не має відповідати на все вдруге. ver —
+  // порядок кроків, у якому її записано (restoreDraft відрізняє 3.0 від 4.0).
   useEffect(() => {
     if (replay || !onDraft || !variant || phase === 'welcome') return;
     onDraft({
+      ver: ONB_VERSION,
       phase,
       variant: flowName,
       target,
