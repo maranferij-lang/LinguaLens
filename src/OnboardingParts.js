@@ -499,7 +499,8 @@ export function WodExample({ sample, t, delay = 220 }) {
 // підскок і «Приємно познайомитися, Олено!». Стерла — знову махає.
 // room — скільки вільного місця над кнопкою (StepFrame peek, null — ще не
 // виміряно): тісно (SE з клавіатурою) — менший, зовсім тісно — ховається:
-// поле й кнопка важливіші.
+// поле й кнопка важливіші. Бульбашка так само: нижче, а то й зовсім без неї
+// (bubbleLift).
 export const NAME_PAUSE_MS = 400;
 // Яка частина Lingo ховається за кнопкою (ноги) і відступ над кнопкою
 const PEEK_HIDDEN = 0.2;
@@ -512,9 +513,24 @@ export function nameLingoSize(room) {
   return size >= 58 ? size : 0;
 }
 
+// Бульбашка стоїть поруч із Lingo, низом на рівні його грудей (BUBBLE_LIFT
+// від розміру над кнопкою), — і тому вища за нього: на SE з клавіатурою
+// Lingo ще влазить, а бульбашка на тій висоті налізла б на поле. Тоді вона
+// сідає нижче, аж до кнопки (над нею лишається 6 pt, як і над Lingo); не
+// влазить і там — null: ховаємо, поле й кнопка важливіші. h — виміряна
+// висота бульбашки (0 — ще не виміряно: стоїть як задумано).
+const BUBBLE_LIFT = 0.42;
+export function bubbleLift(size, room, h) {
+  const lift = size * BUBBLE_LIFT;
+  if (room == null || !h) return lift;
+  const fit = room - 6 - h;
+  return fit < 0 ? null : Math.min(lift, fit);
+}
+
 export function NameLingo({ name, cheer = '', room, t }) {
   const { C, SHADOW_SM } = useTheme();
   const s = useMemo(() => makeStyles(C), [C]);
+  const [bubbleH, setBubbleH] = useState(0);
   const [greet, setGreet] = useState(name);
   useEffect(() => {
     if (!name) {
@@ -527,15 +543,28 @@ export function NameLingo({ name, cheer = '', room, t }) {
   const size = nameLingoSize(room);
   if (!size) return null;
   const text = greet ? t('obNameNice', { name: greet }) : cheer;
+  const lift = bubbleLift(size, room, bubbleH);
+  const hidden = lift === null;
   return (
     <View style={s.peekRow} pointerEvents="none" testID="name-lingo">
       {text ? (
-        <FadeIn key={text} dy={6} style={[s.peekBubble, SHADOW_SM, { marginBottom: size * 0.42 }]}>
-          <Text style={s.peekText} numberOfLines={3} accessibilityLiveRegion="polite">
-            {text}
-          </Text>
-          <View style={s.peekTail} />
-        </FadeIn>
+        <View
+          style={{ flexShrink: 1, marginBottom: hidden ? 0 : lift, opacity: hidden ? 0 : 1 }}
+          onLayout={(e) => {
+            const h = Math.ceil(e.nativeEvent.layout.height);
+            setBubbleH((v) => (Math.abs(v - h) > 1 ? h : v));
+          }}
+          accessibilityElementsHidden={hidden}
+          importantForAccessibility={hidden ? 'no-hide-descendants' : 'auto'}
+          testID="name-bubble"
+        >
+          <FadeIn key={text} dy={6} style={[s.peekBubble, SHADOW_SM]}>
+            <Text style={s.peekText} numberOfLines={3} accessibilityLiveRegion="polite">
+              {text}
+            </Text>
+            <View style={s.peekTail} />
+          </FadeIn>
+        </View>
       ) : null}
       <View style={{ marginBottom: -(size * PEEK_HIDDEN + FOOTER_GAP) }}>
         <MascotLive pose={greet ? 'celebrate' : 'wave'} size={size} enter="peek" waves={2} hop={greet} testID="name-lingo-mascot" />

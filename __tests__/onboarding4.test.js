@@ -267,6 +267,36 @@ describe('the name step', () => {
     expect(tree.toJSON()).toBeNull();
   });
 
+  // SE з клавіатурою (поле імені фокусується одразу): бульбашка стоїть
+  // вище за Лінго, тож місця, якого досить Лінго, їй може забракнути —
+  // вона не налазить на поле, а сідає нижче, біля кнопки; не влазить і
+  // там — ховається (і від VoiceOver теж)
+  test('the bubble never climbs onto the field: lower when tight, hidden when it does not fit', async () => {
+    const bubbleAt = async (room, h = 60) => {
+      const tree = await mount(<NameLingo name="Olena" room={room} t={t} />);
+      await advance(NAME_PAUSE_MS);
+      const box = hostId(tree, 'name-bubble')[0];
+      await act(async () => box.props.onLayout({ nativeEvent: { layout: { height: h } } }));
+      const b = hostId(tree, 'name-bubble')[0];
+      const st = StyleSheet.flatten(b.props.style);
+      return { lift: st.marginBottom, shown: st.opacity !== 0 && !b.props.accessibilityElementsHidden };
+    };
+    // просторо — як задумано: низ бульбашки на рівні грудей Лінго
+    const wide = await bubbleAt(400);
+    expect(wide.shown).toBe(true);
+    expect(wide.lift).toBeCloseTo(128 * 0.42, 0);
+    // SE з клавіатурою: Лінго ще влазить, а бульбашка на тій висоті — ні
+    const tight = await bubbleAt(100);
+    expect(nameLingoSize(100)).toBeGreaterThan(100);
+    expect(tight.shown).toBe(true);
+    expect(tight.lift + 60).toBeLessThanOrEqual(100 - 6);
+    expect(tight.lift).toBeGreaterThan(0);
+    // зовсім тісно для бульбашки — її немає, Лінго лишається
+    const none = await bubbleAt(62);
+    expect(nameLingoSize(62)).toBeGreaterThan(0);
+    expect(none.shown).toBe(false);
+  });
+
   test('StepFrame tells the peek how much room is left under the content', async () => {
     const peek = jest.fn(() => null);
     const tree = await mount(
