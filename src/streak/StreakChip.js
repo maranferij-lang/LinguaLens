@@ -1,7 +1,7 @@
 // Чип серії в шапці «Навчання» (core.md C.4.1): пігулка 34 pt з міні-
 // вогником тієї ж форми, що в Профілі, і числом днів. Сьогодні ще ні —
 // вогник блідий. Ввечері під загрозою (з 18:00, серія є, сьогодні ще нічого)
-// — бурштинова пунктирна рамка й червона крапка. Тап — Профіль, «Прогрес»,
+// — пунктирна рамка кольору вогника й червона крапка. Тап — Профіль, «Прогрес»,
 // де картка серії (аркуш серії — v1.3.1).
 import { Pressable, Text, View } from 'react-native';
 import Flame from './Flame';
@@ -41,7 +41,7 @@ export default function StreakChip({ info, onPress, t, style }) {
           gap: 3,
           backgroundColor: C.card,
           borderWidth: 1.5,
-          borderColor: risk ? C.warm : 'transparent',
+          borderColor: risk ? C.flame : 'transparent',
           borderStyle: risk ? 'dashed' : 'solid',
         },
         risk ? null : SHADOW_SM,

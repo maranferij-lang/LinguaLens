@@ -243,8 +243,8 @@ export default function HoldToCommit({
             <Svg width={size * 1.5} height={size * 1.5}>
               <Defs>
                 <RadialGradient id={gid + 'g'} cx="0.5" cy="0.5" r="0.5">
-                  <Stop offset="0.45" stopColor={C.warm} stopOpacity={isDark ? 0.7 : 0.55} />
-                  <Stop offset="1" stopColor={C.warm} stopOpacity={0} />
+                  <Stop offset="0.45" stopColor={C.flame} stopOpacity={isDark ? 0.7 : 0.55} />
+                  <Stop offset="1" stopColor={C.flame} stopOpacity={0} />
                 </RadialGradient>
               </Defs>
               <Circle cx={size * 0.75} cy={size * 0.75} r={size * 0.75} fill={`url(#${gid}g)`} />
@@ -257,7 +257,7 @@ export default function HoldToCommit({
               <Defs>
                 <LinearGradient id={gid} x1="0" y1="0" x2="1" y2="1">
                   <Stop offset="0" stopColor={C.accent} />
-                  <Stop offset="1" stopColor={C.warm} />
+                  <Stop offset="1" stopColor={C.flameTip} />
                 </LinearGradient>
               </Defs>
               <Circle cx={size / 2} cy={size / 2} r={r} stroke={C.card3} strokeWidth={STROKE} fill="none" />
@@ -301,7 +301,7 @@ export default function HoldToCommit({
 
 // 14 іскор рівномірно по колу з детермінованим зсувом, 110–150 pt, 700 мс
 function Sparks({ v, size, C }) {
-  const tones = [C.warm, C.accent];
+  const tones = [C.flameTip, C.accent];
   return (
     <View pointerEvents="none" style={StyleSheet.absoluteFill} testID="commit-sparks">
       {Array.from({ length: SPARKS }, (_, i) => {

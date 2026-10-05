@@ -40,12 +40,15 @@ import {
 } from './demoTimeline';
 import { IcBook } from './icons';
 import { DUR, EASE, useReducedMotion } from './motion';
-import { F, R, type, useTheme } from './theme';
+import { F, R, THEMES, type, useTheme } from './theme';
 
 const APath = Animated.createAnimatedComponent(Path);
 const ORIGIN = `${MUG_ORIGIN.x}px ${MUG_ORIGIN.y}px`;
 const BEAT_KEYS = ['obDemoBeat1', 'obDemoBeat2', 'obDemoBeat3', 'obDemoFinal'];
 const T = (p) => <Text allowFontScaling={false} {...p} />;
+// Вогник серії на «кадрі камери» — фірмовий, як у темній «Крейді» (сцена
+// завжди темна): сяйво, обвідка й число запаленого чипа — кольору вогника
+const LIT = THEMES.dark.C.flame;
 
 // Масштаб сцени під доступне місце (сцена — 342×420, як у макеті)
 export function sceneScale(width, height) {
@@ -211,8 +214,8 @@ function SceneLayers({ tv, ov, pair, t, onReplay, final }) {
           <Svg width={180} height={180}>
             <Defs>
               <RadialGradient id="sdGlow" cx="0.5" cy="0.5" r="0.5">
-                <Stop offset="0" stopColor="#FFB13B" stopOpacity={0.6} />
-                <Stop offset="1" stopColor="#FFB13B" stopOpacity={0} />
+                <Stop offset="0" stopColor={LIT} stopOpacity={0.6} />
+                <Stop offset="1" stopColor={LIT} stopOpacity={0} />
               </RadialGradient>
             </Defs>
             <Circle cx={90} cy={90} r={90} fill="url(#sdGlow)" />
@@ -509,10 +512,10 @@ const styles = StyleSheet.create({
   chipOver: { position: 'absolute', left: 0, top: 0 },
   chipAccent: { backgroundColor: 'rgba(91,79,214,0.94)' },
   chipOverR: { position: 'absolute', right: 0, top: 0 },
-  // Запалена серія: тло те саме, що в чипа «0» — тепле тіло вогника першого
-  // дня на теплому тлі зливалось; горить сам вогник, обвідка й число
-  chipLit: { borderWidth: 1, borderColor: 'rgba(255,194,77,0.95)', paddingHorizontal: 10, paddingVertical: 5 },
-  chipLitText: { color: '#FFD15C' },
+  // Запалена серія: тло те саме, що в чипа «0» — тіло вогника першого дня
+  // на тлі його ж кольору зливалось; горить сам вогник, обвідка й число
+  chipLit: { borderWidth: 1, borderColor: LIT, paddingHorizontal: 10, paddingVertical: 5 },
+  chipLitText: { color: LIT },
   chipText: { color: '#FFFFFF', fontFamily: F.extra, fontSize: 13, lineHeight: 17 },
   chipFlame: { width: 13, height: 16, alignItems: 'center', justifyContent: 'center' },
   chipTL: { position: 'absolute', left: 12, top: 12 },

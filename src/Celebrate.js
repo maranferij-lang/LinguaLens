@@ -41,7 +41,7 @@ function Confetti({ C }) {
   useEffect(() => {
     Animated.timing(v, { toValue: 1, duration: FALL_MS + 220, easing: EASE.out, useNativeDriver: true }).start();
   }, []);
-  const tones = [C.accent, C.warm, C.green];
+  const tones = [C.accent, C.flameTip, C.green];
   return (
     <View pointerEvents="none" style={StyleSheet.absoluteFill} testID="confetti" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
       {PIECES.map((p, i) => {
@@ -146,7 +146,7 @@ const makeStyles = (C) =>
       flexDirection: 'row',
       alignItems: 'center',
       gap: 8,
-      backgroundColor: C.warmSoft,
+      backgroundColor: C.flameSoft,
       borderRadius: R.pill,
       paddingLeft: 12,
       paddingRight: 16,

@@ -619,7 +619,7 @@ export function TrialTimeline({ days, price, lang, canRemind, dense = false, t }
 // «Навчанні», лише без дотиків. Кольори — не з контексту (там тема, яку
 // людина має зараз), а з THEMES обраної палітри, у тому ж світлому чи
 // темному вигляді, що й застосунок. Видно, що змінюється (тло, картка,
-// акцент), а що ні (бурштин серії, Lingo). Шрифт не масштабується: це
+// акцент, вогник серії), а що ні (Lingo). Шрифт не масштабується: це
 // ілюстрація, а не текст для читання, і VoiceOver чує її одним підписом.
 // short — iPhone SE: без рядка кнопок, «Зберегти» поруч зі словом, щоб
 // тарифи лишились над підвалом без прокрутки.
@@ -652,9 +652,9 @@ export function ThemePreview({ palette, dark, word, short = false, t }) {
             </Text>
           </View>
           <View style={{ flex: 1 }} />
-          {/* серія — бурштин, однаковий у всіх палітрах */}
+          {/* серія — вогник у кольорах палітри */}
           <View style={s.streak}>
-            <IcFlame size={12} color={P.warm} />
+            <IcFlame size={12} color={P.flame} />
             <Text style={s.streakText} allowFontScaling={false}>
               5
             </Text>
@@ -767,7 +767,7 @@ const makePreviewStyles = (P) =>
       flexDirection: 'row',
       alignItems: 'center',
       gap: 3,
-      backgroundColor: P.warmSoft,
+      backgroundColor: P.flameSoft,
       borderRadius: R.pill,
       paddingHorizontal: 7,
       paddingVertical: 2,
@@ -882,7 +882,7 @@ const makeStyles = (C) =>
     tableRowLine: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.sep },
     rowLabelWrap: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 6, rowGap: 4, paddingRight: 4 },
     rowLabel: { flexShrink: 1, color: C.text, ...type(14, F.semi, { noLead: true }) },
-    // «нове» — тихо, бурштином серії, а не другим акцентом
+    // «нове» — тихо, мʼяким бурштином, а не другим акцентом
     newTag: { backgroundColor: C.warmSoft, borderRadius: R.pill, paddingHorizontal: 7, paddingVertical: 2 },
     newTagText: { color: C.text, ...type(11, F.extra, { noLead: true }) },
     cellFree: { width: FREE_COL, alignItems: 'center' },

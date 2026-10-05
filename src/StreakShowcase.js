@@ -41,7 +41,7 @@ export function showcaseLine(n, t) {
 }
 
 export default function StreakShowcase({ t, onPlay, initial = 0 }) {
-  const { C, isDark, SHADOW_SM } = useTheme();
+  const { C, SHADOW_SM } = useTheme();
   const s = useMemo(() => makeStyles(C), [C]);
   const reduced = useReducedMotion();
   // SE і подібні: менша сцена вогника — ряд днів, підказка й «Далі»
@@ -125,14 +125,14 @@ export default function StreakShowcase({ t, onPlay, initial = 0 }) {
     <View style={s.root}>
       <View style={[s.stage, short && s.stageShort]}>
         <View style={[s.glow, short && s.glowShort, { opacity: n ? 0.55 + stage * 0.15 : 0.45 }]} />
-        {week && !reduced ? <Sparks v={burst} color={C.warm} /> : null}
+        {week && !reduced ? <Sparks v={burst} color={C.flameTip} /> : null}
         <Animated.View style={{ transform: [{ scale: pop }] }} testID="showcase-flame" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
           <Flame n={n} size={short ? 92 : 112} />
         </Animated.View>
       </View>
 
-      <View style={[s.pill, !week && SHADOW_SM, week && { backgroundColor: C.warm }]}>
-        <Text style={[s.pillText, week && { color: isDark ? C.bg : C.text }]} numberOfLines={2} accessibilityLiveRegion="polite" testID="showcase-line">
+      <View style={[s.pill, !week && SHADOW_SM, week && { backgroundColor: C.flame }]}>
+        <Text style={[s.pillText, week && { color: C.onFlame }]} numberOfLines={2} accessibilityLiveRegion="polite" testID="showcase-line">
           {label}
         </Text>
       </View>
@@ -162,7 +162,7 @@ export default function StreakShowcase({ t, onPlay, initial = 0 }) {
               <View
                 style={[
                   s.dot,
-                  on && { backgroundColor: C.warm, borderColor: C.warm },
+                  on && { backgroundColor: C.flame, borderColor: C.flame },
                   d === n && s.dotNow,
                   goal && s.dotGoal,
                 ]}
@@ -260,7 +260,7 @@ const makeStyles = (C) =>
   StyleSheet.create({
     root: { alignItems: 'center', paddingTop: 4 },
     stage: { width: 220, height: 200, alignItems: 'center', justifyContent: 'center' },
-    glow: { position: 'absolute', width: 190, height: 190, borderRadius: 95, backgroundColor: C.warmSoft },
+    glow: { position: 'absolute', width: 190, height: 190, borderRadius: 95, backgroundColor: C.flameSoft },
     stageShort: { height: 158 },
     glowShort: { width: 152, height: 152, borderRadius: 76 },
     pill: {
@@ -285,7 +285,7 @@ const makeStyles = (C) =>
       justifyContent: 'center',
     },
     dotNow: { borderColor: C.text },
-    dotGoal: { backgroundColor: 'transparent', borderColor: C.warm, borderStyle: 'dashed' },
+    dotGoal: { backgroundColor: 'transparent', borderColor: C.flame, borderStyle: 'dashed' },
     dayNum: { color: C.dim, ...type(12, F.bold, { noLead: true }), marginTop: 6 },
     hint: { color: C.accent, ...type(14, F.bold), marginTop: 6, textAlign: 'center' },
   });
