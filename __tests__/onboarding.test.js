@@ -867,6 +867,30 @@ describe('draft v3', () => {
     expect(restoreDraft({ ...DRAFT, phase: 'celebrate', scanned: true }, now)).toMatchObject({ phase: 'commit', scanned: true });
   });
 
+  // Застосунок вбили вже після кроку сповіщень: обрана година й «так» не
+  // губляться — інакше сповіщення прийшли б о 10:00, а не о 19:00
+  test('restored after the push step: the chosen hour still reaches onDone', async () => {
+    permissionStatus.mockImplementation(async () => 'granted');
+    const { tree, onDone } = await render({ draft: { ...DRAFT, phase: 'demo', push: true, hour: 19 } });
+    expect(title(tree)).toBe(t('obDemoTitle'));
+    await tap(tree, t('obNext'));
+    expect(title(tree)).toBe(t('obCommitTitle'));
+    await promise(tree);
+    expect(onDone.mock.calls[0][0]).toMatchObject({ wodEnabled: true, wodHour: 19 });
+  });
+
+  // Слово першого скану вже в словнику, хоч наліпки й немає в памʼяті:
+  // перша крапка цілі світиться, і статистика каже «сканував»
+  test('restored after a saved scan: the first goal dot is lit and the result says scanned', async () => {
+    permissionStatus.mockImplementation(async () => 'granted');
+    const { tree, onDone } = await render({ draft: { ...DRAFT, phase: 'celebrate', push: false, hour: 10, scanned: true } });
+    expect(title(tree)).toBe(t('obCommitTitle'));
+    expect(hostId(tree, 'goal-lit')).toHaveLength(1);
+    await promise(tree);
+    expect(onDone.mock.calls[0][0]).toMatchObject({ scanned: true, wodEnabled: false, wodHour: 10 });
+    expect(events('onboarding_complete')[0]).toMatchObject({ scanned: true });
+  });
+
   test('a replay neither reads nor writes a draft', async () => {
     const onDraft = jest.fn();
     const { tree } = await render({ replay: true, hasWords: true, draft: DRAFT, onDraft });

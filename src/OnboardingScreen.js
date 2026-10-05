@@ -390,7 +390,9 @@ export default function OnboardingScreen({
   // Відповідь системи на запит. Ref, а не стан: фінал може настати в тому ж
   // тіку, що й відповідь.
   const pushGranted = useRef(saved ? saved.push : undefined);
-  const pushShown = useRef(false);
+  // Крок сповіщень уже був до перезапуску (у чернетці є відповідь) — годину
+  // з нього людина бачила й обрала, тож вона йде у фінал
+  const pushShown = useRef(typeof saved?.push === 'boolean' || saved?.phase === 'pushDenied');
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     if (dev?.forcePush) return undefined;
@@ -407,6 +409,10 @@ export default function OnboardingScreen({
   // ── Перший скан ─────────────────────────────────────────────────────────
   const [firstWord, setFirstWord] = useState(null);
   const firstWordRef = useRef(null);
+  // Слово першого скану збережене до перезапуску (чернетка): наліпки вже
+  // немає в памʼяті, але скан був — для фіналу, статистики й першої крапки
+  const scannedBefore = useRef(!!saved?.scanned).current;
+  const scannedNow = () => scannedBefore || !!firstWordRef.current;
   const [scannerOpen, setScannerOpen] = useState(false);
   const [consentOpen, setConsentOpen] = useState(false);
   // Сервер відмовив за лімітом (скан на цьому iPhone уже був)
@@ -496,7 +502,7 @@ export default function OnboardingScreen({
       heard,
       push: pushGranted.current,
       hour,
-      scanned: !!firstWordRef.current,
+      scanned: scannedNow(),
     });
   }, [phase, variant]);
 
@@ -607,7 +613,7 @@ export default function OnboardingScreen({
     const out = {
       profile: profileFromAnswers({ goals, field, level }, replay ? profile : null),
       heardFrom: heard,
-      scanned: !!firstWordRef.current,
+      scanned: scannedNow(),
       flow: variant === 'replay' ? 'replay' : flowName,
       targetLang: curTarget,
       nativeLang: curNative,
@@ -1169,7 +1175,7 @@ export default function OnboardingScreen({
       <View>
         <PledgeCard
           text={shownName ? t('obCommitName', { name: shownName, lang: langAcc }) : t('obCommitText', { lang: langAcc })}
-          lit={!!firstWord}
+          lit={!!firstWord || scannedBefore}
           t={t}
         />
         <View style={{ marginTop: 34, alignItems: 'center' }}>
