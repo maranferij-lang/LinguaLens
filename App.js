@@ -93,7 +93,7 @@ import { Material, MaterialEdge } from './src/Chrome';
 import { planOfProduct, trackPaywallImpression, usePro } from './src/purchases';
 
 import { FadeIn } from './src/ui';
-import { F, THEMES, ThemeProvider, resolveThemeKey, type } from './src/theme';
+import { F, THEMES, ThemeProvider, type } from './src/theme';
 import { SPRING } from './src/motion';
 import {
   canScan,
@@ -124,9 +124,8 @@ import { slotHours, wodPerDay as wodPerDayOf } from './src/wordOfDay';
 import { useWodSlots } from './src/WordOfDayCard';
 // </v13:W2>
 // <v13:W3>
-// Онбординг 3.0 і «Розробка»: скидання віджетів і наліпок у «Почати з нуля»,
-// перемикач «Онбординг на кожному старті».
-import * as Widgets from './src/widgets';
+// Онбординг 3.0 і «Розробка»: скидання наліпок у «Почати з нуля» (віджети
+// скидає resetWidgets з імпортів W2), перемикач «Онбординг на кожному старті».
 import { Directory, Paths } from 'expo-file-system';
 import { loadDevOnbAlways, persistDevOnbAlways } from './src/storage';
 // </v13:W3>
@@ -1315,7 +1314,7 @@ export default function App() {
     sync.stop();
     await cancelAll().catch(() => {});
     try {
-      await Widgets.resetWidgets?.(t);
+      await resetWidgets(t);
     } catch (_) {}
     wordsRef.current.forEach((w) => deletePhoto(w.photo));
     try {
