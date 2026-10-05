@@ -182,6 +182,48 @@ describe('Settings → Word of the day: words per day', () => {
     expect(wodPosts().at(-1).body.perDay).toBeUndefined();
   });
 
+  // Сервер ще не знав про покупку й дав одне слово замість трьох: кеш сам
+  // перепитає за 10 хв (needsRefresh), але лише коли його хтось синхронізує, —
+  // повернення застосунку на екран і є таким моментом.
+  test('Pro, but the server gave fewer words than asked: coming back to the app after 10 min asks again', async () => {
+    let knows = false;
+    const base = global.fetch;
+    global.fetch = jest.fn(async (url, init = {}) => {
+      const u = new URL(url);
+      if (knows || u.pathname !== '/word-of-day' || init.method !== 'POST') return base(url, init);
+      const body = JSON.parse(init.body);
+      calls.push({ path: u.pathname, method: 'POST', body });
+      const words = Array.from({ length: body.days }, (_, i) => ({ date: day(i), slot: 0, word: 'w' + i, ipa: '', translation: 'tr', example: '', example_translation: '', source: 'w' + i }));
+      return reply(200, { words, perDay: 1 });
+    });
+    const listeners = [];
+    const typical = AppState.addEventListener.getMockImplementation();
+    AppState.addEventListener.mockImplementation((type, fn) => {
+      listeners.push(fn);
+      return { remove() {} };
+    });
+    const realNow = Date.now;
+    try {
+      await returning({ pro: true, settings: { wodPerDay: 3, wodHours: [10, 16, 21] } });
+      await renderApp();
+      expect(await stored('ll_wod_v1')).toMatchObject({ perDay: 1, asked: 3 });
+      knows = true;
+      const before = wodPosts().length;
+      // за хвилину — ще ні: needsRefresh чекає 10 хв, сервер не смикаємо
+      Date.now = () => realNow() + 60 * 1000;
+      await run(async () => listeners.forEach((fn) => fn('active')));
+      expect(wodPosts().length).toBe(before);
+      Date.now = () => realNow() + 11 * 60 * 1000;
+      await run(async () => listeners.forEach((fn) => fn('active')));
+      expect(wodPosts().length).toBe(before + 1);
+      expect(wodPosts().at(-1).body.perDay).toBe(3);
+      expect(await stored('ll_wod_v1')).toMatchObject({ perDay: 3, asked: 3 });
+    } finally {
+      Date.now = realNow;
+      AppState.addEventListener.mockImplementation(typical);
+    }
+  });
+
   test('Pro ended — the saved 5 is kept but the app asks for one word', async () => {
     await returning({ settings: { wodPerDay: 5, wodHours: [8, 11, 15, 18, 21] } });
     const tree = await renderApp();

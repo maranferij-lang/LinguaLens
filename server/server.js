@@ -425,11 +425,15 @@ function wodDays(v) {
 // Скільки слів на день: 1, а в Pro — до 5 (v1.3). Безкоштовний запис, що
 // попросив більше, м'яко отримує 1, без 403: застосунок і так покаже
 // пейвол сам, а збій перевірки Pro не має лишати людину без слова дня.
+// Більше слів просять саме одразу після покупки (пейвол «wod_per_day»), а
+// кеш «не Pro» зі старту живе 10 хв — тоді перепитуємо RevenueCat, як
+// /me?refresh=1 (не частіше ніж раз на 30 с, див. billing.proStatus).
 async function wodPerDay(asked, user) {
   const n = wordplan.perDayOf(asked);
   if (n <= 1) return 1;
   try {
-    return (await billing.proStatus(user)).active ? n : 1;
+    if ((await billing.proStatus(user)).active) return n;
+    return (await billing.proStatus(user, { refresh: true })).active ? n : 1;
   } catch (_) {
     return 1;
   }

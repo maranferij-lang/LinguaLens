@@ -1636,6 +1636,20 @@ export default function App() {
       syncWordOfDay(wodArgs(settingsRef.current)).then((c) => c && setWod(c));
     }
   }, [sub.pro]);
+  // Pro є, а сервер дав менше слів, ніж просили (покупка ще не дійшла до
+  // нього): кеш перепитає сам за RETRY_PER_DAY_MS (needsRefresh), але лише
+  // коли його синхронізують. Повернення застосунку на екран — такий момент;
+  // інакше людина з Pro чекала б на 3 чи 5 слів до холодного старту.
+  const wodNow = useRef(wod);
+  wodNow.current = wod;
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      const c = wodNow.current;
+      if (state !== 'active' || !proRef.current || !c || (c.perDay || 1) >= (c.asked || 1)) return;
+      syncWordOfDay(wodArgs(settingsRef.current)).then((x) => x && setWod(x));
+    });
+    return () => sub?.remove?.();
+  }, []);
 
   // Слово дня, яке відкрити на картці (тап по сповіщенню чи віджету зі
   // слотом). Лише сьогоднішнє: вчорашнє сповіщення відкриває поточне слово.
