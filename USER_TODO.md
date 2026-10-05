@@ -319,8 +319,9 @@ npm run submit:ios     # відправить у App Store Connect → TestFligh
    покритий тестами в коді).
 8. **Dashboards → New** «Запуск» і інсайти за [`LAUNCH_PLAN.md`](LAUNCH_PLAN.md),
    розділ 6.5. Перша — **Funnel** «Онбординг по кроках»: події
-   `onboarding_step` із фільтром `step` = welcome, goals, level, plan, wow,
-   push, heard, потім `onboarding_complete`; Breakdown → `flow`.
+   `onboarding_step` (`ver` = 4) із фільтром `step` = welcome, lang, goals,
+   level, heard, wod, plan, streak, demo, потім `onboarding_complete`;
+   Breakdown → `flow`.
 9. Перевір на своєму iPhone (TestFlight): Activity → нові події
    `onboarding_step`, `paywall_view`, `scan`. Вимкни в параметрах застосунку
    анонімну статистику — нові події мають зникнути.
