@@ -15,6 +15,7 @@ import StreakShowcase from '../src/StreakShowcase';
 import HoldToCommit from '../src/HoldToCommit';
 import Celebrate from '../src/Celebrate';
 import ScanDemo from '../src/ScanDemo';
+import Flame from '../src/streak/Flame';
 import { PledgeCard } from '../src/OnboardingParts';
 import { ThemePreview } from '../src/PaywallScreen';
 import { demoPair } from '../src/demoWords';
@@ -179,10 +180,15 @@ describe('the paywall palette preview', () => {
 });
 
 describe('the onboarding demo', () => {
-  test('the lit streak chip and the big flame glow are the brand flame, not amber', async () => {
+  // Онбординг 4.0 прибрав великий вогник демо (лишились малі вогники в
+  // чипі серії): після злиття з потоком «вогник» він не повертається
+  test('the lit streak chip is the brand flame, not amber; no big demo flame', async () => {
     jest.useFakeTimers();
     for (const key of ['light', 'dark']) {
       const tree = await render(<ScanDemo pair={demoPair('es', 'uk')} t={t} width={342} height={420} onFinal={() => {}} onAction={() => {}} />, key);
+      const flames = tree.root.findAll((n) => n.type === Flame);
+      expect(flames.length).toBeGreaterThan(0);
+      expect(flames.map((f) => f.props.size).filter((size) => size > 16)).toEqual([]);
       const colors = colorsOf(tree);
       expect(colors).toContain(THEMES.dark.C.flame.toUpperCase());
       for (const old of ['#FFB13B', '#FFD15C']) expect(colors).not.toContain(old);
