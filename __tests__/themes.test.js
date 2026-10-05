@@ -3,6 +3,8 @@
 // повний набір токенів, читабельний контраст і ті самі зелений, бурштин і
 // червоний. Без Pro видно «Крейду», хоч би що людина обрала. Хром камери й
 // іконка застосунку від палітри не залежать.
+// Вогник серії (5.10.2026): токени flame* — у кольорах кожної палітри,
+// жодного оранжево-жовтого; текст поруч з ним читається ≥ 4.5:1.
 import { StyleSheet } from 'react-native';
 import { act, create } from 'react-test-renderer';
 
@@ -24,6 +26,7 @@ import { AppIcon } from '../src/Logo';
 
 // Токени, які мусить мати кожна тема (план §5.9)
 const TOKENS = ['bg', 'card', 'card2', 'card3', 'text', 'dim', 'faint', 'sep', 'accent', 'accentSoft', 'onAccent', 'warm', 'warmSoft', 'green', 'red'];
+const FLAME = ['flame', 'flameSoft', 'flameTip', 'flameCore', 'onFlame'];
 const KEYS = ['light', 'dark', ...['ocean', 'berry', 'graphite', 'cocoa'].flatMap((p) => [`${p}-light`, `${p}-dark`])];
 
 // Відносна яскравість і контраст за WCAG 2.x
@@ -38,6 +41,26 @@ function contrast(a, b) {
   const x = lum(a);
   const y = lum(b);
   return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+}
+
+// Відтінок (0–360), насиченість і світлота за HSL
+function hsl(hex) {
+  const h = hex.replace('#', '');
+  const [r, g, b] = [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16) / 255);
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  const d = max - min;
+  if (!d) return { h: 0, s: 0, l };
+  const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+  const hue = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return { h: (hue * 60 + 360) % 360, s, l };
+}
+const hueGap = (a, b) => Math.min(Math.abs(a - b), 360 - Math.abs(a - b));
+// Помаранчевий, бурштиновий, жовтий: відтінок 15–65°, насичений, не білий
+function orange(hex) {
+  const { h, s, l } = hsl(hex);
+  return h >= 15 && h <= 65 && s >= 0.45 && l >= 0.3 && l <= 0.9;
 }
 
 describe('palettes', () => {
@@ -66,7 +89,7 @@ describe('palettes', () => {
 
   test.each(KEYS)('%s has every token as a #RRGGBB colour', (key) => {
     const { C } = THEMES[key];
-    for (const tk of TOKENS) expect([tk, C[tk]]).toEqual([tk, expect.stringMatching(/^#[0-9A-F]{6}$/)]);
+    for (const tk of [...TOKENS, ...FLAME]) expect([tk, C[tk]]).toEqual([tk, expect.stringMatching(/^#[0-9A-F]{6}$/)]);
     // похідні, якими користуються екрани
     for (const tk of ['sheet', 'input', 'tabbar', 'chrome', 'greenSoft', 'redSoft']) expect(C[tk]).toBeTruthy();
   });
@@ -85,6 +108,10 @@ describe('palettes', () => {
     ['greenInk', 'greenSoft'],
     ['text', 'redSoft'],
     ['dim', 'sheet'],
+    // вогник серії: банер «серія під загрозою», пігулки, «7 днів» на вогнику
+    ['text', 'flameSoft'],
+    ['dim', 'flameSoft'],
+    ['onFlame', 'flame'],
   ];
   test.each(KEYS)('%s: text, dim and accent read at ≥ 4.5:1', (key) => {
     const { C } = THEMES[key];
@@ -100,7 +127,14 @@ describe('palettes', () => {
     expect(contrast(C.faint, C.card)).toBeGreaterThanOrEqual(3);
   });
 
-  test('green (success), amber (streak) and red (error) are the same in every palette', () => {
+  test.each(KEYS)('%s: the flame (a graphic) stands out ≥ 3:1 on the background, cards and its soft tile', (key) => {
+    const { C } = THEMES[key];
+    for (const bg of ['bg', 'card', 'card2', 'flameSoft']) {
+      expect([key, `flame/${bg}`, contrast(C.flame, C[bg]) >= 3]).toEqual([key, `flame/${bg}`, true]);
+    }
+  });
+
+  test('green (success), amber (time) and red (error) are the same in every palette', () => {
     for (const mode of ['light', 'dark']) {
       const base = THEMES[mode].C;
       for (const p of PRO_PALETTES) {
@@ -108,6 +142,35 @@ describe('palettes', () => {
         for (const tk of ['green', 'greenSoft', 'red', 'redSoft', 'warm', 'warmSoft']) expect(C[tk]).toBe(base[tk]);
       }
     }
+  });
+
+  test('every palette paints the streak flame its own way (Pro palettes recolour it)', () => {
+    for (const mode of ['light', 'dark']) {
+      const flames = PALETTE_KEYS.map((p) => THEMES[themeKeyOf(p, mode === 'dark')].C.flame);
+      expect(new Set(flames).size).toBe(PALETTE_KEYS.length);
+      // і світлий вогник відрізняється від темного
+      for (const p of PALETTE_KEYS) expect(THEMES[themeKeyOf(p, false)].C.flame).not.toBe(THEMES[themeKeyOf(p, true)].C.flame);
+    }
+  });
+
+  // Власник: «вогник — не оранжево-жовтий, а в нашій палітрі». У «Крейді» —
+  // фіолетовий із бірюзою Lingo; Какао — какао з вершками (колір самої
+  // палітри, а не вогню): відтінок його вогника — родина акценту Какао.
+  test.each(KEYS)('%s: no orange or yellow flame token', (key) => {
+    const { C, palette } = THEMES[key];
+    for (const tk of FLAME) {
+      if (palette === 'cocoa') {
+        const { s, h } = hsl(C[tk]);
+        if (s >= 0.12) expect([tk, hueGap(h, hsl(C.accent).h) <= 12]).toEqual([tk, true]);
+      } else {
+        expect([tk, C[tk], orange(C[tk])]).toEqual([tk, C[tk], false]);
+      }
+    }
+  });
+
+  test('the orange detector knows the old amber flame', () => {
+    for (const c of ['#E0A02E', '#F0B84A', '#FFD15C', '#F59A2C', '#E9772B', '#FFB547', '#FFC94D', '#FFE0A0', '#FFB13B']) expect([c, orange(c)]).toEqual([c, true]);
+    for (const c of ['#6152E0', '#9B8FFF', '#3FCFC2', '#FFFFFF', '#FF9ACF', '#2A66DD', '#C9CDD4']) expect([c, orange(c)]).toEqual([c, false]);
   });
 
   test('every Pro palette has its own accent, unlike Chalk’s and each other’s', () => {

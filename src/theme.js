@@ -6,7 +6,10 @@
 // маскота Lingo (#6C6CCC / #8484E4) і поглиблений до #5B4FD6 заради контрасту
 // 5.6:1 на цьому тлі. Це ЄДИНИЙ насичений колір інтерфейсу:
 //   • бірюза з черевця Lingo — тільки стани успіху («Знаю», правильна відповідь)
-//   • бурштин — тільки серія днів
+//   • вогник серії — фірмовий, як сам Lingo: фіолетове тіло, мʼятне серце,
+//     з 7-го дня бірюзовий кінчик і сяйво (токени flame*, див. PALETTES)
+//   • бурштин — лише тихі позначки часу й новизни (таймер вікторини,
+//     «на повторення», «нове»), не серія
 //   • червоний — тільки помилка й видалення
 // Тіні теплі, а не сірі: сіра тінь на теплому тлі виглядає брудно.
 //
@@ -15,6 +18,8 @@
 // вигляді. Правило те саме: насичений лише акцент; зелений, бурштин і
 // червоний однакові в усіх палітрах, тож акценти обрано так, щоб із ними не
 // плутатись (синій, маджента, графіт, какао — бірюзу й корал відкинуто).
+// Вогник серії (5.10.2026, рішення власника) — у кольорах палітри: кожна
+// перефарбовує його під себе, жодного оранжево-жовтого вогника.
 import { createContext, useContext } from 'react';
 import { PALETTES_ENABLED } from './flags';
 
@@ -72,9 +77,19 @@ function tint(hex, a) {
   return `rgba(${r},${g},${b},${a})`;
 }
 
+// Змішує два кольори #RRGGBB: k — частка другого. Не #RRGGBB — як є.
+// Похідні відтінки вогника (Flame.js) і віджетів (widgets/palette.js).
+export function mix(a, b, k) {
+  if (!/^#[0-9a-f]{6}$/i.test(String(a)) || !/^#[0-9a-f]{6}$/i.test(String(b))) return a;
+  const x = hexToRgb(a);
+  const y = hexToRgb(b);
+  return '#' + x.map((v, i) => Math.round(v + (y[i] - v) * k).toString(16).padStart(2, '0')).join('').toUpperCase();
+}
+
 // ===== ПАЛІТРИ =====
-// Зелений (успіх), бурштин (серія) і червоний (помилка) — спільні для всіх
-// палітр: людина вчиться читати їх раз і назавжди.
+// Зелений (успіх), бурштин (час, «нове») і червоний (помилка) — спільні для
+// всіх палітр: людина вчиться читати їх раз і назавжди. Вогник серії — ні:
+// він у кольорах палітри (flame* нижче).
 const SHARED = {
   light: {
     green: '#0E8C82',
@@ -105,6 +120,19 @@ const SHARED = {
 // shadow — колір тіні у світлому вигляді: теплий для теплих палітр,
 // холодний для Океану, нейтральний для Графіту (у темному — завжди чорний).
 // pro — палітра лише з Pro; «Крейда» безкоштовна.
+//
+// Вогник серії (src/streak/Flame.js, чип, картка, свято, віджет «Серія»):
+//   flame — тіло вогника 1–6 днів, значки, крапки тижня, смужка до віхи;
+//     ≥ 3:1 на тлі, картці й flameSoft (графіка, WCAG 1.4.11);
+//   flameSoft — мʼяке тло під вогником (плитка, банер, пігулка): text і dim
+//     на ньому ≥ 4.5:1;
+//   flameTip — кінчик розгорілого вогника з 7-го дня, іскри й кільце;
+//   flameCore — серце вогника;
+//   onFlame — текст на flame (≥ 4.5:1).
+// «Крейда» — фіолетовий акцент із бірюзою Lingo; Океан — синій із бірюзою;
+// Ягода — маджента з рожевим; Графіт — сланець із бірюзою; Какао — какао з
+// вершками. Відтінок flame* — завжди родина акценту палітри або бірюзи
+// (перевіряє __tests__/themes.test.js).
 export const PALETTES = [
   {
     key: 'chalk',
@@ -122,6 +150,11 @@ export const PALETTES = [
       accent: '#5B4FD6',
       accentSoft: '#E4E1FB',
       onAccent: '#FFFFFF',
+      flame: '#6152E0',
+      flameSoft: '#EFEDFD',
+      flameTip: '#3FCFC2',
+      flameCore: '#C4F3EC',
+      onFlame: '#FFFFFF',
     },
     dark: {
       bg: '#151412',
@@ -135,6 +168,11 @@ export const PALETTES = [
       accent: '#9B8FFF',
       accentSoft: '#221E45',
       onAccent: '#100C2E',
+      flame: '#9B8FFF',
+      flameSoft: '#26224A',
+      flameTip: '#5FE6D9',
+      flameCore: '#CFFFF9',
+      onFlame: '#100C2E',
     },
   },
   {
@@ -153,6 +191,11 @@ export const PALETTES = [
       accent: '#1F5BD1',
       accentSoft: '#E1EAFB',
       onAccent: '#FFFFFF',
+      flame: '#2A66DD',
+      flameSoft: '#E8EFFC',
+      flameTip: '#3FCFC2',
+      flameCore: '#C4F3EC',
+      onFlame: '#FFFFFF',
     },
     dark: {
       bg: '#0E141C',
@@ -166,6 +209,11 @@ export const PALETTES = [
       accent: '#7AA7FF',
       accentSoft: '#16294A',
       onAccent: '#08162E',
+      flame: '#7AA7FF',
+      flameSoft: '#172B4C',
+      flameTip: '#5FE6D9',
+      flameCore: '#CFFFF9',
+      onFlame: '#08162E',
     },
   },
   {
@@ -184,6 +232,11 @@ export const PALETTES = [
       accent: '#B02E7C',
       accentSoft: '#F8DCEC',
       onAccent: '#FFFFFF',
+      flame: '#BC3486',
+      flameSoft: '#FBE8F2',
+      flameTip: '#FF9ACF',
+      flameCore: '#FFE1F0',
+      onFlame: '#FFFFFF',
     },
     dark: {
       bg: '#161013',
@@ -197,6 +250,11 @@ export const PALETTES = [
       accent: '#F07CC0',
       accentSoft: '#3D1730',
       onAccent: '#2A0619',
+      flame: '#F07CC0',
+      flameSoft: '#3D1730',
+      flameTip: '#FFB9DE',
+      flameCore: '#FFE8F4',
+      onFlame: '#2A0619',
     },
   },
   {
@@ -215,6 +273,11 @@ export const PALETTES = [
       accent: '#24262B',
       accentSoft: '#E2E3E6',
       onAccent: '#FFFFFF',
+      flame: '#3E444E',
+      flameSoft: '#E7E8EA',
+      flameTip: '#3FCFC2',
+      flameCore: '#C4F3EC',
+      onFlame: '#FFFFFF',
     },
     dark: {
       bg: '#0F0F10',
@@ -228,6 +291,11 @@ export const PALETTES = [
       accent: '#ECECE8',
       accentSoft: '#2E2E31',
       onAccent: '#121214',
+      flame: '#C9CDD4',
+      flameSoft: '#2B2D31',
+      flameTip: '#5FE6D9',
+      flameCore: '#FFFFFF',
+      onFlame: '#121214',
     },
   },
   {
@@ -246,6 +314,11 @@ export const PALETTES = [
       accent: '#8A4F2A',
       accentSoft: '#F0DFD0',
       onAccent: '#FFFFFF',
+      flame: '#91552F',
+      flameSoft: '#F3E6DA',
+      flameTip: '#E8C9B0',
+      flameCore: '#FBEFE4',
+      onFlame: '#FFFFFF',
     },
     dark: {
       bg: '#17120E',
@@ -259,6 +332,11 @@ export const PALETTES = [
       accent: '#D4A78C',
       accentSoft: '#3A2717',
       onAccent: '#24130A',
+      flame: '#D4A78C',
+      flameSoft: '#3A2717',
+      flameTip: '#F3DCCB',
+      flameCore: '#FFF5EC',
+      onFlame: '#24130A',
     },
   },
 ];
