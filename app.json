@@ -163,7 +163,8 @@
             }
           ]
         }
-      ]
+      ],
+      "./plugins/withSceneLifecycle"
     ],
     "locales": {
       "en": "./locales/en.json",

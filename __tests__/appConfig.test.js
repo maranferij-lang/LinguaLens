@@ -98,6 +98,10 @@ test('the Info.plist that prebuild will write keeps the camera and has both phot
   expect(plist.NSPhotoLibraryUsageDescription).toBe(plugin('expo-image-picker').photosPermission);
   expect(plist.NSPhotoLibraryAddUsageDescription).toBe(app.ios.infoPlist.NSPhotoLibraryAddUsageDescription);
   expect(plist.NSMicrophoneUsageDescription).toBeUndefined();
+  // iOS 27 без сцен зупиняє застосунок на старті (plugins/withSceneLifecycle.js)
+  expect(plist.UIApplicationSceneManifest.UISceneConfigurations.UIWindowSceneSessionRoleApplication[0].UISceneDelegateClassName).toBe(
+    '$(PRODUCT_MODULE_NAME).SceneDelegate'
+  );
 }, 60000);
 
 // npm run sim (app.config.js, LL_SIMULATOR=1): симулятор збирається без

@@ -233,6 +233,7 @@ v1.3: віджетів три («Слово дня», «Мої слова», «�
 | `EADDRINUSE: address already in use :::3000` | сервер уже запущений в іншому вікні | `lsof -i :3000` → `kill <PID>` |
 | `--tunnel` працює, а скан ні | через тунель локальний сервер недосяжний | або без тунелю в спільній Wi-Fi, або хмарний сервер у `EXPO_PUBLIC_SERVER_URL` (див. `DEPLOY.md`) |
 | `i` у Metro: «No development build installed» | `npm start` чекає на development build | `npm run start:go` (Expo Go) або спершу `npm run sim` |
+| Застосунок вилітає одразу на старті; у звіті `_UIApplicationEvaluateRuntimeIssueForNoSceneLifecycleAdoption` | iOS 27 (Xcode 27) не запускає застосунок без життєвого циклу сцен | його додає `plugins/withSceneLifecycle.js`: `git pull`, потім `npm run sim` (перегенеровує `ios/`) |
 | `npx expo run:ios` у симулятор: «No code signing certificates are available» | через «Вхід через Apple» Expo вимагає сертифікат навіть для симулятора | `npm run sim` (збірка без цього права) |
 | `No iOS devices available in Simulator.app` | не обраний Xcode або немає симулятора | `sudo xcode-select -s /Applications/Xcode.app`; Xcode → Settings → Components → iOS |
 | `npm run sim` / `npx expo run:ios` падає на `pod install` | CocoaPods або застаріла папка `ios/` | `brew install cocoapods`, потім знову `npm run sim` (він сам перегенеровує `ios/`) |

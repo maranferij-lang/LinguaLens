@@ -130,6 +130,11 @@ npm run sim
 > збірку EAS цей прапорець не потрапить: `scripts/check-release-env.js`
 > її зупинить.
 >
+> **Застосунок вилітає одразу на старті** («LinguaLens несподівано завершила
+> роботу»)? Це стара тека `ios/` без життєвого циклу сцен, без якого iOS 27
+> застосунок не запускає. Зроби `git pull` і знову `npm run sim`: плагін
+> `plugins/withSceneLifecycle.js` перегенерує її правильно.
+>
 > **`git pull` пише «Your local changes … package.json would be
 > overwritten»?** Скинь ці зміни: `git checkout -- package.json`, потім
 > повтори `git pull`.
