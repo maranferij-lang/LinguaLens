@@ -1,22 +1,23 @@
 import { paywallConfigFrom, PAYWALL_DEFAULTS, plansFromOffering, purchaseNote, restoreNote, stateFromInfo } from '../src/purchases';
 import { STRINGS } from '../src/i18n';
+import { PLANS, SIMULATED_PLANS } from '../src/subscription';
 
 const product = (price, priceString, extra = {}) => ({ price, priceString, pricePerMonthString: null, introPrice: null, ...extra });
 
 const offering = {
   availablePackages: [
     { packageType: 'WEEKLY', product: product(4.99, '4,99 €') },
-    { packageType: 'MONTHLY', product: product(6.99, '6,99 €') },
-    { packageType: 'THREE_MONTH', product: product(16.99, '16,99 €') },
+    { packageType: 'MONTHLY', product: product(9.99, '9,99 €') },
+    { packageType: 'THREE_MONTH', product: product(24.99, '24,99 €') },
     {
       packageType: 'ANNUAL',
-      product: product(34.99, '34,99 €', {
-        pricePerMonthString: '2,92 €',
+      product: product(59.99, '59,99 €', {
+        pricePerMonthString: '4,99 €',
         introPrice: { price: 0, priceString: '0 €', cycles: 1, period: 'P1W', periodUnit: 'WEEK', periodNumberOfUnits: 1 },
       }),
     },
     { packageType: 'CUSTOM', product: product(1, '1 €') },
-    { packageType: 'LIFETIME', product: product(79.99, '79,99 €', { pricePerMonthString: '6,67 €' }) },
+    { packageType: 'LIFETIME', product: product(129.99, '129,99 €', { pricePerMonthString: '10,83 €' }) },
   ],
 };
 
@@ -24,24 +25,63 @@ test('store packages map onto our plans with local prices', () => {
   const plans = plansFromOffering(offering);
   expect(plans.map((p) => p.id)).toEqual(['week', 'month', 'quarter', 'year', 'lifetime']);
   const year = plans.find((p) => p.id === 'year');
-  expect(year.price).toBe('34,99 €');
-  expect(year.perMonth).toBe('2,92 €');
+  expect(year.price).toBe('59,99 €');
+  expect(year.perMonth).toBe('4,99 €');
   expect(year.trialDays).toBe(7);
   expect(year.best).toBe(true);
 });
 
-test('savings are computed from real prices, not the hard-coded USD badges', () => {
+test('savings are computed from real prices, not the fallback USD ones', () => {
   const plans = plansFromOffering(offering);
   const byId = Object.fromEntries(plans.map((p) => [p.id, p]));
-  expect(byId.year.save).toBe(58);
-  expect(byId.quarter.save).toBe(19);
+  // 59,99 ÷ 12 = 4,999 → 1 − 4,999 / 9,99 = 49,96% → 50; 24,99 ÷ 3 → 17
+  expect(byId.year.save).toBe(50);
+  expect(byId.quarter.save).toBe(17);
   expect(byId.week.save).toBe(0);
-  expect(byId.year.saveKey).toBeUndefined();
+  // в іншій країні знижка інша — і в пейволі саме вона, а не запасні −50%
+  const local = plansFromOffering({
+    availablePackages: [
+      { packageType: 'MONTHLY', product: product(100, '100 ₴') },
+      { packageType: 'ANNUAL', product: product(900, '900 ₴') },
+    ],
+  });
+  expect(local.find((p) => p.id === 'year').save).toBe(25);
+});
+
+// Без pricePerMonthString з магазину запасне доларове «на місяць» не
+// підставляємо: поруч із «24,99 €» стояло б «$8.33 на місяць».
+test('no store per-month string → no per-month line, never the USD fallback', () => {
+  const byId = Object.fromEntries(plansFromOffering(offering).map((p) => [p.id, p]));
+  expect(byId.quarter.perMonth).toBeNull();
+  expect(byId.year.perMonth).toBe('4,99 €');
+});
+
+// Запасні ціни (імітація в розробці) мусять показувати те саме, що покаже
+// магазин із такими сумами: «на місяць» — униз до цента, як RevenueCat;
+// «−N%» — та сама формула, що й для справжніх цін.
+test('fallback plans: per-month and savings follow from their prices', () => {
+  const amount = (s) => Number(s.replace(/[^0-9.]/g, ''));
+  const TYPE = { week: 'WEEKLY', month: 'MONTHLY', quarter: 'THREE_MONTH', year: 'ANNUAL', lifetime: 'LIFETIME' };
+  const live = plansFromOffering({
+    availablePackages: PLANS.map((p) => ({ packageType: TYPE[p.id], product: product(amount(p.price), p.price) })),
+  });
+  for (const p of PLANS) {
+    const store = live.find((l) => l.id === p.id);
+    expect([p.id, p.save || 0]).toEqual([p.id, store.save]);
+    if (p.days > 30) {
+      const months = Math.round(p.days / 30.4375);
+      expect([p.id, p.perMonth]).toEqual([p.id, '$' + (Math.floor((amount(p.price) / months) * 100) / 100).toFixed(2)]);
+    }
+  }
+  const byId = Object.fromEntries(PLANS.map((p) => [p.id, p]));
+  expect([byId.month.price, byId.year.price, byId.lifetime.price]).toEqual(['$9.99', '$59.99', '$129.99']);
+  expect(byId.year).toMatchObject({ perMonth: '$4.99', save: 50, trialDays: 7, best: true });
+  expect(SIMULATED_PLANS.map((p) => p.id)).toEqual(['month', 'year', 'lifetime']);
 });
 
 test('lifetime is a one-time purchase: no trial, no monthly price, no “save %”', () => {
   const life = plansFromOffering(offering).find((p) => p.id === 'lifetime');
-  expect(life).toMatchObject({ price: '79,99 €', perMonth: null, trialDays: 0, save: 0, lifetime: true, legalKey: 'lifetimeLegal' });
+  expect(life).toMatchObject({ price: '129,99 €', perMonth: null, trialDays: 0, save: 0, lifetime: true, legalKey: 'lifetimeLegal' });
   expect(life.best).toBeUndefined();
 });
 

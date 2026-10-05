@@ -182,7 +182,7 @@ export function planOfProduct(productId) {
 
 // ── Пакети з магазину → плани для пейволу ────────────────────────────────────
 // Ціни беремо з App Store: у кожній країні своя валюта й сума, а знижку
-// рахуємо від реальних чисел, а не від захардкоджених «−58%».
+// рахуємо від реальних чисел, а не від запасних доларових з PLANS.
 // eligibility — { [productId]: статус } з checkTrialOrIntroductoryPriceEligibility.
 // Пробний період обіцяємо лише тим, кому Apple його справді дасть: хто вже
 // пробував, заплатить одразу, і «7 днів безкоштовно» було б неправдою.
@@ -215,10 +215,11 @@ export function plansFromOffering(offering, eligibility = null) {
         : 0;
     return {
       ...plan,
-      // статичні «−19%/−58%» розраховані на долари — для реальних цін рахуємо save
-      saveKey: undefined,
       price: product.priceString,
-      perMonth: product.pricePerMonthString || plan.perMonth,
+      // Лише з магазину: запасне доларове «на місяць» з PLANS поруч із ціною
+      // в гривнях чи євро було б іншою сумою в іншій валюті. Нема рядка —
+      // нема й «на місяць».
+      perMonth: product.pricePerMonthString || null,
       trialDays,
       save: save > 0 ? save : 0,
       pkg,

@@ -156,11 +156,11 @@ describe('paywall layout', () => {
     for (const reason of ['intro', 'scans', 'scene', 'langs', 'info']) {
       const tree = await open({ reason });
       const all = strings(tree);
-      const price = all.indexOf('$34.99');
+      const price = all.indexOf('$59.99');
       expect(price).toBeGreaterThan(-1);
       for (const s of [t('cmp_wod'), t('pro_support'), t('tlToday')]) if (all.includes(s)) expect(price).toBeLessThan(all.indexOf(s));
       const year = hosts(tree, (n) => n.props.accessibilityRole === 'radio' && n.props.accessibilityState?.checked)[0];
-      expect(year.props.accessibilityLabel).toMatch(/^Year, \$34\.99/);
+      expect(year.props.accessibilityLabel).toMatch(/^Year, \$59\.99/);
     }
   });
 
@@ -381,7 +381,7 @@ describe('readable secondary text and the selected plan', () => {
     const skip = await mount(wrap(<SkipButton onPress={() => {}} t={t} />));
     expect(style(hosts(skip, (n) => n.props.children === t('obSkip'))[0]).color).toBe(C.dim);
     const pw = await mount(wrap(<PaywallScreen reason="intro" plans={PLANS} onClose={() => {}} onPurchase={async () => ({})} onRestore={async () => ({})} lang="en" t={t} />));
-    expect(style(hosts(pw, (n) => n.props.children === '$2.92 per month · 7 days free')[0]).color).toBe(C.dim);
+    expect(style(hosts(pw, (n) => n.props.children === '$4.99 per month · 7 days free')[0]).color).toBe(C.dim);
     const date = hosts(pw, (n) => typeof n.props.children === 'string' && n.props.children.startsWith('  ·  '))[0];
     expect(style(date).color).toBe(C.dim);
   });
@@ -391,7 +391,7 @@ describe('readable secondary text and the selected plan', () => {
     expect(hosts(tree, (n) => n.props.accessibilityRole === 'radiogroup')).toHaveLength(1);
     const radios = hosts(tree, (n) => n.props.accessibilityRole === 'radio');
     const year = radios.find((r) => r.props.accessibilityState?.checked);
-    expect(year.props.accessibilityLabel).toBe('Рік, $34.99, $2.92 на місяць, 7 днів безкоштовно, найвигідніше, −58%');
+    expect(year.props.accessibilityLabel).toBe('Рік, $59.99, $4.99 на місяць, 7 днів безкоштовно, найвигідніше, −50%');
     expect(radios.filter((r) => r.props.accessibilityState?.checked)).toHaveLength(1);
   });
 });
@@ -535,17 +535,17 @@ describe('plans stay put and sublines say something new', () => {
   test('sublines: Month says how it renews, Year what it costs a month and the trial; no price twice', async () => {
     const tree = await mount(<PaywallScreen reason="scans" plans={PLANS} onClose={() => {}} onPurchase={async () => ({})} onRestore={async () => ({})} lang="uk" t={uk} />);
     expect(has(tree, 'Щомісяця, скасуй будь-коли')).toBe(true);
-    expect(has(tree, '$2.92 на місяць · 7 днів безкоштовно')).toBe(true);
-    expect(has(tree, '$6.99 на місяць')).toBe(false);
+    expect(has(tree, '$4.99 на місяць · 7 днів безкоштовно')).toBe(true);
+    expect(has(tree, '$9.99 на місяць')).toBe(false);
     await tap(tree, 'Місяць');
-    expect(has(tree, '$6.99 на місяць, поновлюється автоматично. Скасувати можна будь-коли в налаштуваннях Apple ID.')).toBe(true);
+    expect(has(tree, '$9.99 на місяць, поновлюється автоматично. Скасувати можна будь-коли в налаштуваннях Apple ID.')).toBe(true);
   });
 
   test('Year without a trial: “per month” only; its legal line names the price and the period', async () => {
     const plans = PLANS.map((p) => ({ ...p, trialDays: 0 }));
     const tree = await mount(<PaywallScreen reason="info" plans={plans} onClose={() => {}} onPurchase={async () => ({})} onRestore={async () => ({})} lang="en" t={t} />);
-    expect(has(tree, '$2.92 per month')).toBe(true);
-    expect(has(tree, '$34.99 a year, renews automatically. Cancel anytime in your Apple ID settings.')).toBe(true);
+    expect(has(tree, '$4.99 per month')).toBe(true);
+    expect(has(tree, '$59.99 a year, renews automatically. Cancel anytime in your Apple ID settings.')).toBe(true);
   });
 
   test.each(LOCALES)('%s: renewal lines mirror the trial ones', (lang) => {

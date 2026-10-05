@@ -8,9 +8,12 @@
 // Тиждень і квартал лишаються в довіднику: якщо їх колись додадуть у
 // пропозицію (наприклад, для експерименту RevenueCat), вони просто з'являться.
 //
-//   місяць    $6.99  →  $84/рік
-//   рік       $34.99 →  $35/рік    ← 7 днів безкоштовно
-//   назавжди  одна оплата, ≈2–2.5 річних (ціна — в App Store Connect)
+//   місяць    $9.99   →  $119.88/рік
+//   рік       $59.99  →  $4.99/міс, −50% до місячного   ← 7 днів безкоштовно
+//   назавжди  $129.99 —  одна оплата, ≈2,2 річних
+// (рішення власника 5 жовтня 2026; Україна — ті самі долари, MONETIZATION.md).
+// Ціни нижче — запасні, для імітації в розробці. У збірці з магазином суми,
+// «на місяць» і «−N%» приходять з App Store (plansFromOffering у purchases.js).
 //
 // «Назавжди» — для тих, хто не хоче ще однієї підписки. Це не підписка:
 // без пробного періоду, без «на місяць», без знижки у відсотках, і юридичний
@@ -44,6 +47,11 @@ import { PRO_PALETTES } from './theme';
 
 // legalKey — рядок «безкоштовно до…, потім ціна за період»: пробний період
 // може бути на будь-якому тарифі, і період у ньому мусить бути саме цей.
+// perMonth і save — похідні від ціни, порахані так само, як для цін з App
+// Store: perMonth — ціна ÷ кількість місяців, униз до цента (так його дає
+// RevenueCat, pricePerMonthString), save — знижка до місячного в цілих
+// відсотках (plansFromOffering у purchases.js). Тест у
+// __tests__/purchases.test.js звіряє їх із ціною — змінив суму, зміни й їх.
 export const PLANS = [
   {
     id: 'week',
@@ -58,30 +66,33 @@ export const PLANS = [
     id: 'month',
     productId: 'com.marik.lingualens.pro.month',
     days: 30,
-    price: '$6.99',
-    perMonth: '$6.99',
+    price: '$9.99',
+    perMonth: '$9.99',
     labelKey: 'planMonth',
     legalKey: 'trialLegalMonth',
   },
+  // Квартал не продається (MONETIZATION.md, розділ 2) — ціна довідкова, щоб
+  // сходинка лишалась між місяцем і роком: $24.99 ÷ 3 = $8.33, −17%.
   {
     id: 'quarter',
     productId: 'com.marik.lingualens.pro.quarter',
     days: 90,
-    price: '$16.99',
-    perMonth: '$5.66',
+    price: '$24.99',
+    perMonth: '$8.33',
     labelKey: 'planQuarter',
     legalKey: 'trialLegalQuarter',
-    saveKey: 'save19',
+    save: 17,
   },
+  // $59.99 ÷ 12 = $4.999 → $4.99 на місяць; 1 − 4.999 / 9.99 = 49,96% → −50%
   {
     id: 'year',
     productId: 'com.marik.lingualens.pro.year',
     days: 365,
-    price: '$34.99',
-    perMonth: '$2.92',
+    price: '$59.99',
+    perMonth: '$4.99',
     labelKey: 'planYear',
     legalKey: 'trialLegalYear',
-    saveKey: 'save58',
+    save: 50,
     trialDays: 7,
     best: true,
   },
@@ -90,7 +101,7 @@ export const PLANS = [
     id: 'lifetime',
     productId: 'com.marik.lingualens.pro.lifetime',
     days: null,
-    price: '$79.99',
+    price: '$129.99',
     perMonth: null,
     labelKey: 'planLifetime',
     legalKey: 'lifetimeLegal',

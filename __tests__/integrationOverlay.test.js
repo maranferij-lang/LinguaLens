@@ -45,7 +45,7 @@ const offering = {
   current: {
     identifier: 'default',
     metadata: { paywall_ui: 'revenuecat' },
-    availablePackages: [{ packageType: 'ANNUAL', product: { identifier: 'yearly', price: 34.99, priceString: '$34.99', introPrice: null } }],
+    availablePackages: [{ packageType: 'ANNUAL', product: { identifier: 'yearly', price: 59.99, priceString: '$59.99', introPrice: null } }],
   },
 };
 const ago = (n) => {
