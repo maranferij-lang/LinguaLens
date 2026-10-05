@@ -1,5 +1,6 @@
 // Мініатюри для «Моїх слів» (план W2: квадратний JPEG 200 px за прапорцем
-// WIDGET_THUMBS; прозора вирізка — v1.3.1).
+// WIDGET_THUMBS; прозора вирізка — v1.3.1). Неквадратне фото — квадрат по
+// центру (thumbCrop), а не сплющене.
 //
 // Віджет не бачить пісочниці застосунку — лише спільну теку App Group
 // (widgetsDirectory). Тож для слів пулу й рядків «Далі» кладемо туди
@@ -29,6 +30,38 @@ async function renderAndSave(context, saveOptions) {
 export const THUMB_PX = 200;
 export const MAX_THUMBS = 30;
 const DIR = 'thumbs';
+
+// Квадрат по центру фото → { originX, originY, width, height }; фото вже
+// квадратне (наліпка) чи розмір невідомий — null. Плитка віджета квадратна,
+// а resize одразу до 200×200 iOS малює рівно в цей розмір: кадр 3:4 (слово
+// без рамки предмета, слова v1.0) вийшов би сплющеним, і aspectRatio(fill)
+// у віджеті цього вже не виправить.
+export function thumbCrop(w, h) {
+  if (!(w > 0 && h > 0) || w === h) return null;
+  const side = Math.min(w, h);
+  return { originX: Math.floor((w - side) / 2), originY: Math.floor((h - side) / 2), width: side, height: side };
+}
+
+// Розмір беремо з уже декодованого фото (як normalizeBackground у
+// share/actions.js), тоді обрізаємо й зменшуємо.
+async function makeThumb(src) {
+  const base = ImageManipulator.manipulate(src);
+  let ref = null;
+  try {
+    ref = await base.renderAsync();
+    const crop = thumbCrop(ref?.width, ref?.height);
+    let ctx = ImageManipulator.manipulate(ref);
+    if (crop) ctx = ctx.crop(crop);
+    return await renderAndSave(ctx.resize({ width: THUMB_PX, height: THUMB_PX }), { compress: 0.75, format: SaveFormat.JPEG });
+  } finally {
+    try {
+      ref?.release?.();
+    } catch (_) {}
+    try {
+      base.release?.();
+    } catch (_) {}
+  }
+}
 
 // file:// теки App Group або null (Expo Go, Android, збірка без віджетів).
 // expo-widgets читаємо лише після перевірки: без нативної частини він падає
@@ -80,11 +113,7 @@ export async function ensureThumbs(words) {
     const target = new File(dir, fileName(w.id));
     try {
       if (!target.exists) {
-        const src = photoUri(w.photo);
-        const made = await renderAndSave(ImageManipulator.manipulate(src).resize({ width: THUMB_PX, height: THUMB_PX }), {
-          compress: 0.75,
-          format: SaveFormat.JPEG,
-        });
+        const made = await makeThumb(photoUri(w.photo));
         const tmp = new File(made.uri);
         tmp.copySync(target);
         try {

@@ -60,24 +60,49 @@ jest.mock('expo-file-system', () => {
   }
   return { File, Directory, Paths: { document: new Directory('file:///doc') }, __files: files };
 });
+// Маніпулятор рахує розміри як iOS: resize з обома сторонами малює рівно в
+// них (ImageResizeTransformer.swift), тож інші пропорції — сплющене фото
+// (squashed). Фото «tall» — 640×853 (кадр без рамки предмета), «wide» —
+// 853×640, решта — квадратні наліпки. Джерело — шлях або ImageRef.
 jest.mock('expo-image-manipulator', () => {
   let n = 0;
-  const context = (src) => ({
-    resize: jest.fn(function () {
-      return this;
-    }),
-    renderAsync: jest.fn(async () => ({
-      saveAsync: jest.fn(async () => {
-        if (String(src).includes('broken')) throw new Error('cannot decode');
-        const uri = 'file:///cache/render' + ++n + '.jpg';
-        require('expo-file-system').__files.add(uri);
-        return { uri, width: 200, height: 200 };
+  const saved = [];
+  const sizeOf = (src) => (String(src).includes('tall') ? [640, 853] : String(src).includes('wide') ? [853, 640] : [300, 300]);
+  const context = (src) => {
+    const ref = src && typeof src === 'object' ? src : null;
+    const name = ref ? ref.src : src;
+    let [w, h] = ref ? [ref.width, ref.height] : sizeOf(src);
+    let squashed = ref ? ref.squashed : false;
+    return {
+      resize: jest.fn(function ({ width, height }) {
+        const tw = width ?? (height * w) / h;
+        const th = height ?? (width * h) / w;
+        if (Math.abs(tw / th - w / h) > 0.01) squashed = true;
+        [w, h] = [tw, th];
+        return this;
       }),
+      crop: jest.fn(function ({ width, height }) {
+        [w, h] = [width, height];
+        return this;
+      }),
+      renderAsync: jest.fn(async () => ({
+        width: w,
+        height: h,
+        squashed,
+        src: name,
+        saveAsync: jest.fn(async () => {
+          if (String(name).includes('broken')) throw new Error('cannot decode');
+          const uri = 'file:///cache/render' + ++n + '.jpg';
+          require('expo-file-system').__files.add(uri);
+          saved.push({ src: name, width: w, height: h, squashed });
+          return { uri, width: w, height: h };
+        }),
+        release: jest.fn(),
+      })),
       release: jest.fn(),
-    })),
-    release: jest.fn(),
-  });
-  return { ImageManipulator: { manipulate: jest.fn((src) => context(src)) }, SaveFormat: { JPEG: 'jpeg', PNG: 'png' } };
+    };
+  };
+  return { ImageManipulator: { manipulate: jest.fn((src) => context(src)) }, SaveFormat: { JPEG: 'jpeg', PNG: 'png' }, __saved: saved };
 });
 
 const uk = makeT('uk');
@@ -263,6 +288,23 @@ describe('thumbnails in the App Group', () => {
     // вдруге — нічого не рендерить: файли вже є
     await ensureThumbs(list.slice(0, 5));
     expect(manip.mock.calls.length).toBe(calls);
+  });
+
+  // Слово з кадру без рамки предмета (чи збережене v1.0) — фото 3:4: плитка
+  // віджета квадратна, тож спершу квадрат по центру, а тоді 200 px
+  test('a photo that is not square is centre-cropped first — never squashed', async () => {
+    const { ensureThumbs, thumbCrop, THUMB_PX } = load();
+    const saved = require('expo-image-manipulator').__saved;
+    saved.length = 0;
+    for (const k of ['tall', 'wide', 'square']) fs.__files.add('file:///doc/stickers/' + k + '.jpg');
+    const out = await ensureThumbs(['tall', 'wide', 'square'].map((k, i) => word(i, { photo: 'stickers/' + k + '.jpg' })));
+    expect(Object.keys(out)).toHaveLength(3);
+    expect(saved).toHaveLength(3);
+    for (const s of saved) expect(s).toMatchObject({ width: THUMB_PX, height: THUMB_PX, squashed: false });
+    expect(thumbCrop(640, 853)).toEqual({ originX: 0, originY: 106, width: 640, height: 640 });
+    expect(thumbCrop(853, 640)).toEqual({ originX: 106, originY: 0, width: 640, height: 640 });
+    expect(thumbCrop(300, 300)).toBeNull();
+    expect(thumbCrop(undefined, 300)).toBeNull();
   });
 
   test('a photo that cannot be read is skipped quietly', async () => {
