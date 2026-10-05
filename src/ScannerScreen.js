@@ -400,7 +400,11 @@ export default function ScannerScreen({
         setResult({ ...res, photo: cut.uri, shape: cut.shape, backdrop });
         setJustSaved(false);
       }
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      // Перший скан в онбордингу — легкий дотик: бюджет знайомства — три
+      // Success (день 7 у вітрині, «Зберегти», обіцянка), і Success тут
+      // перебив би «Зберегти» за мить
+      if (firstScan) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      else Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       track('scan', { mode, ok: true, source: scanSource });
     } catch (e) {
       setFrozen(null);

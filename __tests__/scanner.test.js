@@ -672,6 +672,24 @@ describe('first-scan mode (onboarding)', () => {
     await act(async () => tree.unmount());
   });
 
+  // Бюджет онбордингу — три Success (день 7 у вітрині, «Зберегти»,
+  // обіцянка): розпізнавання першого скану — легкий дотик, Success — на «Зберегти»
+  test('haptics: recognition is a light tap, the only Success is “Save”', async () => {
+    const Haptics = require('expo-haptics');
+    const note = jest.spyOn(Haptics, 'notificationAsync');
+    const impact = jest.spyOn(Haptics, 'impactAsync');
+    const tree = await render(scanner({ firstScan: true, onExit: jest.fn(), onSaveWord: jest.fn(() => true) }));
+    await press(tree, () => shutter(tree).props.onPress());
+    expect(recognizeImage).toHaveBeenCalledTimes(1);
+    expect(note.mock.calls.filter(([k]) => k === Haptics.NotificationFeedbackType.Success)).toHaveLength(0);
+    expect(impact).toHaveBeenLastCalledWith(Haptics.ImpactFeedbackStyle.Light);
+    await press(tree, () => tree.root.findAll((n) => n.props.title === t('save') && n.props.onPress)[0].props.onPress());
+    expect(note.mock.calls.filter(([k]) => k === Haptics.NotificationFeedbackType.Success)).toHaveLength(1);
+    note.mockRestore();
+    impact.mockRestore();
+    await act(async () => tree.unmount());
+  });
+
   test('without camera access there is still a way back', async () => {
     mockCamPerm = { granted: false, canAskAgain: false };
     const onExit = jest.fn();
