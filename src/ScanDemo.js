@@ -61,7 +61,7 @@ import {
 } from './demoTimeline';
 import { IcBook } from './icons';
 import { DUR, EASE, useReducedMotion } from './motion';
-import { F, R, THEMES, type, useTheme } from './theme';
+import { F, R, THEMES, ThemeProvider, themeKeyOf, type, useTheme } from './theme';
 
 const APath = Animated.createAnimatedComponent(Path);
 const ORIGIN = `${MUG_ORIGIN.x}px ${MUG_ORIGIN.y}px`;
@@ -72,9 +72,14 @@ const DOTS = BEAT_KEYS.length - 1;
 const SEG = 98;
 const MODE_H = 38;
 const T = (p) => <Text allowFontScaling={false} {...p} />;
-// Вогник серії на «кадрі камери» — фірмовий, як у темній «Крейді» (сцена
-// завжди темна): сяйво, обвідка й число запаленого чипа — кольору вогника
-const LIT = THEMES.dark.C.flame;
+// Вогник серії на «кадрі камери» — фірмовий, у темному вигляді палітри,
+// яку видно (сцена завжди темна, а повтор із Параметрів буває з
+// Pro-палітрою): обвідка й число запаленого чипа — кольору вогника, і сам
+// вогник у чипі малюється темним виглядом, а не світлим темним вогником на
+// темному чипі.
+function cameraTheme(palette) {
+  return THEMES[themeKeyOf(palette, true)] || THEMES.dark;
+}
 
 // Масштаб сцени під доступне місце (сцена — 342×420, як у макеті)
 export function sceneScale(width, height) {
@@ -86,6 +91,8 @@ export function sceneScale(width, height) {
 // Шари сцени. tv — майстер-значення (мс), ov — обведення 0…1; tags —
 // підписи сцени (demoScene); k — масштаб сцени на екрані (для підписів).
 function SceneLayers({ tv, ov, pair, tags = [], t, onReplay, final, k = 1 }) {
+  const cam = cameraTheme(useTheme().palette);
+  const lit = cam.C.flame;
   const at = (track) => tv.interpolate(rangeOf(track));
   const v = useMemo(() => {
     const peel = at('peel');
@@ -298,20 +305,22 @@ function SceneLayers({ tv, ov, pair, tags = [], t, onReplay, final, k = 1 }) {
           <T style={[styles.chipText, { color: '#FFE28A' }]}>+1</T>
         </Animated.View>
       </Animated.View>
-      <View style={styles.chipTR} pointerEvents="none">
-        <Animated.View style={[styles.chip, styles.chipRow, { opacity: v.lit0 }]}>
-          <View style={styles.chipFlame}>
-            <Flame n={0} size={13} breathe={false} />
-          </View>
-          <T style={styles.chipText}>0</T>
-        </Animated.View>
-        <Animated.View style={[styles.chip, styles.chipRow, styles.chipOverR, styles.chipLit, { opacity: v.lit1 }]}>
-          <View style={styles.chipFlame}>
-            <Flame n={1} size={13} breathe={false} />
-          </View>
-          <T style={[styles.chipText, styles.chipLitText]}>1</T>
-        </Animated.View>
-      </View>
+      <ThemeProvider value={cam}>
+        <View style={styles.chipTR} pointerEvents="none">
+          <Animated.View style={[styles.chip, styles.chipRow, { opacity: v.lit0 }]}>
+            <View style={styles.chipFlame}>
+              <Flame n={0} size={13} breathe={false} />
+            </View>
+            <T style={styles.chipText}>0</T>
+          </Animated.View>
+          <Animated.View style={[styles.chip, styles.chipRow, styles.chipOverR, styles.chipLit, { borderColor: lit, opacity: v.lit1 }]}>
+            <View style={styles.chipFlame}>
+              <Flame n={1} size={13} breathe={false} />
+            </View>
+            <T style={[styles.chipText, { color: lit }]}>1</T>
+          </Animated.View>
+        </View>
+      </ThemeProvider>
 
       {/* «Ще раз» на фіналі */}
       <Animated.View style={[styles.replay, { opacity: v.final }]} pointerEvents={final ? 'box-none' : 'none'}>
@@ -618,8 +627,7 @@ const styles = StyleSheet.create({
   chipOverR: { position: 'absolute', right: 0, top: 0 },
   // Запалена серія: тло те саме, що в чипа «0» — тіло вогника першого дня
   // на тлі його ж кольору зливалось; горить сам вогник, обвідка й число
-  chipLit: { borderWidth: 1, borderColor: LIT, paddingHorizontal: 10, paddingVertical: 5 },
-  chipLitText: { color: LIT },
+  chipLit: { borderWidth: 1, paddingHorizontal: 10, paddingVertical: 5 },
   chipText: { color: '#FFFFFF', fontFamily: F.extra, fontSize: 13, lineHeight: 17 },
   chipFlame: { width: 13, height: 16, alignItems: 'center', justifyContent: 'center' },
   chipTL: { position: 'absolute', left: 12, top: 12 },

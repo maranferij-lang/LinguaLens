@@ -197,4 +197,27 @@ describe('the onboarding demo', () => {
       await act(async () => tree.unmount());
     }
   });
+
+  // «Кадр камери» завжди темний, тож чип серії на ньому — у темному вигляді
+  // тієї палітри, яку видно (повтор із Параметрів з Pro-палітрою): обвідка,
+  // число й сам вогник — одного кольору, а не фіолетова обвідка «Крейди»
+  // довкола синього чи малинового вогника. І вогник — темного вигляду навіть
+  // у світлій темі: темний фіолетовий на темному чипі ледь видно.
+  test('the lit chip on the always-dark camera frame is the dark look of the palette you see', async () => {
+    jest.useFakeTimers();
+    for (const key of ['light', 'dark', 'ocean-light', 'berry-dark', 'graphite-light', 'cocoa-dark']) {
+      const pal = THEMES[key].palette;
+      const dark = THEMES[themeKeyOf(pal, true)].C;
+      const tree = await render(<ScanDemo pair={demoPair('es', 'uk')} t={t} width={342} height={420} onFinal={() => {}} onAction={() => {}} />, key);
+      const lit = tree.root.findAll((n) => typeof n.type === 'string' && flat(n).borderWidth === 1 && n.findAll((c) => c.type === Flame && c.props.n === 1).length);
+      expect([key, flat(lit[0]).borderColor]).toEqual([key, dark.flame]);
+      const one = lit[0].findAll((n) => typeof n.type === 'string' && n.props.children === '1')[0];
+      expect([key, flat(one).color]).toEqual([key, dark.flame]);
+      // тіло вогника першого дня — flame темного вигляду палітри
+      const flameColors = colorsOf({ root: lit[0].findAll((c) => c.type === Flame)[0] });
+      expect([key, flameColors]).toEqual([key, expect.arrayContaining([dark.flame.toUpperCase()])]);
+      if (!THEMES[key].isDark) expect([key, flameColors]).toEqual([key, expect.not.arrayContaining([THEMES[key].C.flame.toUpperCase()])]);
+      await act(async () => tree.unmount());
+    }
+  });
 });
