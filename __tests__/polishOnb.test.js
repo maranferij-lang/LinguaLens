@@ -555,9 +555,11 @@ describe('plans stay put and sublines say something new', () => {
 
 // ─── onb-16: рівень і план без повторів ────────────────────────────────────
 describe('level and plan cards say each thing once', () => {
-  test('under the slider only the consequence, capitalised', async () => {
+  // Онбординг 4.0: під слайдером — назва рівня й фраза, без «пропускаємо…»
+  test('under the slider the level name and its phrase, once each', async () => {
     const tree = await mount(<LevelBody value={5} onChange={() => {}} lang="es" t={uk} />);
-    expect(has(tree, 'Пропускаємо слова, які й так легко вгадати')).toBe(true);
+    expect(has(tree, 'Середній')).toBe(true);
+    expect(strings(tree).filter((s) => s === uk('lvl5'))).toHaveLength(1);
     expect(strings(tree).some((s) => s.includes('5/10'))).toBe(false);
   });
 

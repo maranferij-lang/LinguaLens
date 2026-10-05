@@ -36,7 +36,9 @@ export function levelAt(x, width) {
   return LEVEL_MIN + Math.round(k * STOPS);
 }
 
-export default function LevelSlider({ value, onChange, label, t, style }) {
+// desc={false} — без фрази рівня під числом: її показує власник (онбординг
+// пише під доріжкою назву рівня й цю фразу).
+export default function LevelSlider({ value, onChange, label, t, style, desc = true }) {
   const { C, SHADOW_SM } = useTheme();
   const s = useMemo(() => makeStyles(C), [C]);
   const reduced = useReducedMotion();
@@ -144,7 +146,7 @@ export default function LevelSlider({ value, onChange, label, t, style }) {
   return (
     <View style={style}>
       {/* Велике число, рівень CEFR і що це означає — оновлюються наживо */}
-      <View style={s.head} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
+      <View style={[s.head, !desc && s.headBare]} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
         <View style={s.numRow}>
           <Text style={s.num}>{level}</Text>
           <Text style={s.of}>/10</Text>
@@ -152,9 +154,11 @@ export default function LevelSlider({ value, onChange, label, t, style }) {
             <Text style={s.badgeText}>{cefr}</Text>
           </View>
         </View>
-        <Text style={s.desc} numberOfLines={2}>
-          {t('lvl' + level)}
-        </Text>
+        {desc ? (
+          <Text style={s.desc} numberOfLines={2}>
+            {t('lvl' + level)}
+          </Text>
+        ) : null}
       </View>
 
       <View
@@ -218,6 +222,7 @@ const MARK_W = 30;
 const makeStyles = (C) =>
   StyleSheet.create({
     head: { alignItems: 'center', minHeight: 132 },
+    headBare: { minHeight: 0 },
     numRow: { flexDirection: 'row', alignItems: 'center' },
     // табличні цифри — число не стрибає по ширині між 9 і 10
     num: { color: C.text, ...type(64, F.extra, { noLead: true }), fontVariant: ['tabular-nums'] },

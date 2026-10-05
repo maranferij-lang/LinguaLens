@@ -83,7 +83,7 @@ function usedKeys() {
     add('plan_' + k, 'src/OnboardingParts.js');
   }
   for (const l of LEARN_LANGS) add('langAcc_' + l.code, 'src/OnboardingScreen.js');
-  for (let i = 1; i <= 5; i++) add('levelBand' + i, 'src/profile.js levelBand');
+  for (let i = 1; i <= 5; i++) add('levelName' + i, 'src/profile.js levelName');
   return used;
 }
 

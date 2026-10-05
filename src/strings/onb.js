@@ -120,6 +120,13 @@ export default {
     // Параметри
     replayOnb: 'Go through the intro again',
     obDemoBeat4: 'Or a whole scene — every word at once',
+    // рівень: назва під слайдером і в плані (онбординг 4.0)
+    levelName1: 'Beginner',
+    levelName2: 'Elementary',
+    levelName3: 'Intermediate',
+    levelName4: 'Confident',
+    levelName5: 'Advanced',
+    obPlanLevel: 'Level: {cefr} · {name}',
   },
 
   uk: {
@@ -213,6 +220,13 @@ export default {
     opwFirstWordText: 'Твій безкоштовний скан — уже в словнику. З Pro скануй скільки хочеш.',
     replayOnb: 'Пройти знайомство ще раз',
     obDemoBeat4: 'Або цілу сцену — і всі слова одразу',
+    // рівень: назва під слайдером і в плані (онбординг 4.0)
+    levelName1: 'Новачок',
+    levelName2: 'Початківець',
+    levelName3: 'Середній',
+    levelName4: 'Впевнений',
+    levelName5: 'Досвідчений',
+    obPlanLevel: 'Рівень: {cefr} · {name}',
   },
 
   de: {
@@ -306,6 +320,13 @@ export default {
     opwFirstWordText: 'Dein kostenloser Scan ist schon in deiner Wortliste. Mit Pro scannst du so viel du willst.',
     replayOnb: 'Einführung noch einmal durchgehen',
     obDemoBeat4: 'Oder eine ganze Szene — alle Wörter auf einmal',
+    // рівень: назва під слайдером і в плані (онбординг 4.0)
+    levelName1: 'Anfänger',
+    levelName2: 'Grundkenntnisse',
+    levelName3: 'Mittelstufe',
+    levelName4: 'Sicher unterwegs',
+    levelName5: 'Fortgeschritten',
+    obPlanLevel: 'Niveau: {cefr} · {name}',
   },
 
   es: {
@@ -399,5 +420,12 @@ export default {
     opwFirstWordText: 'Tu escaneo gratis ya está en tu lista de palabras. Con Pro, escanea todo lo que quieras.',
     replayOnb: 'Repetir la introducción',
     obDemoBeat4: 'O una escena entera, con todas las palabras a la vez',
+    // рівень: назва під слайдером і в плані (онбординг 4.0)
+    levelName1: 'Principiante',
+    levelName2: 'Básico',
+    levelName3: 'Intermedio',
+    levelName4: 'Con soltura',
+    levelName5: 'Avanzado',
+    obPlanLevel: 'Nivel: {cefr} · {name}',
   },
 };

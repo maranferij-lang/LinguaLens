@@ -6,10 +6,10 @@
 // мову»), ні відгуків, ні оцінок — план показує те, що сервер справді
 // робитиме з цими відповідями, а кожна обіцянка спирається на функцію,
 // яка в застосунку вже є.
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
-import { cefrFor, cleanProfile, levelBand, planTopics, topicCycle } from './profile';
+import { cefrFor, cleanProfile, levelName, planTopics, topicCycle } from './profile';
 import { flagFor, nameFor, speak } from './speech';
 import { localeFor, phoneUiLang } from './locale';
 import { AppIcon } from './Logo';
@@ -106,13 +106,13 @@ export function PlanBody({ profile, struggles, lang, t }) {
         )}
       </FadeIn>
 
-      {/* «B2+ — пропускаємо базові слова»: що рівень міняє на ділі */}
+      {/* «Рівень: B1 · Середній» — без обіцянок, які саме слова зникнуть */}
       {p ? (
         <FadeIn delay={stagger(i++)} style={[s.card, s.levelCard, SHADOW_SM]}>
           <View style={s.lineIcon}>
             <IcChart size={20} color={C.accent} />
           </View>
-          <Text style={s.levelText}>{`${cefrFor(p.level)} — ${t('levelBand' + levelBand(p.level))}`}</Text>
+          <Text style={s.levelText}>{t('obPlanLevel', { cefr: cefrFor(p.level), name: levelName(p.level, t) })}</Text>
         </FadeIn>
       ) : null}
 

@@ -7,7 +7,7 @@ import { AccessibilityInfo, Animated, Pressable, ScrollView, StyleSheet, Text, T
 import * as Haptics from 'expo-haptics';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import LevelSlider from './LevelSlider';
-import { FIELDS, GOALS, HEARD, HEARD_BRANDS, NAME_MAX, STRUGGLES, levelResult, needsField } from './profile';
+import { FIELDS, GOALS, HEARD, HEARD_BRANDS, NAME_MAX, STRUGGLES, clampLevel, levelName, needsField } from './profile';
 import { flagFor, nameFor } from './speech';
 import {
   IcBook,
@@ -425,23 +425,26 @@ export function HeardOptions({ value, onChange, t }) {
   return <Chips items={HEARD} value={value} onChange={onChange} label={(k) => HEARD_BRANDS[k] || t('heard_' + k)} s={s} />;
 }
 
-// ─── Рівень: слайдер і що з нього випливає ─────────────────────────────────
+// ─── Рівень: слайдер і назва рівня ─────────────────────────────────────────
 // lang — мова, яку вчать: VoiceOver чує її в назві слайдера («Твій рівень:
 // English»), а не лише в пігулці над заголовком, яку легко проминути.
 export function LevelBody({ value, onChange, lang, t }) {
   const { C } = useTheme();
   const s = useMemo(() => makeStyles(C), [C]);
   const label = lang ? t('pfLevelLabel', { lang: nameFor(lang) }) : t('pfLevelTitle');
+  const level = clampLevel(value);
   return (
     <View>
-      <LevelSlider value={value} onChange={onChange} label={label} t={t} />
-      {/* «Пропускаємо базові слова…»: людина одразу бачить, що її відповідь
-          щось міняє. Число й CEFR уже великі над доріжкою — тут лише
-          наслідок. VoiceOver оголосить сам рядок. */}
-      <View style={s.result}>
-        <Text style={s.resultText} accessibilityLiveRegion="polite">
-          {levelResult(value, t)}
+      <LevelSlider value={level} onChange={onChange} label={label} t={t} desc={false} />
+      {/* Під доріжкою — проста назва рівня великим («Середній») і під нею
+          дрібніше, що це означає («Можу підтримати розмову»): людина
+          впізнає себе без пояснень, які слова ми пропустимо (онбординг
+          4.0). VoiceOver оголосить назву, щойно рівень зміниться. */}
+      <View style={s.result} testID="level-name">
+        <Text style={s.levelName} accessibilityLiveRegion="polite">
+          {levelName(level, t)}
         </Text>
+        <Text style={s.levelDesc}>{t('lvl' + level)}</Text>
       </View>
     </View>
   );
@@ -545,14 +548,9 @@ const makeStyles = (C) =>
     chipText: { color: C.text, ...type(16, F.semi), textAlign: 'center' },
     chipTextOn: { color: C.accent, fontFamily: F.extra },
 
-    result: {
-      marginTop: 18,
-      backgroundColor: C.card,
-      borderRadius: R.md,
-      paddingHorizontal: 16,
-      paddingVertical: 13,
-    },
-    resultText: { color: C.dim, ...type(14, F.semi), textAlign: 'center' },
+    result: { marginTop: 14, alignItems: 'center', minHeight: 72 },
+    levelName: { color: C.text, ...type(26, F.extra), textAlign: 'center' },
+    levelDesc: { color: C.dim, ...type(15, F.semi), textAlign: 'center', marginTop: 2 },
 
     input: {
       backgroundColor: C.card,
