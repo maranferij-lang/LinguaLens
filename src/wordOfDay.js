@@ -271,6 +271,39 @@ function pastWords(prev, { lang, native }, today) {
   return prev.words.filter((w) => w && !slotOf(w) && w.date < today && w.date >= from);
 }
 
+// «Знаю» на слові дня зі слоту slot: сервер будує план без цього слова
+// наново, і сьогоднішні слова зсуваються — слот 0, який людина могла вже й
+// зберегти, став би іншим, а сповіщення про нього вже прийшло. Тож уже
+// відкриті сьогодні слоти (крім slot) беремо зі старого кешу, а решту
+// заповнюємо новими словами без повторів у межах дня: спершу те, що сервер
+// дав на цей слот, далі — інші його сьогоднішні слова.
+export function keepOpenToday(words, prev, { lang, native, hours, slot }, now = new Date()) {
+  if (!prev || prev.lang !== lang || prev.native !== native) return words;
+  const kept = new Map(
+    todaySlots(prev, hours, now)
+      .open.filter((w) => w.slot !== slot)
+      .map(({ hour, ...w }) => [w.slot, w])
+  );
+  if (!kept.size) return words;
+  const today = localDayKey(now);
+  const key = (w) => String(w.source || w.word || '').trim().toLowerCase();
+  const fresh = [];
+  for (const w of words) if (w.date === today) fresh[slotOf(w)] = w;
+  const used = new Set([...kept.values()].map(key));
+  const out = [];
+  for (let s = 0; s < fresh.length; s++) {
+    if (kept.has(s)) {
+      out.push(kept.get(s));
+      continue;
+    }
+    const pick = [fresh[s], ...fresh].find((w) => w && !used.has(key(w)));
+    if (!pick) break;
+    used.add(key(pick));
+    out.push({ ...pick, slot: s });
+  }
+  return [...words.filter((w) => w.date < today), ...out, ...words.filter((w) => w.date > today)];
+}
+
 // Виклики йдуть по черзі. Два «Знаю» поспіль — це два запити, і якби
 // відповідь на перший прийшла пізніше, вона затерла б свіжіший кеш: на
 // картці знову зʼявилось би щойно відкинуте слово. У черзі кожен наступний
@@ -288,7 +321,8 @@ export function syncWordOfDay(opts) {
 }
 
 // hours — години слотів (slotHours): їх стільки, скільки слів на день;
-// hour — для старих викликів, коли слово одне.
+// hour — для старих викликів, коли слово одне. knownSlot — «Знаю» на слові
+// дня з цього слоту: інші вже відкриті сьогодні слова лишаються (keepOpenToday).
 async function doSync({
   lang,
   native,
@@ -299,6 +333,7 @@ async function doSync({
   profile = null,
   known = [],
   t = null,
+  knownSlot = null,
 }) {
   let cache = await loadWod();
   const clean = cleanProfile(profile);
@@ -312,7 +347,8 @@ async function doSync({
       const d = await apiWordOfDay({ days: WOD_DAYS, lang, native, profile: clean, known: list, perDay });
       if (d && Array.isArray(d.words) && d.words.length) {
         const got = Math.min(Math.max(Math.floor(Number(d.perDay)) || 1, 1), perDay);
-        const words = cacheWords(d.words, got);
+        let words = cacheWords(d.words, got);
+        if (Number.isInteger(knownSlot)) words = keepOpenToday(words, cache, { lang, native, hours: slots, slot: knownSlot });
         const today = localDayKey();
         cache = {
           lang,

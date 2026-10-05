@@ -888,7 +888,8 @@ export default function App() {
     track('wod_known', { streak: next.knowStreak, level: cur.profile?.level ?? null });
     setWodNote('');
     setWodKnowing(true);
-    const c = await syncWordOfDay(wodArgs(next, true));
+    // knownSlot: у Pro вже відкриті сьогодні слова 2…5 лишаються тими самими
+    const c = await syncWordOfDay({ ...wodArgs(next, true), knownSlot: 0 });
     setWodKnowing(false);
     if (c) setWod(c);
     const fresh = c ? todayFrom(c) : null;
@@ -1692,7 +1693,9 @@ export default function App() {
     commitSettings(next);
     logActivity(1);
     track('wod_known', { streak: next.knowStreak, level: cur.profile?.level ?? null, slot: w.slot });
-    const c = await syncWordOfDay(wodArgs(next, true));
+    // міняється лише це слово: уже відкриті сьогодні (і слот 0, який людина
+    // могла зберегти) лишаються — див. keepOpenToday
+    const c = await syncWordOfDay({ ...wodArgs(next, true), knownSlot: w.slot });
     if (c) setWod(c);
   }
   // Картка на «Навчанні» бере їх сама (спільне сховище в WordOfDayCard.js):

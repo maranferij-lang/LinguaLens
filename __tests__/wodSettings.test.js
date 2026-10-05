@@ -501,6 +501,32 @@ describe('the Learn tab with several words a day (App → card)', () => {
     expect(wodPosts().at(-1).body).toMatchObject({ perDay: 3, known: expect.arrayContaining(['w0-1']) });
   });
 
+  // Сервер без «Знаю» будує сьогоднішні слова наново — слово 1 (воно ж
+  // безкоштовне, його могли зберегти) мусить лишитись тим самим
+  test('“I know it” on a later word keeps the words already opened today', async () => {
+    const tree = await learn();
+    const base = global.fetch;
+    global.fetch = jest.fn(async (url, init = {}) => {
+      const res = await base(url, init);
+      const body = init.body ? JSON.parse(init.body) : null;
+      if (!(new URL(url).pathname === '/word-of-day' && body?.known?.includes('w0-1'))) return res;
+      const data = await res.json();
+      // зсув: усе сьогоднішнє — інше
+      const words = data.words.map((w) => (w.date === localDayKey() ? { ...w, word: 'x' + w.slot, source: 'x' + w.slot } : w));
+      return reply(200, { ...data, words });
+    });
+    await run(() =>
+      card(tree)
+        .findAll((n) => n.props.onPress && n.props.accessibilityLabel === uk('wodKnowA11y'))
+        .at(-1)
+        .props.onPress()
+    );
+    await settle(5);
+    const today = (await stored('ll_wod_v1')).words.filter((w) => w.date === localDayKey()).sort((a, b) => a.slot - b.slot);
+    expect(today.map((w) => w.word)).toEqual(['w0-0', 'x1', 'x2']);
+    expect(cardText(tree)).toEqual(expect.arrayContaining(['w0-0', 'x1']));
+  });
+
   test('a tap on the notification of a word opens that word on the card', async () => {
     // тап приходить подією нативного модуля, як на телефоні
     const { LegacyEventEmitter } = require('expo-modules-core');

@@ -396,6 +396,70 @@ describe('several words a day (Pro slots)', () => {
     expect(de.words.some((w) => w.date < TODAY)).toBe(false);
   });
 
+  // «Знаю» на слові дня: сервер будує план без нього наново, і сьогоднішні
+  // слова зсуваються (як list[j % len] у wordplan). Міняється лише це слово —
+  // уже відкриті сьогодні інші (слот 0 людина могла й зберегти) лишаються.
+  describe('“I know it” replaces only that word of today', () => {
+    afterEach(() => jest.useRealTimers());
+    function serveShifting() {
+      served = [];
+      global.fetch = jest.fn(async (url, init = {}) => {
+        const body = init.body ? JSON.parse(init.body) : null;
+        served.push({ path: new URL(url).pathname, method: init.method || 'GET', body });
+        const known = new Set(body?.known || []);
+        const pool = Array.from({ length: 10 }, (_, i) => 'p' + i).filter((w) => !known.has(w));
+        const words = [];
+        for (let i = 0; i < 14; i++) {
+          for (let s = 0; s < body.perDay; s++) {
+            const w = pool[(3 + i * 5 + s * 4) % pool.length];
+            words.push({ date: day(i), slot: s, word: w, translation: 'tr', source: w, topic: 'general' });
+          }
+        }
+        return { ok: true, status: 200, json: async () => ({ words, perDay: body.perDay }) };
+      });
+    }
+    const todayWords = (c) =>
+      c.words
+        .filter((w) => w.date === localDayKey())
+        .sort((a, b) => a.slot - b.slot)
+        .map((w) => w.word);
+    const HOURS = [10, 16, 21];
+
+    test('at 21:30 “I know it” on word 3: words 1 and 2 stay, word 3 is new and not a repeat', async () => {
+      jest.useFakeTimers({ now: new Date(2026, 9, 8, 21, 30), doNotFake: ['nextTick', 'setImmediate'] });
+      serveShifting();
+      const first = await syncWordOfDay(args({ hours: HOURS }));
+      expect(todayWords(first)).toEqual(['p3', 'p7', 'p1']);
+      const c = await syncWordOfDay(args({ hours: HOURS, known: ['p1'], force: true, knownSlot: 2 }));
+      const today = todayWords(c);
+      expect(today.slice(0, 2)).toEqual(['p3', 'p7']);
+      expect(today).toHaveLength(3);
+      expect(new Set(today).size).toBe(3);
+      expect(today[2]).not.toBe('p1');
+      // наступні дні — уже з нового плану (без «Знаю»)
+      expect(c.words.find((w) => w.date === day(1) && w.slot === 0).word).toBe('p9');
+    });
+
+    test('back on word 2 at 21:30: words 1 and 3 stay; in the morning the unopened ones may change', async () => {
+      jest.useFakeTimers({ now: new Date(2026, 9, 8, 21, 30), doNotFake: ['nextTick', 'setImmediate'] });
+      serveShifting();
+      await syncWordOfDay(args({ hours: HOURS }));
+      const c = await syncWordOfDay(args({ hours: HOURS, known: ['p7'], force: true, knownSlot: 1 }));
+      const today = todayWords(c);
+      expect([today[0], today[2]]).toEqual(['p3', 'p1']);
+      expect(today[1]).not.toBe('p7');
+      expect(new Set(today).size).toBe(3);
+
+      // 11:00: відкрито лише слово 1 — «Знаю» на ньому, решта ще не бачена:
+      // день — просто новий план сервера
+      jest.setSystemTime(new Date(2026, 9, 9, 11, 0));
+      await AsyncStorage.clear();
+      expect(todayWords(await syncWordOfDay(args({ hours: HOURS })))).toEqual(['p3', 'p7', 'p1']);
+      const morning = await syncWordOfDay(args({ hours: HOURS, known: ['p3'], force: true, knownSlot: 0 }));
+      expect(todayWords(morning)).toEqual(['p4', 'p8', 'p2']);
+    });
+  });
+
   test('todayFrom is slot 0; todaySlots opens slot s at hours[s] and names the next one', () => {
     const at = (h, m = 0) => {
       const d = new Date();
