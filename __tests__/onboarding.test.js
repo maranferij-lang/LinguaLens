@@ -808,6 +808,19 @@ describe('demo and the first scan', () => {
     expect(has(tree, t('obDemoUsed'))).toBe(true);
   });
 
+  // Повтор без слів відкривається на мові, яка вже обрана: без «Далі» це був
+  // глухий кут (ні «Пропустити», ні «Назад», ні хрестика)
+  test('replay without words: the language is already ticked, so “Next” is there at once', async () => {
+    const { tree, onLanguages } = await render({ replay: true, hasWords: false, targetLang: 'en' });
+    expect(title(tree)).toBe(t('obLangTitle'));
+    expect(byId(tree, 'lang-en').at(-1).props.accessibilityState).toMatchObject({ checked: true });
+    expect(nextBtn(tree)).toBeDefined();
+    expect(nextBtn(tree).props.disabled).toBe(false);
+    await press(nextBtn(tree));
+    expect(title(tree)).toBe(t('obNameTitle'));
+    expect(onLanguages).not.toHaveBeenCalled();
+  });
+
   test('replay: the demo ends it with “Done”', async () => {
     const { tree, onDone } = await render({ replay: true, hasWords: true, todayWord: WORD });
     // імʼя → цілі → рівень → що заважає → план → серія → демо

@@ -427,8 +427,9 @@ export default function OnboardingScreen({
     return saved.phase;
   });
   const [direction, setDirection] = useState(null);
-  // Крок з одним варіантом, на який повернулись уже з відповіддю
-  const [had, setHad] = useState(() => !!(saved && ((saved.phase === 'lang' && saved.target) || (saved.phase === 'field' && saved.field) || (saved.phase === 'heard' && saved.heard))));
+  // Крок з одним варіантом, на який повернулись уже з відповіддю (чернетка;
+  // повтор без слів, що стартує з уже обраної мови)
+  const [had, setHad] = useState(() => answered(phase));
   const [nativeOpen, setNativeOpen] = useState(false);
   const pause = useRef(null);
   const auto = useRef(null);
