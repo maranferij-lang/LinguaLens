@@ -115,8 +115,12 @@ export function subscribeToNotificationTaps(onTap) {
   const handle = (response) => {
     if (!response || response.actionIdentifier !== Notifications.DEFAULT_ACTION_IDENTIFIER) return;
     const req = response.notification && response.notification.request;
-    if (!req || req.identifier === lastId) return;
-    lastId = req.identifier;
+    // Той самий тап приходить двічі (getLastNotificationResponse і слухач).
+    // Ключ — id разом із часом доставки: 'streak-risk' щодня той самий id, і
+    // завтрашній тап без застосунку, вбитого між ними, інакше загубився б.
+    const key = req && `${req.identifier}|${response.notification.date ?? ''}`;
+    if (!req || key === lastId) return;
+    lastId = key;
     // щоб при наступному запуску не перекинуло на вкладку вдруге
     try {
       Notifications.clearLastNotificationResponse();

@@ -417,12 +417,19 @@ export default function App() {
 
   // Тап по сповіщенню «слово дня» відкриває вкладку навчання, де воно чекає;
   // у Pro — саме на тому слові дня (слоті), про яке було сповіщення.
+  // «Не дай вогнику згаснути» о 20:00 — теж «Навчання»: одна картка рятує
+  // серію (core.md C.4.5).
   const notifTap = useRef(null);
   notifTap.current = (data) => {
     if (data.type === 'word-of-day') {
       startTab.current.moved = true;
       setTab('cards');
       focusWodSlot(data.date, data.slot);
+    }
+    if (data.type === 'streak') {
+      startTab.current.moved = true;
+      setTab('cards');
+      track('streak_reminder', { action: 'opened' });
     }
     if (data.type === 'trial-end') setTab('settings');
   };
