@@ -1,14 +1,15 @@
-// Демо онбордингу «скан → наліпка → слово → серія» (onboarding.md §6):
-// чиста функція demoAt(ms) на межах етапів, монотонність обведення й
-// польоту, слово для всіх 29 мов, і сама анімація: два цикли й стоп на
-// фіналі, тап — одразу фінал, «Ще раз» — ще цикл, дотики лише в першому
-// циклі, «Менше руху» — три статичні кадри.
+// Демо онбордингу «скан → наліпка → слово → сцена» (onboarding.md §6,
+// онбординг 4.0): чиста функція demoAt(ms) на межах етапів, монотонність
+// обведення й польоту, слово для всіх 29 мов, і сама анімація: один цикл не
+// довший за ~11 с і стоп на фіналі, тап — одразу фінал, «Ще раз» — ще цикл,
+// дотики лише в першому циклі, «Менше руху» — два статичні кадри (предмет
+// і сцена).
 import { AccessibilityInfo } from 'react-native';
 import { act, create } from 'react-test-renderer';
 import * as Haptics from 'expo-haptics';
 import ScanDemo, { sceneScale } from '../src/ScanDemo';
 import { BEATS, DEMO_LOOP_MS, DEMO_LOOPS, STATIC_FRAMES, TRACKS, arcPoint, demoAt, rangeOf, trackAt } from '../src/demoTimeline';
-import { DEMO_WORDS, demoPair } from '../src/demoWords';
+import { DEMO_WORDS, demoPair, demoScene } from '../src/demoWords';
 import { LANGS } from '../src/speech';
 import { makeT } from '../src/i18n';
 
@@ -24,10 +25,12 @@ const t = makeT('en');
 const uk = makeT('uk');
 
 describe('the timeline', () => {
-  test('8.5 s a loop, two loops, four beats', () => {
-    expect(DEMO_LOOP_MS).toBe(8500);
-    expect(DEMO_LOOPS).toBe(2);
-    expect(BEATS).toEqual([0, 1800, 4800, 7000]);
+  // Власник: демо — не довше ~11 с; предмет, потім уся сцена
+  test('one loop of at most ~11 s, five beats: object, cut out, into the list, the scene, the final', () => {
+    expect(DEMO_LOOP_MS).toBeLessThanOrEqual(11000);
+    expect(DEMO_LOOP_MS * DEMO_LOOPS).toBeLessThanOrEqual(11000);
+    expect(DEMO_LOOPS).toBe(1);
+    expect(BEATS).toEqual([0, 1800, 4800, 6500, 9500]);
   });
 
   test('every beat boundary', () => {
@@ -43,13 +46,23 @@ describe('the timeline', () => {
     expect(demoAt(4100)).toMatchObject({ plate: 1 });
     expect(demoAt(4800)).toMatchObject({ beat: 2, fly: 0 });
     expect(demoAt(5600)).toMatchObject({ fly: 1, count: 1, sticker: 0 });
-    expect(demoAt(5800)).toMatchObject({ lit: 0, flame: 0 });
-    expect(demoAt(6050)).toMatchObject({ lit: 1, flame: 1 });
-    expect(demoAt(7000)).toMatchObject({ beat: 3, final: 0, flame: 0 });
-    expect(demoAt(8500)).toMatchObject({ beat: 3, final: 1, lit: 1, count: 1, deskMug: 1, corners: 1, sticker: 0 });
+    expect(demoAt(5800)).toMatchObject({ lit: 0 });
+    expect(demoAt(6050)).toMatchObject({ lit: 1, mode: 0 });
+    // сцена: перемикач їде на «Сцену», кути охоплюють увесь стіл, спалах,
+    // і підписи спливають по черзі
+    expect(demoAt(6500)).toMatchObject({ beat: 3, mode: 0, modeX: 0, corners: 1, wide: 0, tag0: 0 });
+    expect(demoAt(7050)).toMatchObject({ mode: 1, modeX: 1 });
+    expect(demoAt(7200)).toMatchObject({ corners: 0, wide: 1 });
+    expect(demoAt(7340)).toMatchObject({ flash: 0.6 });
+    expect(demoAt(7550)).toMatchObject({ tag0: 0, tag1: 0 });
+    expect(demoAt(8060)).toMatchObject({ tag0: 1, tag2: 0.85 });
+    expect(demoAt(8700)).toMatchObject({ tag0: 1, tag1: 1, tag2: 1, tag3: 1 });
+    expect(demoAt(9500)).toMatchObject({ beat: 4, final: 0 });
+    // фінал — уся сцена з підписами й «Ще раз», без перемикача
+    expect(demoAt(DEMO_LOOP_MS)).toMatchObject({ beat: 4, final: 1, lit: 1, count: 1, deskMug: 1, wide: 1, corners: 0, mode: 0, tag3: 1, sticker: 0 });
     // за межами — як на краях
     expect(demoAt(-5)).toEqual(demoAt(0));
-    expect(demoAt(99999)).toEqual(demoAt(8500));
+    expect(demoAt(99999)).toEqual(demoAt(DEMO_LOOP_MS));
   });
 
   test('the outline only grows while it is drawn; the flight only moves forward', () => {
@@ -109,7 +122,9 @@ describe('the animation', () => {
     const onAction = jest.fn();
     let tree;
     await act(async () => {
-      tree = create(<ScanDemo pair={demoPair('es', 'uk')} t={props.t || t} width={342} height={420} onFinal={onFinal} onAction={onAction} {...props} />);
+      tree = create(
+        <ScanDemo pair={demoPair('es', 'uk')} scene={demoScene('es', 'uk')} t={props.t || t} width={342} height={420} onFinal={onFinal} onAction={onAction} {...props} />
+      );
     });
     await act(async () => {});
     return { tree, onFinal, onAction };
@@ -117,6 +132,22 @@ describe('the animation', () => {
   const caption = (tree) => tree.root.find((n) => typeof n.type === 'string' && n.props.testID === 'demo-caption').props.children;
   const scene = (tree) => tree.root.findAll((n) => n.props.testID === 'scan-demo' && typeof n.props.onPress === 'function')[0];
   const plate = (tree) => tree.root.find((n) => typeof n.type === 'string' && n.props.testID === 'demo-plate');
+
+  test('the scene: four labelled things in the language you learn, translated into yours', async () => {
+    const { tree } = await render();
+    for (const [key, word, tr] of [
+      ['mug', 'la taza', 'чашка'],
+      ['laptop', 'el portátil', 'ноутбук'],
+      ['plant', 'la planta', 'рослина'],
+      ['notebook', 'el cuaderno', 'блокнот'],
+    ]) {
+      const tag = tree.root.findAll((n) => typeof n.type === 'string' && n.props.testID === 'demo-tag-' + key)[0];
+      const words = tag.findAll((n) => typeof n.type === 'string' && typeof n.props.children === 'string').map((n) => n.props.children);
+      expect([key, words]).toEqual([key, [word, tr]]);
+    }
+    expect(tree.root.findAll((n) => typeof n.type === 'string' && n.props.testID === 'demo-mode')).toHaveLength(1);
+    await act(async () => tree.unmount());
+  });
 
   test('the plate speaks the chosen pair; VoiceOver hears one sentence with it', async () => {
     const { tree } = await render({ t: uk });
@@ -126,20 +157,21 @@ describe('the animation', () => {
     await act(async () => tree.unmount());
   });
 
-  test('two loops, then it stops on the final frame; captions follow the beats', async () => {
+  test('one loop, then it stops on the final frame; captions follow the beats, the scene among them', async () => {
     const { tree, onFinal } = await render();
     expect(caption(tree)).toBe(t('obDemoBeat1'));
     await advance(1900);
     expect(caption(tree)).toBe(t('obDemoBeat2'));
     await advance(3000);
     expect(caption(tree)).toBe(t('obDemoBeat3'));
-    await advance(2200);
+    await advance(1800);
+    expect(caption(tree)).toBe(t('obDemoBeat4'));
+    expect(t('obDemoBeat4')).toBe('Or a whole scene — every word at once');
+    expect(uk('obDemoBeat4')).toBe('Або цілу сцену — і всі слова одразу');
+    await advance(3000);
     expect(caption(tree)).toBe(t('obDemoFinal'));
     expect(onFinal).not.toHaveBeenCalled();
-    await advance(DEMO_LOOP_MS - 7100 + 50);
-    // другий цикл
-    expect(caption(tree)).toBe(t('obDemoBeat1'));
-    await advance(DEMO_LOOP_MS);
+    await advance(DEMO_LOOP_MS - 9700 + 50);
     expect(onFinal).toHaveBeenCalledTimes(1);
     expect(caption(tree)).toBe(t('obDemoFinal'));
     // і більше нічого не рухається
@@ -168,13 +200,20 @@ describe('the animation', () => {
     await act(async () => tree.unmount());
   });
 
-  test('reduce motion: three still frames side by side, each with its beat, no haptics', async () => {
+  test('reduce motion: two still frames side by side — the object and the whole scene — each with its beat, no haptics', async () => {
     AccessibilityInfo.isReduceMotionEnabled.mockImplementation(() => Promise.resolve(true));
-    const { tree } = await render();
-    expect(STATIC_FRAMES).toHaveLength(3);
-    for (let i = 0; i < 3; i++) expect(tree.root.findAll((n) => typeof n.type === 'string' && n.props.testID === 'demo-frame-' + i)).toHaveLength(1);
+    const { tree } = await render({ width: 327, height: 230 });
+    expect(STATIC_FRAMES.map((f) => f.beat)).toEqual([1, 3]);
+    for (const b of [1, 3]) expect(tree.root.findAll((n) => typeof n.type === 'string' && n.props.testID === 'demo-frame-' + b)).toHaveLength(1);
     const texts = tree.root.findAll((n) => typeof n.props?.children === 'string').map((n) => n.props.children);
-    for (const k of ['obDemoBeat1', 'obDemoBeat2', 'obDemoBeat3']) expect(texts).toContain(t(k));
+    for (const k of ['obDemoBeat2', 'obDemoBeat4']) expect(texts).toContain(t(k));
+    // наліпка з табличкою і кадр сцени — з підписами предметів
+    expect(demoAt(STATIC_FRAMES[0].at)).toMatchObject({ beat: 1, plate: 1, sticker: 1 });
+    expect(demoAt(STATIC_FRAMES[1].at)).toMatchObject({ beat: 3, tag0: 1, tag3: 1, wide: 1 });
+    expect(texts).toContain('la planta');
+    // на SE кожен кадр — не дрібніший за ~150 pt завширшки
+    const frame = tree.root.findAll((n) => typeof n.type === 'string' && n.props.testID === 'demo-frame-1')[0];
+    expect(frame.props.style.width).toBeGreaterThanOrEqual(150);
     await advance(DEMO_LOOP_MS * 3);
     expect(Haptics.impactAsync).not.toHaveBeenCalled();
     await act(async () => tree.unmount());
