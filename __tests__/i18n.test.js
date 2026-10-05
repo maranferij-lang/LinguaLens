@@ -20,7 +20,7 @@ const FORMS = { en: 2, uk: 3, de: 2, es: 2 };
 // Ці рядки капсом свідомо: бейдж слова дня малюється без textTransform,
 // літери днів тижня — це не текст, а сім підписів під стовпчиками, а ІТ —
 // абревіатура, її й VoiceOver читає по літерах.
-const CAPS_OK = ['wordOfDay', 'dowLetters', 'topic_it', 'field_it'];
+const CAPS_OK = ['wordOfDay', 'topic_it', 'field_it'];
 
 const PLACEHOLDER = /\{(\w+)(?:\|[^{}]*)?\}/g;
 const PLURAL = /\{(\w+)\|([^{}]*)\}/g;
@@ -74,7 +74,6 @@ function usedKeys() {
   for (const g of GOALS) add('goal_' + g, 'src/profile.js GOALS');
   for (const f of FIELDS) add('field_' + f, 'src/profile.js FIELDS');
   for (const k of TOPICS) add('topic_' + k, 'src/profile.js TOPICS');
-  for (const k of TOPICS.filter((x) => x !== 'general')) add('topicIn_' + k, 'src/profile.js TOPICS');
   for (const h of HEARD.filter((x) => !HEARD_BRANDS[x])) add('heard_' + h, 'src/profile.js HEARD');
   for (let i = 1; i <= 10; i++) add('lvl' + i, 'src/LevelSlider.js');
   // Онбординг 2.0: «що заважає» і рядки плану під кожну відповідь, назва
@@ -224,10 +223,6 @@ describe('copy style', () => {
       .map(([lang, k, s]) => `${lang}.${k}: ${s}`);
     expect(bad).toEqual([]);
   });
-
-  test('dowLetters has one letter per weekday', () => {
-    for (const lang of LANGS) expect([...STRINGS[lang].dowLetters]).toHaveLength(7);
-  });
 });
 
 // v1.3: безкоштовно — один скан на все життя, а не на день. Жоден рядок не
@@ -235,7 +230,7 @@ describe('copy style', () => {
 describe('a lifetime free scan', () => {
   const PER_DAY = /today|tomorrow|a day|per day|every day|сьогодні|завтра|щодня|на день|heute|morgen|pro Tag|jeden Tag|hoy|mañana|al día|cada día/i;
   const SCAN = /scan|скан|escane/i;
-  const SCAN_KEYS = ['scansLeftN', 'pwScansTitle', 'pwScansText', 'cmp_scans', 'pwContinueFree', 'pwContinueFreeNoScans'];
+  const SCAN_KEYS = ['scanFreeLeft', 'pwScansTitle', 'pwScansText', 'cmp_scans', 'pwContinueFree', 'pwContinueFreeNoScans'];
 
   test('the new and reworded keys exist in every language; the “next scan tomorrow” one is gone', () => {
     for (const lang of LANGS) {
@@ -258,25 +253,25 @@ describe('a lifetime free scan', () => {
   });
 
   test.each(LANGS)('%s: the streak hints are about learning, not scanning', (lang) => {
-    for (const k of ['streakGo', 'streakStart']) expect(STRINGS[lang][k]).not.toMatch(SCAN);
+    for (const k of ['streakNone', 'streakPending', 'streakPendingShort', 'streakEvening']) expect(STRINGS[lang][k]).not.toMatch(SCAN);
   });
 
   test('plurals of the scan counters', () => {
     const uk = makeT('uk');
-    expect([1, 2, 5, 21].map((n) => uk('scansLeftN', { n }))).toEqual([
-      'Лишився 1 безкоштовний скан',
-      'Лишилося 2 безкоштовні скани',
-      'Лишилося 5 безкоштовних сканів',
-      'Лишився 21 безкоштовний скан',
+    expect([1, 2, 5, 21].map((n) => uk('scanFreeLeft', { n }))).toEqual([
+      '1 безкоштовний скан',
+      '2 безкоштовні скани',
+      '5 безкоштовних сканів',
+      '21 безкоштовний скан',
     ]);
     expect(uk('pwScansTitle', { n: 1 })).toBe('Безкоштовний скан використано');
     expect(uk('pwScansTitle', { n: 3 })).toBe('Безкоштовні скани використано');
     expect(uk('cmp_scans')).toBe('Сканів загалом');
     const en = makeT('en');
-    expect([1, 3].map((n) => en('scansLeftN', { n }))).toEqual(['1 free scan left', '3 free scans left']);
+    expect([1, 3].map((n) => en('scanFreeLeft', { n }))).toEqual(['1 free scan', '3 free scans']);
     expect(en('pwScansTitle', { n: 1 })).toBe('You’ve used your free scan');
-    expect(makeT('de')('scansLeftN', { n: 1 })).toBe('1 Gratis-Scan übrig');
-    expect(makeT('es')('scansLeftN', { n: 2 })).toBe('Te quedan 2 escaneos gratis');
+    expect(makeT('de')('scanFreeLeft', { n: 1 })).toBe('1 Gratis-Scan');
+    expect(makeT('es')('scanFreeLeft', { n: 2 })).toBe('2 escaneos gratis');
   });
 });
 

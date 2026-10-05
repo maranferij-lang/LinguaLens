@@ -396,7 +396,9 @@ describe('Card mode works as before', () => {
     const tree = await cards();
     expect(button(tree, t('shareTplSticker'))).not.toBeNull();
     expect(t('shareTplSticker')).toBe('Object');
-    expect(button(tree, t('shareTplCutout'))).toBeNull();
+    // шаблону «Без тла» немає, як і його назви в рядках
+    expect(button(tree, 'Cutout')).toBeNull();
+    expect(t('shareTplCutout')).toBe('shareTplCutout');
     await unmount(tree);
   });
 });

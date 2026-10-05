@@ -6,8 +6,6 @@
 import { Alert, ActivityIndicator, AccessibilityInfo, Linking, ScrollView, StyleSheet } from 'react-native';
 import { act, create } from 'react-test-renderer';
 import * as Haptics from 'expo-haptics';
-import fs from 'fs';
-import path from 'path';
 import OnboardingScreen from '../src/OnboardingScreen';
 import OnboardingPaywall from '../src/OnboardingPaywall';
 import PaywallScreen, { TrialTimeline } from '../src/PaywallScreen';
@@ -469,11 +467,13 @@ describe('progress during purchase and restore', () => {
 });
 
 // ─── onb-10: перший скан — подарунок ───────────────────────────────────────
-test('“Try it now” says the first scan is on us, in every language', () => {
-  expect(STRINGS.uk.obWowText).toMatch(/Перший скан — у подарунок\.$/);
-  expect(STRINGS.en.obWowText).toMatch(/Your first scan is on us\.$/);
-  expect(STRINGS.de.obWowText).toMatch(/Dein erster Scan geht auf uns\.$/);
-  expect(STRINGS.es.obWowText).toMatch(/Tu primer escaneo va por nuestra cuenta\.$/);
+// Онбординг 3.0: «Спробуй зараз» більше немає — про безкоштовний скан каже
+// перший екран пейволу, вже з наліпкою людини (onboarding.md §5.13)
+test('the first paywall screen says the free scan is already in the word list, in every language', () => {
+  expect(STRINGS.uk.opwFirstWordText).toMatch(/^Твій безкоштовний скан — уже в словнику\./);
+  expect(STRINGS.en.opwFirstWordText).toMatch(/^Your free scan is already in your word list\./);
+  for (const lang of ['de', 'es']) expect(STRINGS[lang].opwFirstWordText).toEqual(expect.any(String));
+  for (const lang of ['en', 'uk', 'de', 'es']) expect(STRINGS[lang]).not.toHaveProperty('obWowText');
 });
 
 // ─── onb-11: вітання в темній темі ─────────────────────────────────────────
@@ -491,12 +491,6 @@ describe('the welcome screen', () => {
       // наліпки — ілюстрація: VoiceOver їх не читає, але на екрані вони є
       for (const w of ['mug', 'planta', 'Schlüssel']) expect(hosts(tree, (n) => n.props.children === w).length).toBeGreaterThan(0);
     }
-  });
-
-  test('the dark asset ships next to the light one', () => {
-    const file = path.join(__dirname, '..', 'assets', 'onb-1-dark.png');
-    const head = fs.readFileSync(file).subarray(0, 8);
-    expect([...head]).toEqual([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
   });
 });
 

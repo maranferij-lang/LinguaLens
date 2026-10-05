@@ -44,27 +44,6 @@ const ASSETS = [
       'Soft subtle shadow under the mark, generous margins, no text, no watermark, crisp edges.',
   },
   {
-    file: 'onb-1.png',
-    prompt:
-      'Square onboarding illustration. ' + MASCOT +
-      ' Lingo holds up a glowing phone, aiming its camera at a coffee mug; a bright viewfinder frame ' +
-      'with rounded corners highlights the mug. ' + STYLE,
-  },
-  {
-    file: 'onb-2.png',
-    prompt:
-      'Square onboarding illustration. ' + MASCOT +
-      ' Lingo listens with delight to a floating glassy word-card with a speaker symbol and sound waves; ' +
-      'abstract letter shapes float around like fireflies. ' + STYLE,
-  },
-  {
-    file: 'onb-3.png',
-    prompt:
-      'Square onboarding illustration. ' + MASCOT +
-      ' Lingo balances a neat stack of glowing flashcards on its tail; a small warm flame above marks a streak. ' +
-      STYLE,
-  },
-  {
     file: 'empty-dict.png',
     prompt:
       'Square empty-state illustration. ' + MASCOT +

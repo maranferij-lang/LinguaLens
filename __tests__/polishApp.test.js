@@ -300,7 +300,7 @@ describe('the camera after the free scan', () => {
       expect(all).toContain(tl('scanUsedUp'));
       expect(all).not.toContain(tl('hint'));
       expect(all.some((s) => /\b0\b/.test(s))).toBe(false);
-      expect(all).not.toContain(tl('scansLeftN', { n: 0 }));
+      expect(all).not.toContain(tl('scanFreeLeft', { n: 0 }));
       const chip = byLabel(tree.root, tl('scanProChip'));
       expect(chip.props.accessibilityRole).toBe('button');
       await press(() => chip.props.onPress());
@@ -720,7 +720,7 @@ describe('Learn hub', () => {
     const tree = await render(hub({ wordOfDay: null, onGoScan: () => {} }));
     expect(tree.root.findAllByType(MascotBob)).toHaveLength(0);
     const all = texts(tree.root);
-    expect(all).not.toContain(t('cardsEmptyTitle'));
+    expect(STRINGS.en).not.toHaveProperty('cardsEmptyTitle');
     expect(all.indexOf(t('flashcards'))).toBeLessThan(all.indexOf(t('learnHowTitle')));
     expect(all.indexOf(t('quiz'))).toBeLessThan(all.indexOf(t('learnHowTitle')));
     await act(async () => tree.unmount());

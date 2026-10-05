@@ -33,7 +33,6 @@ export default {
     // Пейвол «themes»
     pwThemesTitle: 'Color themes with Pro',
     pwThemesText: 'Ocean, Berry, Graphite or Cocoa — in light and dark. Your widgets change color too.',
-    pwThemesPick: 'Preview {p}',
     pwThemesPreview: 'How the app looks in {p}',
     themeSampleWord: 'el pasaporte',
     themeSampleIpa: '/el pasaˈpoɾte/',
@@ -72,7 +71,6 @@ export default {
     // Пейвол «themes»
     pwThemesTitle: 'Кольорові теми — у Pro',
     pwThemesText: 'Океан, Ягода, Графіт чи Какао — у світлому й темному вигляді. Віджети теж змінять колір.',
-    pwThemesPick: 'Показати палітру {p}',
     pwThemesPreview: 'Так виглядатиме застосунок у палітрі {p}',
     themeSampleWord: 'boarding pass',
     themeSampleIpa: '/ˈbɔːdɪŋ pɑːs/',
@@ -111,7 +109,6 @@ export default {
     // Пейвол «themes»
     pwThemesTitle: 'Farbthemen mit Pro',
     pwThemesText: 'Ozean, Beere, Graphit oder Kakao – hell und dunkel. Auch deine Widgets wechseln die Farbe.',
-    pwThemesPick: '{p} ansehen',
     pwThemesPreview: 'So sieht die App in {p} aus',
     themeSampleWord: 'boarding pass',
     themeSampleIpa: '/ˈbɔːdɪŋ pɑːs/',
@@ -150,7 +147,6 @@ export default {
     // Пейвол «themes»
     pwThemesTitle: 'Temas de color con Pro',
     pwThemesText: 'Océano, Baya, Grafito o Cacao, en claro y oscuro. Tus widgets también cambian de color.',
-    pwThemesPick: 'Ver {p}',
     pwThemesPreview: 'Así se ve la app en {p}',
     themeSampleWord: 'boarding pass',
     themeSampleIpa: '/ˈbɔːdɪŋ pɑːs/',

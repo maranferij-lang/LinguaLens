@@ -640,7 +640,7 @@ describe('first-scan mode (onboarding)', () => {
     const onExit = jest.fn();
     const tree = await render(scanner({ firstScan: true, onExit, scanMode: 'scene', scansLeft: 1, scanSource: 'onboarding' }));
     expect(tree.root.findAll((n) => n.props.accessibilityRole === 'tablist')).toHaveLength(0);
-    expect(texts(tree)).not.toContain(t('scansLeftN', { n: 1 }));
+    expect(texts(tree)).not.toContain(t('scanFreeLeft', { n: 1 }));
     await press(tree, () => shutter(tree).props.onPress());
     expect(recognizeImage).toHaveBeenCalledTimes(1);
     expect(recognizeScene).not.toHaveBeenCalled();
