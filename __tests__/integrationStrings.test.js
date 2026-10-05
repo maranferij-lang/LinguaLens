@@ -50,3 +50,10 @@ test('the keys v1.3 replaced are gone from every language', () => {
   expect(used('obWowLater')).toBe(true);
   expect(STRINGS.uk.cmp_wod).toBe('Слово дня');
 });
+
+// «Quedan 1 min.» — дієслово в множині з однією хвилиною (зауваження W1):
+// фраза без узгодження читається правильно з будь-яким залишком
+test('the Spanish streak-risk banner reads right with one minute left', () => {
+  const es = require('../src/i18n').makeT('es');
+  for (const t of ['1 min', '2 h 5 min']) expect(es('streakRiskBody', { t })).toMatch(new RegExp('^Tiempo restante: ' + t + '\\. '));
+});

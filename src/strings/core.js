@@ -189,7 +189,7 @@ export default {
     streakContinue: 'Continuar',
     streakAchChip: 'Logro: {a}',
     streakRiskTitle: 'Tu racha de {n} {n|día|días} se apaga a medianoche',
-    streakRiskBody: 'Quedan {t}. Repasa una palabra y tu llama seguirá viva.',
+    streakRiskBody: 'Tiempo restante: {t}. Repasa una palabra y tu llama seguirá viva.',
     streakRiskCta: 'Repasar 1 tarjeta',
     streakNotifBody: 'Tu racha: {n} {n|día|días}. Una palabra hoy la mantiene viva.',
     streakSectionTitle: 'Racha',
