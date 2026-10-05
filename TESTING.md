@@ -232,9 +232,10 @@ v1.3: віджетів три («Слово дня», «Мої слова», «�
 | macOS питає, чи дозволити `node` вхідні з'єднання | файрвол Mac | **Дозволити**. Якщо відмовив: Системні параметри → Мережа → Файрвол → Параметри → `node` → дозволити |
 | `EADDRINUSE: address already in use :::3000` | сервер уже запущений в іншому вікні | `lsof -i :3000` → `kill <PID>` |
 | `--tunnel` працює, а скан ні | через тунель локальний сервер недосяжний | або без тунелю в спільній Wi-Fi, або хмарний сервер у `EXPO_PUBLIC_SERVER_URL` (див. `DEPLOY.md`) |
-| `i` у Metro: «No development build installed» | `npm start` чекає на development build | `npm run start:go` (Expo Go) або спершу `npx expo run:ios` |
+| `i` у Metro: «No development build installed» | `npm start` чекає на development build | `npm run start:go` (Expo Go) або спершу `npm run sim` |
+| `npx expo run:ios` у симулятор: «No code signing certificates are available» | через «Вхід через Apple» Expo вимагає сертифікат навіть для симулятора | `npm run sim` (збірка без цього права) |
 | `No iOS devices available in Simulator.app` | не обраний Xcode або немає симулятора | `sudo xcode-select -s /Applications/Xcode.app`; Xcode → Settings → Components → iOS |
-| `npx expo run:ios` падає на `pod install` | CocoaPods або застаріла папка `ios/` | `brew install cocoapods`, потім `npx expo prebuild --clean --platform ios` і знову `npx expo run:ios` |
+| `npm run sim` / `npx expo run:ios` падає на `pod install` | CocoaPods або застаріла папка `ios/` | `brew install cocoapods`, потім знову `npm run sim` (він сам перегенеровує `ios/`) |
 | «Project is incompatible with this version of Expo Go» | Expo Go старий або новий за SDK 57 | онови Expo Go з App Store; якщо не допомогло — `npx expo run:ios --device` |
 | Змінив `.env`, а застосунок бачить старе значення | `EXPO_PUBLIC_*` вшиваються в бандл | `npx expo start -c` (з очищенням кешу) |
 | Пейвол на першому ж скані | безкоштовний скан цього запису вже витрачено: він один на все життя, і скан в онбордингу теж рахується; «Стерти всі мої дані» його не повертає | на dev-сервері `FREE_SCANS=1000` у `server/.env` і перезапусти сервер, або почни з чистого запису: зупини dev-сервер, видали `server/data.json`, запусти знову |

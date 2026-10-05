@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Info.plist такий, яким його зробить prebuild: app.json разом з усіма
+// Info.plist і entitlements такі, якими їх зробить prebuild: app.json разом з усіма
 // конфіг-плагінами (камера, «Фото», вибір фото…). Те саме, що
 // `npx expo config --type introspect`, але лише iOS і лише потрібні ключі —
 // без Xcode і без теки ios/. Друкує JSON у stdout.
@@ -18,7 +18,7 @@ async function main() {
   const config = await getPrebuildConfigAsync(root, { platforms: ['ios'] });
   await compileModsAsync(config.exp, { projectRoot: root, introspect: true, platforms: ['ios'], assertMissingModProviders: false });
   console.log = log;
-  process.stdout.write(JSON.stringify({ infoPlist: config.exp.ios?.infoPlist || {} }));
+  process.stdout.write(JSON.stringify({ infoPlist: config.exp.ios?.infoPlist || {}, entitlements: config.exp.ios?.entitlements || {} }));
 }
 
 main().catch((e) => {

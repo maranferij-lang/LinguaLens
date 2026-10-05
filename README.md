@@ -110,8 +110,10 @@ npm run start:go     # i → Expo Go у симуляторі, або QR → Expo
 ([безкоштовний ключ](https://aistudio.google.com/apikey)) і запусти `npm start`.
 
 Для справжніх покупок, матового таб-бара, сплешу й своєї іконки потрібна development build:
-`npx expo run:ios` (симулятор) або `npx expo run:ios --device` (iPhone на кабелі).
-Після неї `npx expo start` → `i` відкриває вже її, а не Expo Go.
+`npm run sim` (симулятор, без акаунта розробника) або `npx expo run:ios --device`
+(iPhone на кабелі, потрібен акаунт розробника в Xcode). Після неї
+`npx expo start` → `i` відкриває вже її, а не Expo Go. Докладно — у
+[`SETUP_MAC.md`](SETUP_MAC.md), варіант В.
 
 Налаштування застосунку задаються змінними `EXPO_PUBLIC_*`: локально в `.env`
 (зразок у [`.env.example`](.env.example)), для збірок через `eas env:set`
@@ -125,8 +127,9 @@ npm run start:go     # i → Expo Go у симуляторі, або QR → Expo
 |---|---|
 | `npm start` | Metro для development build (`expo start`) |
 | `npm run start:go` | Metro для Expo Go |
-| `npm run ios` | те саме, що `npx expo run:ios`: локальна нативна збірка й запуск у симуляторі |
-| `npx expo run:ios` | локальна нативна збірка (`--device "iPhone 18 Pro"` — конкретний симулятор, `--device` без назви — вибір зі списку, зокрема iPhone на кабелі) |
+| `npm run sim` | development build у симуляторі без сертифіката: prebuild без «Входу через Apple» (`LL_SIMULATOR=1`) + `expo run:ios` |
+| `npm run ios` | те саме, що `npx expo run:ios`: локальна нативна збірка; через «Вхід через Apple» потребує акаунта розробника в Xcode навіть для симулятора |
+| `npx expo run:ios --device` | збірка на iPhone на кабелі (вибір зі списку) |
 | `npm test` | тести застосунку (jest-expo) |
 | `npm run test:server` | тести сервера (`node:test`) |
 | `npm run doctor` | `expo-doctor`: сумісність версій пакетів |

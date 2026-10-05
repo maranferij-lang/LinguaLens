@@ -108,29 +108,38 @@ npm run start:go
 
 Покупки в Expo Go працюють у «Preview»-режимі RevenueCat (без оплати).
 
-### Варіант В — development build (справжні покупки, сповіщення, сплеш)
+### Варіант В — development build (віджети, наліпки, сповіщення, сплеш)
 
-> **Після `git pull` з новими пакетами чи плагінами** (віджети, наліпки)
-> нативну частину треба перегенерувати, інакше збереться стара:
-> ```bash
-> npx expo prebuild --platform ios --clean
-> ```
-> **`git pull` пише «Your local changes … package.json would be overwritten»?**
-> Це `expo run:ios` переписав рядки `scripts` у `package.json`. Скинь їх:
-> `git checkout -- package.json` і повтори `git pull`.
->
-> **«No code signing certificates are available»** — Expo намагається
-> збирати на справжній iPhone (він підключений або в тій самій Wi-Fi). Для
-> симулятора назви його явно: `npx expo run:ios --device "iPhone 18 Pro"`.
-> На iPhone без платного акаунта розробника збірка не підпишеться (вхід
-> через Apple і віджети потребують акаунта за $99).
+**Симулятор — без акаунта розробника:**
 ```bash
-npx expo run:ios --device "iPhone 18 Pro"   # симулятор (назва — з Xcode → Window → Devices and Simulators)
-npx expo run:ios --device                    # вибір зі списку: симулятор або iPhone на кабелі
+cd ~/Documents/LinguaLens
+npm run sim
 ```
-Після першої збірки наступні запуски — просто `npx expo start` (без `--go`).
-Перша збірка ~10 хв. Для iPhone знадобиться твій Apple ID у Xcode
-(Xcode → Settings → Accounts).
+Команда перегенеровує нативну частину (теку `ios/`), збирає застосунок і
+відкриває його в симуляторі. Перша збірка ~10–15 хв. Далі для звичайної
+роботи досить `npx expo start` → `i`. `npm run sim` повторюй лише після
+`git pull`, у якому з'явилися нові пакети чи плагіни.
+
+> **Чому не просто `npx expo run:ios`.** У застосунку є «Вхід через Apple»,
+> і через нього Expo вимагає сертифікат розробника навіть для симулятора:
+> «Your computer requires some additional setup before you can build onto
+> physical iOS devices… No code signing certificates are available», хоч
+> збірка й іде в симулятор. `npm run sim` збирає без цього права
+> (`LL_SIMULATOR=1`, див. `app.config.js`): кнопка Apple в Параметрах тоді
+> покаже помилку входу, а решта працює як у справжній збірці. У хмарну
+> збірку EAS цей прапорець не потрапить: `scripts/check-release-env.js`
+> її зупинить.
+>
+> **`git pull` пише «Your local changes … package.json would be
+> overwritten»?** Скинь ці зміни: `git checkout -- package.json`, потім
+> повтори `git pull`.
+
+**iPhone на кабелі** — потрібен платний акаунт розробника ($99): додай його в
+Xcode → Settings → **Accounts**, потім
+```bash
+npx expo prebuild --platform ios --clean
+npx expo run:ios --device       # вибери iPhone зі списку
+```
 
 ---
 
@@ -150,6 +159,6 @@ npm run doctor        # expo-doctor: версії пакетів
 |---|---|
 | `copy .env.example .env` | `cp .env.example .env` |
 | PowerShell, `npm.cmd`, проблеми з `'` у шляху | звичайний Terminal (zsh) |
-| Лише Expo Go або хмарна збірка EAS | + симулятор iPhone і локальні збірки `npx expo run:ios` |
+| Лише Expo Go або хмарна збірка EAS | + симулятор iPhone (`npm run sim`) і локальні збірки на iPhone (`npx expo run:ios --device`) |
 | Адреса сервера в `src/api.js` | `EXPO_PUBLIC_SERVER_URL` у `.env` (див. `.env.example`), локально визначається сама |
 | SDK 54, Node 20 | SDK 57, Node 22, Xcode 26.4+ |

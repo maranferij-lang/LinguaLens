@@ -15,10 +15,23 @@
 // Ключі Test Store і старого RevenueCat Billing — не для App Store.
 const TEST_KEY = /^(test_|rcb_)/;
 
-// → { ok: true } або { ok: false, reason: 'missing' | 'test-key', message }.
+// → { ok: true } або { ok: false, reason: 'missing' | 'test-key' | 'simulator', message }.
 // env — process.env (у тесті — підставний об'єкт).
 function checkReleaseEnv(env) {
-  if ((env.EAS_BUILD_PROFILE || '').trim() !== 'production') return { ok: true };
+  const profile = (env.EAS_BUILD_PROFILE || '').trim();
+  // LL_SIMULATOR=1 прибирає «Вхід через Apple» (app.config.js) — це лише для
+  // локального симулятора. Збірка EAS з ним іде на справжні iPhone, де кнопка
+  // Apple тоді не працює, тож її зупиняємо в будь-якому профілі.
+  if (profile && (env.LL_SIMULATOR || '').trim() === '1') {
+    return {
+      ok: false,
+      reason: 'simulator',
+      message:
+        'LL_SIMULATOR=1 — прапорець лише для локального симулятора: він прибирає «Вхід через Apple». ' +
+        'Прибери змінну з середовища EAS (' + profile + ').',
+    };
+  }
+  if (profile !== 'production') return { ok: true };
   const key = (env.EXPO_PUBLIC_REVENUECAT_IOS_KEY || '').trim();
   if (!key) {
     return {

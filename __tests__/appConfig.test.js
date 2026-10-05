@@ -99,3 +99,47 @@ test('the Info.plist that prebuild will write keeps the camera and has both phot
   expect(plist.NSPhotoLibraryAddUsageDescription).toBe(app.ios.infoPlist.NSPhotoLibraryAddUsageDescription);
   expect(plist.NSMicrophoneUsageDescription).toBeUndefined();
 }, 60000);
+
+// npm run sim (app.config.js, LL_SIMULATOR=1): симулятор збирається без
+// сертифіката, лише якщо в entitlements немає «Входу через Apple» — Expo CLI
+// інакше вимагає підпис навіть для симулятора. Звичайна збірка (EAS, App
+// Store) його зберігає, а решта прав і Info.plist однакові в обох.
+describe('simulator build without a signing certificate', () => {
+  const APPLE = 'com.apple.developer.applesignin';
+  const introspect = (env) =>
+    JSON.parse(
+      execFileSync(process.execPath, [path.join(ROOT, 'scripts/introspect-ios.js'), ROOT], {
+        encoding: 'utf8',
+        timeout: 60000,
+        env: { ...process.env, LL_SIMULATOR: '', ...env },
+      })
+    );
+
+  test('app.config.js returns app.json untouched without the flag', () => {
+    const dynamic = require('../app.config.js');
+    const prev = process.env.LL_SIMULATOR;
+    delete process.env.LL_SIMULATOR;
+    try {
+      const config = { ...app };
+      expect(dynamic({ config })).toBe(config);
+    } finally {
+      if (prev !== undefined) process.env.LL_SIMULATOR = prev;
+    }
+  });
+
+  test('only Sign in with Apple goes away, and only with LL_SIMULATOR=1', () => {
+    const store = introspect({});
+    const sim = introspect({ LL_SIMULATOR: '1' });
+    expect(store.entitlements[APPLE]).toEqual(['Default']);
+    expect(sim.entitlements[APPLE]).toBeUndefined();
+    const { [APPLE]: _, ...rest } = store.entitlements;
+    expect(sim.entitlements).toEqual(rest);
+    expect(rest['com.apple.security.application-groups']).toEqual(['group.com.marik.lingualens']);
+    expect(sim.infoPlist).toEqual(store.infoPlist);
+  }, 120000);
+
+  test('npm run sim rebuilds the native project with the flag, then runs it', () => {
+    const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+    expect(pkg.scripts.sim).toBe('LL_SIMULATOR=1 expo prebuild --platform ios --clean && expo run:ios');
+  });
+});

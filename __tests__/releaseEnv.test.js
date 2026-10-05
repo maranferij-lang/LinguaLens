@@ -1,6 +1,7 @@
 // Запобіжник production-збірки (scripts/check-release-env.js): EAS запускає
 // його як «eas-build-pre-install». Тестовий ключ RevenueCat чи його
-// відсутність у production зупиняють збірку; розробку й preview — ні.
+// відсутність у production зупиняють збірку; розробку й preview — ні. Прапорець
+// симулятора LL_SIMULATOR=1 зупиняє будь-яку збірку EAS.
 import { execFileSync } from 'child_process';
 import path from 'path';
 import pkg from '../package.json';
@@ -23,6 +24,16 @@ test('development, preview and local runs are never blocked', () => {
   }
 });
 
+// app.config.js прибирає «Вхід через Apple» з LL_SIMULATOR=1 — у хмарну
+// збірку цей прапорець потрапити не має в жодному профілі
+test('any EAS build with the simulator flag stops; local runs do not', () => {
+  for (const profile of ['development', 'preview', 'production']) {
+    expect(checkReleaseEnv({ EAS_BUILD_PROFILE: profile, LL_SIMULATOR: '1', EXPO_PUBLIC_REVENUECAT_IOS_KEY: 'appl_x' })).toMatchObject({ ok: false, reason: 'simulator' });
+  }
+  expect(checkReleaseEnv({ LL_SIMULATOR: '1' })).toEqual({ ok: true });
+  expect(checkReleaseEnv({ EAS_BUILD_PROFILE: 'production', LL_SIMULATOR: '0', EXPO_PUBLIC_REVENUECAT_IOS_KEY: 'appl_x' })).toEqual({ ok: true });
+});
+
 test('the message never prints the whole key', () => {
   const res = checkReleaseEnv({ EAS_BUILD_PROFILE: 'production', EXPO_PUBLIC_REVENUECAT_IOS_KEY: 'test_SECRETPART' });
   expect(res.message).not.toContain('SECRETPART');
@@ -41,6 +52,7 @@ test('EAS runs it before installing dependencies, and it fails the build', () =>
   expect(run({ EAS_BUILD_PROFILE: 'production', EXPO_PUBLIC_REVENUECAT_IOS_KEY: 'test_x' })).toBe(1);
   expect(run({ EAS_BUILD_PROFILE: 'production', EXPO_PUBLIC_REVENUECAT_IOS_KEY: 'appl_x' })).toBe(0);
   expect(run({ EAS_BUILD_PROFILE: 'preview', EXPO_PUBLIC_REVENUECAT_IOS_KEY: 'test_x' })).toBe(0);
+  expect(run({ EAS_BUILD_PROFILE: 'preview', LL_SIMULATOR: '1' })).toBe(1);
 });
 
 // purchases-ui вимагає рівно ту саму версію react-native-purchases: розбіжність

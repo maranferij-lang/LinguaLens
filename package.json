@@ -47,6 +47,7 @@
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
+    "sim": "LL_SIMULATOR=1 expo prebuild --platform ios --clean && expo run:ios",
     "web": "expo start --web",
     "build:ios": "eas build --platform ios --profile production",
     "build:preview": "eas build --platform ios --profile preview",
