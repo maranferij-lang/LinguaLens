@@ -29,6 +29,7 @@ import { MascotBob } from './Mascot';
 import { StickerLarge } from './Sticker';
 import ShareSheet from './share/ShareSheet';
 import ConsentSheet from './ConsentSheet';
+import { AI_CONSENT_SHEET } from './flags';
 import SceneView from './scene/SceneView';
 import { fitContain } from './scene/sceneLayout';
 import { newSceneId } from './scene/scenes';
@@ -342,8 +343,9 @@ export default function ScannerScreen({
   async function scan() {
     if (!cameraRef.current || busy.current) return;
     // Перший знімок: спершу кажемо, куди піде фото, і питаємо дозволу
-    // (див. ConsentSheet). Без згоди кадр навіть не знімаємо.
-    if (!aiConsent) {
+    // (див. ConsentSheet). Без згоди кадр навіть не знімаємо. Аркуш вимкнено
+    // прапорцем AI_CONSENT_SHEET (src/flags.js) — тоді знімаємо одразу.
+    if (AI_CONSENT_SHEET && !aiConsent) {
       setAskConsent(true);
       return;
     }
@@ -886,7 +888,9 @@ export default function ScannerScreen({
 
       {/* Після «Дозволити» людина сама тисне затвор ще раз: поки вона
           читала, камера могла дивитись уже не туди. */}
-      <ConsentSheet visible={askConsent} onAllow={allowUpload} onClose={() => setAskConsent(false)} t={t} />
+      {AI_CONSENT_SHEET ? (
+        <ConsentSheet visible={askConsent} onAllow={allowUpload} onClose={() => setAskConsent(false)} t={t} />
+      ) : null}
     </View>
   );
 }

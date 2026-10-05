@@ -95,6 +95,7 @@ import StreakShowcase from './StreakShowcase';
 import ScanDemo from './ScanDemo';
 import Celebrate, { CELEBRATE_NEXT_MS } from './Celebrate';
 import ConsentSheet from './ConsentSheet';
+import { AI_CONSENT_SHEET } from './flags';
 import { WidgetPreview } from './widgets/WidgetPreview';
 import { WidgetHowTo } from './widgets/HowTo';
 import { demoPair } from './demoWords';
@@ -719,7 +720,8 @@ export default function OnboardingScreen({
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     demoEvent('try');
     // Згода на AI — до камери, а не посеред моменту «натиснув і чекаю»
-    if (!aiConsent) {
+    // (якщо аркуш не вимкнено прапорцем AI_CONSENT_SHEET у src/flags.js)
+    if (AI_CONSENT_SHEET && !aiConsent) {
       setConsentOpen(true);
       return;
     }
@@ -1214,7 +1216,7 @@ export default function OnboardingScreen({
           t={t}
         />
       ) : null}
-      {phase === 'demo' ? <ConsentSheet visible={consentOpen} onAllow={allowAi} onClose={consentLater} t={t} /> : null}
+      {phase === 'demo' && AI_CONSENT_SHEET ? <ConsentSheet visible={consentOpen} onAllow={allowAi} onClose={consentLater} t={t} /> : null}
     </KeyboardAvoidingView>
   );
 }
