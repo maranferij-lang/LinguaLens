@@ -26,7 +26,7 @@ export { buildMyWordsTimeline, wordsPool, thumbIds } from './wordsTimeline';
 export { buildStreakTimeline } from './streakTimeline';
 export { carryReveals, harvestReveals } from './reveals';
 export { isWidgetLink, parseWidgetLink, widgetLink } from './links';
-export { widgetPalette } from './palette';
+export { streakPalette, widgetPalette } from './palette';
 export { getWidget, widgetsAvailable } from './registry';
 
 // Записує таймлайн, перенісши «Переклад», який людина вже відкрила у

@@ -21,7 +21,7 @@ import { WIDGET_REVEAL } from '../flags';
 import { track } from '../analytics';
 import { collectReveals, updateMyWordsWidget, updateStreakWidget, updateWordWidget } from './index';
 import { widgetsAvailable } from './registry';
-import { paletteSig, widgetPalette } from './palette';
+import { paletteSig, streakPalette, widgetPalette } from './palette';
 import { thumbIds, wordsPool } from './wordsTimeline';
 import { ensureThumbs, existingThumbs } from './thumbs';
 import { useWidgetClock } from './clock';
@@ -46,6 +46,8 @@ export function useWidgets({ ready, t, ui, settings, wod, words, activity, pro, 
   const clock = useWidgetClock();
   const [tick, setTick] = useState(0);
   const pal = useMemo(() => widgetPalette(themeKey), [themeKey]);
+  // «Серії» — ще й вогник у кольорах палітри (flame*)
+  const streakPal = useMemo(() => streakPalette(themeKey), [themeKey]);
   const palSig = paletteSig(pal);
   const hours = slotHours(settings, pro);
   const hoursSig = hours.join(',');
@@ -121,7 +123,7 @@ export function useWidgets({ ready, t, ui, settings, wod, words, activity, pro, 
   const daysSig = useMemo(() => [...activeDays].sort().join(','), [activeDays]);
   useEffect(() => {
     if (!available || !ready) return;
-    updateStreakWidget(activeDays, { t, firstWeekday, pal, clock });
+    updateStreakWidget(activeDays, { t, firstWeekday, pal: streakPal, clock });
   }, [available, ready, daysSig, t, firstWeekday, palSig, clock, tick]);
 
   return available;

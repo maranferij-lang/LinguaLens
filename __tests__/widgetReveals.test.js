@@ -104,6 +104,22 @@ describe('App feeds the widgets (useWidgets)', () => {
     expect(widgets.__timeline('Streak')[0].props.state).toBe('none');
   });
 
+  test('the streak widget gets the flame in the palette’s colours; word widgets keep the lean palette', async () => {
+    const { THEMES } = require('../src/theme');
+    const { FLAME_KEYS, PAL_KEYS } = require('../src/widgets/palette');
+    await renderApp();
+    await sleep(2100);
+    const pal = widgets.__timeline('Streak')[0].props.pal;
+    expect(pal.l).toMatchObject({ flame: THEMES.light.C.flame, flameTip: THEMES.light.C.flameTip, flameSoft: THEMES.light.C.flameSoft });
+    expect(pal.d).toMatchObject({ flame: THEMES.dark.C.flame, flameTip: THEMES.dark.C.flameTip, onFlame: THEMES.dark.C.onFlame });
+    // «Слово дня» й «Мої слова» — без ключів вогника: їхній таймлайн обмежений за розміром
+    for (const kind of ['WordOfDay', 'MyWords']) {
+      const p = widgets.__timeline(kind)[0].props.pal;
+      expect(Object.keys(p.l).sort()).toEqual([...PAL_KEYS].sort());
+      for (const k of FLAME_KEYS) expect(p.l[k]).toBeUndefined();
+    }
+  });
+
   test('a saved word reaches “My words” and the streak; the hide switch reaches the widgets', async () => {
     const now = Date.now();
     await AsyncStorage.setItem(

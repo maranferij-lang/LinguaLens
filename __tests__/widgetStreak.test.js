@@ -10,7 +10,8 @@ import { makeT } from '../src/i18n';
 import { localDayKey } from '../src/storage';
 import { streakInfo } from '../src/streak';
 import { buildStreakTimeline } from '../src/widgets/streakTimeline';
-import { widgetPalette } from '../src/widgets/palette';
+import { streakPalette, widgetPalette } from '../src/widgets/palette';
+import { THEMES } from '../src/theme';
 import { FAST_CLOCK } from '../src/widgets/clock';
 
 const { compile, env, nodes, mods, texts } = require('../test-utils/widgetRuntime');
@@ -221,6 +222,68 @@ describe('Streak layout', () => {
     expect(inline.type).toBe('LabelView');
     expect(inline.props).toMatchObject({ title: '5 днів поспіль', systemImage: 'flame.fill' });
     expect(texts(w.render(props, env('accessoryRectangular')))).toEqual(['5 днів поспіль', uk('streakToWeek', { k: 2 })]);
+  });
+
+  // Власник (5.10.2026): вогник — у фірмових кольорах, і у віджеті теж.
+  // Кольори приходять у pal з токенів flame* теми, тож палітри Pro
+  // перефарбовують і віджет; без pal — «Крейда». Бурштину немає ніде.
+  describe('the flame wears the palette, never amber', () => {
+    const hexes = (tree) => [...new Set((JSON.stringify(tree).match(/#[0-9A-Fa-f]{6}\b/g) || []).map((c) => c.toUpperCase()))];
+    const AMBER = ['#E0A02E', '#F0B84A', '#FBF1DF', '#372C15', '#886424', '#FFC24B', '#F0602A'];
+    const KEYS = ['light', 'ocean-light', 'berry-dark', 'graphite-light', 'cocoa-dark'];
+
+    test.each(KEYS)('%s: kindling, lit (gradient from the tip), sparkles, week dots and the timer pill', (key) => {
+      const pal = streakPalette(key);
+      for (const scheme of ['light', 'dark']) {
+        const P = scheme === 'dark' ? pal.d : pal.l;
+        const e = (family, extra = {}) => env(family, { colorScheme: scheme, ...extra });
+        const kindle = w.render(at(3, { pal })[0].props, e('systemSmall'));
+        const kFlame = nodes(kindle).find((n) => n.props.systemName === 'flame.fill');
+        expect(mods(kFlame).foregroundStyle.style.color).toBe(P.flame);
+        const lit = w.render(at(7, { pal })[0].props, e('systemSmall'));
+        const lFlame = nodes(lit).find((n) => n.props.systemName === 'flame.fill');
+        expect(mods(lFlame).foregroundStyle.style.colors).toEqual([P.flameTip, P.flame]);
+        const sparkles = nodes(lit).find((n) => n.props.systemName === 'sparkles');
+        expect(mods(sparkles).foregroundStyle.style.color).toBe(P.flameTip);
+        expect(mods(lit).containerBackground.style.colors[0]).toBe(P.flameSoft);
+        const evening = at(4, { pal })[2];
+        const medium = w.render(evening.props, e('systemMedium', { timestamp: evening.date.getTime() }));
+        const all = [kindle, lit, medium].flatMap(hexes);
+        expect(all).toEqual(expect.arrayContaining([P.flame, P.flameSoft, P.flameInk, P.flameTip]));
+        expect([key, scheme, all.filter((c) => AMBER.includes(c))]).toEqual([key, scheme, []]);
+      }
+    });
+
+    test('pal carries each palette’s flame; the timer text reads ≥ 4.5:1 on its pill', () => {
+      const lum = (hex) =>
+        [0, 2, 4]
+          .map((i) => parseInt(hex.slice(1 + i, 3 + i), 16) / 255)
+          .map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4))
+          .reduce((a, c, i) => a + c * [0.2126, 0.7152, 0.0722][i], 0);
+      const contrast = (a, b) => (Math.max(lum(a), lum(b)) + 0.05) / (Math.min(lum(a), lum(b)) + 0.05);
+      for (const key of Object.keys(THEMES)) {
+        const pal = streakPalette(key);
+        const P = THEMES[key].isDark ? pal.d : pal.l;
+        expect([key, P.flame, P.flameSoft, P.flameTip, P.onFlame]).toEqual([key, THEMES[key].C.flame, THEMES[key].C.flameSoft, THEMES[key].C.flameTip, THEMES[key].C.onFlame]);
+        expect([key, contrast(P.flameInk, P.flameSoft) >= 4.5]).toEqual([key, true]);
+      }
+    });
+
+    test('without pal the fallback is Chalk’s flame, not amber', () => {
+      const chalk = streakPalette('light');
+      for (const scheme of ['light', 'dark']) {
+        const P = scheme === 'dark' ? chalk.d : chalk.l;
+        const props = { ...at(7)[0].props, pal: undefined };
+        const lit = w.render(props, env('systemSmall', { colorScheme: scheme }));
+        const flame = nodes(lit).find((n) => n.props.systemName === 'flame.fill');
+        expect(mods(flame).foregroundStyle.style.colors).toEqual([P.flameTip, P.flame]);
+        const evening = at(4)[2];
+        const medium = w.render({ ...evening.props, pal: undefined }, env('systemMedium', { colorScheme: scheme, timestamp: evening.date.getTime() }));
+        const all = [lit, medium].flatMap(hexes);
+        expect(all).toEqual(expect.arrayContaining([P.flameSoft, P.flameInk, P.onFlame]));
+        expect(all.filter((c) => AMBER.includes(c))).toEqual([]);
+      }
+    });
   });
 
   test('a tap opens Progress in the app', () => {
