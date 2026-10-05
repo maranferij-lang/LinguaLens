@@ -22,7 +22,7 @@
 //     день 7 — списання) і окрема кнопка «Продовжити безкоштовно». Так
 //     людина знає, що й коли станеться, ще до натиску (App Review 3.1.2).
 //     Без пробного періоду таймлайну немає і «безкоштовно» не обіцяємо —
-//     замість нього один рядок «сьогодні — $6.99, далі щомісяця». Таблиці
+//     замість нього один рядок «сьогодні — $9.99, далі щомісяця». Таблиці
 //     тут немає ніколи, а шапка завжди однакової висоти: тариф під пальцем
 //     не зсувається, хоч би який людина обрала.
 //     Безкоштовний скан один на все життя, і його вже витрачено (перший
@@ -261,7 +261,7 @@ export default function PaywallScreen({
   }
 
   // Тарифи з ціною з магазину — перші під заголовком на кожній стіні.
-  // Для VoiceOver — група перемикачів: «Рік, $34.99, …, вибрано».
+  // Для VoiceOver — група перемикачів: «Рік, $59.99, …, вибрано».
   const plansBlock = (
     <FadeIn delay={45} style={{ marginTop: compact ? 20 : short ? 12 : 26 }}>
       {!list.length && !unavailable && !failed ? <ActivityIndicator color={C.accent} style={{ marginVertical: 30 }} /> : null}
@@ -269,7 +269,7 @@ export default function PaywallScreen({
         {list.map((p) => {
           const active = plan?.id === p.id;
           const parts = subParts(p);
-          const save = p.save ? t('saveN', { n: p.save }) : p.saveKey ? t(p.saveKey) : '';
+          const save = p.save ? t('saveN', { n: p.save }) : '';
           const label = [t(p.labelKey), p.price, ...parts, p.best ? t('bestValue') : '', save].filter(Boolean).join(', ');
           return (
             <Press

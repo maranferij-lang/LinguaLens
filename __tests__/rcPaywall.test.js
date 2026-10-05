@@ -55,8 +55,8 @@ const offering = (metadata) => ({
     identifier: 'default',
     metadata,
     availablePackages: [
-      { packageType: 'ANNUAL', product: { identifier: 'yearly', price: 34.99, priceString: '$34.99', introPrice: null } },
-      { packageType: 'LIFETIME', product: { identifier: 'lifetime', price: 79.99, priceString: '$79.99', introPrice: null } },
+      { packageType: 'ANNUAL', product: { identifier: 'yearly', price: 59.99, priceString: '$59.99', introPrice: null } },
+      { packageType: 'LIFETIME', product: { identifier: 'lifetime', price: 129.99, priceString: '$129.99', introPrice: null } },
     ],
   },
 });
@@ -232,7 +232,7 @@ describe('onboarding paywall', () => {
       availablePackages: [
         {
           packageType: 'ANNUAL',
-          product: { identifier: 'yearly', price: 34.99, priceString: '$34.99', introPrice: { price: 0, periodUnit: 'WEEK', periodNumberOfUnits: 1, cycles: 1 } },
+          product: { identifier: 'yearly', price: 59.99, priceString: '$59.99', introPrice: { price: 0, periodUnit: 'WEEK', periodNumberOfUnits: 1, cycles: 1 } },
         },
       ],
     },

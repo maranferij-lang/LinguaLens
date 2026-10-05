@@ -162,7 +162,7 @@ describe('the themes paywall', () => {
   test('the plans with prices still come first; the table leads with color themes', async () => {
     const tree = await render({ reason: 'themes' });
     const all = strings(tree);
-    const price = all.indexOf('$34.99');
+    const price = all.indexOf('$59.99');
     expect(price).toBeGreaterThan(-1);
     expect(price).toBeLessThan(all.indexOf(t('cmp_themes')));
     const rows = all.filter((s) => [t('cmp_scans'), t('cmp_themes'), t('cmp_wodn'), t('cmp_core')].includes(s));
@@ -180,8 +180,8 @@ describe('the themes paywall', () => {
     // без рядка кнопок: «Знаю» немає, «Зберегти» поруч зі словом
     expect(preview(tree).findAll((n) => n.type === 'Text' && n.props.children === t('wodKnow'))).toHaveLength(0);
     expect(preview(tree).findAll((n) => n.type === 'Text' && n.props.children === t('saveWord')).length).toBeGreaterThan(0);
-    expect(all.indexOf('$34.99')).toBeGreaterThan(-1);
-    expect(all.indexOf('$34.99')).toBeLessThan(all.indexOf(t('cmp_themes')));
+    expect(all.indexOf('$59.99')).toBeGreaterThan(-1);
+    expect(all.indexOf('$59.99')).toBeLessThan(all.indexOf(t('cmp_themes')));
   });
 
   test('the palette names in the text are the tile names, in every language', () => {
@@ -285,7 +285,7 @@ describe('the RevenueCat paywall for themes', () => {
     current: {
       identifier: 'default',
       metadata: { paywall_ui: 'revenuecat' },
-      availablePackages: [{ packageType: 'ANNUAL', product: { identifier: 'yearly', price: 34.99, priceString: '$34.99', introPrice: null } }],
+      availablePackages: [{ packageType: 'ANNUAL', product: { identifier: 'yearly', price: 59.99, priceString: '$59.99', introPrice: null } }],
     },
   };
   let info;

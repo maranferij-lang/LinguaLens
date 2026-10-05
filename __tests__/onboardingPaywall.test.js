@@ -89,7 +89,7 @@ test('trial → reminder → plans, each screen reported, prices only on the las
   expect(has(tree, t('tlRemindText'))).toBe(true);
   expect(has(tree, t('tlDay', { n: 7 }))).toBe(true);
   expect(has(tree, '  ·  ' + formatDate(Date.now() + 7 * 86400000, 'en'))).toBe(true);
-  expect(has(tree, t('tlChargeText', { p: '$34.99' }))).toBe(true);
+  expect(has(tree, t('tlChargeText', { p: '$59.99' }))).toBe(true);
   expect(has(tree, t('opwCancel'))).toBe(true);
 
   // (в): тарифи першими — сума списання видна без прокрутки
@@ -99,14 +99,14 @@ test('trial → reminder → plans, each screen reported, prices only on the las
   expect(pw.props).toMatchObject({ reason: 'intro', compact: true, scansLeft: 0 });
   const all = strings(tree);
   expect(all).toContain(t('pwPlansTitle'));
-  const firstPrice = all.findIndex((s) => s === '$6.99');
+  const firstPrice = all.findIndex((s) => s === '$9.99');
   expect(firstPrice).toBeGreaterThan(-1);
   expect(firstPrice).toBeLessThan(all.indexOf(t('tlToday')));
   // без Lingo, таблиці й переваг — їх щойно показали
   expect(all).not.toContain(t('colFree'));
   expect(all).not.toContain(t('pro_scans'));
   // що буде після пробного періоду, як скасувати, умови, відновлення
-  expect(all.some((s) => s.startsWith('Free until') && s.includes('$34.99 a year'))).toBe(true);
+  expect(all.some((s) => s.startsWith('Free until') && s.includes('$59.99 a year'))).toBe(true);
   for (const s of [t('terms'), t('restore'), t('startTrial')]) expect(all.includes(s) || !!tree.root.findAll((n) => n.props.title === s).length).toBe(true);
   // безкоштовний скан (один на все життя) вже витрачено — ще одного не
   // обіцяємо ні сьогодні, ні завтра: лишаються словник і картки

@@ -36,10 +36,10 @@ async function render(props) {
 }
 
 test('a trial on a monthly plan renews monthly, not yearly', async () => {
-  const month = { ...PLANS.find((p) => p.id === 'month'), price: '€6,99', trialDays: 3 };
+  const month = { ...PLANS.find((p) => p.id === 'month'), price: '€9,99', trialDays: 3 };
   const tree = await render({ plans: [month] });
   const legal = texts(tree).find((s) => s.startsWith('Free until'));
-  expect(legal).toMatch(/then €6,99 a month unless/);
+  expect(legal).toMatch(/then €9,99 a month unless/);
   await act(async () => tree.unmount());
 });
 
@@ -102,7 +102,7 @@ describe('intro after the first scan', () => {
         t('tlDay', { n: 5 }),
         t('tlRemindText'),
         t('tlDay', { n: 7 }),
-        t('tlChargeText', { p: '$34.99' }),
+        t('tlChargeText', { p: '$59.99' }),
         'Continue for free — 1 scan left',
         t('terms'),
         t('restore'),
@@ -148,8 +148,8 @@ describe('intro after the first scan', () => {
     expect(all).not.toContain(t('tlToday'));
     expect(all).toContain(t('pwTitle'));
     expect(all).not.toContain(t('colFree'));
-    expect(all).toContain('Today — $6.99, then every month');
-    expect(all).toContain('$6.99 a month, renews automatically. Cancel anytime in your Apple ID settings.');
+    expect(all).toContain('Today — $9.99, then every month');
+    expect(all).toContain('$9.99 a month, renews automatically. Cancel anytime in your Apple ID settings.');
     expect(all).toContain('Continue for free — 5 scans left');
     expect(tree.root.findAll((n) => n.props.title === t('subscribe')).length).toBeGreaterThan(0);
     await press(tree, t('planLifetime'));
@@ -206,8 +206,8 @@ describe('v1.2 paywall', () => {
 
   test('lifetime: one-time payment, no renewal line, no “per month”', async () => {
     const plans = [
-      { ...PLANS.find((p) => p.id === 'year'), price: '$34.99', trialDays: 0 },
-      { ...PLANS.find((p) => p.id === 'lifetime'), price: '$79.99', perMonth: null, trialDays: 0 },
+      { ...PLANS.find((p) => p.id === 'year'), price: '$59.99', trialDays: 0 },
+      { ...PLANS.find((p) => p.id === 'lifetime'), price: '$129.99', perMonth: null, trialDays: 0 },
     ];
     const tree = await open({ reason: 'info', plans });
     await press(tree, t('planLifetime'));
@@ -215,7 +215,7 @@ describe('v1.2 paywall', () => {
     expect(all).toContain(t('lifetimeOnce'));
     expect(all).toContain(t('lifetimeLegal'));
     expect(all).not.toContain(t('renewLegal'));
-    expect(all).toContain('$79.99');
+    expect(all).toContain('$129.99');
     expect(tree.root.findAll((n) => n.props.title === t('buyLifetime')).length).toBeGreaterThan(0);
   });
 
@@ -241,7 +241,7 @@ describe('v1.2 paywall', () => {
   test('intro: the plans with store prices come before the timeline and the benefits', async () => {
     const tree = await open({ reason: 'intro', plans: PLANS });
     const all = strings(tree);
-    const price = all.indexOf('$34.99');
+    const price = all.indexOf('$59.99');
     expect(price).toBeGreaterThan(-1);
     expect(price).toBeLessThan(all.indexOf(t('tlToday')));
     expect(price).toBeLessThan(all.indexOf(t('pro_scans')));
@@ -253,8 +253,8 @@ describe('v1.2 paywall', () => {
     for (const reason of ['scans', 'scene', 'langs', 'info']) {
       const tree = await open({ reason, plans: PLANS });
       const all = strings(tree);
-      expect(all.indexOf('$34.99')).toBeGreaterThan(-1);
-      expect(all.indexOf('$34.99')).toBeLessThan(all.indexOf(t('cmp_core')));
+      expect(all.indexOf('$59.99')).toBeGreaterThan(-1);
+      expect(all.indexOf('$59.99')).toBeLessThan(all.indexOf(t('cmp_core')));
       await act(async () => tree.unmount());
       mounted = null;
     }

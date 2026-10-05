@@ -52,9 +52,9 @@ const offering = (metadata = {}) => ({
     identifier: 'default',
     metadata,
     availablePackages: [
-      { packageType: 'MONTHLY', product: { identifier: 'm', price: 6.99, priceString: '$6.99', introPrice: null } },
-      { packageType: 'ANNUAL', product: { identifier: 'y', price: 34.99, priceString: '$34.99', introPrice: null } },
-      { packageType: 'LIFETIME', product: { identifier: 'l', price: 79.99, priceString: '$79.99', introPrice: null } },
+      { packageType: 'MONTHLY', product: { identifier: 'm', price: 9.99, priceString: '$9.99', introPrice: null } },
+      { packageType: 'ANNUAL', product: { identifier: 'y', price: 59.99, priceString: '$59.99', introPrice: null } },
+      { packageType: 'LIFETIME', product: { identifier: 'l', price: 129.99, priceString: '$129.99', introPrice: null } },
     ],
   },
 });
@@ -200,7 +200,7 @@ test('a failing attribution call does not break purchases', async () => {
 test('the offering renders what it has: monthly, yearly and a one-time lifetime', async () => {
   const tree = await mount();
   const life = hook.plans.find((p) => p.id === 'lifetime');
-  expect(life).toMatchObject({ lifetime: true, price: '$79.99', trialDays: 0, save: 0, perMonth: null, labelKey: 'planLifetime' });
+  expect(life).toMatchObject({ lifetime: true, price: '$129.99', trialDays: 0, save: 0, perMonth: null, labelKey: 'planLifetime' });
   expect(planOfProduct('l')).toBe('lifetime');
   expect(planOfProduct('y')).toBe('year');
   expect(planOfProduct('zzz')).toBeNull();
@@ -451,7 +451,7 @@ describe('prices that did not load', () => {
     expect(sdk.getOfferings).toHaveBeenCalledTimes(3);
     expect(texts()).not.toContain(t('pricesFailed'));
     expect(retry()).toBeUndefined();
-    expect(texts()).toContain('$34.99');
+    expect(texts()).toContain('$59.99');
     expect(cta().props.disabled).toBe(false);
   });
 });
