@@ -1269,8 +1269,8 @@ export default function App() {
     if (result && typeof result.wodEnabled === 'boolean' && (!replay || result.wodEnabled)) {
       next = { ...next, wodEnabled: result.wodEnabled };
     }
-    // Година сповіщень з кроку «Коли тобі зручно вчитись?» — і після «ні»:
-    // увімкне сповіщення пізніше — прийдуть о цій годині
+    // Година сповіщень з кроку «Обери, коли надсилати тобі слово дня» — і
+    // після «ні»: увімкне сповіщення пізніше — прийдуть о цій годині
     if (Number.isInteger(result?.wodHour) && result.wodHour !== cur.wodHour) {
       next = { ...next, wodHour: result.wodHour };
     }
@@ -1869,7 +1869,7 @@ export default function App() {
             struggles={onbReplay.current ? settings.struggles : []}
             targetLang={settings.targetLang}
             nativeLang={settings.nativeLang}
-            // «Перекладати на» стартує з мови телефона
+            // «Моя рідна мова» (мова перекладу) стартує з мови телефона
             phoneNative={defaultLanguages().nativeLang}
             onLanguages={onbLanguages}
             prepareWod={prepareWod}

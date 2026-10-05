@@ -310,7 +310,7 @@ function BreathingBtn({ on, children }) {
 //   profile, heardFrom, name, struggles — поточні відповіді (лише в повторі;
 //     перший запуск їх не підставляє);
 //   targetLang, nativeLang — мови з налаштувань; phoneNative — мова телефона
-//     (defaultLanguages): з неї стартує «Перекладати на»;
+//     (defaultLanguages): з неї стартує «Моя рідна мова» (мова перекладу);
 //   onLanguages({ targetLang, nativeLang }) — мови обрано: App одразу
 //     зберігає їх, тож план, слово дня й перший скан ідуть цією парою;
 //   prepareWod(profile) → Promise<слово на сьогодні | null> — App зберігає
