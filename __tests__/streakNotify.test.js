@@ -77,10 +77,27 @@ describe('scheduling', () => {
     });
   });
 
+  // Дія дня вже є — під загрозою серія буде завтра ввечері, і саме тоді
+  // людина може застосунок і не відкрити: нагадування — на завтра о 20:00
+  test('today’s action is done: the reminder moves to tomorrow at 20:00', async () => {
+    expect(streakRiskAt(at(9), true)).toEqual(new Date(2026, 9, 5, 20));
+    expect(streakRiskAt(at(23, 30), true)).toEqual(new Date(2026, 9, 5, 20));
+    // перехід на зимовий час у Києві (25.10): усе одно 20:00 місцевого
+    expect(streakRiskAt(new Date(2026, 9, 24, 22), true)).toEqual(new Date(2026, 9, 25, 20));
+    expect(await syncStreakRisk({ n: 5, doneToday: true, t, now: at(9) })).toBe(true);
+    expect(Notifications.scheduleNotificationAsync).toHaveBeenCalledWith({
+      identifier: STREAK_RISK_ID,
+      content: { title: 'Не дай вогнику згаснути', body: 'Серія — 5 днів. Одне слово сьогодні — і вона жива.', data: { type: 'streak' } },
+      trigger: { type: 'date', date: new Date(2026, 9, 5, 20) },
+    });
+  });
+
   test('nothing to remind about, too late, or no permission: the old one is cancelled, nothing new', async () => {
     for (const args of [
       { n: 1, doneToday: false, now: at(10) },
-      { n: 4, doneToday: true, now: at(10) },
+      // серія почалась сьогодні: завтра буде один день — ще не звичка
+      { n: 1, doneToday: true, now: at(10) },
+      { n: 4, doneToday: true, enabled: false, now: at(10) },
       { n: 4, doneToday: false, enabled: false, now: at(10) },
       { n: 4, doneToday: false, now: at(20, 30) },
     ]) {
@@ -89,7 +106,7 @@ describe('scheduling', () => {
     Notifications.getPermissionsAsync.mockImplementation(async () => ({ status: 'denied', canAskAgain: false }));
     expect(await syncStreakRisk({ n: 4, doneToday: false, t, now: at(10) })).toBe(false);
     expect(Notifications.scheduleNotificationAsync).not.toHaveBeenCalled();
-    expect(Notifications.cancelScheduledNotificationAsync).toHaveBeenCalledTimes(5);
+    expect(Notifications.cancelScheduledNotificationAsync).toHaveBeenCalledTimes(6);
   });
 
   test('cancelling touches only “streak-risk”: words of the day and the trial reminder stay', async () => {
@@ -207,7 +224,9 @@ describe('App', () => {
     await act(async () => tree.unmount());
   });
 
-  test('today’s action cancels it; the background then plans nothing', async () => {
+  // Практикував у понеділок уранці, у вівторок застосунок не відкривав —
+  // о 20:00 вівторка нагадування мусить прийти (WDG-2)
+  test('today’s action cancels today’s; the background then plans tomorrow’s', async () => {
     const tree = await app({ activity: { [ago(1)]: 2, [ago(2)]: 1 } });
     Notifications.cancelScheduledNotificationAsync.mockClear();
     await act(async () => tree.root.findAll((n) => n.props.tb?.key === 'cards')[0].props.onPress());
@@ -217,7 +236,11 @@ describe('App', () => {
     expect(Notifications.cancelScheduledNotificationAsync).toHaveBeenCalledWith(STREAK_RISK_ID);
     await toBackground();
     await settle();
-    expect(riskCalls()).toHaveLength(0);
+    expect(riskCalls()).toHaveLength(1);
+    expect(riskCalls()[0][0]).toMatchObject({
+      content: { body: 'Your streak is 3 days. One word today keeps it alive.' },
+      trigger: { date: new Date(2026, 9, 5, 20) },
+    });
     await act(async () => tree.unmount());
   });
 

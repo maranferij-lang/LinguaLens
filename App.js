@@ -1468,8 +1468,9 @@ export default function App() {
   const streakRef = useRef(streakLive);
   streakRef.current = streakLive;
 
-  // Фон: нагадування о 20:00, якщо серія під загрозою (src/streakNotify.js);
-  // повернення — свіжий годинник. Ліхтарик сканера гасне сам (ScannerScreen).
+  // Фон: нагадування о 20:00, якщо серія під загрозою — сьогодні, а з дією
+  // дня — завтра (src/streakNotify.js); повернення — свіжий годинник.
+  // Ліхтарик сканера гасне сам (ScannerScreen).
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
       setAppActive(state === 'active');
@@ -1482,7 +1483,8 @@ export default function App() {
     });
     return () => sub?.remove?.();
   }, []);
-  // Дія дня є — вечірнє нагадування вже ні до чого (решту сповіщень не чіпаємо)
+  // Дія дня є — сьогоднішнє вечірнє нагадування вже ні до чого (решту
+  // сповіщень не чіпаємо); завтрашнє поставить фон (syncStreakRisk)
   useEffect(() => {
     if (ready && streakLive.doneToday) cancelStreakRisk();
   }, [ready, streakLive.doneToday, streakLive.todayKey]);
