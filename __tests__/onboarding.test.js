@@ -724,25 +724,7 @@ describe('demo and the first scan', () => {
     expect(title(r.tree)).toBe(t('obDemoTitle'));
     return r;
   }
-  const consent = (tree) => tree.root.findAll((n) => n.props.onAllow && n.props.visible !== undefined)[0];
-
-  test('“Try it” without consent opens the AI consent over the demo; “Not now” stays', async () => {
-    const onAiConsent = jest.fn();
-    const { tree } = await toDemo({ aiConsent: false, onAiConsent });
-    expect(consent(tree).props.visible).toBe(false);
-    await tap(tree, t('obDemoTry'));
-    expect(consent(tree).props.visible).toBe(true);
-    await act(async () => consent(tree).props.onClose());
-    expect(consent(tree).props.visible).toBe(false);
-    expect(title(tree)).toBe(t('obDemoTitle'));
-    expect(renderScanner).not.toHaveBeenCalled();
-    expect(events('onb_demo').map((e) => e.action)).toEqual(['view', 'try', 'consent_later']);
-    // «Дозволити» → згода й справжній сканер
-    await tap(tree, t('obDemoTry'));
-    await act(async () => consent(tree).props.onAllow());
-    expect(onAiConsent).toHaveBeenCalledTimes(1);
-    expect(has(tree, 'camera')).toBe(true);
-  });
+  // Згода на AI перед камерою (за прапорцем) — у aiConsentFlag.test.js
 
   test('saved → the celebration with that word, “Next” after 0.9 s, no Back; then the promise with day one lit', async () => {
     const { tree, onDone } = await toDemo({ aiConsent: true });

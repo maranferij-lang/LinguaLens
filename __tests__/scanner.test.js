@@ -1,6 +1,7 @@
 // Сканер із підставленими камерою, ImageManipulator і розпізнаванням.
 // Перевіряємо речі, яких не видно з App окремо:
-//   • згода на відправку кадру (App Review 5.1.2(i)): без неї кадр не йде нікуди;
+//   • згода на відправку кадру (App Review 5.1.2(i)): з аркушем (AI_CONSENT_SHEET)
+//     без неї кадр не йде нікуди, без аркуша — затвор знімає одразу;
 //   • 402 після свіжої покупки Pro: той самий кадр іде ще раз, без пейволу;
 //   • режим «Сцена»: перемикач, кадр 9:16, екран сцени, наліпки з повного кадру.
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -72,6 +73,14 @@ jest.mock('../src/api', () => ({
   recognizeScene: jest.fn(),
 }));
 
+// Аркуш згоди на AI вимкнено в src/flags.js; тести аркуша вмикають його самі
+// (getter читається під час скану, а beforeEach знову вимикає)
+jest.mock('../src/flags', () => {
+  const flags = { ...jest.requireActual('../src/flags') };
+  Object.defineProperty(flags, 'AI_CONSENT_SHEET', { get: () => global.__aiConsentSheet === true });
+  return flags;
+});
+
 const RESULT = { word: 'la taza', ipa: '', translation: 'mug', example: '', exampleTranslation: '', box: null, outline: null, usage: null };
 const SCENE = {
   objects: [
@@ -85,6 +94,7 @@ const t = makeT('en');
 
 beforeEach(async () => {
   await AsyncStorage.clear();
+  global.__aiConsentSheet = false;
   mockCamPerm = { granted: true, canAskAgain: true };
   mockAskCam.mockClear();
   Linking.openSettings.mockClear?.();
@@ -135,6 +145,7 @@ const scanner = (props = {}) => (
 );
 
 test('the first shutter tap asks before any photo leaves the phone', async () => {
+  global.__aiConsentSheet = true;
   await AsyncStorage.setItem('ll_onboarded_v1', '1');
   await AsyncStorage.setItem('ll_settings_v1', JSON.stringify({ nativeLang: 'en', targetLang: 'es' }));
   const tree = await render(<App />);
@@ -158,6 +169,24 @@ test('the first shutter tap asks before any photo leaves the phone', async () =>
   expect(recognizeImage).toHaveBeenCalledTimes(1);
   // профілю немає — рівень не передаємо, сервер робить як завжди
   expect(recognizeImage).toHaveBeenCalledWith('b64', 'es', 'en', undefined);
+  await act(async () => tree.unmount());
+});
+
+// Рішення власника 5.10.2026: аркуша немає, куди йде фото — у політиці
+test('with the consent sheet off, the first shutter tap scans at once', async () => {
+  await AsyncStorage.setItem('ll_onboarded_v1', '1');
+  await AsyncStorage.setItem('ll_settings_v1', JSON.stringify({ nativeLang: 'en', targetLang: 'es' }));
+  const tree = await render(<App />);
+  expect(tree.root.findAllByType(ConsentSheet)).toHaveLength(0);
+
+  await press(tree, () => shutter(tree).props.onPress());
+  expect(tree.root.findAllByType(ConsentSheet)).toHaveLength(0);
+  expect(recognizeImage).toHaveBeenCalledTimes(1);
+  expect(recognizeImage).toHaveBeenCalledWith('b64', 'es', 'en', undefined);
+  expect(texts(tree)).toContain('la taza');
+  // згоду ніхто не давав — і не записуємо її мовчки: увімкнений знову аркуш
+  // спитає людину сам
+  expect(JSON.parse(await AsyncStorage.getItem('ll_settings_v1')).aiConsent).toBeFalsy();
   await act(async () => tree.unmount());
 });
 
@@ -356,11 +385,23 @@ describe('scene mode', () => {
   });
 
   test('without consent nothing is shot in scene mode either', async () => {
+    global.__aiConsentSheet = true;
     const tree = await render(scanner({ scanMode: 'scene', aiConsent: false }));
     await press(tree, () => shutter(tree).props.onPress());
     expect(consent(tree).props.visible).toBe(true);
     expect(shots).toHaveLength(0);
     expect(recognizeScene).not.toHaveBeenCalled();
+    await act(async () => tree.unmount());
+  });
+
+  test('with the consent sheet off, a scene goes out without consent', async () => {
+    const onAiConsent = jest.fn();
+    const tree = await render(scanner({ scanMode: 'scene', aiConsent: false, onAiConsent }));
+    await press(tree, () => shutter(tree).props.onPress());
+    expect(tree.root.findAllByType(ConsentSheet)).toHaveLength(0);
+    expect(shots).toHaveLength(1);
+    expect(recognizeScene).toHaveBeenCalledTimes(1);
+    expect(onAiConsent).not.toHaveBeenCalled();
     await act(async () => tree.unmount());
   });
 

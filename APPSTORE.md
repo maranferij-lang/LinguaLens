@@ -783,7 +783,7 @@ ONBOARDING (first launch, about 2 minutes; every optional question has Skip, and
 1. "Which language are you learning?" — the translation language is preselected from the device language and can be changed; the learning language is picked from 29 languages (search included).
 2. Optional questions: what to call you (the name stays on the device and is never sent anywhere), goals, field (only for work or study), level on a 1–10 slider, what gets in the way, and where you heard about us. The app then shows a personal plan with today's word of the day.
 3. "How it works": an interactive streak preview (no data is created), a notification pre-permission screen with a single "Next" button that opens the iOS prompt (shown only if iOS has not asked yet; if declined, one screen explains how to turn notifications on later), and — on devices that support widgets — a preview of the Home Screen widgets with how to add them.
-4. "Try it": a short animated demo of a scan (no camera, drawn in the app; Reduce Motion shows three still frames). "Try it" opens the real camera: before the first scan the app explains that the photo is sent to our server and to a third-party AI service (Google Gemini or Anthropic) only to recognise the object, and asks for permission (Allow / Not now); nothing is uploaded before Allow, and only then iOS asks for camera access. "Later" skips the scan. If the camera is not allowed, onboarding simply continues.
+4. "Try it": a short animated demo of a scan (no camera, drawn in the app; Reduce Motion shows three still frames). "Try it" opens the real camera; iOS asks for camera access first. The photo is sent to our server and to a third-party AI service (Google Gemini or Anthropic) only to recognise the object and is not stored, as the Privacy Policy describes (linked in Settings and on the subscription screen). "Later" skips the scan. If the camera is not allowed, onboarding simply continues.
 5. After a scan: a short celebration with the person's own sticker, then a commitment screen: press and hold the ring for 1.5 s (with VoiceOver or Reduce Motion, a single tap works).
 6. Subscription offer (only for people without Pro): three short screens — the free trial (with the sticker the person just made), a timeline with a reminder 2 days before the trial ends, then the plan picker with prices from the App Store, the billed amount, trial terms, Terms of Use, Privacy Policy and Restore Purchases. Every screen has a close (X) button, and "Continue for free" goes to the app without purchase.
 Settings → "Go through the intro again" replays onboarding without the subscription offer.
@@ -830,6 +830,30 @@ Offline: scanning shows an explanatory message; the dictionary, flashcards and q
 Contact: <your email>
 ```
 
+**Ризик 5.1.2(i): аркуша згоди на AI немає (рішення власника 5.10.2026).**
+Правило 5.1.2(i) вимагає прямо сказати, що дані йдуть стороннім AI-сервісам,
+і **спитати дозволу до** передачі. Аркуш «Перед першим сканом»
+(`src/ConsentSheet.js`) це робив, але псував перший скан, тож його вимкнено
+прапорцем `AI_CONSENT_SHEET = false` у `src/flags.js`. Куди йде фото, чесно
+сказано в політиці приватності (`/privacy`, розділи «Коротко» і «Кадр із
+камери») і в нотатках вище (крок 4). Ризик відмови — реальний: рецензент
+може відповісти чимось на кшталт «Guideline 5.1.2 — Legal — Privacy — Data
+Use and Sharing» і попросити згоду в застосунку.
+
+Якщо так сталося — нічого переписувати не треба:
+1. `src/flags.js`: `export const AI_CONSENT_SHEET = true;` — аркуш
+   повертається в сканер і на демо онбордингу (до камери), як у v1.3; рядки
+   `aiConsent*` уже перекладені.
+2. `npx jest` (тести обох станів уже є), нова збірка `npm run build:ios`.
+3. У нотатках вище, крок 4, речення про фото заміни на: `before the first
+   scan the app explains that the photo is sent to our server and to a
+   third-party AI service (Google Gemini or Anthropic) only to recognise the
+   object, and asks for permission (Allow / Not now); nothing is uploaded
+   before Allow, and only then iOS asks for camera access.`
+4. У Resolution Center відповідай коротко: «The app now asks for explicit
+   permission before the first photo is sent to the AI service (Allow / Not
+   now), in the scanner and in onboarding. Build N.» і відправ нову збірку.
+
 ---
 
 ## Перевірка перед «Submit for Review»
@@ -861,6 +885,7 @@ Contact: <your email>
 **TestFlight (на справжньому iPhone)**
 - [ ] Увесь чеклист із `TESTING.md`
 - [ ] Онбординг від початку до кінця і з пропуском кожного питання; ім'я не потрапляє ні на сервер, ні в PostHog (Activity → Events)
+- [ ] Перший скан — і з демо онбордингу, і у вкладці — одразу камера й результат, без аркуша «Перед першим сканом» (`AI_CONSENT_SHEET = false`, див. «Ризик 5.1.2(i)»)
 - [ ] Пейвол онбордингу: три кроки, хрестик на кожному, «Продовжити безкоштовно» без обіцянки щоденних сканів
 - [ ] Скан після єдиного безкоштовного відкриває пейвол **до** зйомки — і того ж дня, і наступного; сцена після безкоштовного скану чи безкоштовної сцени — теж пейвол
 - [ ] Sandbox-покупка: Pro вмикається, **скан після безкоштовного проходить** (отже сервер теж бачить Pro)
@@ -1047,7 +1072,8 @@ Settings → "Go through the intro again" replays onboarding without the subscri
   (не «Дозволити»): так вимагає 5.1.1(iv) / HIG для пре-пермішн екранів.
   Відмова нічого не ламає: є екран «Гаразд, без нагадувань».
 - Згода на AI (5.1.2(i)) — до камери й до будь-якого завантаження, як і
-  в v1.2; кнопка «Не зараз» лишає людину на демо.
+  в v1.2; кнопка «Не зараз» лишає людину на демо. З 5.10.2026 аркуш
+  вимкнено (`AI_CONSENT_SHEET`) — див. «Ризик 5.1.2(i)» після нотаток.
 - Секція «Розробка» («Почати з нуля», «Онбординг як новий», «Онбординг
   на кожному старті») існує лише в `__DEV__`: у збірці для App Store її
   немає, і код стирання там нічого не робить. У нотатках її не згадуємо.
