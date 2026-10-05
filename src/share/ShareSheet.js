@@ -386,7 +386,7 @@ function Sheet({ payload, onClose, t }) {
   const previewW = CARD_W * scale;
   const cardPreviewH = CARD_H * scale;
   const fit = (k) => stickerFit(boxW, previewH, stickerH[k] || minHeight(k));
-  const okInk = isDark ? C.green : '#0B6A62';
+  const okInk = C.greenInk;
 
   const PRIMARY = {
     stories_photo: { label: 'shareStoriesThisPhoto', Icon: IcStories },
@@ -708,7 +708,7 @@ function Status({ status, okInk, t, C, top = false, onDismiss }) {
         {status.ok ? <IcCheck size={18} color={okInk} /> : <IcWarn size={18} color={C.red} />}
       </View>
       <View style={{ flex: 1 }}>
-        <Text maxFontSizeMultiplier={1.2} style={[s.statusText, { color: status.ok ? okInk : C.red }]}>
+        <Text maxFontSizeMultiplier={1.2} style={[s.statusText, { color: status.ok ? okInk : C.text }]}>
           {status.text}
         </Text>
         {status.settings ? (

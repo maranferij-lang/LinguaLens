@@ -742,9 +742,10 @@ const makeStyles = (C) =>
     dashes: { flexDirection: 'row', gap: 6, marginTop: 8 },
     dash: { width: 22, height: 4, borderRadius: 2 },
     unlockedWrap: { position: 'absolute', top: -12, right: 14 },
-    // зелений — колір успіху; текст на ньому — як на акценті (білий / темний)
-    unlocked: { backgroundColor: C.green, borderRadius: R.pill, paddingHorizontal: 10, paddingVertical: 3 },
-    unlockedText: { color: C.onAccent, ...type(12, F.extra, { noLead: true }) },
+    // зелений — колір успіху; дрібний текст — темним зеленим на м'якому
+    // (білий на чистому green — лише 4,1:1)
+    unlocked: { backgroundColor: C.greenSoft, borderRadius: R.pill, paddingHorizontal: 10, paddingVertical: 3 },
+    unlockedText: { color: C.greenInk, ...type(12, F.extra, { noLead: true }) },
 
     how: { backgroundColor: C.card, borderRadius: R.xl, padding: 16, gap: 14, borderWidth: 2, borderColor: 'transparent', marginBottom: 12 },
     howGlow: { borderColor: C.accent },

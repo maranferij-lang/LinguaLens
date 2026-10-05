@@ -81,6 +81,10 @@ describe('palettes', () => {
     ['accent', 'card'],
     ['accent', 'accentSoft'],
     ['onAccent', 'accent'],
+    // рядки стану й заголовки аркушів v1.3
+    ['greenInk', 'greenSoft'],
+    ['text', 'redSoft'],
+    ['dim', 'sheet'],
   ];
   test.each(KEYS)('%s: text, dim and accent read at ≥ 4.5:1', (key) => {
     const { C } = THEMES[key];

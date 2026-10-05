@@ -261,7 +261,7 @@ const makeStyles = (C) =>
       outlineWidth: 0,
     },
     clear: { width: 24, height: 24, borderRadius: 12, backgroundColor: C.card3, alignItems: 'center', justifyContent: 'center' },
-    caps: { color: C.faint, ...CAPS, marginTop: 16, marginBottom: 8, marginLeft: 4 },
+    caps: { color: C.dim, ...CAPS, marginTop: 16, marginBottom: 8, marginLeft: 4 },
     none: { color: C.dim, ...type(15, F.semi), textAlign: 'center', marginTop: 14, marginBottom: 4 },
 
     group: { backgroundColor: C.card, borderRadius: R.lg, overflow: 'hidden' },

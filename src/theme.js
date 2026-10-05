@@ -79,6 +79,8 @@ const SHARED = {
   light: {
     green: '#0E8C82',
     greenSoft: '#E0F5F2',
+    // текст на greenSoft: чистий green на ньому лише 3,8:1
+    greenInk: '#0B6A62',
     red: '#D2483F',
     redSoft: '#FBEAE8',
     warm: '#E0A02E',
@@ -87,6 +89,7 @@ const SHARED = {
   dark: {
     green: '#3ED8CB',
     greenSoft: '#123330',
+    greenInk: '#3ED8CB',
     red: '#FF7A6E',
     redSoft: '#3A211E',
     warm: '#F0B84A',
