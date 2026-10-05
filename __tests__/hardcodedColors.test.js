@@ -7,9 +7,9 @@
 // Чорний і білий з будь-якою прозорістю — не колір палітри (затемнення під
 // аркушем, повзунок перемикача, текст на фото), їх можна будь-де.
 //
-// PENDING — чужі файли, що до інтеграції гілок v1.3 ще мають прописані
-// кольори (план §6 W5: до інтеграції — skip, у C2 — увімкнути). Інтеграція
-// прибирає кольори з цих файлів і спорожняє список.
+// Інтеграція v1.3 (C2): перевірка діє для всіх файлів поза ALLOWED. Біла
+// «табличка» на фото (WordSheet, чипи сцени) бере кольори PLATE зі
+// src/WordPlate.js, хром камери живе в src/scanner/*.
 import fs from 'fs';
 import path from 'path';
 
@@ -31,18 +31,6 @@ const ALLOWED = [
   /^src\/Logo\.js$/, // іконка застосунку й знак — бренд, а не тема
   /^src\/widgets\/[^/]*Widget\.js$/, // значення за замовчуванням у віджетах
 ];
-
-// Чужі файли з кольорами до інтеграції (C2 прибирає й спорожняє список)
-const PENDING = {
-  // хром камери W1 переносить у src/scanner/*
-  'src/ScannerScreen.js': 'W1: камера переїжджає в src/scanner/*',
-  // swatchHalf — стиль старої плитки «Авто»; ThemeSection v1.3 її не бере
-  'src/SettingsScreen.js': 'мертвий стиль swatchHalf (#151412)',
-  // біла «табличка» слова на фото — як WordPlate (PLATE)
-  'src/WordSheet.js': 'табличка на фото: узяти PLATE з src/WordPlate.js',
-  // чипи слів на фото сцени — так само табличка
-  'src/scene/SceneView.js': 'чипи на фото: узяти PLATE з src/WordPlate.js',
-};
 
 function filesUnder(dir) {
   const out = [];
@@ -80,7 +68,7 @@ function chromaticColors(src) {
 }
 
 const FILES = ['App.js', ...filesUnder('src')].filter((f) => !ALLOWED.some((r) => r.test(f)));
-const CHECKED = FILES.filter((f) => !PENDING[f]);
+const CHECKED = FILES;
 
 describe('the checker itself', () => {
   test('finds a chromatic colour, skips black, white, comments and non-strings', () => {
@@ -96,10 +84,9 @@ describe('the checker itself', () => {
     expect(chromaticColors(src)).toEqual(['1: #5B4FD6', '5: #E0A02E', '7: rgba(12,10,8,0.6)']);
   });
 
-  test('every allowed and pending path is real (no stale entries)', () => {
+  test('every allowed path is real (no stale entries)', () => {
     const all = ['App.js', ...filesUnder('src')];
-    for (const f of Object.keys(PENDING)) expect([f, all.includes(f)]).toEqual([f, true]);
-    expect(all.filter((f) => ALLOWED.some((r) => r.test(f))).length).toBeGreaterThan(5);
+    for (const r of ALLOWED) expect([String(r), all.some((f) => r.test(f))]).toEqual([String(r), true]);
   });
 });
 
@@ -107,11 +94,6 @@ describe('UI colours come from the theme (plan §5.14)', () => {
   test.each(CHECKED)('%s', (file) => {
     const found = chromaticColors(fs.readFileSync(path.join(ROOT, file), 'utf8'));
     expect(found).toEqual([]);
-  });
-
-  // До інтеграції v1.3 — пропущено (план §6 W5); C2 вмикає й чистить
-  test.skip.each(Object.keys(PENDING))('%s (pending integration C2)', (file) => {
-    expect(chromaticColors(fs.readFileSync(path.join(ROOT, file), 'utf8'))).toEqual([]);
   });
 
   test('Chalk’s brand accents never show up outside theme.js and the art', () => {
@@ -122,6 +104,13 @@ describe('UI colours come from the theme (plan §5.14)', () => {
 
   test('the screens this stream owns are clean without exceptions', () => {
     for (const f of ['App.js', 'src/PaywallScreen.js', 'src/settings/ThemeSection.js', 'src/subscription.js']) {
+      expect([f, CHECKED.includes(f)]).toEqual([f, true]);
+    }
+  });
+
+  // C2: файли, що до злиття гілок ще мали прописані кольори, теж під перевіркою
+  test('after integration nothing waits for an exception', () => {
+    for (const f of ['src/ScannerScreen.js', 'src/SettingsScreen.js', 'src/WordSheet.js', 'src/scene/SceneView.js']) {
       expect([f, CHECKED.includes(f)]).toEqual([f, true]);
     }
   });

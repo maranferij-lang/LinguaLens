@@ -36,13 +36,15 @@ import { Press } from '../ui';
 import { LiftedObjects, Leaders, SceneChip, sceneShapes } from './SceneArt';
 import { anchorOf, chipSize, fitContain, layoutChips, rectOf } from './sceneLayout';
 import { hasWord, sceneImageUri } from './scenes';
+import { PLATE } from '../WordPlate';
 
 const TOP_BAR = 52;
 const BTN_H = 54;
 // Підписи на екрані — білі плашки з темним словом: читаються на будь-якому
 // фото і не сперечаються з ним кольором.
-// check — галочка «вже в словнику»: бірюза — колір успіху (див. theme.js)
-const CHIP_COLORS = { bg: '#FFFFFF', word: '#1C1B19', sub: '#6E6A62', check: '#0E8C82' };
+// Це та сама «табличка», що й у наліпок (src/WordPlate.js): живе на фото,
+// тож від палітри не залежить. check — галочка «вже в словнику».
+const CHIP_COLORS = { bg: PLATE.face, word: PLATE.ink, sub: PLATE.dim, check: PLATE.ok };
 const STAGGER = 60;
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);

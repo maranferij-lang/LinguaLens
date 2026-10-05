@@ -708,32 +708,6 @@ const makeStyles = (C) =>
     hourChipActive: { backgroundColor: C.accent },
     hourText: { color: C.dim, fontSize: 13, fontFamily: F.bold },
 
-    themeRow: { flexDirection: 'row', gap: 10 },
-    themeCell: { flex: 1, alignItems: 'center', gap: 8 },
-    // Тонка рамка завжди: світла плитка (і світла половина «Авто») інакше
-    // зливається з крейдяним тлом, і плитка виглядає обрізаною.
-    swatch: {
-      width: '100%',
-      aspectRatio: 1.35,
-      borderRadius: R.lg,
-      borderWidth: 1,
-      borderColor: C.sep,
-      alignItems: 'center',
-      justifyContent: 'center',
-      overflow: 'hidden',
-    },
-    swatchDot: { width: 26, height: 26, borderRadius: 13 },
-    // права половина «авто»-свотча темна — світло/темрява в одній плитці
-    swatchHalf: {
-      position: 'absolute',
-      right: 0,
-      top: 0,
-      bottom: 0,
-      width: '50%',
-      backgroundColor: '#151412',
-    },
-    themeName: { color: C.dim, ...type(13, F.semi, { noLead: true }), textAlign: 'center' },
-
     serverUrl: {
       color: C.dim,
       fontSize: 13,

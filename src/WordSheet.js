@@ -26,6 +26,7 @@ import * as Haptics from 'expo-haptics';
 import { speak } from './speech';
 import { IcSpeaker } from './icons';
 import { StickerLarge } from './Sticker';
+import { PLATE } from './WordPlate';
 import { photoUri } from './photos';
 import { useSafeAreaInsets } from './SafeArea';
 import { FadeIn, GradBtn, Press } from './ui';
@@ -111,11 +112,11 @@ export const LetterTile = memo(function LetterTile({ word, lang, size = 48, styl
             // та сама тепла лінія по краю, що й у Sticker.js: без неї біла
             // облямівка зникає на білій картці
             borderWidth: StyleSheet.hairlineWidth,
-            borderColor: 'rgba(59,47,34,0.14)',
+            borderColor: PLATE.line,
           },
           // як і в Sticker, тінь — лише на великих: у рядку на 48 її не видно
           size >= 72 && {
-            shadowColor: '#3B2F22',
+            shadowColor: PLATE.shadow,
             shadowOpacity: 0.2,
             shadowRadius: size * 0.03,
             shadowOffset: { width: 0, height: size * 0.025 },
