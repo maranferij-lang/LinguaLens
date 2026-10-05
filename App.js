@@ -1004,15 +1004,21 @@ export default function App() {
   // view — рахувати показ (пейвол онбордингу вже порахував свій на першому
   // екрані); step — номер екрана для paywall_close.
   const rcPaywallOpen = useRef(false);
+  // Той самий прапорець станом: черга оверлеїв (overlayFree) має
+  // перерахуватись, коли нативний пейвол відкрився чи закрився, а ref
+  // рендеру не викликає.
+  const [rcOpen, setRcOpen] = useState(false);
   async function showRcPaywall(source, { view = true, step = 0 } = {}) {
     if (pro.config.ui !== 'revenuecat' || rcPaywallOpen.current) return false;
     if (view) track('paywall_view', { source, ui: 'revenuecat', offering: pro.offeringId });
     rcPaywallOpen.current = true;
+    setRcOpen(true);
     let res;
     try {
       res = await pro.presentPaywall();
     } finally {
       rcPaywallOpen.current = false;
+      setRcOpen(false);
     }
     if (res.fallback) return false;
     if (res.purchased || res.restored) {
@@ -1517,7 +1523,7 @@ export default function App() {
   const [learnSession, setLearnSession] = useState(false);
   const [langSheet, setLangSheet] = useState(false);
   const overlayFree =
-    onboarded && !paywall && !rcPaywallOpen.current && !scanSheetOpen && !learnSession && !share && !profileEdit && !langSheet && appActive;
+    onboarded && !paywall && !rcOpen && !scanSheetOpen && !learnSession && !share && !profileEdit && !langSheet && appActive;
   useEffect(() => {
     if (celebration && toastAch?.id === 'streak_' + celebration.to) setToastAch(null);
   }, [celebration, toastAch]);
