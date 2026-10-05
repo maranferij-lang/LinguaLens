@@ -2,8 +2,10 @@
 // прописаний у коді колір «вилазить» у чужій палітрі: фіолетова кнопка
 // «Крейди» посеред Океану чи Какао. Фіксовані кольори дозволено тільки там,
 // де вони не залежать від теми за задумом: хром камери, наліпки й картки
-// (вони живуть на фото), сцена демо, арт (Lingo, вогник, іконка), віджети
-// (значення за замовчуванням) і сам theme.js, де палітри визначено.
+// (вони живуть на фото), сцена демо, арт (Lingo, іконка), віджети
+// (значення за замовчуванням) і сам theme.js, де палітри визначено. Вогник
+// серії з 5.10.2026 — уже не арт, а токени flame* теми: Flame.js під
+// загальною перевіркою.
 // Чорний і білий з будь-якою прозорістю — не колір палітри (затемнення під
 // аркушем, повзунок перемикача, текст на фото), їх можна будь-де.
 //
@@ -27,7 +29,6 @@ const ALLOWED = [
   /^src\/ScanDemo\.js$/,
   /^src\/scene\/SceneArt\.js$/, // арт
   /^src\/Mascot\.js$/,
-  /^src\/streak\/Flame\.js$/,
   /^src\/Logo\.js$/, // іконка застосунку й знак — бренд, а не тема
   /^src\/widgets\/[^/]*Widget\.js$/, // значення за замовчуванням у віджетах
 ];
@@ -110,8 +111,81 @@ describe('UI colours come from the theme (plan §5.14)', () => {
 
   // C2: файли, що до злиття гілок ще мали прописані кольори, теж під перевіркою
   test('after integration nothing waits for an exception', () => {
-    for (const f of ['src/ScannerScreen.js', 'src/SettingsScreen.js', 'src/WordSheet.js', 'src/scene/SceneView.js']) {
+    for (const f of ['src/ScannerScreen.js', 'src/SettingsScreen.js', 'src/WordSheet.js', 'src/scene/SceneView.js', 'src/streak/Flame.js']) {
       expect([f, CHECKED.includes(f)]).toEqual([f, true]);
     }
+  });
+});
+
+// Власник (5.10.2026): вогник серії — у фірмових кольорах, «не оранжево-
+// жовтий». Кольори вогника — лише токени flame* теми; бурштин warm лишився
+// для часу й «нового» і до серії не повертається. Перевірка діє й там, де
+// фіксовані кольори дозволено (віджет «Серія» — його запасні значення).
+describe('no orange or yellow flame can come back', () => {
+  const FLAME_FILES = [
+    'src/streak/Flame.js',
+    'src/streak/StreakChip.js',
+    'src/streak/StreakCard.js',
+    'src/streak/RiskBanner.js',
+    'src/streak/StreakCelebration.js',
+    'src/StreakShowcase.js',
+    'src/HoldToCommit.js',
+    'src/Celebrate.js',
+    'src/widgets/StreakWidget.js',
+    'src/widgets/WidgetPreview.js',
+  ];
+  // Колишній бурштиновий малюнок вогника, сяйво демо й градієнт віджета
+  const OLD_FLAME = /#(FFD15C|F59A2C|E9772B|FFF8DE|FFD877|FFB547|FFC24D|FFC94D|FFE7AE|FFE0A0|EFAE43|F3C16A|FFB13B|FFC24B|F0602A)\b|rgba\(\s*255\s*,\s*194\s*,\s*77/i;
+
+  function hsl(hex) {
+    let h = hex.replace('#', '');
+    if (h.length === 3 || h.length === 4) h = [...h.slice(0, 3)].map((c) => c + c).join('');
+    const [r, g, b] = [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16) / 255);
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    const l = (max + min) / 2;
+    const d = max - min;
+    if (!d) return { h: 0, s: 0, l };
+    const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    const hue = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+    return { h: (hue * 60 + 360) % 360, s, l };
+  }
+  // Помаранчевий, бурштиновий, жовтий: відтінок 15–65°, насичений, не білий
+  function orange(color) {
+    const c = color.replace(/\s/g, '');
+    let hex = c;
+    const m = /^rgba?\((\d+),(\d+),(\d+)/i.exec(c);
+    if (m) hex = '#' + [m[1], m[2], m[3]].map((v) => Number(v).toString(16).padStart(2, '0')).join('');
+    if (!/^#[0-9a-f]{3,8}$/i.test(hex)) return false;
+    const { h, s, l } = hsl(hex);
+    return h >= 15 && h <= 65 && s >= 0.45 && l >= 0.3 && l <= 0.9;
+  }
+  const literals = (src) =>
+    stripComments(src)
+      .split('\n')
+      .flatMap((line, i) => [...line.matchAll(LITERAL)].map((m) => `${i + 1}: ${m[2]}`));
+
+  test('the detector knows the old amber and lets the brand flame through', () => {
+    for (const c of ['#E0A02E', '#F0B84A', '#FFD15C', '#E9772B', 'rgba(255,194,77,0.95)', '#FC0']) expect([c, orange(c)]).toEqual([c, true]);
+    for (const c of ['#6152E0', '#9B8FFF', '#3FCFC2', '#FFFFFF', '#FFF8DE', '#2A66DD', 'rgba(20,18,16,0.62)']) expect([c, orange(c)]).toEqual([c, false]);
+  });
+
+  test.each(FLAME_FILES)('%s: no orange or yellow colour literal', (file) => {
+    const found = literals(fs.readFileSync(path.join(ROOT, file), 'utf8')).filter((x) => orange(x.replace(/^\d+: /, '')));
+    expect(found).toEqual([]);
+  });
+
+  test.each(FLAME_FILES)('%s: the streak never takes the amber tokens', (file) => {
+    const src = stripComments(fs.readFileSync(path.join(ROOT, file), 'utf8'));
+    expect(src.match(/\b[A-Z]\.warm\w*|pick\(\s*'warm\w*'/g) || []).toEqual([]);
+  });
+
+  test('the old amber flame art is gone from the whole app', () => {
+    const leaks = ['App.js', ...filesUnder('src')].filter((f) => OLD_FLAME.test(stripComments(fs.readFileSync(path.join(ROOT, f), 'utf8'))));
+    expect(leaks).toEqual([]);
+  });
+
+  test('every flame file is real (no stale entries)', () => {
+    for (const f of FLAME_FILES) expect([f, fs.existsSync(path.join(ROOT, f))]).toEqual([f, true]);
   });
 });
