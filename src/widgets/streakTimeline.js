@@ -18,7 +18,7 @@ import { flameStage, nextMilestone, streakInfo, streakMessage, weekStrip } from 
 import { weekdayLabels } from '../share/layout';
 import { REAL_CLOCK, atHour, midnight } from './clock';
 import { widgetLink } from './links';
-import { widgetPalette } from './palette';
+import { streakPalette } from './palette';
 import { SCHEMA } from './wordTimeline';
 
 export const EVENING = 18;
@@ -80,8 +80,9 @@ export function streakLines(t, seg) {
   return { line: msg, short: msg };
 }
 
-// opts: t, now, firstWeekday (1 — неділя, 2 — понеділок), pal, clock.
-export function buildStreakTimeline(activeDays, { t, now = new Date(), firstWeekday = 2, pal = widgetPalette('light'), clock = REAL_CLOCK }) {
+// opts: t, now, firstWeekday (1 — неділя, 2 — понеділок), pal (streakPalette —
+// з вогником палітри), clock.
+export function buildStreakTimeline(activeDays, { t, now = new Date(), firstWeekday = 2, pal = streakPalette('light'), clock = REAL_CLOCK }) {
   const segs = plan(activeDays, now);
   const labels = weekdayLabels(t('dowShort'));
   const title = t('widgetStreakTitle');

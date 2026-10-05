@@ -46,6 +46,12 @@
 | `teal` / `teal-soft` | `#0E8C82` / `#E0F5F2` | `#3ED8CB` / `#123330` |
 | `danger` / `danger-soft` | `#D2483F` / `#FBEAE8` | `#FF7A6E` / `#3A211E` |
 | `warm` / `warm-soft` | `#E0A02E` / `#FBF1DF` | `#F0B84A` / `#372C15` |
+| `flame` / `flame-soft` ¹ | `#6152E0` / `#EFEDFD` | `#9B8FFF` / `#26224A` |
+| `flame-tip` / `flame-core` / `on-flame` ¹ | `#3FCFC2` / `#C4F3EC` / `#FFFFFF` | `#5FE6D9` / `#CFFFF9` / `#100C2E` |
+
+¹ Вогник серії в кольорах палітри (рішення власника 5.10.2026) — лише в коді
+(`src/theme.js`, «Крейда»; палітри Pro мають свої). У макеті вогник ще
+бурштиновий, а `warm` тепер — лише таймер вікторини, «на повторення» й «нове».
 
 `Spacing`: 2xs 4 · xs 8 · sm 12 · md 16 · lg 20 · xl 24 · 2xl 32 · 3xl 40
 `Radius`: sm 10 · md 14 · lg 20 · xl 28 · pill 999

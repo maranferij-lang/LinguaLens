@@ -1,8 +1,8 @@
 // Картка серії в Профілі (core.md C.4.2, макет core-streak-screens.png):
-// вогник на бурштиновій плитці — тієї ж форми, що в чипі й святі, тож видно,
+// вогник на мʼякій плитці — тієї ж форми, що в чипі й святі, тож видно,
 // як він росте день у день і на 7-й розгоряється; «5 днів поспіль» і фраза
 // за станом (streakMessage), тиждень крапками, смужка до наступної віхи й
-// рекорд. Бурштин — колір серії за правилом theme.js (не акцент).
+// рекорд. Кольори серії — токени flame* палітри (theme.js), не акцент.
 //
 // Рядка «Захист серії» тут немає — захист приходить у v1.3.1.
 import { Text, View } from 'react-native';
@@ -25,9 +25,9 @@ function Day({ day, C }) {
   const size = 30;
   const base = { width: size, height: size, borderRadius: size / 2, alignItems: 'center', justifyContent: 'center' };
   let dot;
-  if (day.state === 'done') dot = <View style={[base, { backgroundColor: C.warmSoft }]}><IcFlame size={15} color={C.warm} /></View>;
-  else if (day.state === 'today') dot = <View style={[base, { backgroundColor: C.warm }]}><IcFlame size={16} color={C.card} /></View>;
-  else if (day.state === 'pending') dot = <View style={[base, { borderWidth: 2, borderColor: C.warm, borderStyle: 'dashed' }]} />;
+  if (day.state === 'done') dot = <View style={[base, { backgroundColor: C.flameSoft }]}><IcFlame size={15} color={C.flame} /></View>;
+  else if (day.state === 'today') dot = <View style={[base, { backgroundColor: C.flame }]}><IcFlame size={16} color={C.onFlame} /></View>;
+  else if (day.state === 'pending') dot = <View style={[base, { borderWidth: 2, borderColor: C.flame, borderStyle: 'dashed' }]} />;
   else if (day.state === 'missed') dot = <View style={[base, { backgroundColor: C.card2 }]} />;
   else dot = <View style={[base, { borderWidth: 1.5, borderColor: C.sep }]} />;
   const today = day.state === 'today' || day.state === 'pending';
@@ -53,7 +53,7 @@ export default function StreakCard({ activeDays, best = 0, now = new Date(), wee
     <Glass style={[{ marginBottom: 12, gap: 16 }, style]}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
         <View
-          style={{ width: 84, height: 84, borderRadius: R.lg, backgroundColor: C.warmSoft, alignItems: 'center', justifyContent: 'center' }}
+          style={{ width: 84, height: 84, borderRadius: R.lg, backgroundColor: C.flameSoft, alignItems: 'center', justifyContent: 'center' }}
         >
           <Flame n={n} size={52} pending={!!n && !info.doneToday} testID="streak-card-flame" />
         </View>
@@ -76,7 +76,7 @@ export default function StreakCard({ activeDays, best = 0, now = new Date(), wee
             <Text style={{ color: C.text, ...type(13, F.bold) }}>{t('streakProgressOf', { n, m: next.m })}</Text>
             <Text style={{ color: C.dim, ...type(13, F.semi) }}>{milestoneName(next.m, t)}</Text>
           </View>
-          <Bar progress={next.progress} color={C.warm} bg={C.card2} height={7} />
+          <Bar progress={next.progress} color={C.flame} bg={C.card2} height={7} />
         </View>
       ) : null}
 

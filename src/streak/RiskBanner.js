@@ -30,7 +30,7 @@ export default function RiskBanner({ n, lang, ctaLabel, onCta, t, style }) {
   return (
     <View
       testID="risk-banner"
-      style={[{ backgroundColor: C.warmSoft, borderRadius: R.xl, padding: 16, marginBottom: 14 }, style]}
+      style={[{ backgroundColor: C.flameSoft, borderRadius: R.xl, padding: 16, marginBottom: 14 }, style]}
     >
       <View style={{ flexDirection: 'row', gap: 12 }} accessible accessibilityLabel={`${t('streakRiskTitle', { n })}. ${t('streakRiskBody', { t: left })}`}>
         <View style={{ width: 44, alignItems: 'center', paddingTop: 2 }}>

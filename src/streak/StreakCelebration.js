@@ -2,7 +2,7 @@
 // поспіль — так тримати!». Шар у корені App (не Modal), як тост досягнення;
 // App показує його лише тоді, коли нічого не заважає (черга оверлеїв §5.13).
 //
-//   • тло проявляється (240 мс), за вогником — бурштинове сяйво;
+//   • тло проявляється (240 мс), за вогником — сяйво кольору вогника;
 //   • вогник переходить із учорашньої форми в сьогоднішню: старий тане й
 //     меншає, новий виростає (0,8 → 1, SPRING.calm) і коротко спалахує
 //     (scaleY 1 → 1,08 → 1); число перекручується — старе їде вгору, нове
@@ -60,7 +60,7 @@ function Rays({ a, C }) {
         y1={120 + Math.sin(ang) * r1}
         x2={120 + Math.cos(ang) * r2}
         y2={120 + Math.sin(ang) * r2}
-        stroke={C.warm}
+        stroke={C.flame}
         strokeWidth={3}
         strokeLinecap="round"
       />
@@ -91,7 +91,7 @@ function Sparks({ a, C }) {
         position: 'absolute',
         width: s * 2,
         height: s * 2,
-        backgroundColor: C.warm,
+        backgroundColor: C.flameTip,
         borderRadius: 2,
         opacity: a.interpolate({ inputRange: [0, 0.2, 1], outputRange: [0, 1, 0] }),
         transform: [
@@ -119,10 +119,10 @@ function WeekDots({ activeDays, pop, C, t }) {
               borderRadius: 14,
               alignItems: 'center',
               justifyContent: 'center',
-              backgroundColor: today ? C.warm : done ? C.warmSoft : C.card2,
+              backgroundColor: today ? C.flame : done ? C.flameSoft : C.card2,
             }}
           >
-            {done ? <IcFlame size={14} color={today ? C.card : C.warm} /> : null}
+            {done ? <IcFlame size={14} color={today ? C.onFlame : C.flame} /> : null}
           </View>
         );
         return (
@@ -262,8 +262,8 @@ export default function StreakCelebration({ data, activeDays, onDone, onShare, t
         <Svg width="100%" height="100%" style={StyleSheet.absoluteFill} pointerEvents="none">
           <Defs>
             <RadialGradient id="celebrateGlow" cx="0.5" cy="0.36" r="0.55">
-              <Stop offset="0" stopColor={C.warm} stopOpacity={lit ? 0.42 : 0.26} />
-              <Stop offset="1" stopColor={C.warm} stopOpacity={0} />
+              <Stop offset="0" stopColor={C.flame} stopOpacity={lit ? 0.42 : 0.26} />
+              <Stop offset="1" stopColor={C.flame} stopOpacity={0} />
             </RadialGradient>
           </Defs>
           <Rect width="100%" height="100%" fill="url(#celebrateGlow)" />
@@ -285,7 +285,7 @@ export default function StreakCelebration({ data, activeDays, onDone, onShare, t
                     height: 170,
                     borderRadius: 85,
                     borderWidth: 3,
-                    borderColor: C.warm,
+                    borderColor: C.flameTip,
                     opacity: burst.interpolate({ inputRange: [0, 0.15, 0.55], outputRange: [0, 0.9, 0], extrapolate: 'clamp' }),
                     transform: [{ scale: burst.interpolate({ inputRange: [0, 0.55], outputRange: [0.6, 1.4], extrapolate: 'clamp' }) }],
                   }}

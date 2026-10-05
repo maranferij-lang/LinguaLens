@@ -377,7 +377,7 @@ export function LingoBubble({ text, pose = 'wave', style }) {
 
 // ─── Обіцянка: текст і перша ціль ──────────────────────────────────────────
 // «Я, Марік, вчитиму англійську щодня — по слову за раз» і під ним «Перша
-// ціль — 7 днів поспіль» із сімома крапками; перша світиться бурштином, якщо
+// ціль — 7 днів поспіль» із сімома крапками; перша світиться вогником, якщо
 // слово вже збережено (lit) — день перший зараховано.
 export function PledgeCard({ text, lit, t }) {
   const { C, SHADOW_SM } = useTheme();
@@ -389,7 +389,7 @@ export function PledgeCard({ text, lit, t }) {
         <Text style={s.goalText}>{t('obCommitGoal')}</Text>
         <View style={s.goalDots}>
           {Array.from({ length: 7 }, (_, i) => (
-            <View key={i} testID={i === 0 && lit ? 'goal-lit' : undefined} style={[s.goalDot, i === 0 && lit && { backgroundColor: C.warm }]} />
+            <View key={i} testID={i === 0 && lit ? 'goal-lit' : undefined} style={[s.goalDot, i === 0 && lit && { backgroundColor: C.flame }]} />
           ))}
         </View>
       </View>

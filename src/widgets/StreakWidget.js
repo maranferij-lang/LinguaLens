@@ -3,9 +3,12 @@
 // за стадією (flameStage), без картинок і Lingo.
 //
 //   стадія 0 — контур «flame» (серії немає чи згасла);
-//   1–2 — «flame.fill» бурштином, щодня більший;
-//   3–4 — бурштиново-помаранчевий градієнт, іскри й тепле тло (тиждень+);
+//   1–2 — «flame.fill» кольором вогника палітри (flame), щодня більший;
+//   3–4 — градієнт від бірюзового кінчика (flameTip) до тіла, іскри й
+//   мʼяке тло кольору вогника (тиждень+), як у застосунку;
 //   день без дії — вогник тьмяніє, з 18:00 — таймер до півночі.
+// Кольори вогника — з pal (src/widgets/palette.js ← токени flame* теми), тож
+// палітри Pro перефарбовують і віджет; жодного оранжево-жовтого вогника.
 //
 // Правила розмітки — як у src/widgets/WordOfDayWidget.js (простий
 // синтаксис, нічого з області модуля, жодних padding чи background на
@@ -49,10 +52,12 @@ const Streak = (props, environment) => {
   const dim = tinted ? secondary : pick('dim', '#6E6A62', '#A9A49B');
   const faint = tinted ? tertiary : pick('faint', '#8A857C', '#8A857D');
   const chip = tinted ? quaternary : pick('chip', '#F1EEE8', '#2A2825');
-  const warmRaw = pick('warm', '#E0A02E', '#F0B84A');
-  const warm = tinted ? primary : warmRaw;
-  const warmSoft = tinted ? quaternary : pick('warmSoft', '#FBF1DF', '#372C15');
-  const warmInk = tinted ? secondary : pick('warmInk', '#886424', '#F0B84A');
+  const flameRaw = pick('flame', '#6152E0', '#9B8FFF');
+  const flameTip = pick('flameTip', '#3FCFC2', '#5FE6D9');
+  const flameCol = tinted ? primary : flameRaw;
+  const flameSoft = tinted ? quaternary : pick('flameSoft', '#EFEDFD', '#26224A');
+  const flameInk = tinted ? secondary : pick('flameInk', '#5044AE', '#9B8FFF');
+  const onFlame = tinted ? { type: 'hierarchical', style: 'quinary' } : pick('onFlame', '#FFFFFF', '#100C2E');
 
   const n = props.n || '0';
   const stage = Number(props.stage) || 0;
@@ -66,14 +71,14 @@ const Streak = (props, environment) => {
   const a11y = [accessibilityElement('combine'), accessibilityLabel(props.a11y || 'LinguaLens')];
   const rounded = (size, weight) => font({ size: size, weight: weight, design: 'rounded' });
 
-  // Вогник: розмір за стадією, на 3+ — градієнт від бурштину до помаранчу.
+  // Вогник: розмір за стадією, на 3+ — градієнт від кінчика до тіла.
   const flameStyle = tinted
     ? primary
     : stage === 0
     ? faint
     : lit
-    ? { type: 'linearGradient', colors: ['#FFC24B', warmRaw, '#F0602A'], startPoint: { x: 0.5, y: 0 }, endPoint: { x: 0.5, y: 1 } }
-    : warmRaw;
+    ? { type: 'linearGradient', colors: [flameTip, flameRaw], startPoint: { x: 0.5, y: 0 }, endPoint: { x: 0.5, y: 0.75 } }
+    : flameRaw;
   const flame = (size) => (
     <ZStack alignment="topTrailing" modifiers={[frame({ width: Math.round(size * 1.25), height: Math.round(size * 1.2) })]}>
       <Image
@@ -81,7 +86,7 @@ const Streak = (props, environment) => {
         size={size}
         modifiers={[foregroundStyle(flameStyle), opacity(waiting ? 0.45 : 1), frame({ maxWidth: Infinity, maxHeight: Infinity })]}
       />
-      {lit && !waiting ? <Image systemName="sparkles" size={Math.max(9, Math.round(size * 0.32))} modifiers={[foregroundStyle(warmRaw)]} /> : null}
+      {lit && !waiting ? <Image systemName="sparkles" size={Math.max(9, Math.round(size * 0.32))} modifiers={[foregroundStyle(flameTip)]} /> : null}
     </ZStack>
   );
   // Число серії: «перекручується», коли застосунок оновлює серію.
@@ -95,16 +100,16 @@ const Streak = (props, environment) => {
   const upper = props.until ? new Date(Number(props.until)) : null;
   const timer =
     timed && upper && upper > lower ? (
-      <HStack spacing={4} modifiers={[padding({ horizontal: 8, vertical: 3 }), background(warmSoft, shapes.capsule())]}>
-        <Image systemName="clock" size={11} modifiers={[foregroundStyle(warmInk)]} />
+      <HStack spacing={4} modifiers={[padding({ horizontal: 8, vertical: 3 }), background(flameSoft, shapes.capsule())]}>
+        <Image systemName="clock" size={11} modifiers={[foregroundStyle(flameInk)]} />
         <Text
           timerInterval={{ lower: lower, upper: upper }}
           countsDown={true}
-          modifiers={[rounded(12, 'heavy'), foregroundStyle(warmInk), monospacedDigit(), lineLimit(1)]}
+          modifiers={[rounded(12, 'heavy'), foregroundStyle(flameInk), monospacedDigit(), lineLimit(1)]}
         />
       </HStack>
     ) : null;
-  const phraseColor = timed ? warmInk : dim;
+  const phraseColor = timed ? flameInk : dim;
 
   // ── Екран блокування ──
   if (family === 'accessoryInline') {
@@ -147,8 +152,8 @@ const Streak = (props, environment) => {
 
   // ── Головний екран ──
   const legacy = !environment.widgetContentMargins;
-  // з тижня — тепле тло: від крейди до бурштинової імли
-  const fill = lit && done ? { type: 'linearGradient', colors: [pick('warmSoft', '#FBF1DF', '#372C15'), bg], startPoint: { x: 1, y: 0 }, endPoint: { x: 0, y: 1 } } : bg;
+  // з тижня — тло з імлою кольору вогника: від flameSoft до крейди
+  const fill = lit && done ? { type: 'linearGradient', colors: [pick('flameSoft', '#EFEDFD', '#26224A'), bg], startPoint: { x: 1, y: 0 }, endPoint: { x: 0, y: 1 } } : bg;
   const shell = [frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: 'topLeading' })]
     .concat(legacy ? [padding({ all: 16 }), background(fill)] : [])
     .concat([containerBackground(fill, 'widget'), widgetURL(link)])
@@ -181,12 +186,12 @@ const Streak = (props, environment) => {
     const on = d.s === 'done' || d.s === 'today';
     const dot = on ? (
       <ZStack modifiers={[frame({ width: 24, height: 24 })]}>
-        <Circle modifiers={[foregroundStyle(warm)]} />
-        <Image systemName="flame.fill" size={11} modifiers={[foregroundStyle(tinted ? { type: 'hierarchical', style: 'quinary' } : '#FFFFFF')]} />
+        <Circle modifiers={[foregroundStyle(flameCol)]} />
+        <Image systemName="flame.fill" size={11} modifiers={[foregroundStyle(onFlame)]} />
       </ZStack>
     ) : d.s === 'pending' ? (
       <ZStack
-        modifiers={[frame({ width: 24, height: 24 }), strokeBorder({ content: warm, style: { lineWidth: 2, dash: [3, 3] }, shape: 'circle' })]}
+        modifiers={[frame({ width: 24, height: 24 }), strokeBorder({ content: flameCol, style: { lineWidth: 2, dash: [3, 3] }, shape: 'circle' })]}
       />
     ) : (
       <Circle modifiers={[frame({ width: 24, height: 24 }), foregroundStyle(chip), opacity(d.s === 'future' ? 0.55 : 1)]} />

@@ -12,14 +12,17 @@
 // Сяйво й корона виходять за межі size (як на макеті) — під вогник
 // не треба класти overflow: 'hidden'.
 //
-// Кольори: тіло жевріючого вогника й жаринка — з теми (warm, faint), решта —
-// фіксований малюнок полум'я, як арт маскота: однаковий у всіх палітрах.
+// Кольори — з теми (flame, flameSoft, flameTip, flameCore, faint): вогник
+// фірмовий, як сам Lingo (5.10.2026, рішення власника) — фіолетове тіло з
+// мʼятним серцем, з 7-го дня градієнт до бірюзового кінчика, сяйво, іскри
+// й кільце. Палітри Pro перефарбовують його під себе. Жодного оранжевого чи
+// жовтого: усе, крім білого, рахує flameArt із токенів.
 import { useEffect, useId, useMemo, useRef } from 'react';
 import { Animated, Easing, View } from 'react-native';
 import Svg, { Circle, Defs, LinearGradient, Path, RadialGradient, Stop } from 'react-native-svg';
 import { flameForm } from '../streak';
 import { useReducedMotion } from '../motion';
-import { useTheme } from '../theme';
+import { mix, useTheme } from '../theme';
 
 const BASE = 112; // низ краплі у viewBox 100×120
 const CX = 50;
@@ -28,18 +31,28 @@ const CX = 50;
 const VB = { x: -25, y: -8, w: 150, h: 156 };
 const ORIGIN = `50% ${Math.round(((BASE - VB.y) / VB.h) * 1000) / 10}%`;
 
-const ART = {
-  body: ['#FFD15C', '#F59A2C', '#E9772B'],
-  heart: ['#FFF8DE', '#FFD877'],
-  legend: ['#C9C1FF', '#7B6CF0'],
-  glow: '#FFB547',
-  ring: '#FFC24D',
-  spark: '#FFC94D',
-  crownBack: '#FFC94D',
-  crownFront: '#FFB547',
-  heartKindle: { light: '#FFE7AE', dark: '#FFE0A0' },
-  tongueKindle: { light: '#EFAE43', dark: '#F3C16A' },
-};
+const WHITE = '#FFFFFF';
+const BLACK = '#000000';
+
+// Малюнок полум'я з токенів теми. Розгорілий вогник (з 7-го дня) — градієнт
+// від кінчика flameTip до тіла flame (у темному тіло трохи глибше — інакше
+// вогник на темному тлі «вицвітає»), серце — від білого до flameCore, на 100
+// днів — «легендарне» серце кольору кінчика. Жевріючий (1–6) — суцільний
+// flame з серцем flameCore і світлішими язиками.
+export function flameArt(C, dark) {
+  return {
+    body: [C.flameTip, mix(C.flameTip, C.flame, 0.72), dark ? mix(C.flame, BLACK, 0.1) : C.flame],
+    heart: [WHITE, C.flameCore],
+    legend: [C.flameCore, C.flameTip],
+    glow: mix(C.flame, C.flameTip, 0.2),
+    ring: C.flameTip,
+    spark: C.flameTip,
+    crownBack: mix(C.flameTip, WHITE, 0.25),
+    crownFront: mix(C.flameTip, C.flame, 0.45),
+    heartKindle: C.flameCore,
+    tongueKindle: mix(C.flame, WHITE, dark ? 0.22 : 0.3),
+  };
+}
 
 // Іскри-ромбики: x, y, півширина
 const SPARKS = [
@@ -65,7 +78,7 @@ export function tearPath(cx, base, H, a, lean = 0) {
   );
 }
 
-function Shape({ n, form, dark, C, id }) {
+function Shape({ n, form, C, ART, id }) {
   const H = form.h;
   const a = form.w / 2;
 
@@ -87,10 +100,9 @@ function Shape({ n, form, dark, C, id }) {
   }
 
   const lit = form.stage === 'lit';
-  const mode = dark ? 'dark' : 'light';
-  const body = lit ? `url(#${id}b)` : C.warm;
-  const heart = lit ? `url(#${id}${form.tier === 4 ? 'v' : 'c'})` : ART.heartKindle[mode];
-  const tongue = lit ? `url(#${id}b)` : ART.tongueKindle[mode];
+  const body = lit ? `url(#${id}b)` : C.flame;
+  const heart = lit ? `url(#${id}${form.tier === 4 ? 'v' : 'c'})` : ART.heartKindle;
+  const tongue = lit ? `url(#${id}b)` : ART.tongueKindle;
   const op = lit ? 1 : 0.92;
   const lean = n % 2 ? 3 : -2;
   const tg = form.tongues;
@@ -174,6 +186,7 @@ export default function Flame({ n = 0, size = 72, pending = false, breathe = tru
   // id градієнтів — свій у кожного вогника: на одному екрані їх буває кілька
   const id = 'fl' + useId().replace(/[^A-Za-z0-9]/g, '');
   const live = breathe && !reduced && form.stage !== 'ember';
+  const ART = useMemo(() => flameArt(C, isDark), [C, isDark]);
   const v = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -225,7 +238,7 @@ export default function Flame({ n = 0, size = 72, pending = false, breathe = tru
           <Defs>
             <LinearGradient id={id + 'b'} x1="0" y1="0" x2="0" y2="1">
               <Stop offset="0" stopColor={ART.body[0]} />
-              <Stop offset="0.55" stopColor={ART.body[1]} />
+              <Stop offset="0.4" stopColor={ART.body[1]} />
               <Stop offset="1" stopColor={ART.body[2]} />
             </LinearGradient>
             <LinearGradient id={id + 'c'} x1="0" y1="0" x2="0" y2="1">
@@ -241,7 +254,7 @@ export default function Flame({ n = 0, size = 72, pending = false, breathe = tru
               <Stop offset="1" stopColor={ART.glow} stopOpacity={0} />
             </RadialGradient>
           </Defs>
-          <Shape n={Math.floor(Number(n) || 0)} form={form} dark={isDark} C={C} id={id} />
+          <Shape n={Math.floor(Number(n) || 0)} form={form} C={C} ART={ART} id={id} />
         </Svg>
       </Animated.View>
     </View>
