@@ -1029,6 +1029,9 @@ export default function App() {
     } else {
       track('paywall_close', { source, step, ui: 'revenuecat' });
     }
+    // Вибір «3 чи 5 слів» живе до кінця свого пейвола: Pro не з'явився —
+    // забуваємо, інакше пізніша покупка будь-де ввімкнула б його сама
+    if (!res.state?.pro) pendingPerDay.current = 0;
     return true;
   }
 
@@ -1041,6 +1044,7 @@ export default function App() {
   async function openPaywall(reason, { onlyIfNone = false, palette = null } = {}) {
     if (rcPaywallOpen.current || (onlyIfNone && paywallRef.current)) return;
     themePick.current = reason === 'themes' ? palette || PRO_PALETTES[0] : null;
+    if (reason !== 'wod_per_day') pendingPerDay.current = 0;
     setPaywallPalette(themePick.current);
     if (await showRcPaywall(reason)) {
       // шаблон RevenueCat про палітри не знає: купили чи відновили там —
@@ -1094,6 +1098,8 @@ export default function App() {
     if (source) track('paywall_close', { source, step: at, ui: 'custom' });
     paywallRef.current = null;
     themePick.current = null;
+    // відмовились від «3 чи 5 слів» — пізніша покупка не вмикає їх сама
+    pendingPerDay.current = 0;
     setPaywall(null);
   }
 

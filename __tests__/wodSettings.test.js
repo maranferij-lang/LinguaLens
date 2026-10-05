@@ -182,6 +182,26 @@ describe('Settings → Word of the day: words per day', () => {
     expect(wodPosts().at(-1).body.perDay).toBeUndefined();
   });
 
+  // Пейвол «wod_per_day» закрили без покупки — вибір 5 забуто: Pro, куплений
+  // пізніше з іншого місця, не вмикає п'ять сповіщень на день сам
+  test('closing the “wod_per_day” paywall forgets the choice; Pro bought elsewhere later keeps one word', async () => {
+    await returning();
+    const tree = await renderApp();
+    await openTab(tree, 'settings');
+    await tapId(tree, 'wod-per-day-5');
+    expect(one(tree, PaywallScreen).props.reason).toBe('wod_per_day');
+    await run(() => one(tree, PaywallScreen).props.onClose());
+    expect(one(tree, PaywallScreen)).toBeNull();
+    await run(() => one(tree, SettingsScreen).props.onOpenPaywall());
+    expect(one(tree, PaywallScreen).props.reason).toBe('info');
+    await run(() => one(tree, PaywallScreen).props.onPurchase('year'));
+    await settle(5);
+    const st = await stored('ll_settings_v1');
+    expect(st.wodPerDay ?? 1).toBe(1);
+    expect(st.wodHours ?? null).toBeNull();
+    expect(wodPosts().every((c) => !c.body.perDay)).toBe(true);
+  });
+
   // Сервер ще не знав про покупку й дав одне слово замість трьох: кеш сам
   // перепитає за 10 хв (needsRefresh), але лише коли його хтось синхронізує, —
   // повернення застосунку на екран і є таким моментом.
