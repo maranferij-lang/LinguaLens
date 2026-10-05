@@ -251,6 +251,11 @@ npm run submit:ios     # відправить у App Store Connect → TestFligh
 - На сторінці версії прикріпи місячну, річну й «Назавжди», In-App Event (крок 14)
   і обери **Manually release this version**.
 - Нотатки для рецензента — з APPSTORE.md.
+- **Ризик 5.1.2(i).** Аркуш «Перед першим сканом» (згода на передачу фото
+  AI-сервісу) вимкнено за твоїм рішенням 5.10.2026 — про Gemini/Anthropic
+  розповідає лише політика приватності. Apple може відхилити за 5.1.2(i).
+  Тоді один рядок: `export const AI_CONSENT_SHEET = true;` у `src/flags.js`,
+  нова збірка і крок 4 нотаток як у APPSTORE.md («Ризик 5.1.2(i)»).
 - Submit for Review — **до 20 жовтня**.
 
 ## 10. Instagram Stories: App ID від Meta (10 хвилин, безкоштовно)
