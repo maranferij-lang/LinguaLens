@@ -1988,7 +1988,10 @@ export default function App() {
                   onOpenPaywall={openPaywall}
                   unlockSeen={unlockKnown ? settings.unlockSeen || {} : null}
                   onUnlockSeen={markUnlockSeen}
-                  holdMoments={celebrating}
+                  // свято серії чи будь-який шар згори (пейвол онбордингу
+                  // після першого слова, RevenueCat, аркуші): «Відкрито!»
+                  // чекає, інакше відіграло б і позначилось показаним під ним
+                  holdMoments={celebrating || !overlayFree}
                   onSessionChange={setLearnSession}
                   // серія: чип у шапці й вечірній банер
                   streak={streakLive}

@@ -10,6 +10,7 @@ import { act, create } from 'react-test-renderer';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import PostHog from 'posthog-react-native';
 import * as Notifications from 'expo-notifications';
+import * as Haptics from 'expo-haptics';
 import App from '../App';
 import FlashcardsScreen from '../src/FlashcardsScreen';
 import OnboardingScreen from '../src/OnboardingScreen';
@@ -360,6 +361,28 @@ describe('onboarding 3.0 in the app', () => {
     await run(() => tree.root.findAll((n) => n.props.accessibilityLabel === t('close') && n.props.onPress)[0].props.onPress());
     expect(one(tree, OnboardingPaywall)).toBeNull();
     expect(one(tree, AchievementToast).props.achievement).toMatchObject({ id: 'first_word' });
+  });
+
+  // Головний шлях конверсії: «Відкрито!» на «Навчанні» не має відігравати
+  // (і позначатись показаним) під пейволом онбордингу — лише коли його закрили
+  test('“Unlocked!” waits under the onboarding paywall: no buzz, not marked seen, plays once it is closed', async () => {
+    const haptic = jest.spyOn(Haptics, 'notificationAsync');
+    const tree = await renderApp();
+    const el = one(tree, OnboardingScreen).props.renderScanner({ onSaved: jest.fn(), onExit: jest.fn(), level: 5 });
+    await run(() => el.props.onSaveWord(word));
+    haptic.mockClear();
+    await run(() => one(tree, OnboardingScreen).props.onDone({ ...RESULT, scanned: true, firstWord: word }));
+    expect(one(tree, OnboardingPaywall)).not.toBeNull();
+    expect(one(tree, FlashcardsScreen)).not.toBeNull();
+    expect(tree.root.findAll((n) => n.props.children === t('learnUnlocked'))).toHaveLength(0);
+    expect(haptic.mock.calls.filter(([k]) => k === Haptics.NotificationFeedbackType.Success)).toHaveLength(0);
+    expect((await stored('ll_settings_v1')).unlockSeen).toEqual({ cards: false, quiz: false });
+
+    await run(() => tree.root.findAll((n) => n.props.accessibilityLabel === t('close') && n.props.onPress)[0].props.onPress());
+    expect(one(tree, OnboardingPaywall)).toBeNull();
+    expect(tree.root.findAll((n) => n.props.children === t('learnUnlocked')).length).toBeGreaterThan(0);
+    expect((await stored('ll_settings_v1')).unlockSeen).toMatchObject({ cards: true });
+    haptic.mockRestore();
   });
 
   test('the replay passes the current answers and today’s word, never the paywall', async () => {
