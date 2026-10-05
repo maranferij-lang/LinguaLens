@@ -1369,6 +1369,9 @@ export default function App() {
         aiConsent={!!settings.aiConsent}
         onAiConsent={() => saveSetting({ aiConsent: true })}
         level={level ?? settings.profile?.level}
+        // камера до самого верху, як у вкладці; світлий статус-бар над нею
+        // ставить сам сканер (поки видно камеру)
+        bleedTop={insets.top}
         t={t}
       />
     );

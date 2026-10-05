@@ -15,6 +15,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import { StatusBar } from 'expo-status-bar';
 import { Asset } from 'expo-asset';
 import * as Haptics from 'expo-haptics';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
@@ -638,6 +639,11 @@ export default function ScannerScreen({
 
   return (
     <View style={[s.root, bleedTop ? { marginTop: -bleedTop } : null]} onLayout={(e) => setRootH(e.nativeEvent.layout.height)}>
+      {/* Перший скан в онбордингу: камера під статус-баром, а App тримає там
+          статус-бар теми (темний текст у світлій) — над камерою свій, світлий.
+          Лише поки видно камеру: екран дозволу камери — на тлі теми. У вкладці
+          статус-бар веде App (пейвол над камерою має бути темним). */}
+      {firstScan && bleedTop ? <StatusBar style="light" /> : null}
       <CameraView
         ref={cameraRef}
         style={StyleSheet.absoluteFill}
