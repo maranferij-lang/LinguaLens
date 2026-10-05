@@ -39,6 +39,17 @@ export const MUG_SIL = 'M119 196 L223 196 L221 222 C258 220 260 284 215 282 L214
 export const MUG_BODY = { x: 125, y: 199, w: 92, h: 106 };
 // Кути видошукача — та сама рамка, що в справжньому сканері
 export const FRAME = { x1: 96, y1: 150, x2: 246, y2: 326 };
+// Режим «Сцена» (онбординг 4.0): кути довкола всього столу
+export const WIDE_FRAME = { x1: 20, y1: 62, x2: 322, y2: 340 };
+// Куди вказують підписи сцени: точка на предметі (x, y), бік, до якого
+// притиснуто табличку (left / right — край сцени, center — над точкою), і
+// де її низ (bottom): на малому екрані табличка більшає вгору, а не на точку
+export const SCENE_SPOTS = {
+  mug: { x: 171, y: 214, side: 'center', bottom: 188 },
+  laptop: { x: 52, y: 172, side: 'left', bottom: 142 },
+  plant: { x: 306, y: 176, side: 'right', bottom: 150 },
+  notebook: { x: 84, y: 352, side: 'left', bottom: 320 },
+};
 
 const MUG_RED = ['#B8392A', '#E5583F', '#D84A35', '#A93224'];
 
@@ -223,8 +234,8 @@ function VignetteArt({ w = SCENE_W, h = SCENE_H }) {
 export const Vignette = memo(VignetteArt);
 
 // ─── Кути видошукача ───────────────────────────────────────────────────────
-function CornersArt({ w = SCENE_W, h = SCENE_H }) {
-  const { x1, y1, x2, y2 } = FRAME;
+function CornersArt({ w = SCENE_W, h = SCENE_H, frame = FRAME }) {
+  const { x1, y1, x2, y2 } = frame;
   const L = 26;
   const d =
     `M${x1} ${y1 + L} V${y1 + 10} Q${x1} ${y1} ${x1 + 10} ${y1} H${x1 + L} ` +

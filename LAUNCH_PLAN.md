@@ -343,12 +343,15 @@ Discovery додаємо мінус-словом. Якщо кампанія не
 PostHog (крок 12 у `USER_TODO.md`):
 
 **Дашборд «Запуск»:**
-1. **Воронка «Онбординг по кроках»**: `onboarding_step` з `step` = welcome →
-   goals → level → plan → wow → push → heard → `onboarding_complete`, розбивка
-   за `flow`. Кроки name, field, struggles і commit є не в усіх (field — лише
-   для роботи й навчання, у варіанті `short` немає name, struggles і commit),
-   тож у загальну воронку їх не ставимо; окремо — стовпчики
-   `onboarding_step` за `step`, щоб бачити відсів на кожному кроці.
+1. **Воронка «Онбординг по кроках»** (онбординг 4.0, події з `ver` = 4):
+   `onboarding_step` з `step` = welcome → lang → goals → level → heard → wod →
+   plan → streak → demo → `onboarding_complete`, розбивка за `flow`. Кроки
+   name, field, struggles, push, widgets, celebrate і commit є не в усіх
+   (field — лише для роботи й навчання, push — лише якщо iOS ще не питав, у
+   варіанті `short` немає name і struggles), тож у загальну воронку їх не
+   ставимо; окремо — стовпчики `onboarding_step` за `step`, щоб бачити
+   відсів на кожному кроці. Події `ver` = 3 (старий порядок: план перед
+   сповіщеннями) з `ver` = 4 не змішуй.
 2. **Воронка «Онбординг → пробний»**: `onboarding_step` (welcome) →
    `onboarding_complete` → `paywall_view` (source = onboarding) →
    `purchase_start` → `purchase_success`, вікно 1 день, розбивка за `flow`.

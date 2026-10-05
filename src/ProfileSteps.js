@@ -7,7 +7,7 @@ import { AccessibilityInfo, Animated, Pressable, ScrollView, StyleSheet, Text, T
 import * as Haptics from 'expo-haptics';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import LevelSlider from './LevelSlider';
-import { FIELDS, GOALS, HEARD, HEARD_BRANDS, NAME_MAX, STRUGGLES, levelResult, needsField } from './profile';
+import { FIELDS, GOALS, HEARD, HEARD_BRANDS, NAME_MAX, STRUGGLES, clampLevel, levelName, needsField } from './profile';
 import { flagFor, nameFor } from './speech';
 import {
   IcBook,
@@ -58,7 +58,15 @@ const STRUGGLE_ICONS = { forget: IcCards, time: IcClock, boring: IcBook, start: 
 // «Спробуй»), кожен заповнений часткою кроків своєї дії. direction —
 // 'forward' | 'back': новий крок заїжджає справа чи зліва (онбординг);
 // без нього — мʼяко зʼявляється знизу, як і раніше.
-export function StepFrame({ stepKey, progress, onBack, right, header, title, text, children, footer, direction, t }) {
+//
+// mascot — Lingo праворуч від заголовка (кроки-питання онбордингу): декор,
+// заголовок лишається заголовком для VoiceOver. peek(room) — те, що
+// визирає з-за кнопки знизу (Lingo на кроці імені): StepFrame кладе його
+// над кнопкою й передає, скільки вільного місця під вмістом (pt; null —
+// ще не виміряно), щоб він ніколи не налазив на поле чи текст. onRoom(room)
+// — те саме число щоразу, як воно змінилось: крок, що хоче заповнити екран
+// (демо, телефон зі сповіщенням), підганяє під нього свою висоту.
+export function StepFrame({ stepKey, progress, onBack, right, header, title, text, children, footer, direction, mascot, peek, onRoom, t }) {
   const { C } = useTheme();
   const s = useMemo(() => makeStyles(C), [C]);
   const titleRef = useRef(null);
@@ -80,10 +88,18 @@ export function StepFrame({ stepKey, progress, onBack, right, header, title, tex
     const { view, content, y } = dims.current;
     const over = view > 0 && content > view + 1;
     const more = over && y + view < content - 4;
-    setFit((f) => (f.key === stepKey && f.over === over && f.more === more ? f : { key: stepKey, over, more }));
+    const room = view > 0 && content > 0 ? Math.round(view - content + BODY_PAD) : null;
+    setFit((f) => (f.key === stepKey && f.over === over && f.more === more && f.room === room ? f : { key: stepKey, over, more, room }));
   }
   const over = fit.key === stepKey && fit.over;
   const more = fit.key === stepKey && fit.more;
+  // Вільне місце під вмістом (разом із нижнім відступом прокрутки) — для peek
+  const room = fit.key === stepKey && fit.room != null ? fit.room : null;
+  const roomCb = useRef(onRoom);
+  roomCb.current = onRoom;
+  useEffect(() => {
+    if (room != null) roomCb.current?.(room);
+  }, [room]);
   const flashed = useRef(null);
   useEffect(() => {
     if (!over || flashed.current === stepKey) return;
@@ -137,7 +153,14 @@ export function StepFrame({ stepKey, progress, onBack, right, header, title, tex
         {/* key — новий крок мʼяко зʼявляється, а не підміняється миттєво */}
         <FadeIn key={stepKey} dy={10} dx={dx}>
           {header}
-          {title ? (
+          {title && mascot ? (
+            <View style={s.titleRow}>
+              <Text ref={titleRef} style={[s.title, { flex: 1 }]} accessibilityRole="header" accessibilityLabel={label}>
+                {title}
+              </Text>
+              {mascot}
+            </View>
+          ) : title ? (
             <Text ref={titleRef} style={s.title} accessibilityRole="header" accessibilityLabel={label}>
               {title}
             </Text>
@@ -148,6 +171,11 @@ export function StepFrame({ stepKey, progress, onBack, right, header, title, tex
       </ScrollView>
 
       <View style={s.footer}>
+        {peek ? (
+          <View pointerEvents="box-none" style={s.peek}>
+            {peek(room)}
+          </View>
+        ) : null}
         {more ? <FooterFade color={C.bg} /> : null}
         {footer}
       </View>
@@ -157,6 +185,8 @@ export function StepFrame({ stepKey, progress, onBack, right, header, title, tex
 
 // На скільки новий крок заїжджає збоку (онбординг: уперед — справа)
 const SLIDE = 24;
+// Нижній відступ прокрутки (s.body) — порожнє місце, яке peek може зайняти
+export const BODY_PAD = 24;
 
 // Згасання над кнопкою: вміст іде під неї, а не обрізається рівною лінією
 const FADE = 16;
@@ -425,23 +455,26 @@ export function HeardOptions({ value, onChange, t }) {
   return <Chips items={HEARD} value={value} onChange={onChange} label={(k) => HEARD_BRANDS[k] || t('heard_' + k)} s={s} />;
 }
 
-// ─── Рівень: слайдер і що з нього випливає ─────────────────────────────────
+// ─── Рівень: слайдер і назва рівня ─────────────────────────────────────────
 // lang — мова, яку вчать: VoiceOver чує її в назві слайдера («Твій рівень:
 // English»), а не лише в пігулці над заголовком, яку легко проминути.
 export function LevelBody({ value, onChange, lang, t }) {
   const { C } = useTheme();
   const s = useMemo(() => makeStyles(C), [C]);
   const label = lang ? t('pfLevelLabel', { lang: nameFor(lang) }) : t('pfLevelTitle');
+  const level = clampLevel(value);
   return (
     <View>
-      <LevelSlider value={value} onChange={onChange} label={label} t={t} />
-      {/* «Пропускаємо базові слова…»: людина одразу бачить, що її відповідь
-          щось міняє. Число й CEFR уже великі над доріжкою — тут лише
-          наслідок. VoiceOver оголосить сам рядок. */}
-      <View style={s.result}>
-        <Text style={s.resultText} accessibilityLiveRegion="polite">
-          {levelResult(value, t)}
+      <LevelSlider value={level} onChange={onChange} label={label} t={t} desc={false} />
+      {/* Під доріжкою — проста назва рівня великим («Середній») і під нею
+          дрібніше, що це означає («Можу підтримати розмову»): людина
+          впізнає себе без пояснень, які слова ми пропустимо (онбординг
+          4.0). VoiceOver оголосить назву, щойно рівень зміниться. */}
+      <View style={s.result} testID="level-name">
+        <Text style={s.levelName} accessibilityLiveRegion="polite">
+          {levelName(level, t)}
         </Text>
+        <Text style={s.levelDesc}>{t('lvl' + level)}</Text>
       </View>
     </View>
   );
@@ -471,8 +504,11 @@ const makeStyles = (C) =>
       marginRight: 4,
     },
 
-    body: { paddingHorizontal: 24, paddingTop: 14, paddingBottom: 24 },
+    body: { paddingHorizontal: 24, paddingTop: 14, paddingBottom: BODY_PAD },
     title: { color: C.text, ...type(28, F.extra) },
+    titleRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+    // над кнопкою, низом — за нею: те, що визирає, ховає ноги за кнопкою
+    peek: { position: 'absolute', left: 0, right: 0, bottom: '100%' },
     text: { color: C.dim, ...type(15, F.reg), marginTop: 8 },
     footer: { paddingHorizontal: 24, paddingTop: 8, paddingBottom: 24 },
 
@@ -545,14 +581,9 @@ const makeStyles = (C) =>
     chipText: { color: C.text, ...type(16, F.semi), textAlign: 'center' },
     chipTextOn: { color: C.accent, fontFamily: F.extra },
 
-    result: {
-      marginTop: 18,
-      backgroundColor: C.card,
-      borderRadius: R.md,
-      paddingHorizontal: 16,
-      paddingVertical: 13,
-    },
-    resultText: { color: C.dim, ...type(14, F.semi), textAlign: 'center' },
+    result: { marginTop: 14, alignItems: 'center', minHeight: 72 },
+    levelName: { color: C.text, ...type(26, F.extra), textAlign: 'center' },
+    levelDesc: { color: C.dim, ...type(15, F.semi), textAlign: 'center', marginTop: 2 },
 
     input: {
       backgroundColor: C.card,

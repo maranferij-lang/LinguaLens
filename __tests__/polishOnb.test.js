@@ -503,17 +503,16 @@ test('declined notifications: the big button moves on, Settings is a quiet secon
   await act(async () => control(tree, 'English').props.onPress());
   await act(async () => jest.advanceTimersByTime(300));
   for (let i = 0; i < 5; i++) await tap(tree, t('obSkip'));
-  await act(async () => jest.advanceTimersByTime(1300)); // «складаємо план»
-  await tap(tree, t('obNext')); // план
-  await tap(tree, t('obNext')); // серія
+  await tap(tree, t('obNext')); // що таке слово дня
   await tap(tree, t('obNext')); // сповіщення → «ні»
   expect(has(tree, 'Okay, no reminders')).toBe(true);
   const buttons = tree.root.findAll((n) => n.type === GradBtn);
   expect(buttons.map((b) => b.props.title)).toEqual([t('obNext')]);
   await tap(tree, t('openSettings'));
   expect(spy).toHaveBeenCalledTimes(1);
+  // далі — план (онбординг 4.0: сповіщення перед планом)
   await act(async () => buttons[0].props.onPress());
-  expect(has(tree, t('obDemoTitle'))).toBe(true);
+  expect(has(tree, t('obBuildTitle'))).toBe(true);
   spy.mockRestore();
   jest.useRealTimers();
 });
@@ -555,9 +554,11 @@ describe('plans stay put and sublines say something new', () => {
 
 // ─── onb-16: рівень і план без повторів ────────────────────────────────────
 describe('level and plan cards say each thing once', () => {
-  test('under the slider only the consequence, capitalised', async () => {
+  // Онбординг 4.0: під слайдером — назва рівня й фраза, без «пропускаємо…»
+  test('under the slider the level name and its phrase, once each', async () => {
     const tree = await mount(<LevelBody value={5} onChange={() => {}} lang="es" t={uk} />);
-    expect(has(tree, 'Пропускаємо слова, які й так легко вгадати')).toBe(true);
+    expect(has(tree, 'Середній')).toBe(true);
+    expect(strings(tree).filter((s) => s === uk('lvl5'))).toHaveLength(1);
     expect(strings(tree).some((s) => s.includes('5/10'))).toBe(false);
   });
 
@@ -579,10 +580,17 @@ describe('the notification preview', () => {
     expect(hourLabel(8)).toMatch(/^0?8:00$/);
   });
 
-  test('the banner shows that hour and a body short enough for two lines on SE', async () => {
-    const tree = await mount(<PushPreview topic="" hour="10:00 AM" t={t} />);
+  // Онбординг 4.0: тіло сповіщення — приклад слова з перекладом. Воно
+  // коротке, тож у два рядки на SE влазить завжди; заголовок з темою теж
+  // може лягти у два — жодних обірваних «…» (власник)
+  test('the banner shows that hour and the example word, never cut', async () => {
+    const sample = { word: 'die Tasse', translation: 'чашка', example: 'In dieser Tasse ist heißer Kaffee.' };
+    const tree = await mount(<PushPreview topic="Gastronomie" hour="10:00 AM" sample={sample} t={t} />);
     expect(has(tree, '10:00 AM')).toBe(true);
-    for (const lang of LOCALES) expect(STRINGS[lang].obPushPreviewBody.length).toBeLessThanOrEqual(46);
+    const body = hosts(tree, (n) => n.props.children === 'die Tasse — чашка')[0];
+    expect(body.props.numberOfLines).toBe(2);
+    const title = hosts(tree, (n) => n.props.children === 'Word of the day · Gastronomie')[0];
+    expect(title.props.numberOfLines).toBe(2);
   });
 });
 

@@ -1,23 +1,24 @@
-// Частини онбордингу, яких немає в редакторі профілю: вітання, план зі
-// словом на сьогодні й станом «складаємо…», години й попередній перегляд
-// сповіщення, обіцянка. Кроки й порядок — у OnboardingScreen.js.
+// Частини онбордингу, яких немає в редакторі профілю: вітання, Lingo на
+// кроці імені, картка-приклад «Що таке слово дня», план зі словом на
+// сьогодні й станом «складаємо…», години й телефон зі сповіщенням,
+// обіцянка. Кроки й порядок — у OnboardingScreen.js.
 //
 // Правило для всього тут: лише правда. Ні вигаданих цифр («97 % вивчили
 // мову»), ні відгуків, ні оцінок — план показує те, що сервер справді
 // робитиме з цими відповідями, а кожна обіцянка спирається на функцію,
 // яка в застосунку вже є.
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
-import { cefrFor, cleanProfile, levelBand, planTopics, topicCycle } from './profile';
+import { cefrFor, cleanProfile, levelName, planTopics, topicCycle } from './profile';
 import { flagFor, nameFor, speak } from './speech';
 import { localeFor, phoneUiLang } from './locale';
 import { AppIcon } from './Logo';
-import { Mascot, MascotBob } from './Mascot';
+import { Mascot, MascotBob, MascotLive } from './Mascot';
 import { MiniKey, MiniMug, MiniPlant, TagLabel } from './DemoDesk';
 import { IcBell, IcCards, IcChart, IcCheck, IcCompass, IcScan, IcSpeaker } from './icons';
 import { FadeIn } from './ui';
-import { EASE, stagger, useReducedMotion } from './motion';
+import { EASE, spring, stagger, useReducedMotion } from './motion';
 import { CAPS, F, R, type, useTheme } from './theme';
 
 // Якщо людина нічого не обрала на кроці «що заважає» (чи у варіанті без
@@ -106,13 +107,13 @@ export function PlanBody({ profile, struggles, lang, t }) {
         )}
       </FadeIn>
 
-      {/* «B2+ — пропускаємо базові слова»: що рівень міняє на ділі */}
+      {/* «Рівень: B1 · Середній» — без обіцянок, які саме слова зникнуть */}
       {p ? (
         <FadeIn delay={stagger(i++)} style={[s.card, s.levelCard, SHADOW_SM]}>
           <View style={s.lineIcon}>
             <IcChart size={20} color={C.accent} />
           </View>
-          <Text style={s.levelText}>{`${cefrFor(p.level)} — ${t('levelBand' + levelBand(p.level))}`}</Text>
+          <Text style={s.levelText}>{t('obPlanLevel', { cefr: cefrFor(p.level), name: levelName(p.level, t) })}</Text>
         </FadeIn>
       ) : null}
 
@@ -250,57 +251,304 @@ export function HourChips({ value, onChange, t }) {
   );
 }
 
-// Схоже на банер iOS на екрані блокування: «шпалери» з великим часом, на
-// них — значок, назва застосунку, година і текст. Заголовок — як у
-// справжньому сповіщенні слова дня («Слово дня · Фінанси»), тіло — без
-// вигаданого слова: його ще ніхто не обрав. Тіло — у два рядки навіть на
-// SE: банер, що обривається трикрапкою, виглядає зламаним. wallpaper={false}
-// — лише сам банер.
-export function PushPreview({ topic, hour, t, wallpaper = true }) {
-  const { C, SHADOW, isDark } = useTheme();
+// Година на екрані блокування — як її пише сам iPhone: «19:00» з 24-годинним
+// телефоном, «7:00» з 12-годинним (екран блокування AM/PM не пише).
+export function lockClock(hour) {
+  const label = hourLabel(hour);
+  const bare = label.replace(/\s*(?:[AaPp]\.?\s?[Mm]\.?)\s*$/u, '').replace(/^\s*(?:[AaPp]\.?\s?[Mm]\.?)\s*/u, '');
+  return bare.trim() || label;
+}
+
+// Дата на екрані блокування: «Понеділок, 5 жовтня» мовою телефона
+function lockDate(now = new Date()) {
+  try {
+    const d = now.toLocaleDateString(localeFor(phoneUiLang()), { weekday: 'long', day: 'numeric', month: 'long' });
+    return d.charAt(0).toLocaleUpperCase() + d.slice(1);
+  } catch (_) {
+    return '';
+  }
+}
+
+// ─── Телефон зі сповіщенням (онбординг 4.0) ────────────────────────────────
+// Не обрізаний банер, а сам телефон: тонка рамка, заокруглені кути, Dynamic
+// Island, на екрані блокування — дата й великий годинник на обрану годину,
+// під ним сповіщення слова дня, як його покаже iOS: значок, «LinguaLens» і
+// година, заголовок («Слово дня · Подорожі») і приклад слова з перекладом
+// («mug — чашка»).
+// Справжнього слова ще немає (план складемо після цього кроку), тож
+// приклад — чашка з демо мовою навчання (demoExample).
+//
+// Телефон «визирає» знизу: height — скільки його видно; нижня частина
+// ховається за краєм під мʼяким згасанням у колір тла. Годинник і
+// сповіщення в межах видимого завжди цілі: менше, ніж до низу сповіщення
+// (його міряємо — заголовок з темою буває у два рядки), не стискаємо; до
+// виміру — phoneVisible(width). wallpaper={false} — лише сам банер.
+export const PHONE_RATIO = 2.08;
+export function phoneVisible(width) {
+  return Math.round(width * 0.98);
+}
+
+function PushBanner({ title, body, hour, t, u = 1, style, onLayout }) {
+  const { C } = useTheme();
   const s = useMemo(() => makeStyles(C), [C]);
-  const title = topic ? t('obPushPreviewTopic', { topic }) : t('obPushPreviewTitle');
-  const banner = (
-    <View style={[s.push, !wallpaper && SHADOW]} accessible accessibilityLabel={t('obPushPreviewA11y', { title, h: hour })}>
-      <AppIcon size={38} />
+  return (
+    <View style={[s.push, { borderRadius: 18 * u, padding: 10 * u, gap: 9 * u }, style]} onLayout={onLayout}>
+      <AppIcon size={Math.round(30 * u)} />
       <View style={{ flex: 1 }}>
         <View style={s.pushHead}>
-          <Text style={s.pushApp}>LinguaLens</Text>
+          <Text style={s.pushApp} numberOfLines={1}>
+            LinguaLens
+          </Text>
           <Text style={s.pushTime}>{hour}</Text>
         </View>
-        <Text style={s.pushTitle} numberOfLines={1}>
+        <Text style={s.pushTitle} numberOfLines={2}>
           {title}
         </Text>
         <Text style={s.pushBody} numberOfLines={2}>
-          {t('obPushPreviewBody')}
+          {body}
         </Text>
       </View>
     </View>
   );
-  if (!wallpaper) return banner;
+}
+
+export function PushPreview({ topic, hour, clock, sample, t, width = 270, height = null, wallpaper = true }) {
+  const { C, SHADOW, isDark } = useTheme();
+  const s = useMemo(() => makeStyles(C), [C]);
+  const title = topic ? t('obPushPreviewTopic', { topic }) : t('obPushPreviewTitle');
+  // Тіло — саме слово з перекладом: воно коротке й не обірветься навіть на
+  // вузькому телефоні (власник: жодних обрізаних текстів)
+  const body = sample ? `${sample.word} — ${sample.translation}` : '';
+  const a11y = t('obPushPreviewA11y', { title, h: hour });
+  // низ сповіщення на екрані телефона (з рамкою) і ще трохи шпалер під ним
+  // (під згасанням): до виміру — 0
+  const [need, setNeed] = useState(0);
+  if (!wallpaper) {
+    return (
+      <View accessible accessibilityLabel={a11y}>
+        <PushBanner title={title} body={body} hour={hour} t={t} style={SHADOW} />
+      </View>
+    );
+  }
+  const u = width / 270;
+  const bezel = Math.max(5, Math.round(7 * u));
+  const full = Math.round(width * PHONE_RATIO);
+  const shown = Math.min(full, Math.max(need || phoneVisible(width), height || full));
+  const R_OUT = Math.round(46 * u);
+  const R_IN = R_OUT - bezel;
+  const ink = '#FFFFFF';
   return (
-    <View style={[s.wall, SHADOW]} testID="push-wallpaper">
-      <Svg style={StyleSheet.absoluteFill} width="100%" height="100%">
+    <View
+      style={{ height: shown, overflow: 'hidden', alignItems: 'center', marginTop: 18 }}
+      accessible
+      accessibilityLabel={a11y}
+      testID="push-phone"
+    >
+      <View
+        style={[
+          {
+            width,
+            height: full,
+            borderRadius: R_OUT,
+            padding: bezel,
+            backgroundColor: '#000000',
+            borderWidth: 1,
+            borderColor: isDark ? 'rgba(255,255,255,0.22)' : 'rgba(0,0,0,0.1)',
+          },
+          SHADOW,
+        ]}
+      >
+        <View style={{ flex: 1, borderRadius: R_IN, overflow: 'hidden' }} testID="push-wallpaper">
+          <Svg style={StyleSheet.absoluteFill} width="100%" height="100%">
+            <Defs>
+              <LinearGradient id="obWall" x1="0" y1="0" x2="0.6" y2="1">
+                <Stop offset="0" stopColor={C.accent} stopOpacity={isDark ? 0.62 : 0.95} />
+                <Stop offset="1" stopColor={C.green} stopOpacity={isDark ? 0.42 : 0.8} />
+              </LinearGradient>
+            </Defs>
+            <Rect x="0" y="0" width="100%" height="100%" fill={isDark ? '#000000' : C.accent} />
+            <Rect x="0" y="0" width="100%" height="100%" fill="url(#obWall)" />
+          </Svg>
+          {/* Dynamic Island */}
+          <View style={{ alignSelf: 'center', marginTop: 9 * u, width: 86 * u, height: 25 * u, borderRadius: 13 * u, backgroundColor: '#000000' }} />
+          <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={{ alignItems: 'center' }}>
+            <Text style={[s.lockDate, { color: ink, fontSize: 14 * u, lineHeight: 18 * u, marginTop: 12 * u }]} numberOfLines={1}>
+              {lockDate()}
+            </Text>
+            <Text
+              style={[s.lockClock, { color: ink, fontSize: 66 * u, lineHeight: 74 * u }]}
+              numberOfLines={1}
+              testID="push-clock"
+            >
+              {clock || hour}
+            </Text>
+          </View>
+          <PushBanner
+            title={title}
+            body={body}
+            hour={hour}
+            t={t}
+            u={u}
+            style={{ marginHorizontal: 10 * u, marginTop: 14 * u }}
+            onLayout={(e) => {
+              const { y, height: h } = e.nativeEvent.layout;
+              const n = Math.ceil(bezel + y + h + FADE_H + 6);
+              setNeed((v) => (Math.abs(v - n) > 1 ? n : v));
+            }}
+          />
+        </View>
+      </View>
+      {shown < full ? <PhoneFade color={C.bg} /> : null}
+    </View>
+  );
+}
+
+// Згасання знизу: телефон іде за край, а не обрізаний рівною лінією. Лягає
+// лише на шпалери під сповіщенням (див. need у PushPreview).
+const FADE_H = 34;
+function PhoneFade({ color }) {
+  return (
+    <View
+      pointerEvents="none"
+      style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: FADE_H }}
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+    >
+      <Svg width="100%" height={FADE_H}>
         <Defs>
-          <LinearGradient id="obWall" x1="0" y1="0" x2="1" y2="1">
-            <Stop offset="0" stopColor={C.accent} stopOpacity={isDark ? 0.55 : 0.62} />
-            <Stop offset="1" stopColor={C.warm} stopOpacity={isDark ? 0.4 : 0.5} />
+          <LinearGradient id="phoneFade" x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0" stopColor={color} stopOpacity={0} />
+            <Stop offset="1" stopColor={color} stopOpacity={1} />
           </LinearGradient>
         </Defs>
-        <Rect x="0" y="0" width="100%" height="100%" fill={C.card} />
-        <Rect x="0" y="0" width="100%" height="100%" fill="url(#obWall)" />
+        <Rect x="0" y="0" width="100%" height={FADE_H} fill="url(#phoneFade)" />
       </Svg>
-      <Text style={[s.wallTime, { color: isDark ? C.text : C.onAccent }]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-        {hour}
-      </Text>
-      {banner}
+    </View>
+  );
+}
+
+// ─── Що таке слово дня (онбординг 4.0) ─────────────────────────────────────
+// Картка-приклад слова дня мовою, яку людина вчить: слово й вимова, переклад
+// її мовою, приклад і його переклад. Справжнього слова ще немає (план
+// складемо далі), тож це чашка з демо (demoExample) — без мережі. Тап по
+// динаміку — вимова, як на справжній картці. Зʼявляється мʼякою пружиною.
+export function WodExample({ sample, t, delay = 220 }) {
+  const { C, SHADOW } = useTheme();
+  const s = useMemo(() => makeStyles(C), [C]);
+  const reduced = useReducedMotion();
+  const a = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (reduced) {
+      Animated.timing(a, { toValue: 1, duration: 200, delay, easing: EASE.soft, useNativeDriver: true }).start();
+      return;
+    }
+    Animated.spring(a, { toValue: 1, delay, ...spring(0.42, 0.78) }).start();
+  }, []);
+  const style = {
+    opacity: a.interpolate({ inputRange: [0, 0.6, 1.2], outputRange: [0, 1, 1] }),
+    transform: reduced
+      ? []
+      : [
+          { translateY: a.interpolate({ inputRange: [0, 1], outputRange: [18, 0] }) },
+          { scale: a.interpolate({ inputRange: [0, 1], outputRange: [0.94, 1] }) },
+        ],
+  };
+  const sub = [sample.ipa, sample.translation].filter(Boolean).join(' · ');
+  return (
+    <Animated.View style={[s.wodCard, SHADOW, style]} testID="wod-example">
+      <View style={s.capsRow}>
+        <Text style={[s.caps, { color: C.accent, flex: 1 }]} numberOfLines={1}>
+          {t('obPushPreviewTitle')}
+        </Text>
+        <View style={s.planLang}>
+          <Text style={s.planFlag}>{flagFor(sample.lang)}</Text>
+          <Text style={s.planLangName} numberOfLines={1}>
+            {nameFor(sample.lang)}
+          </Text>
+        </View>
+      </View>
+      <View style={s.todayRow}>
+        <Text style={s.wodWord} numberOfLines={2}>
+          {sample.word}
+        </Text>
+        <Pressable
+          onPress={() => speak(sample.word, sample.lang)}
+          hitSlop={10}
+          style={({ pressed }) => [s.todaySpeak, pressed && { opacity: 0.6 }]}
+          accessibilityRole="button"
+          accessibilityLabel={`${t('listen')}: ${sample.word}`}
+        >
+          <IcSpeaker size={20} color={C.accent} />
+        </Pressable>
+      </View>
+      {sub ? <Text style={s.todaySub}>{sub}</Text> : null}
+      {sample.example ? (
+        <View style={s.wodExample}>
+          <Text style={s.wodExText}>{sample.example}</Text>
+          {sample.exampleTranslation ? <Text style={s.wodExTr}>{sample.exampleTranslation}</Text> : null}
+        </View>
+      ) : null}
+    </Animated.View>
+  );
+}
+
+// ─── Lingo на кроці імені ──────────────────────────────────────────────────
+// Визирає з-за кнопки «Далі» й махає; поки поле порожнє — каже cheer (реакцію
+// на щойно обрану мову, якщо є). Людина ввела імʼя — через NAME_PAUSE_MS
+// після останньої літери (не на кожну літеру) радіє: поза celebrate,
+// підскок і «Приємно познайомитися, Олено!». Стерла — знову махає.
+// room — скільки вільного місця над кнопкою (StepFrame peek, null — ще не
+// виміряно): тісно (SE з клавіатурою) — менший, зовсім тісно — ховається:
+// поле й кнопка важливіші.
+export const NAME_PAUSE_MS = 400;
+// Яка частина Lingo ховається за кнопкою (ноги) і відступ над кнопкою
+const PEEK_HIDDEN = 0.2;
+const FOOTER_GAP = 8;
+const PEEK_MAX = 128;
+
+export function nameLingoSize(room) {
+  if (room == null) return 96;
+  const size = Math.min(PEEK_MAX, Math.floor((room - 6 + FOOTER_GAP) / (1 - PEEK_HIDDEN)));
+  return size >= 58 ? size : 0;
+}
+
+export function NameLingo({ name, cheer = '', room, t }) {
+  const { C, SHADOW_SM } = useTheme();
+  const s = useMemo(() => makeStyles(C), [C]);
+  const [greet, setGreet] = useState(name);
+  useEffect(() => {
+    if (!name) {
+      setGreet('');
+      return undefined;
+    }
+    const id = setTimeout(() => setGreet(name), NAME_PAUSE_MS);
+    return () => clearTimeout(id);
+  }, [name]);
+  const size = nameLingoSize(room);
+  if (!size) return null;
+  const text = greet ? t('obNameNice', { name: greet }) : cheer;
+  return (
+    <View style={s.peekRow} pointerEvents="none" testID="name-lingo">
+      {text ? (
+        <FadeIn key={text} dy={6} style={[s.peekBubble, SHADOW_SM, { marginBottom: size * 0.42 }]}>
+          <Text style={s.peekText} numberOfLines={3} accessibilityLiveRegion="polite">
+            {text}
+          </Text>
+          <View style={s.peekTail} />
+        </FadeIn>
+      ) : null}
+      <View style={{ marginBottom: -(size * PEEK_HIDDEN + FOOTER_GAP) }}>
+        <MascotLive pose={greet ? 'celebrate' : 'wave'} size={size} enter="peek" waves={2} hop={greet} testID="name-lingo-mascot" />
+      </View>
     </View>
   );
 }
 
 // ─── Вітання ───────────────────────────────────────────────────────────────
-// Lingo махає на мʼякому колі, довкола три предмети з табличками різними
-// мовами ледь плавають (±6 pt, 3,2 с, розфазовано). «Менше руху» — стоять.
+// Великий Lingo на мʼякому колі: зʼявляється підскоком, тричі махає лапкою
+// (похитування навколо нижньої точки) і далі спокійно дихає. Довкола три
+// предмети з табличками різними мовами ледь плавають (±6 pt, 3,2 с,
+// розфазовано). «Менше руху» — усе стоїть.
 const FLOATERS = [
   { key: 'mug', code: 'en', word: 'mug', at: { left: '4%', top: '8%' }, tilt: -8, phase: 0 },
   { key: 'plant', code: 'es', word: 'planta', at: { right: '2%', top: '2%' }, tilt: 7, phase: 1 },
@@ -347,7 +595,7 @@ export function WelcomeHero({ size = 230 }) {
       testID="welcome-hero"
     >
       <View style={{ position: 'absolute', width: size * 0.92, height: size * 0.92, borderRadius: size, backgroundColor: C.accentSoft }} />
-      <MascotBob pose="wave" size={size * 0.86} />
+      <MascotLive pose="wave" size={Math.round(size * 0.98)} enter="hop" waves={3} testID="welcome-lingo" />
       {FLOATERS.map((f) => (
         <Floater key={f.key} f={f} reduced={reduced}>
           {f.key === 'mug' ? <MiniMug size={54} sticker={false} /> : f.key === 'plant' ? <MiniPlant size={46} /> : <MiniKey size={52} />}
@@ -360,14 +608,15 @@ export function WelcomeHero({ size = 230 }) {
   );
 }
 
-// Бульбашка Lingo над заголовком: «Привіт! Я Lingo.», «Англійська —
-// чудовий вибір!».
+// Бульбашка Lingo над заголовком: «Привіт! Я Лінго.», «Англійська —
+// чудовий вибір!». pose={null} — без мініатюри: Lingo вже стоїть поруч із
+// заголовком (кроки-питання), другий був би зайвий.
 export function LingoBubble({ text, pose = 'wave', style }) {
   const { C, SHADOW_SM } = useTheme();
   const s = useMemo(() => makeStyles(C), [C]);
   return (
-    <FadeIn delay={120} style={[s.bubble, SHADOW_SM, style]} testID="lingo-bubble">
-      <Mascot pose={pose} size={30} />
+    <FadeIn delay={120} style={[s.bubble, SHADOW_SM, !pose && { paddingLeft: 14, paddingVertical: 8 }, style]} testID="lingo-bubble">
+      {pose ? <Mascot pose={pose} size={30} /> : null}
       <Text style={s.bubbleText} numberOfLines={2}>
         {text}
       </Text>
@@ -478,20 +727,56 @@ const makeStyles = (C) =>
     hourPart: { color: C.dim, ...type(13, F.bold, { noLead: true }) },
     hourTime: { color: C.text, ...type(17, F.extra, { noLead: true }), marginTop: 3 },
 
-    wall: { borderRadius: R.xl, overflow: 'hidden', paddingHorizontal: 12, paddingTop: 16, paddingBottom: 14, marginTop: 18 },
-    wallTime: { ...type(46, F.extra, { noLead: true }), textAlign: 'center', marginBottom: 14 },
+    lockDate: { fontFamily: F.bold, textAlign: 'center' },
+    lockClock: { fontFamily: F.extra, textAlign: 'center', letterSpacing: -1 },
     push: {
       flexDirection: 'row',
+      alignItems: 'center',
       gap: 12,
       backgroundColor: C.card,
       borderRadius: R.lg,
       padding: 14,
     },
     pushHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-    pushApp: { color: C.faint, ...CAPS },
-    pushTime: { color: C.faint, ...type(13, F.semi, { noLead: true }) },
-    pushTitle: { color: C.text, ...type(16, F.extra), marginTop: 2 },
-    pushBody: { color: C.dim, ...type(14, F.reg) },
+    pushApp: { flexShrink: 1, color: C.dim, ...type(13, F.bold, { noLead: true }) },
+    pushTime: { color: C.dim, ...type(12, F.semi, { noLead: true }) },
+    pushTitle: { color: C.text, ...type(14, F.extra), marginTop: 2 },
+    pushBody: { color: C.text, ...type(14, F.reg) },
+
+    wodCard: {
+      backgroundColor: C.card,
+      borderRadius: R.lg,
+      borderWidth: 2,
+      borderColor: C.accentSoft,
+      paddingHorizontal: 18,
+      paddingTop: 14,
+      paddingBottom: 16,
+    },
+    wodWord: { flexShrink: 1, color: C.text, ...type(30, F.extra) },
+    wodExample: { marginTop: 12, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.sep },
+    wodExText: { color: C.text, ...type(15, F.semi) },
+    wodExTr: { color: C.dim, ...type(14, F.reg), marginTop: 2 },
+
+    peekRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'flex-end', gap: 6, paddingLeft: 24, paddingRight: 34 },
+    peekBubble: {
+      flexShrink: 1,
+      backgroundColor: C.card,
+      borderRadius: R.md,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+    },
+    peekText: { color: C.text, ...type(14, F.extra) },
+    // хвостик бульбашки — до Lingo праворуч
+    peekTail: {
+      position: 'absolute',
+      right: -5,
+      bottom: 14,
+      width: 12,
+      height: 12,
+      backgroundColor: C.card,
+      transform: [{ rotate: '45deg' }],
+      borderRadius: 2,
+    },
 
     bubble: {
       flexDirection: 'row',

@@ -1,9 +1,10 @@
-// Онбординг 3.0 (onboarding.md §4–§13): три дії — «Ти» (мова, імʼя, цілі,
-// сфера, рівень, що заважає, звідки, план зі словом на сьогодні) → «Як це
-// працює» (серія, година сповіщень, віджети) → «Спробуй» (демо, згода на AI,
-// справжній скан, свято, обіцянка). Короткий варіант — без імені й «що
-// заважає». Повтор із Параметрів — без «звідки», обіцянки й скану.
-// Чернетка живе 15 хвилин; перший запуск нічого не підставляє з налаштувань.
+// Онбординг 4.0 (onboarding.md §4–§13, правки власника 5.10.2026): три дії —
+// «Ти» (мова, імʼя, цілі, сфера, рівень, що заважає, звідки) → «Як це
+// працює» (що таке слово дня, коли надсилати, план зі словом на сьогодні,
+// серія, віджети) → «Спробуй» (демо, згода на AI, справжній скан, свято,
+// обіцянка). Короткий варіант — без імені й «що заважає». Повтор із
+// Параметрів — без «звідки», обіцянки й скану. Чернетка живе 15 хвилин;
+// перший запуск нічого не підставляє з налаштувань.
 import { AccessibilityInfo, AppState, Text } from 'react-native';
 import { act, create } from 'react-test-renderer';
 import * as Haptics from 'expo-haptics';
@@ -13,10 +14,13 @@ import OnboardingScreen, {
   BUILD_MAX_MS,
   BUILD_MIN_MS,
   COMMIT_PAUSE_MS,
+  LINGO_POSE,
   actProgress,
   onboardingFlow,
   restoreDraft,
 } from '../src/OnboardingScreen';
+import { StepFrame } from '../src/ProfileSteps';
+import { NAME_PAUSE_MS } from '../src/OnboardingParts';
 import { CELEBRATE_NEXT_MS } from '../src/Celebrate';
 import { permissionStatus, requestPermission } from '../src/wordOfDay';
 import { flag, track } from '../src/analytics';
@@ -130,6 +134,10 @@ const slider = (tree) => tree.root.find((n) => typeof n.type === 'string' && n.p
 const header = (tree) => tree.root.findAll((n) => typeof n.type === 'string' && n.props.accessibilityRole === 'header')[0];
 const title = (tree) => header(tree)?.props.children;
 const nameInput = (tree) => tree.root.find((n) => typeof n.props.onChangeText === 'function' && n.props.maxLength === 30);
+// Підзаголовок кроку (StepFrame text): на кроках-питаннях його немає
+const subtitle = (tree) => tree.root.findByType(StepFrame).props.text;
+// Лінго поруч із заголовком кроку-питання
+const stepLingo = (tree) => tree.root.findAll((n) => n.props.testID === 'step-lingo' && n.props.pose)[0];
 const ring = (tree) => tree.root.findAll((n) => n.props.testID === 'hold-to-commit' && n.props.onAccessibilityAction)[0];
 const events = (name) => track.mock.calls.filter(([e]) => e === name).map(([, p]) => p);
 
@@ -159,8 +167,8 @@ async function promise(tree) {
   await act(async () => ring(tree).props.onAccessibilityAction({ nativeEvent: { actionName: 'activate' } }));
   await advance(COMMIT_PAUSE_MS + 10);
 }
-// Від вітання до плану з мінімумом відповідей (control)
-async function toPlan(tree, { lang = 'en' } = {}) {
+// Від вітання до «Що таке слово дня» з мінімумом відповідей (control)
+async function toWod(tree, { lang = 'en' } = {}) {
   await start(tree);
   await pickLang(tree, lang);
   await typeName(tree, 'Олена');
@@ -172,11 +180,20 @@ async function toPlan(tree, { lang = 'en' } = {}) {
   await tap(tree, t('obNext'));
   await tap(tree, 'TikTok');
   await advance(AUTO_MS);
+  expect(title(tree)).toBe(t('obWodTitle'));
+}
+// …і далі: слово дня → сповіщення (якщо питаємо; «так» чи «ні» — далі) →
+// «складаємо твій план…»
+async function toPlan(tree, opts) {
+  await toWod(tree, opts);
+  await tap(tree, t('obNext'));
+  if (title(tree) === t('obPushTitle')) await tap(tree, t('obNext'));
+  if (title(tree) === t('obPushDeniedTitle')) await tap(tree, t('obNext'));
 }
 
 // ─── 1. Порядок кроків ─────────────────────────────────────────────────────
 describe('flow order', () => {
-  test('control: welcome, language, the questions, heard, plan; then streak, push, widgets; then demo, celebration, promise', () => {
+  test('control: welcome, language, the questions, heard; then the word of the day, push, plan, streak, widgets; then demo, celebration, promise', () => {
     expect(onboardingFlow({ goals: [] })).toEqual([
       'welcome',
       'lang',
@@ -185,6 +202,7 @@ describe('flow order', () => {
       'level',
       'struggles',
       'heard',
+      'wod',
       'plan',
       'streak',
       'demo',
@@ -199,9 +217,10 @@ describe('flow order', () => {
       'level',
       'struggles',
       'heard',
+      'wod',
+      'push',
       'plan',
       'streak',
-      'push',
       'widgets',
       'demo',
       'celebrate',
@@ -214,6 +233,13 @@ describe('flow order', () => {
     expect(onboardingFlow({ widgets: false })).not.toContain('widgets');
     // свято — лише після збереженого слова
     expect(onboardingFlow({ scanned: false })).not.toContain('celebrate');
+    // «Що таке слово дня» — завжди, і без кроку сповіщень; сповіщення —
+    // одразу після нього, до плану
+    for (const push of [true, false]) {
+      const f = onboardingFlow({ push });
+      expect(f.indexOf('wod')).toBe(f.indexOf('heard') + 1);
+      expect(f.indexOf('plan')).toBe(f.indexOf('wod') + (push ? 2 : 1));
+    }
   });
 
   test('short: no name and no struggles; the promise stays', () => {
@@ -224,9 +250,10 @@ describe('flow order', () => {
       'field',
       'level',
       'heard',
+      'wod',
+      'push',
       'plan',
       'streak',
-      'push',
       'demo',
       'commit',
     ]);
@@ -240,9 +267,10 @@ describe('flow order', () => {
       'field',
       'level',
       'struggles',
+      'wod',
+      'push',
       'plan',
       'streak',
-      'push',
       'widgets',
       'demo',
     ]);
@@ -251,22 +279,31 @@ describe('flow order', () => {
     for (const k of ['lang', 'heard', 'commit', 'celebrate', 'welcome']) expect(withWords).not.toContain(k);
   });
 
-  test('three acts: each segment fills with its own steps', () => {
+  test('three acts: each segment fills with its own steps; the word of the day, push and plan are “how it works”', () => {
     const f = onboardingFlow({ goals: [], push: true, widgets: true });
     expect(ACT.lang).toBe(0);
-    expect(ACT.streak).toBe(1);
+    expect(ACT.heard).toBe(0);
+    expect([ACT.wod, ACT.push, ACT.plan, ACT.streak, ACT.widgets]).toEqual([1, 1, 1, 1, 1]);
     expect(ACT.demo).toBe(2);
-    expect(actProgress(f, 'lang')).toEqual([1 / 7, 0, 0]);
-    expect(actProgress(f, 'plan')).toEqual([1, 0, 0]);
-    expect(actProgress(f, 'streak')).toEqual([1, 1 / 3, 0]);
-    expect(actProgress(f, 'pushDenied')).toEqual([1, 2 / 3, 0]);
+    // кожен крок потоку належить якійсь дії
+    for (const k of f.filter((x) => x !== 'welcome')) expect([k, ACT[k]]).toEqual([k, expect.any(Number)]);
+    expect(actProgress(f, 'lang')).toEqual([1 / 6, 0, 0]);
+    expect(actProgress(f, 'heard')).toEqual([1, 0, 0]);
+    expect(actProgress(f, 'wod')).toEqual([1, 1 / 5, 0]);
+    expect(actProgress(f, 'pushDenied')).toEqual([1, 2 / 5, 0]);
+    expect(actProgress(f, 'plan')).toEqual([1, 3 / 5, 0]);
+    expect(actProgress(f, 'streak')).toEqual([1, 4 / 5, 0]);
     expect(actProgress(f, 'demo')).toEqual([1, 1, 1 / 2]);
     expect(actProgress(f, 'commit')).toEqual([1, 1, 1]);
+    // без сповіщень і віджетів друга дія — слово дня, план, серія
+    const g = onboardingFlow({ goals: [] });
+    expect(actProgress(g, 'wod')).toEqual([1, 1 / 3, 0]);
+    expect(actProgress(g, 'streak')).toEqual([1, 1, 0]);
   });
 });
 
 // ─── Повний шлях ───────────────────────────────────────────────────────────
-test('the full path: language → name → work in finance → B2+ → struggles → heard → plan with today’s word → streak → push → demo → promise', async () => {
+test('the full path: language → name → work in finance → B2+ → struggles → heard → word of the day → push → plan with today’s word → streak → demo → promise', async () => {
   const { tree, onDone, onLanguages, prepareWod } = await render({ widgets: false });
   // вітання: справжня іконка, Lingo й нові тексти; ні «Назад», ні смужки
   expect(has(tree, t('ob3HookTitle'))).toBe(true);
@@ -278,7 +315,8 @@ test('the full path: language → name → work in finance → B2+ → struggles
 
   // Мова — перший крок; нічого не обрано наперед; «Далі» немає — вибір веде далі сам
   expect(title(tree)).toBe(t('obLangTitle'));
-  expect(header(tree).props.accessibilityLabel).toBe('Step 1 of 11. ' + t('obLangTitle'));
+  expect(subtitle(tree)).toBeFalsy();
+  expect(header(tree).props.accessibilityLabel).toBe('Step 1 of 12. ' + t('obLangTitle'));
   expect(hostId(tree, 'onb-progress')).toHaveLength(1);
   expect(hostId(tree, 'onb-act-0')).toHaveLength(1);
   expect(nextBtn(tree)).toBeUndefined();
@@ -289,40 +327,74 @@ test('the full path: language → name → work in finance → B2+ → struggles
   expect(title(tree)).toBe(t('obLangTitle'));
   await advance(AUTO_MS);
 
-  // Реакція Lingo на мову — над імʼям
+  // Реакція Lingo на мову — його ж бульбашкою знизу; підзаголовка немає
   expect(title(tree)).toBe(t('obNameTitle'));
+  expect(subtitle(tree)).toBeFalsy();
   expect(has(tree, 'English — great choice!')).toBe(true);
   expect(nextBtn(tree).props.disabled).toBe(true);
   await typeName(tree, '   Олена  ');
+  await advance(NAME_PAUSE_MS);
+  expect(has(tree, 'Nice to meet you, Олена!')).toBe(true);
   await tap(tree, t('obNext'));
   expect(Haptics.impactAsync).toHaveBeenLastCalledWith('light');
 
-  // Цілі — з імʼям і мовою в заголовку
+  // Цілі — з імʼям і мовою в заголовку, без підзаголовка, з Лінго поруч
   expect(title(tree)).toBe('Олена, why are you learning English?');
+  expect(subtitle(tree)).toBeFalsy();
+  expect(stepLingo(tree).props.pose).toBe('encourage');
   await tap(tree, t('goal_work'));
   await tap(tree, t('obNext'));
 
   // Сфера: тап — галочка — і далі сам
   expect(title(tree)).toBe(t('pfFieldTitle'));
+  expect(subtitle(tree)).toBeFalsy();
   expect(nextBtn(tree)).toBeUndefined();
   await tap(tree, t('field_finance'));
   await advance(AUTO_MS);
 
-  // Рівень: мова — підписом над питанням
+  // Рівень: мова — підписом над питанням; під повзунком — назва рівня
   expect(title(tree)).toBe(t('pfLevelTitle'));
+  expect(subtitle(tree)).toBeFalsy();
   expect(has(tree, 'English')).toBe(true);
+  expect(has(tree, t('levelName3'))).toBe(true);
   await bump(tree, 3); // 5 → 8
+  expect(has(tree, t('levelName4'))).toBe(true);
+  expect(has(tree, t('lvl8'))).toBe(true);
   await tap(tree, t('obNext'));
 
   expect(title(tree)).toBe(t('obStrugglesTitle'));
+  expect(subtitle(tree)).toBeFalsy();
   await tap(tree, t('struggle_time'));
   await tap(tree, t('struggle_forget'));
   await tap(tree, t('obNext'));
 
   // «Звідки» — один тап
   expect(title(tree)).toBe(t('pfHeardTitle'));
+  expect(subtitle(tree)).toBeFalsy();
   await tap(tree, 'TikTok');
   await advance(AUTO_MS);
+
+  // Дія 2: що таке слово дня — картка-приклад мовою навчання, без мережі
+  expect(title(tree)).toBe(t('obWodTitle'));
+  expect(subtitle(tree)).toBe(t('obWodText'));
+  expect(hostId(tree, 'wod-example')).toHaveLength(1);
+  expect(has(tree, 'mug')).toBe(true);
+  expect(has(tree, '/mʌɡ/ · чашка')).toBe(true);
+  expect(has(tree, 'There’s hot coffee in this mug.')).toBe(true);
+  expect(has(tree, 'У цій чашці гаряча кава.')).toBe(true);
+  expect(prepareWod).not.toHaveBeenCalled();
+  expect(actProgress(onboardingFlow({ goals: ['work'], push: true }), 'wod')[1]).toBe(1 / 4);
+  await tap(tree, t('obNext'));
+
+  // Сповіщення: година й телефон зі сповіщенням; єдина кнопка — «Далі»
+  expect(title(tree)).toBe(t('obPushTitle'));
+  expect(subtitle(tree)).toBe(t('obPushText'));
+  expect(hostId(tree, 'push-phone')).toHaveLength(1);
+  expect(has(tree, 'Word of the day · Finance')).toBe(true);
+  expect(has(tree, 'mug — чашка')).toBe(true);
+  expect(texts(tree).some((s) => /allow/i.test(s))).toBe(false); // App Review 5.1.1(iv)
+  await tap(tree, t('obNext'));
+  expect(requestPermission).toHaveBeenCalledTimes(1);
 
   // План: спершу «складаємо…» (справжній запит слова дня під профіль)…
   expect(has(tree, t('obBuildTitle'))).toBe(true);
@@ -335,19 +407,15 @@ test('the full path: language → name → work in finance → B2+ → struggles
   expect(has(tree, '/ˈledʒə/ · гросбух')).toBe(true);
   expect(has(tree, 'Your word for today · Finance')).toBe(true);
   expect(has(tree, t('plan_forget'))).toBe(true);
+  // рівень у плані — назвою, без «пропускаємо…»
+  expect(has(tree, 'Level: B2+ · Confident')).toBe(true);
   await tap(tree, t('obNext'));
 
-  // Дія 2: серія
+  // Серія
   expect(title(tree)).toBe(t('obStreakTitle'));
-  expect(actProgress(onboardingFlow({ goals: ['work'], push: true }), 'streak')[1]).toBe(1 / 2);
+  expect(title(tree)).toBe('Learn every day and grow your flame');
+  expect(actProgress(onboardingFlow({ goals: ['work'], push: true }), 'streak')[1]).toBe(1);
   await tap(tree, t('obNext'));
-
-  // Сповіщення: година й прев’ю; єдина кнопка — «Далі»
-  expect(title(tree)).toBe(t('obPushTitle'));
-  expect(has(tree, 'Word of the day · Finance')).toBe(true);
-  expect(texts(tree).some((s) => /allow/i.test(s))).toBe(false); // App Review 5.1.1(iv)
-  await tap(tree, t('obNext'));
-  expect(requestPermission).toHaveBeenCalledTimes(1);
 
   // Дія 3: демо (віджетів у цій збірці немає)
   expect(title(tree)).toBe(t('obDemoTitle'));
@@ -357,8 +425,13 @@ test('the full path: language → name → work in finance → B2+ → struggles
   expect(title(tree)).toBe(t('obCommitTitle'));
   expect(has(tree, 'I, Олена, will learn English every day — one word at a time')).toBe(true);
   expect(has(tree, t('obCommitGoal'))).toBe(true);
+  // Лінго підбадьорює, а після обіцянки — радіє
+  const lingo = () => tree.root.findAll((n) => n.props.testID === 'commit-lingo' && n.props.pose)[0];
+  expect(lingo().props.pose).toBe('encourage');
   expect(onDone).not.toHaveBeenCalled();
-  await promise(tree);
+  await act(async () => ring(tree).props.onAccessibilityAction({ nativeEvent: { actionName: 'activate' } }));
+  expect(lingo().props.pose).toBe('celebrate');
+  await advance(COMMIT_PAUSE_MS + 10);
 
   expect(onDone).toHaveBeenCalledTimes(1);
   expect(onDone).toHaveBeenCalledWith({
@@ -384,27 +457,30 @@ test('the full path: language → name → work in finance → B2+ → struggles
     'level',
     'struggles',
     'heard',
+    'wod',
+    'push',
     'plan',
     'streak',
-    'push',
     'demo',
     'commit',
   ]);
-  expect(events('onboarding_step').every((e) => e.ver === 3 && e.flow === 'control')).toBe(true);
+  expect(events('onboarding_step').every((e) => e.ver === 4 && e.flow === 'control')).toBe(true);
+  // крок «слово дня» — восьмий із тринадцяти (зі сферою)
+  expect(events('onboarding_step').find((e) => e.step === 'wod')).toMatchObject({ index: 8, total: 13 });
   expect(events('onboarding_answer')).toEqual([
-    { step: 'lang', value: 'en', native: 'uk', flow: 'control', ver: 3 },
-    { step: 'name', value: 'given', flow: 'control', ver: 3 },
-    { step: 'goals', value: ['work'], flow: 'control', ver: 3 },
-    { step: 'field', value: 'finance', flow: 'control', ver: 3 },
-    { step: 'level', value: 8, flow: 'control', ver: 3 },
-    { step: 'struggles', value: ['forget', 'time'], flow: 'control', ver: 3 },
-    { step: 'heard', value: 'tiktok', flow: 'control', ver: 3 },
-    { step: 'push_hour', value: 10, flow: 'control', ver: 3 },
+    { step: 'lang', value: 'en', native: 'uk', flow: 'control', ver: 4 },
+    { step: 'name', value: 'given', flow: 'control', ver: 4 },
+    { step: 'goals', value: ['work'], flow: 'control', ver: 4 },
+    { step: 'field', value: 'finance', flow: 'control', ver: 4 },
+    { step: 'level', value: 8, flow: 'control', ver: 4 },
+    { step: 'struggles', value: ['forget', 'time'], flow: 'control', ver: 4 },
+    { step: 'heard', value: 'tiktok', flow: 'control', ver: 4 },
+    { step: 'push_hour', value: 10, flow: 'control', ver: 4 },
   ]);
-  expect(events('onb_streak_play')).toEqual([{ max: 0, touched: false, flow: 'control', ver: 3 }]);
-  expect(events('onb_commit')).toEqual([{ mode: 'tap', releases: 0, flow: 'control', ver: 3 }]);
+  expect(events('onb_streak_play')).toEqual([{ max: 0, touched: false, flow: 'control', ver: 4 }]);
+  expect(events('onb_commit')).toEqual([{ mode: 'tap', releases: 0, flow: 'control', ver: 4 }]);
   expect(events('onboarding_complete')).toEqual([
-    { flow: 'control', ver: 3, seconds: expect.any(Number), scanned: false, push: true, paywall: 'none' },
+    { flow: 'control', ver: 4, seconds: expect.any(Number), scanned: false, push: true, paywall: 'none' },
   ]);
   expect(JSON.stringify(track.mock.calls)).not.toMatch(/Олена/);
 });
@@ -447,7 +523,7 @@ describe('which language you learn', () => {
     const plRows = byId(tree, 'lang-pl');
     await press(plRows.at(-1));
     expect(onLanguages).toHaveBeenLastCalledWith({ targetLang: undefined, nativeLang: 'pl' });
-    expect(events('onboarding_answer')).toContainEqual({ step: 'native_change', value: 'pl', flow: 'control', ver: 3 });
+    expect(events('onboarding_answer')).toContainEqual({ step: 'native_change', value: 'pl', flow: 'control', ver: 4 });
     // українська тепер вибирається; польська — ні
     const uk = tree.root.findAll((n) => n.props.testID === 'lang-uk' && n.props.accessibilityState)[0];
     expect(uk.props.accessibilityState.disabled).toBe(false);
@@ -501,11 +577,18 @@ test('skipping every question changes nothing: no name, no profile; Back walks b
     void step;
     await tap(tree, t('obSkip'));
   }
+  // «Що таке слово дня» і година — не питання: їх не пропускають
+  expect(title(tree)).toBe(t('obWodTitle'));
+  expect(hasControl(tree, t('obSkip'))).toBe(false);
+  await tap(tree, t('obNext'));
+  expect(title(tree)).toBe(t('obPushTitle'));
+  await tap(tree, t('obNext'));
   expect(has(tree, t('obBuildTitle'))).toBe(true);
   expect(prepareWod).toHaveBeenCalledWith(null);
   await built();
-  // назад: план → звідки → що заважає → рівень → цілі → імʼя → мова
-  for (const k of ['pfHeardTitle', 'obStrugglesTitle', 'pfLevelTitle', 'pfGoalsTitleLang', 'obNameTitle', 'obLangTitle']) {
+  // назад: план → сповіщення → слово дня → звідки → що заважає → рівень →
+  // цілі → імʼя → мова
+  for (const k of ['obPushTitle', 'obWodTitle', 'pfHeardTitle', 'obStrugglesTitle', 'pfLevelTitle', 'pfGoalsTitleLang', 'obNameTitle', 'obLangTitle']) {
     await tap(tree, t('pfBack'));
     expect(title(tree)).toBe(k === 'pfGoalsTitleLang' ? t(k, { lang: 'English' }) : t(k));
   }
@@ -561,8 +644,9 @@ describe('the plan', () => {
       profile: { goals: ['travel'], field: null, level: 5, since: '2026-01-01' },
       name: 'Олена',
     });
-    // імʼя → цілі → рівень → що заважає → план
-    for (let i = 0; i < 4; i++) await tap(tree, t('obNext'));
+    // імʼя → цілі → рівень → що заважає → слово дня → (сповіщення) → план
+    for (let i = 0; i < 5; i++) await tap(tree, t('obNext'));
+    if (title(tree) === t('obPushTitle')) await tap(tree, t('obNext'));
     expect(title(tree)).toBe('Олена, here’s your plan');
     expect(has(tree, 'ledger')).toBe(true);
     expect(prepareWod).not.toHaveBeenCalled();
@@ -600,7 +684,7 @@ describe('the streak showcase', () => {
     await act(async () => row.props.onAccessibilityAction({ nativeEvent: { actionName: 'decrement' } }));
     expect(line(tree)).toBe(t('streakHabit', { n: 6 }));
     await tap(tree, t('obNext'));
-    expect(events('onb_streak_play')).toEqual([{ max: 7, touched: true, flow: 'control', ver: 3 }]);
+    expect(events('onb_streak_play')).toEqual([{ max: 7, touched: true, flow: 'control', ver: 4 }]);
   });
 
   test('1.5 s idle on an ember: the hint appears', async () => {
@@ -616,9 +700,7 @@ describe('the streak showcase', () => {
 // ─── 7. Сповіщення ─────────────────────────────────────────────────────────
 describe('notifications', () => {
   async function toPush(tree) {
-    await toPlan(tree);
-    await built();
-    await tap(tree, t('obNext'));
+    await toWod(tree);
     await tap(tree, t('obNext'));
     expect(title(tree)).toBe(t('obPushTitle'));
   }
@@ -633,11 +715,18 @@ describe('notifications', () => {
     await tap(tree, t('obNext'));
     expect(title(tree)).toBe(t('obPushDeniedTitle'));
     expect(control(tree, t('openSettings'))).toBeTruthy();
+    // клок на телефоні — обрана година
+    await tap(tree, t('obNext'));
+    // після «ні» — план, серія, демо
+    expect(has(tree, t('obBuildTitle'))).toBe(true);
+    await built();
+    await tap(tree, t('obNext'));
+    expect(title(tree)).toBe(t('obStreakTitle'));
     await tap(tree, t('obNext'));
     await tap(tree, t('obNext')); // демо
     await promise(tree);
     expect(onDone.mock.calls[0][0]).toMatchObject({ wodEnabled: false, wodHour: 19 });
-    expect(events('onboarding_answer')).toContainEqual({ step: 'push_hour', value: 19, flow: 'control', ver: 3 });
+    expect(events('onboarding_answer')).toContainEqual({ step: 'push_hour', value: 19, flow: 'control', ver: 4 });
   });
 
   test('turned on in Settings while away: back in the app, the follow-up moves on by itself', async () => {
@@ -654,14 +743,18 @@ describe('notifications', () => {
     permissionStatus.mockImplementation(async () => 'granted');
     await act(async () => listeners.forEach((fn) => fn('active')));
     await act(async () => {});
-    expect(title(tree)).toBe(t('obDemoTitle'));
+    // далі — план
+    expect(has(tree, t('obBuildTitle'))).toBe(true);
     spy.mockRestore();
   });
 
   test('already decided: no push step and no hour in the result', async () => {
     permissionStatus.mockImplementation(async () => 'granted');
     const { tree, onDone } = await render();
-    await toPlan(tree);
+    await toWod(tree);
+    await tap(tree, t('obNext'));
+    // одразу план
+    expect(has(tree, t('obBuildTitle'))).toBe(true);
     await built();
     await tap(tree, t('obNext'));
     await tap(tree, t('obNext'));
@@ -675,11 +768,12 @@ describe('notifications', () => {
   test('the dev “as new” run shows the push step even when iOS has decided, and the widgets step without widgets', async () => {
     permissionStatus.mockImplementation(async () => 'granted');
     const { tree } = await render({ dev: { forcePush: true, forceWidgets: true } });
-    await toPlan(tree);
-    await built();
-    await tap(tree, t('obNext'));
+    await toWod(tree);
     await tap(tree, t('obNext'));
     expect(title(tree)).toBe(t('obPushTitle'));
+    await tap(tree, t('obNext'));
+    await built();
+    await tap(tree, t('obNext'));
     await tap(tree, t('obNext'));
     expect(title(tree)).toBe(t('onbWidgetTitle'));
   });
@@ -745,7 +839,7 @@ describe('demo and the first scan', () => {
     expect(hostId(tree, 'goal-lit')).toHaveLength(1);
     await promise(tree);
     expect(onDone.mock.calls[0][0]).toMatchObject({ scanned: true, firstWord: MUG });
-    expect(events('onb_scan')).toEqual([{ result: 'saved', flow: 'control', ver: 3 }]);
+    expect(events('onb_scan')).toEqual([{ result: 'saved', flow: 'control', ver: 4 }]);
     // Success тут не наш: «Зберегти» вже дав його в сканері; обіцянка — свій
     expect(Haptics.notificationAsync.mock.calls.filter(([x]) => x === 'success')).toHaveLength(1);
   });
@@ -781,7 +875,7 @@ describe('demo and the first scan', () => {
     const { tree } = await toDemo({ aiConsent: true });
     await tap(tree, t('obWowLater'));
     expect(title(tree)).toBe(t('obCommitTitle'));
-    expect(events('onboarding_skip')).toContainEqual({ step: 'demo', flow: 'control', ver: 3 });
+    expect(events('onboarding_skip')).toContainEqual({ step: 'demo', flow: 'control', ver: 4 });
   });
 
   test('the free scan already used on this iPhone: the reason and “Next”', async () => {
@@ -805,8 +899,8 @@ describe('demo and the first scan', () => {
 
   test('replay: the demo ends it with “Done”', async () => {
     const { tree, onDone } = await render({ replay: true, hasWords: true, todayWord: WORD });
-    // імʼя → цілі → рівень → що заважає → план → серія → демо
-    for (let i = 0; i < 6; i++) await tap(tree, t('obNext'));
+    // імʼя → цілі → рівень → що заважає → слово дня → план → серія → демо
+    for (let i = 0; i < 7; i++) await tap(tree, t('obNext'));
     expect(title(tree)).toBe(t('obDemoTitle'));
     expect(hasControl(tree, t('obDemoTry'))).toBe(false);
     await tap(tree, t('obFinish'));
@@ -913,10 +1007,11 @@ test('a first run ignores the profile and name left in settings by an earlier ru
   await tap(tree, t('obSkip'));
   expect(control(tree, 'YouTube').props.accessibilityState).toEqual({ checked: false });
   await tap(tree, t('obSkip'));
-  await built();
-  await tap(tree, t('obNext'));
-  await tap(tree, t('obNext'));
+  await tap(tree, t('obNext')); // слово дня
   await tap(tree, t('obNext')); // push
+  await built();
+  await tap(tree, t('obNext')); // план
+  await tap(tree, t('obNext')); // серія
   await tap(tree, t('obNext')); // demo
   await promise(tree);
   expect(onDone.mock.calls[0][0]).toMatchObject({ profile: null, heardFrom: null, name: '', struggles: [] });

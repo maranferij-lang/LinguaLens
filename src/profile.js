@@ -249,23 +249,17 @@ export function profileSummary(profile, t) {
   return `${head} · ${cefrFor(p.level)}`;
 }
 
-// Діапазон рівня для підсумкового рядка під слайдером. Межі ті самі, що в
-// правилах сервера: 1–3, 4–5, 6–7, 8, 9–10.
-export function levelBand(level) {
-  const v = clampLevel(level);
-  if (v <= 3) return 1;
-  if (v <= 5) return 2;
-  if (v <= 7) return 3;
-  if (v === 8) return 4;
-  return 5;
+// Назва рівня простими словами — під слайдером і в плані: «Новачок» (1–2),
+// «Початківець» (3–4), «Середній» (5–6), «Впевнений» (7–8),
+// «Досвідчений» (9–10). Без обіцянок, що саме зміниться у словах: людині
+// досить упізнати себе (власник, онбординг 4.0).
+export const LEVEL_NAMES = 5;
+export function levelStage(level) {
+  return Math.ceil(clampLevel(level) / 2);
 }
 
-// Що рівень міняє на ділі: «Пропускаємо базові слова, починаємо зі
-// складніших». Число й CEFR уже великі над слайдером — тут лише наслідок
-// (VoiceOver чує «8 з 10, B2+» у значенні самого слайдера, levelA11y).
-export function levelResult(level, t) {
-  const s = t('levelBand' + levelBand(level));
-  return s.charAt(0).toUpperCase() + s.slice(1);
+export function levelName(level, t) {
+  return t('levelName' + levelStage(level));
 }
 
 // Слово, яке людина знає, — в кінець списку (найновіше), без повторів і не

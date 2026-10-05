@@ -1,8 +1,8 @@
 // Профіль навчання (src/profile.js) — чиста логіка без екранів.
 //
 // Найважливіше тут — контракт із сервером: ті самі цілі, сфери, «звідки
-// дізнались» і теми, ті самі ваги тем і ті самі межі рівнів. Розійдуться —
-// і людина побачить одне («пропускаємо базові слова»), а отримає інше.
+// дізнались» і теми, ті самі ваги тем. Розійдуться — і людина побачить один
+// план, а отримає інший.
 import fs from 'fs';
 import path from 'path';
 import {
@@ -21,8 +21,8 @@ import {
   topicCycle,
   cefrFor,
   cleanProfile,
-  levelBand,
-  levelResult,
+  levelName,
+  levelStage,
   levelUpOffer,
   needsField,
   primaryTopic,
@@ -72,17 +72,6 @@ describe('the same vocabulary as the server', () => {
       }
     }
     expect(topicWeights(null)).toEqual(Object.fromEntries(wordplan.weightsFor(null)));
-  });
-
-  test('the result line under the slider follows the server’s level bands', () => {
-    // однаковий рядок ⇔ однаковий набір рівнів слів на сервері
-    for (let a = 1; a <= 10; a++) {
-      for (let b = 1; b <= 10; b++) {
-        const sameLine = levelBand(a) === levelBand(b);
-        const sameBands = wordplan.BANDS[a].join() === wordplan.BANDS[b].join();
-        expect([a, b, sameLine]).toEqual([a, b, sameBands]);
-      }
-    }
   });
 
   test('a cleaned profile is accepted by the server as is', () => {
@@ -193,12 +182,14 @@ describe('what the person is told', () => {
     expect(profileSummary(null, uk)).toBe(uk('pfNotSet'));
   });
 
-  // Число й CEFR великі над слайдером — рядок під ним каже лише, що з
-  // цього випливає, з великої літери.
-  test('the line under the slider', () => {
-    expect(levelResult(8, uk)).toBe('Пропускаємо базові слова, починаємо зі складніших');
-    expect(levelResult(5, en)).toBe('We’ll skip words you could easily guess');
-    expect(levelResult(99, uk)).toBe('Лише складна лексика й тонкощі');
+  // Онбординг 4.0: під слайдером — проста назва рівня, без обіцянок, які
+  // слова ми пропустимо («пропускаємо базу» власник назвав зайвим)
+  test('the level name under the slider: two levels per name', () => {
+    expect([1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(levelStage)).toEqual([1, 1, 2, 2, 3, 3, 4, 4, 5, 5]);
+    expect(levelName(8, uk)).toBe('Впевнений');
+    expect(levelName(5, en)).toBe('Intermediate');
+    expect(levelName(99, uk)).toBe('Досвідчений');
+    expect(levelName(-3, en)).toBe('Beginner');
     expect([1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(cefrFor)).toEqual(['A1', 'A1', 'A2', 'A2+', 'B1', 'B1+', 'B2', 'B2+', 'C1', 'C2']);
   });
 
