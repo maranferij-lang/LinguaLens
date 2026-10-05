@@ -125,8 +125,8 @@ npm run start:go     # i → Expo Go у симуляторі, або QR → Expo
 |---|---|
 | `npm start` | Metro для development build (`expo start`) |
 | `npm run start:go` | Metro для Expo Go |
-| `npm run ios` | Metro + одразу відкрити development build у симуляторі |
-| `npx expo run:ios` | локальна нативна збірка в симуляторі (`--device` — на iPhone) |
+| `npm run ios` | те саме, що `npx expo run:ios`: локальна нативна збірка й запуск у симуляторі |
+| `npx expo run:ios` | локальна нативна збірка (`--device "iPhone 18 Pro"` — конкретний симулятор, `--device` без назви — вибір зі списку, зокрема iPhone на кабелі) |
 | `npm test` | тести застосунку (jest-expo) |
 | `npm run test:server` | тести сервера (`node:test`) |
 | `npm run doctor` | `expo-doctor`: сумісність версій пакетів |

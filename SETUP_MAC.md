@@ -109,9 +109,24 @@ npm run start:go
 Покупки в Expo Go працюють у «Preview»-режимі RevenueCat (без оплати).
 
 ### Варіант В — development build (справжні покупки, сповіщення, сплеш)
+
+> **Після `git pull` з новими пакетами чи плагінами** (віджети, наліпки)
+> нативну частину треба перегенерувати, інакше збереться стара:
+> ```bash
+> npx expo prebuild --platform ios --clean
+> ```
+> **`git pull` пише «Your local changes … package.json would be overwritten»?**
+> Це `expo run:ios` переписав рядки `scripts` у `package.json`. Скинь їх:
+> `git checkout -- package.json` і повтори `git pull`.
+>
+> **«No code signing certificates are available»** — Expo намагається
+> збирати на справжній iPhone (він підключений або в тій самій Wi-Fi). Для
+> симулятора назви його явно: `npx expo run:ios --device "iPhone 18 Pro"`.
+> На iPhone без платного акаунта розробника збірка не підпишеться (вхід
+> через Apple і віджети потребують акаунта за $99).
 ```bash
-npx expo run:ios                 # симулятор
-npx expo run:ios --device        # підключений кабелем iPhone
+npx expo run:ios --device "iPhone 18 Pro"   # симулятор (назва — з Xcode → Window → Devices and Simulators)
+npx expo run:ios --device                    # вибір зі списку: симулятор або iPhone на кабелі
 ```
 Після першої збірки наступні запуски — просто `npx expo start` (без `--go`).
 Перша збірка ~10 хв. Для iPhone знадобиться твій Apple ID у Xcode
