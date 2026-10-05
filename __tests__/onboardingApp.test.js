@@ -385,6 +385,28 @@ describe('onboarding 3.0 in the app', () => {
     haptic.mockRestore();
   });
 
+  // Повтор без слів починається з мови: нова мова — нове слово дня (кеш і
+  // сповіщення), а не лише налаштування. Інакше до холодного старту
+  // «Навчання» без слова дня, а віджет і сповіщення — старою мовою.
+  test('the replay without words: a new language asks for the word of the day in it', async () => {
+    await AsyncStorage.setItem('ll_onboarded_v1', '1');
+    await AsyncStorage.setItem('ll_settings_v1', JSON.stringify({ nativeLang: 'uk', targetLang: 'en' }));
+    await AsyncStorage.setItem(
+      'll_wod_v1',
+      JSON.stringify({ lang: 'en', native: 'uk', sig: 'general#0:', perDay: 1, asked: 1, days: 14, fetchedAt: Date.now(), words: [{ date: TODAY, word: 'ledger', translation: 'гросбух', slot: 0 }] })
+    );
+    const tree = await renderApp();
+    await openTab(tree, 'settings');
+    await run(() => one(tree, SettingsScreen).props.onReplayOnb());
+    expect(one(tree, OnboardingScreen).props).toMatchObject({ replay: true, hasWords: false });
+    calls.length = 0;
+    await run(() => tree.root.findAll((n) => n.props.testID === 'lang-de' && typeof n.props.onPress === 'function').at(-1).props.onPress());
+    await run(() => new Promise((r) => setTimeout(r, 320)));
+    expect((await stored('ll_settings_v1')).targetLang).toBe('de');
+    const asked = calls.filter((c) => c.url.includes('/word-of-day')).map((c) => JSON.parse(c.body || '{}'));
+    expect(asked).toContainEqual(expect.objectContaining({ lang: 'de', native: 'uk' }));
+  });
+
   test('the replay passes the current answers and today’s word, never the paywall', async () => {
     await AsyncStorage.setItem('ll_onboarded_v1', '1');
     await AsyncStorage.setItem('ll_settings_v1', JSON.stringify({ nativeLang: 'en', targetLang: 'es', profile: PROFILE, profileName: 'Олена' }));

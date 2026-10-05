@@ -1708,6 +1708,10 @@ export default function App() {
     if (next.targetLang === next.nativeLang) return;
     if (next.targetLang === cur.targetLang && next.nativeLang === cur.nativeLang) return;
     commitSettings(next);
+    // Повтор не складає план (prepareWod) — слово дня, віджет і сповіщення
+    // беремо новою мовою одразу, як і зміна мови в налаштуваннях. Перший
+    // запуск зробить це на кроці плану.
+    if (onbReplay.current) syncWordOfDay(wodArgs(next, true)).then((c) => c && setWod(c));
   }
 
   // План онбордингу: зберегти щойно складений профіль і взяти слово дня під
