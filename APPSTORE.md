@@ -217,11 +217,12 @@ Tell LinguaLens your goals, your field and your level, from A1 to C2. Your word 
 REMEMBER WHAT YOU SCAN
 • Flashcards with spaced repetition bring words back right before you forget them
 • A quick 10-question quiz; missed words return for review
-• A word of the day with a reminder at the hour you choose, plus a widget for your Home Screen and Lock Screen
+• A word of the day with a reminder at the hour you choose
+• Three free widgets: the word of the day with an example sentence (tap to reveal the translation right in the widget), your own words with the photos you took, and your streak — on the Home Screen and the Lock Screen
 • Streaks, levels and 27 achievements
 
 SHARE THE BEST FINDS
-Turn a word, a scene, an achievement or your week into a clean 9:16 card for Instagram Stories or any messenger.
+Every word you scan becomes a sticker with no background: put it on your own photo in Instagram Stories, paste it into a chat or save it to Photos. A word, a whole scene or an achievement — or a clean 9:16 card, if you prefer.
 
 29 LANGUAGES
 English, Spanish, German, French, Italian, Portuguese, Polish, Ukrainian, Japanese, Korean, Chinese and more. Nouns come with their article where it matters (die Tasse, la taza).
@@ -230,8 +231,8 @@ NO ACCOUNT NEEDED
 Open the app and start scanning. Your words and progress stay on your phone. Want a backup? Sign in with Apple to keep your words in sync on all your iPhones — we never ask for your name or email. Photos are used only to recognise the object and are not stored on our servers. Anonymous usage statistics can be turned off in Settings.
 
 FREE AND PRO
-Free forever: your dictionary with no word limit, flashcards, quiz, the word of the day and the widget. Plus one free AI scan to try (one in total, not per day): an object or a whole room.
-LinguaLens Pro: unlimited AI scans, unlimited room scans and all 29 languages. Choose monthly or yearly (the yearly plan may start with a free trial for eligible new subscribers), or Lifetime — a one-time purchase, not a subscription.
+Free forever: your dictionary with no word limit, flashcards, quiz, one word of the day and all three widgets. Plus one free AI scan to try (one in total, not per day): an object or a whole room.
+LinguaLens Pro: unlimited AI scans and room scans, all 29 languages, up to 5 words of the day at times you choose, and four color themes for the app and widgets (Ocean, Berry, Graphite, Cocoa). Choose monthly or yearly (the yearly plan may start with a free trial for eligible new subscribers), or Lifetime — a one-time purchase, not a subscription.
 Payment is charged to your Apple ID at confirmation of purchase. Subscriptions renew automatically unless cancelled at least 24 hours before the end of the current period. Manage or cancel in your Apple ID settings.
 
 Terms of Use: https://www.apple.com/legal/internet-services/itunes/dev/stdeula/
@@ -305,11 +306,12 @@ LinguaLens перетворює світ навколо тебе на словн
 ЩОБ НЕ ЗАБУТИ
 • Флешкартки з інтервальним повторенням повертають слово саме тоді, коли воно почне забуватись
 • Квіз на 10 питань; помилки повертаються в повторення
-• Слово дня з нагадуванням о зручній годині й віджет на головний екран та екран блокування
+• Слово дня з нагадуванням о зручній годині
+• Три безкоштовні віджети: слово дня з реченням (переклад відкривається дотиком просто у віджеті), твої слова з фото, які ти зняв сам, і серія — на головному екрані й екрані блокування
 • Серія днів, рівні й 27 досягнень
 
 ДІЛИСЯ НАЙКРАЩИМ
-Слово, сцена, досягнення чи підсумок тижня — гарна картка 9:16 для Instagram Stories або месенджера.
+Кожне відскановане слово стає наліпкою без тла: поклади її на своє фото в Instagram Stories, встав у чат чи збережи у «Фото». Слово, ціла сцена чи досягнення — або охайна картка 9:16, якщо так зручніше.
 
 29 МОВ
 Англійська, іспанська, німецька, французька, італійська, португальська, польська, японська, корейська, китайська та інші. Іменники — з артиклем там, де він важливий (die Tasse, la taza).
@@ -318,8 +320,8 @@ LinguaLens перетворює світ навколо тебе на словн
 Відкрив і скануєш. Слова й прогрес зберігаються на телефоні. Хочеш резервну копію — увійди через Apple, і словник буде однаковий на всіх твоїх iPhone. Імені й пошти ми не просимо. Фото потрібне лише для розпізнавання і не зберігається на наших серверах. Анонімну статистику можна вимкнути в параметрах.
 
 БЕЗКОШТОВНО І PRO
-Назавжди безкоштовно: словник без ліміту слів, флешкартки, квіз, слово дня й віджет. А ще один безкоштовний AI-скан на пробу (один загалом, а не щодня): предмет або ціла кімната.
-LinguaLens Pro: AI-скани без ліміту, скани кімнат без ліміту й усі 29 мов. Обери місяць чи рік (річний може починатися з безкоштовного пробного періоду для нових підписників) або «Назавжди» — один платіж, не підписка.
+Назавжди безкоштовно: словник без ліміту слів, флешкартки, квіз, слово дня й усі три віджети. А ще один безкоштовний AI-скан на пробу (один загалом, а не щодня): предмет або ціла кімната.
+LinguaLens Pro: AI-скани й скани кімнат без ліміту, усі 29 мов, до 5 слів дня о годинах, які обереш, і чотири кольорові теми для застосунку й віджетів (Океан, Ягода, Графіт, Какао). Обери місяць чи рік (річний може починатися з безкоштовного пробного періоду для нових підписників) або «Назавжди» — один платіж, не підписка.
 Оплата списується з Apple ID після підтвердження покупки. Підписка продовжується автоматично, якщо не скасувати її щонайменше за 24 години до кінця поточного періоду. Керувати підпискою й скасувати її можна в налаштуваннях Apple ID.
 
 Умови використання: https://www.apple.com/legal/internet-services/itunes/dev/stdeula/
@@ -362,7 +364,8 @@ Point your camera at a mug, a plant or your bike and get the word in English, Ge
 ```
 
 **Description:** текст en-US, з британським написанням (recognise уже
-так; «favourite», «colour», якщо додаси).
+так; «favourite», «colour», якщо додаси). З v1.3 у ньому є «color themes» —
+тут пиши **«colour themes»**.
 
 **Підписи скріншотів** (кадри ті самі, що в en-US, але на наліпках англійські
 слова — як бачить українець, що вчить англійську):
@@ -416,8 +419,12 @@ Cuéntale a LinguaLens tus metas, tu área y tu nivel, de A1 a C2. Tu palabra de
 PARA NO OLVIDAR
 • Tarjetas con repetición espaciada que vuelven justo antes de que olvides
 • Un quiz rápido de 10 preguntas
-• La palabra del día con recordatorio y un widget para la pantalla de inicio y la de bloqueo
+• La palabra del día con recordatorio
+• Tres widgets gratis: la palabra del día con una frase de ejemplo (toca para ver la traducción en el propio widget), tus palabras con tus fotos y tu racha, en la pantalla de inicio y la de bloqueo
 • Rachas, niveles y 27 logros
+
+COMPARTE TUS HALLAZGOS
+Cada palabra que escaneas se convierte en una pegatina sin fondo: ponla sobre tu propia foto en Instagram Stories, pégala en un chat o guárdala en Fotos. Una palabra, una escena entera o un logro, o una tarjeta 9:16 si lo prefieres.
 
 29 IDIOMAS
 Inglés, español, alemán, francés, italiano, portugués, polaco, ucraniano, japonés, coreano, chino y más.
@@ -426,8 +433,8 @@ SIN CUENTA
 Abre la app y empieza a escanear. Tus palabras se quedan en tu teléfono. Si quieres una copia de seguridad, inicia sesión con Apple: nunca pedimos tu nombre ni tu correo. Las fotos solo se usan para reconocer el objeto y no se guardan en nuestros servidores. Las estadísticas anónimas se pueden desactivar en Ajustes.
 
 GRATIS Y PRO
-Gratis para siempre: tu diccionario sin límite de palabras, tarjetas, quiz, la palabra del día y el widget. Además, 1 escaneo con IA gratis para probar (uno en total, no al día): un objeto o un cuarto entero.
-LinguaLens Pro: escaneos con IA ilimitados, escaneos de cuartos ilimitados y los 29 idiomas. Elige plan mensual o anual (el anual puede empezar con una prueba gratuita para nuevos suscriptores elegibles) o Lifetime: un pago único, no una suscripción.
+Gratis para siempre: tu diccionario sin límite de palabras, tarjetas, quiz, una palabra del día y los tres widgets. Además, 1 escaneo con IA gratis para probar (uno en total, no al día): un objeto o un cuarto entero.
+LinguaLens Pro: escaneos con IA y de cuartos ilimitados, los 29 idiomas, hasta 5 palabras del día a las horas que elijas y cuatro temas de color para la app y los widgets (Océano, Baya, Grafito, Cacao). Elige plan mensual o anual (el anual puede empezar con una prueba gratuita para nuevos suscriptores elegibles) o Lifetime: un pago único, no una suscripción.
 El pago se carga a tu Apple ID al confirmar la compra. La suscripción se renueva automáticamente salvo que la canceles al menos 24 horas antes del final del periodo actual. Puedes gestionarla o cancelarla en los ajustes de tu Apple ID.
 
 Términos de uso: https://www.apple.com/legal/internet-services/itunes/dev/stdeula/
@@ -536,20 +543,29 @@ en-US (спостереження розробника з відео, Apple ць
 знадобиться для першого оновлення. Правило 2.3.12: значні зміни треба
 описати конкретно, загальне «виправлення помилок» — лише для дрібниць.
 
+**v1.3** (рядки потоків W1, W2, W4, W5 — розділи нижче; онбординг бачать
+лише нові люди, тож його тут немає):
+
 en:
 ```
-Thanks for the first reviews! In this update:
-• [the most-requested fix or feature, in one line]
-• Faster, more accurate scanning
-• Small fixes in onboarding and flashcards
+New in LinguaLens:
+• Share as a sticker: no background, straight onto your photo in Instagram Stories — or copy it into any chat and save it to Photos.
+• Three widgets — Word of the Day (now in a large size, with an example sentence and the translation one tap away), My Words and Streak.
+• A new scanner with a flashlight, the word language right on the camera and your latest sticker at hand.
+• Your streak comes alive: the flame grows every day and catches fire on day seven, and the first thing you learn each day gets a small celebration.
+• Flashcards and the quiz are visible from the start — with a clear way to unlock them.
+• LinguaLens Pro adds four color themes and up to 5 words of the day at times you choose.
 Something not working? Settings → Contact support — we answer every message.
 ```
 uk:
 ```
-Дякуємо за перші відгуки! У цьому оновленні:
-• [головне виправлення чи функція, одним рядком]
-• Швидше й точніше розпізнавання
-• Дрібні виправлення в онбордингу й картках
+Нове в LinguaLens:
+• Ділися наліпкою: без тла, просто на твоє фото в Instagram Stories — або скопіюй у будь-який чат і збережи у «Фото».
+• Три віджети — «Слово дня» (тепер і великий, з реченням і перекладом за один дотик), «Мої слова» і «Серія».
+• Новий сканер: ліхтарик, вибір мови просто на камері, наліпка останнього слова.
+• Серія тепер живе: вогник росте щодня й розгоряється на сьомий, а перша дія дня — маленьке свято.
+• Картки й квіз видно з першого запуску — і ясно, як їх відкрити.
+• LinguaLens Pro тепер має чотири кольорові теми й до 5 слів дня о годинах, які обереш.
 Щось не так? Параметри → «Написати в підтримку» — відповідаємо на кожен лист.
 ```
 
@@ -560,9 +576,11 @@ Apple радить писати тривалість у назві підпис�
 
 | Продукт | Назва en | Опис en | Назва uk | Опис uk |
 |---|---|---|---|---|
-| Місяць | LinguaLens Pro — 1 Month (24) | Unlimited AI scans and all 29 languages (39) | LinguaLens Pro — 1 місяць (25) | Безлімітні AI-скани й усі 29 мов (32) |
-| Рік | LinguaLens Pro — 1 Year (23) | Unlimited AI scans, rooms and 29 languages (42) | LinguaLens Pro — 1 рік (22) | Безлімітні скани, кімнати й усі 29 мов (38) |
-| Назавжди | LinguaLens Pro — Lifetime (25) | Pay once: unlimited scans and 29 languages (42) | LinguaLens Pro назавжди (23) | Один платіж: скани без ліміту й 29 мов (38) |
+| Місяць | LinguaLens Pro — 1 Month (24) | Unlimited scans, 29 languages, color themes (43) | LinguaLens Pro — 1 місяць (25) | Безлімітні скани, 29 мов, кольорові теми (40) |
+| Рік | LinguaLens Pro — 1 Year (23) | Unlimited scans, 5 words a day, color themes (44) | LinguaLens Pro — 1 рік (22) | Скани без ліміту, 5 слів на день, теми (38) |
+| Назавжди | LinguaLens Pro — Lifetime (25) | Pay once: unlimited scans and color themes (42) | LinguaLens Pro назавжди (23) | Один платіж: скани без ліміту й теми (36) |
+
+v1.3: описи з кольоровими темами й словами дня (розділ W5 нижче); назви без змін.
 
 ### In-App Event на запуск
 
@@ -760,25 +778,42 @@ Sign-in required: **No** (поля логіна залиш порожніми): 
 ```
 Signing in is optional. On first launch the app silently registers a random anonymous ID with our server; no personal data is requested, and every feature works without an account.
 
-ONBOARDING (first launch, about 1–2 minutes; every question has Skip, and Back works on every step after the first):
-1. A welcome screen, then optional questions: what to call you (optional; the name stays on the device and is never sent anywhere), goals, field (only for work or study), level on a 1–10 slider, and what gets in the way of learning. The app then shows a personal plan based on the answers.
-2. "Try it now": the app offers to open the camera and scan one real object. Before the first scan it explains that the photo is sent to our server and to a third-party AI service (Google Gemini or Anthropic) only to recognise the object, and asks for permission (Allow / Not now); nothing is uploaded before Allow. "Later" skips this step.
-3. A notification pre-permission screen with a single "Next" button that opens the iOS prompt. If notifications are declined, one screen explains they can be turned on later in Settings.
-4. "Where did you hear about us" (optional) and a commitment screen: press and hold the button (with VoiceOver or Reduce Motion, a single tap works).
-5. Subscription offer (only for people without Pro): three short screens — the free trial, a timeline with a reminder 2 days before the trial ends, then the plan picker with prices from the App Store, the billed amount, trial terms, Terms of Use, Privacy Policy and Restore Purchases. Every screen has a close (X) button, and "Continue for free" goes to the app without purchase.
+ONBOARDING (first launch, about 2 minutes; every optional question has Skip, and Back works on the question and explanation steps):
+1. "Which language are you learning?" — the translation language is preselected from the device language and can be changed; the learning language is picked from 29 languages (search included).
+2. Optional questions: what to call you (the name stays on the device and is never sent anywhere), goals, field (only for work or study), level on a 1–10 slider, what gets in the way, and where you heard about us. The app then shows a personal plan with today's word of the day.
+3. "How it works": an interactive streak preview (no data is created), a notification pre-permission screen with a single "Next" button that opens the iOS prompt (shown only if iOS has not asked yet; if declined, one screen explains how to turn notifications on later), and — on devices that support widgets — a preview of the Home Screen widgets with how to add them.
+4. "Try it": a short animated demo of a scan (no camera, drawn in the app; Reduce Motion shows three still frames). "Try it" opens the real camera: before the first scan the app explains that the photo is sent to our server and to a third-party AI service (Google Gemini or Anthropic) only to recognise the object, and asks for permission (Allow / Not now); nothing is uploaded before Allow, and only then iOS asks for camera access. "Later" skips the scan. If the camera is not allowed, onboarding simply continues.
+5. After a scan: a short celebration with the person's own sticker, then a commitment screen: press and hold the ring for 1.5 s (with VoiceOver or Reduce Motion, a single tap works).
+6. Subscription offer (only for people without Pro): three short screens — the free trial (with the sticker the person just made), a timeline with a reminder 2 days before the trial ends, then the plan picker with prices from the App Store, the billed amount, trial terms, Terms of Use, Privacy Policy and Restore Purchases. Every screen has a close (X) button, and "Continue for free" goes to the app without purchase.
+Settings → "Go through the intro again" replays onboarding without the subscription offer.
 
 FREE VS PRO:
-- Free forever: the dictionary with no word limit, flashcards with spaced repetition, quiz, a personalised word of the day with notification and widget, share cards, optional Sign in with Apple sync, one learning language, and exactly 1 free AI scan in total (not per day). That one free scan can be a single object or one room ("Scene") scan. The scan during onboarding uses it. A failed scan (no object recognised, network error) does not use it.
-- LinguaLens Pro: unlimited AI scans, unlimited room scans, all 29 learning languages. Plans: monthly or yearly auto-renewable subscriptions (the yearly plan may start with a 7-day free trial for eligible users) and Lifetime, a one-time non-consumable purchase.
+- Free forever: the dictionary with no word limit, flashcards with spaced repetition, quiz, a personalised word of the day with notification, all three widgets, sharing as stickers or cards, optional Sign in with Apple sync, one learning language, and exactly 1 free AI scan in total (not per day). That one free scan can be a single object or one room ("Scene") scan. The scan during onboarding uses it. A failed scan (no object recognised, network error) does not use it.
+- LinguaLens Pro: unlimited AI scans, unlimited room scans, all 29 learning languages, up to 5 words of the day at hours the user picks, and four color themes (Ocean, Berry, Graphite, Cocoa) for the app and its widgets. Plans: monthly or yearly auto-renewable subscriptions (the yearly plan may start with a 7-day free trial for eligible users) and Lifetime, a one-time non-consumable purchase.
+
+NEW IN THIS VERSION (Pro additions; nothing that was free became paid):
+- Color themes are cosmetic and sold as part of LinguaLens Pro. The default look "Chalk" (light, dark or automatic) stays free. Settings → Theme → Palette: without Pro, tapping a palette with a crown opens the paywall with a live preview of that palette; nothing changes until a purchase. After a Sandbox purchase the app switches to the previewed palette at once. Widgets use the same palette and stay free for everyone.
+- Words of the day: one word a day stays free. Pro can choose 3 or 5 words a day, each at an hour the user picks (Settings → Word of the day → Words a day; 3 and 5 open the paywall without Pro). What we sell is extra learning content (more words), not the ability to send notifications.
+- The paywall comparison table lists exactly these terms. There is no word limit, no quiz limit and no streak feature for sale.
 
 HOW TO TEST:
 1. Complete or skip onboarding; close the subscription offer with X or "Continue for free".
 2. Point the camera at any everyday object (a cup, a keyboard, a plant) and tap the shutter. The object's name appears in the language being learned (Spanish by default on an English-language device, English otherwise; change it in Settings → I'm learning). Recognition needs an internet connection. Tap Save: the word appears in the Words tab and in Learn (flashcards and quiz). If you already scanned an object during onboarding, that was your 1 free scan, and this step opens the paywall instead (see steps 3–4).
 3. Every scan after the free one — the same day, the next day or later — opens the paywall before anything is uploaded. The paywall also opens from the "Scene" mode in the scanner once the free scan is used, when adding a second learning language, and from Settings → Get Pro.
 4. To keep testing scanning, buy any plan with a Sandbox Apple Account: after the purchase, object and room scans are unlimited. Restore Purchases is on the paywall and in Settings. With Pro, Settings → Manage subscription opens the subscription management screen.
-5. Tap Share on a scan result or a word card: the app renders an image and opens the standard iOS share sheet.
+5. Tap Share on a scan result or a word card: the sheet opens with the word as a transparent sticker; Copy, Save and More (the standard iOS share sheet) are below it, and the Card tab makes a 9:16 image.
+6. Settings → Theme → Palette → tap "Berry" → the paywall shows a preview in Berry; tap the color dots to preview other palettes; close with X — the app stays in Chalk.
+7. Buy any plan with a Sandbox Apple Account from that paywall: the app switches to the palette you previewed. Settings → Theme then changes palettes instantly, in light and dark.
+8. Settings → Word of the day → Words a day → 5: without Pro this opens the paywall; with Pro, pick an hour for each word.
 
 REMOTE CONFIGURATION (no code is downloaded): through RevenueCat offering metadata we can switch (a) whether the subscription offer is shown at the end of onboarding and (b) whether paywalls use our in-app screen or a RevenueCat paywall designed in our RevenueCat dashboard. Both paywalls show the billed amount as the main price, trial length and what happens after it, Terms of Use, Privacy Policy, Restore Purchases and a close button. For this review both switches are set to the defaults described above (offer shown, in-app screen).
+
+Sharing as a sticker (v1.3): the Share sheet now makes a transparent PNG sticker of a word, a scene or an achievement. "Copy" puts the PNG on the pasteboard; "Save" adds it to Photos and asks only for add-only Photos access (NSPhotoLibraryAddUsageDescription). "Or pick a photo from your library" opens the system photo picker (PHPicker), which needs no Photos permission: the app receives only the one photo the person picks, uses it as the Instagram Stories background and deletes its temporary copy right after. LinguaLens never asks for read access to the photo library; NSPhotoLibraryUsageDescription is present only because the photo picker and Photos frameworks reference it. Instagram buttons appear only when Instagram is installed; without it the sheet offers Copy, Save and the system share sheet.
+
+Widgets (v1.3): LinguaLens has three Home Screen and Lock Screen widgets — Word of the Day, My Words and Streak. All of them are free and contain no ads or purchase prompts. Open the app once, then long-press the Home Screen → Edit → Add Widget → LinguaLens. On iOS 17+ the "Translation" button inside the Word of the Day and My Words widgets reveals the translation without opening the app (an App Intent that only updates the widget); this can be turned off in Settings → Widgets. On the Lock Screen the translation is always shown.
+Pro "words of the day": with LinguaLens Pro a person can get 3 or 5 words of the day at hours they pick (Settings → Word of the day → Words a day). Without Pro, choosing 3 or 5 opens the paywall; the first word of the day is the same for free and Pro users.
+
+Streak reminder (v1.3): one local notification at 8 pm, only when the user's own learning streak (2+ days) would end that night and nothing was practiced today. It reminds the user of their own progress, contains no advertising, and can be turned off in Settings → Streak → Streak reminders (Guideline 4.5.4). The new flashlight button in the scanner uses the existing camera permission; no new permissions were added for it.
 
 ANALYTICS: anonymous usage statistics (PostHog, EU servers) with a random install ID — no IDFA, no tracking, no App Tracking Transparency prompt, no screen recording. It can be turned off in Settings.
 
@@ -848,6 +883,27 @@ Contact: <your email>
 - [ ] Обрано **Manually release this version**
 - [ ] Нотатки для рецензента вставлено (там сказано: 1 безкоштовний скан, далі пейвол, sandbox-покупка знімає ліміт), пошта вказана
 
+**v1.3**
+- [ ] Сервер розгорнуто **до** TestFlight: `POST /word-of-day` приймає `perDay` (W2), `/privacy` має речення про фото тлом для Stories (W4)
+- [ ] `node scripts/check-dev-assets.js` — у релізному експорті немає тестового фото симулятора
+- [ ] Meta App ID у `EXPO_PUBLIC_FACEBOOK_APP_ID` (`USER_TODO.md`, крок 10): інакше в аркуші «Поділитися» немає кнопок Instagram
+- [ ] RevenueCat → offering `default` → metadata `onboarding_paywall`: `"show"` (типово, і так само без ключа) чи `"skip"` — обране на запуск
+- [ ] Галерея віджетів на iPhone українською: «Слово дня», «Мої слова», «Серія»; на англійському — Word of the Day, My Words, Streak
+- [ ] Чекліст пристрою D1–D16 з `TESTING.md` (розділ «v1.3 · Інтеграція») пройдено; знахідки — у реєстрі
+- [ ] Sandbox: Параметри → «Тема» → «Ягода» → пейвол із прев'ю → кружечок
+      «Какао» → покупка → застосунок і віджети в «Какао»
+- [ ] Хрестик на пейволі «themes» нічого не змінює; «Відновити покупки» з
+      нього на іншому iPhone з Pro теж вмикає палітру з прев'ю
+- [ ] Pro скінчився (Sandbox: місячна підписка закінчується за 5 хв) →
+      застосунок у «Крейді», під плитками — «Ягода повернеться разом із Pro»;
+      поновлення → палітра повертається
+- [ ] Пейволи `themes` і `wod_per_day` на iPhone SE: обраний тариф із сумою
+      списання видно без прокрутки
+- [ ] Хром камери й іконка застосунку однакові в усіх палітрах
+- [ ] Шаблон RevenueCat (`paywall_ui: "revenuecat"`), якщо ввімкнений: у
+      його текстах немає ліміту слів чи захисту серії; палітри названі так
+      само, як у застосунку
+
 **Вхід через Apple**
 - [ ] App ID має capability **Sign in with Apple** (EAS вмикає її сам за
   `ios.usesAppleSignIn` в `app.json`; перевір у developer.apple.com → Identifiers)
@@ -900,6 +956,13 @@ eas env:list production # які змінні піде в збірку
 
 Нижче — тексти й нотатки для рецензента до v1.3; кожен потік пише лише
 під своїм заголовком.
+
+**Інтеграція (C6) уже перенесла їх в основні розділи вище**: описи en-US,
+en-GB (через en-US), uk, es-MX («SHARE THE BEST FINDS», віджети, «FREE AND
+PRO»), «What's New», описи покупок на сторінці, нотатки для рецензента
+(онбординг 3.0, «NEW IN THIS VERSION», кроки 5–8, наліпки, віджети,
+нагадування про серію) і список перед подачею. Розділи нижче лишаються як
+джерело й пояснення.
 
 ## v1.3 · W1 Сканер, «Навчання», серія 2.0
 
