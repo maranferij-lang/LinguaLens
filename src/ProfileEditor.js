@@ -1,6 +1,7 @@
 // Редактор «Слово дня під тебе» — ті самі кроки, що в онбордингу (цілі →
 // сфера → рівень), але з хрестиком замість «Пропустити» і кнопкою
-// «Зберегти» на останньому кроці.
+// «Зберегти» на останньому кроці. Як і в онбордингу 4.0 — без
+// підзаголовків: питання говорить саме за себе.
 //
 // Це не нативний Modal: App малює його власним шаром поверх вкладок, як
 // пейвол. Відкривають його з Параметрів і з картки на вкладці навчання, а
@@ -47,7 +48,6 @@ export default function ProfileEditor({ profile, targetLang, onSave, onClose, t 
       <StepFrame
         {...frame}
         title={studyOnly(goals) ? t('pfFieldTitleStudy') : t('pfFieldTitle')}
-        text={t('pfFieldText')}
         footer={<GradBtn title={action} onPress={next} disabled={!field} />}
       >
         <FieldOptions value={field} onChange={setField} t={t} />
@@ -60,7 +60,6 @@ export default function ProfileEditor({ profile, targetLang, onSave, onClose, t 
         {...frame}
         header={<LangPill code={targetLang} />}
         title={t('pfLevelTitle')}
-        text={t('pfLevelText')}
         footer={<GradBtn title={action} onPress={next} />}
       >
         <LevelBody value={level} onChange={setLevel} lang={targetLang} t={t} />
@@ -71,7 +70,6 @@ export default function ProfileEditor({ profile, targetLang, onSave, onClose, t 
     <StepFrame
       {...frame}
       title={t('pfGoalsTitle')}
-      text={t('pfGoalsText')}
       footer={<GradBtn title={action} onPress={next} disabled={!goals.length} />}
     >
       <GoalOptions value={goals} onChange={setGoals} t={t} />

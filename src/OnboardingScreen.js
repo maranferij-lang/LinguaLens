@@ -1,25 +1,30 @@
-// Онбординг 3.0 (onboarding.md, план §6 W3): три дії замість довгого
-// переліку питань, смужка прогресу з трьох сегментів.
+// Онбординг 4.0 (onboarding.md, план §6 W3; правки власника 5.10.2026): три
+// дії замість довгого переліку питань, смужка прогресу з трьох сегментів.
 //
-//   Дія 1 «Ти»: вітання → яку мову вчиш → імʼя → цілі → сфера (лише для
-//     роботи чи навчання) → рівень → що заважає → звідки дізнались → план
-//     (спершу «складаємо…» — справжній запит слова дня під профіль, потім
-//     план зі словом на сьогодні).
-//   Дія 2 «Як це працює»: живий вогник серії → година сповіщень (лише якщо
-//     ще не питали) → віджети (лише в iOS-збірці з віджетами).
-//   Дія 3 «Спробуй»: демо-анімація скану → «Спробувати» (спершу згода на AI,
-//     потім справжній сканер) → свято з наліпкою людини → обіцянка «натисни
-//     й тримай». Далі App показує пейвол онбордингу (або ні — так каже
-//     metadata RevenueCat onboarding_paywall).
+//   Дія 1 «Ти»: вітання (Лінго махає) → яку мову вчиш (згори — моя рідна,
+//     знизу — та, яку вчу) → імʼя (Лінго визирає з-за кнопки й
+//     знайомиться) → цілі → сфера (лише для роботи чи навчання) → рівень →
+//     що заважає → звідки дізнались. Кроки-питання — без підзаголовків, з
+//     Лінго поруч із заголовком.
+//   Дія 2 «Як це працює»: що таке слово дня (картка-приклад) → коли
+//     надсилати слово дня (лише якщо ще не питали; телефон у рамці зі
+//     сповіщенням) → план (спершу «складаємо…» — справжній запит слова дня
+//     під профіль, потім план зі словом на сьогодні) → живий вогник серії →
+//     віджети (лише в iOS-збірці з віджетами).
+//   Дія 3 «Спробуй»: демо-анімація скану (предмет, потім уся сцена) →
+//     «Спробувати» (спершу згода на AI, потім справжній сканер) → свято з
+//     наліпкою людини → обіцянка «натисни й тримай». Далі App показує
+//     пейвол онбордингу (або ні — так каже metadata RevenueCat
+//     onboarding_paywall).
 //
 // Короткий варіант ('short', прапорець PostHog onboarding-flow) — без імені
 // й «що заважає». Варіант береться один раз на старті й не міняється до
 // кінця: інакше людина посеред шляху опинилась би в іншому експерименті.
 //
 // Повтор із Параметрів («Пройти знайомство ще раз»): мова (лише без слів) →
-// імʼя → цілі → сфера → рівень → що заважає → план → серія → сповіщення
-// (лише якщо не питали) → віджети → демо без скану, «Готово». Без «звідки
-// дізнались», обіцянки й пейвола; відповіді — поточні з Параметрів.
+// імʼя → цілі → сфера → рівень → що заважає → слово дня → сповіщення (лише
+// якщо не питали) → план → серія → віджети → демо без скану, «Готово». Без
+// «звідки дізнались», обіцянки й пейвола; відповіді — поточні з Параметрів.
 //
 // Перший запуск нічого не підставляє з налаштувань (вони могли лишитись від
 // перерваного запуску): відповіді порожні, мову навчання не обрано. Чернетка
@@ -49,7 +54,7 @@ import * as Haptics from 'expo-haptics';
 import { FadeIn, GradBtn } from './ui';
 import { DEFAULT_HOUR, permissionStatus, requestPermission } from './wordOfDay';
 import { AppIcon } from './Logo';
-import { MascotBob } from './Mascot';
+import { MascotBob, MascotLive } from './Mascot';
 import {
   DEFAULT_LEVEL,
   FIELDS,
@@ -67,6 +72,7 @@ import {
   topicName,
 } from './profile';
 import {
+  BODY_PAD,
   FieldOptions,
   GoalOptions,
   HeardOptions,
@@ -80,6 +86,7 @@ import {
 import {
   HourChips,
   LingoBubble,
+  NameLingo,
   PUSH_HOURS,
   PlanBody,
   PlanBuilding,
@@ -87,7 +94,10 @@ import {
   PushPreview,
   TodayCard,
   WelcomeHero,
+  WodExample,
   hourLabel,
+  lockClock,
+  phoneVisible,
 } from './OnboardingParts';
 import HoldToCommit from './HoldToCommit';
 import LangSheet, { LangList } from './LangSheet';
@@ -97,7 +107,7 @@ import Celebrate, { CELEBRATE_NEXT_MS } from './Celebrate';
 import ConsentSheet from './ConsentSheet';
 import { WidgetPreview } from './widgets/WidgetPreview';
 import { WidgetHowTo } from './widgets/HowTo';
-import { demoPair } from './demoWords';
+import { demoExample, demoPair, demoScene } from './demoWords';
 import { langLabel } from './langPick';
 import { draftFresh } from './storage';
 import { flagFor, nameFor, LANGS } from './speech';
@@ -107,8 +117,9 @@ import { SafeAreaInsetsContext } from 'react-native-safe-area-context';
 import { EASE, useReducedMotion, useScreenReader } from './motion';
 import { F, R, type, useTheme } from './theme';
 
-// Версія воронки в статистиці: події v3 не змішуються з v2
-export const ONB_VERSION = 3;
+// Версія воронки в статистиці: події v4 (новий крок «слово дня», сповіщення
+// перед планом) не змішуються з v3 — порядок кроків у воронці інший
+export const ONB_VERSION = 4;
 // Скільки чекати на прапорець варіанта (див. analytics.flag): довше —
 // людина вже тисне «Почати», і ми не тримаємо її.
 export const FLAG_WAIT_MS = 1500;
@@ -121,7 +132,8 @@ export const AUTO_MS = 280;
 export const BUILD_MIN_MS = 1200;
 export const BUILD_MAX_MS = 2500;
 
-// До якої дії належить крок: 0 — «Ти», 1 — «Як це працює», 2 — «Спробуй»
+// До якої дії належить крок: 0 — «Ти», 1 — «Як це працює», 2 — «Спробуй».
+// План — у другій дії: він тепер після слова дня й сповіщень.
 export const ACT = {
   lang: 0,
   name: 0,
@@ -130,9 +142,10 @@ export const ACT = {
   level: 0,
   struggles: 0,
   heard: 0,
-  plan: 0,
-  streak: 1,
+  wod: 1,
   push: 1,
+  plan: 1,
+  streak: 1,
   widgets: 1,
   demo: 2,
   celebrate: 2,
@@ -143,7 +156,8 @@ export const ACT = {
 // Параметрів; push — про сповіщення ще не питали; widgets — у цій збірці є
 // віджети; hasWords — у словнику вже є слова (тоді в повторі мову не
 // питаємо: безкоштовна мова вже зайнята); scanned — у цьому онбордингу
-// збережено перше слово (тоді є свято).
+// збережено перше слово (тоді є свято). «Що таке слово дня» є завжди —
+// і без кроку сповіщень: план далі говорить про слово дня.
 export function onboardingFlow({
   variant = 'control',
   goals = [],
@@ -155,8 +169,8 @@ export function onboardingFlow({
 } = {}) {
   const field = needsField(goals) ? ['field'] : [];
   const full = variant !== 'short';
-  const tail2 = ['streak', ...(push ? ['push'] : []), ...(widgets ? ['widgets'] : [])];
-  if (replay) return [...(hasWords ? [] : ['lang']), 'name', 'goals', ...field, 'level', 'struggles', 'plan', ...tail2, 'demo'];
+  const tail2 = ['wod', ...(push ? ['push'] : []), 'plan', 'streak', ...(widgets ? ['widgets'] : [])];
+  if (replay) return [...(hasWords ? [] : ['lang']), 'name', 'goals', ...field, 'level', 'struggles', ...tail2, 'demo'];
   return [
     'welcome',
     'lang',
@@ -166,7 +180,6 @@ export function onboardingFlow({
     'level',
     ...(full ? ['struggles'] : []),
     'heard',
-    'plan',
     ...tail2,
     'demo',
     ...(scanned ? ['celebrate'] : []),
@@ -196,6 +209,14 @@ const okLang = (c) => (LANG_CODES.includes(c) ? c : null);
 // Старша за 15 хвилин, чужого формату чи зіпсована — null: тоді людина
 // починає з вітання з порожніми відповідями. Свято не відновлюємо (наліпки
 // вже немає в памʼяті) — одразу обіцянка.
+//
+// Формат чернетки той самий, що в онбордингу 3.0, а порядок кроків — ні:
+// тоді план і серія йшли ДО сповіщень. Чернетка на плані чи серії без
+// відповіді про сповіщення (push не true/false) — це людина, якій ще не
+// показали ні «слово дня», ні вибір години: вона продовжує зі «слова дня»,
+// інакше пройшла б повз сповіщення. Чернетка на кроці сповіщень (і
+// pushDenied) — з того ж кроку, далі план.
+const BEFORE_PUSH_V3 = ['plan', 'streak'];
 export function restoreDraft(d, now = Date.now()) {
   if (!draftFresh(d, now) || typeof d.phase !== 'string') return null;
   const variant = d.variant === 'short' ? 'short' : 'control';
@@ -204,8 +225,9 @@ export function restoreDraft(d, now = Date.now()) {
   const step = d.phase === 'pushDenied' ? 'push' : d.phase;
   if (step === 'welcome' || !all.includes(step)) return null;
   const hour = PUSH_HOURS.some((h) => h.hour === d.hour) ? d.hour : null;
+  const rewind = BEFORE_PUSH_V3.includes(d.phase) && typeof d.push !== 'boolean';
   return {
-    phase: d.phase === 'celebrate' ? 'commit' : d.phase,
+    phase: d.phase === 'celebrate' ? 'commit' : rewind ? 'wod' : d.phase,
     variant,
     target: okLang(d.target),
     native: okLang(d.native),
@@ -235,6 +257,13 @@ function topicsLine(p, t, ui) {
 
 // Кроки-питання: на них є «Пропустити»
 const QUESTIONS = ['name', 'goals', 'field', 'level', 'struggles', 'heard'];
+// Лінго поруч із заголовком кроків-питань — поза під крок. На кроці імені
+// він інший: визирає знизу з-за кнопки (NameLingo).
+export const LINGO_POSE = { goals: 'encourage', field: 'think', level: 'think', struggles: 'encourage', heard: 'wave' };
+// Межі для кроків, що заповнюють екран: сцена демо й видима частина
+// телефона на кроці сповіщень (pt)
+const DEMO_MIN_H = 170;
+const DEMO_MAX_H = 470;
 
 // Кнопка, що двічі мʼяко «дихає» обідком — коли демо дійшло до фіналу
 function BreathingBtn({ on, children }) {
@@ -427,6 +456,10 @@ export default function OnboardingScreen({
     return saved.phase;
   });
   const [direction, setDirection] = useState(null);
+  // Скільки ще місця віддати сцені демо чи телефону, щоб вони заповнили
+  // екран до кнопки (StepFrame onRoom): оцінка висоти заголовка не знає,
+  // у скільки рядків він ляже, а вимір — знає
+  const [slack, setSlack] = useState({ key: null, px: 0 });
   // Крок з одним варіантом, на який повернулись уже з відповіддю (чернетка;
   // повтор без слів, що стартує з уже обраної мови)
   const [had, setHad] = useState(() => answered(phase));
@@ -818,9 +851,24 @@ export default function OnboardingScreen({
     pause.current = setTimeout(() => forwardRef.current('commit'), COMMIT_PAUSE_MS);
   }
 
+  // ── Демо й телефон заповнюють екран до кнопки ───────────────────────────
+  // StepFrame каже, скільки місця лишилось під вмістом (room); зайве — і
+  // нестачу — віддаємо сцені чи телефону, доки під ними не стане рівно
+  // нижній відступ. Межі (мінімум і максимум) тримає той, хто рахує висоту.
+  function fitRoom(room) {
+    if (phase !== 'demo' && phase !== 'push') return;
+    const d = room - BODY_PAD;
+    if (Math.abs(d) <= 2) return;
+    setSlack((sl) => {
+      const px = Math.max(-600, Math.min(600, (sl.key === phase ? sl.px : 0) + d));
+      return sl.key === phase && sl.px === px ? sl : { key: phase, px };
+    });
+  }
+  const slackPx = slack.key === phase ? slack.px : 0;
+
   // ═══ Рендер ═════════════════════════════════════════════════════════════
   if (phase === 'welcome') {
-    const heroSize = Math.round(Math.max(150, Math.min(230, win.height * 0.27)));
+    const heroSize = Math.round(Math.max(170, Math.min(270, win.height * 0.3)));
     return (
       <View style={s.root}>
         <View style={s.brand}>
@@ -863,16 +911,25 @@ export default function OnboardingScreen({
     onBack: backOk ? back : null,
     right: QUESTIONS.includes(phase) ? <SkipButton onPress={skip} t={t} /> : <SkipButton hidden t={t} />,
     header: null,
+    mascot: null,
+    peek: null,
+    onRoom: fitRoom,
     t,
   };
   const shownName = cleanName(nameDraft);
   const langAcc = t('langAcc_' + curTarget);
-  // Реакція Lingo на мову — на першому кроці після неї
+  // Реакція Lingo на мову — на першому кроці після неї. На кроці імені її
+  // каже сам Лінго знизу; на цілях (короткий варіант) — бульбашка без
+  // мініатюри над заголовком, а Лінго поруч із заголовком радіє.
   const afterLang = flow[flow.indexOf('lang') + 1];
-  const cheer =
-    target && flow.includes('lang') && phase === afterLang ? (
-      <LingoBubble pose="celebrate" text={t('obLangCheer', { lang: langLabel(curTarget, t, ui, { capital: true }) })} />
-    ) : null;
+  const cheerText = target && flow.includes('lang') && phase === afterLang ? t('obLangCheer', { lang: langLabel(curTarget, t, ui, { capital: true }) }) : '';
+  const cheer = cheerText ? <LingoBubble pose={null} text={cheerText} /> : null;
+  // Лінго поруч із заголовком: невеликий, підскакує на кожен вибір
+  const lingoSize = win.height < 720 ? 64 : 76;
+  const hopKey = { goals: goals.join(), field, level, struggles: pains.join(), heard }[phase];
+  if (LINGO_POSE[phase]) {
+    frame.mascot = <MascotLive pose={cheerText ? 'celebrate' : LINGO_POSE[phase]} size={lingoSize} hop={hopKey} testID="step-lingo" />;
+  }
 
   let body = null;
   let footer = null;
@@ -881,9 +938,11 @@ export default function OnboardingScreen({
 
   if (phase === 'lang') {
     title = t('obLangTitle');
-    text = t('obLangText');
+    // Дві секції: згори — моя рідна мова (мова перекладу, з телефона), знизу —
+    // мова, яку я вчу (Популярні, пошук, усі мови)
     body = (
       <View>
+        <Text style={s.section}>{t('obNativeLabel')}</Text>
         <Pressable
           style={({ pressed }) => [s.nativeCard, pressed && { backgroundColor: C.card2 }]}
           onPress={() => {
@@ -894,18 +953,15 @@ export default function OnboardingScreen({
           accessibilityLabel={t('obNativeA11y', { lang: nameFor(curNative) })}
           testID="native-card"
         >
-          <View style={{ flex: 1 }}>
-            <Text style={s.nativeCaps}>{t('obNativeLabel')}</Text>
-            <View style={s.nativeRow}>
-              <Text style={s.nativeFlag}>{flagFor(curNative)}</Text>
-              <Text style={s.nativeName} numberOfLines={1}>
-                {nameFor(curNative)}
-              </Text>
-            </View>
+          <View style={s.nativeRow}>
+            <Text style={s.nativeFlag}>{flagFor(curNative)}</Text>
+            <Text style={s.nativeName} numberOfLines={1}>
+              {nameFor(curNative)}
+            </Text>
           </View>
           <Text style={s.nativeChange}>{t('obNativeChange')} ›</Text>
         </Pressable>
-        <View style={{ height: 14 }} />
+        <Text style={[s.section, { marginTop: 22 }]}>{t('obLangLearnLabel')}</Text>
         <LangList value={target} off={curNative} offNote={t('obLangIsNative')} popularFor={curNative} onPick={pickTarget} t={t} ui={ui} />
       </View>
     );
@@ -913,9 +969,9 @@ export default function OnboardingScreen({
     // (повернулись назад) чи з VoiceOver
     footer = reader || had ? <GradBtn title={nextTitle} onPress={() => next()} disabled={!target} /> : null;
   } else if (phase === 'name') {
-    frame.header = cheer;
     title = t('obNameTitle');
-    text = t('obNameText');
+    // Лінго визирає знизу, з-за кнопки: махає, а щойно є імʼя — знайомиться
+    frame.peek = (room) => <NameLingo name={shownName} cheer={cheerText} room={room} t={t} />;
     body = (
       <NameField value={nameDraft} onChange={setNameDraft} onSubmit={() => shownName && next('given')} label={t('obNameTitle')} t={t} />
     );
@@ -923,12 +979,10 @@ export default function OnboardingScreen({
   } else if (phase === 'goals') {
     frame.header = cheer;
     title = shownName ? t('pfGoalsTitleLangName', { name: shownName, lang: langAcc }) : t('pfGoalsTitleLang', { lang: langAcc });
-    text = t('pfGoalsText');
     body = <GoalOptions value={goals} onChange={setGoals} t={t} />;
     footer = <GradBtn title={nextTitle} onPress={() => next(goals)} disabled={!goals.length} />;
   } else if (phase === 'field') {
     title = studyOnly(goals) ? t('pfFieldTitleStudy') : t('pfFieldTitle');
-    text = t('pfFieldText');
     body = (
       <FieldOptions
         value={field}
@@ -942,7 +996,6 @@ export default function OnboardingScreen({
     footer = reader || had ? <GradBtn title={nextTitle} onPress={() => next(field)} disabled={!field} /> : null;
   } else if (phase === 'level') {
     title = t('pfLevelTitle');
-    text = t('pfLevelText');
     frame.header = <LangPill code={curTarget} t={t} />;
     body = <LevelBody value={level ?? DEFAULT_LEVEL} onChange={setLevel} lang={curTarget} t={t} />;
     // «Далі» — згода з тим, що на слайдері, навіть якщо його не чіпали
@@ -958,12 +1011,10 @@ export default function OnboardingScreen({
     );
   } else if (phase === 'struggles') {
     title = t('obStrugglesTitle');
-    text = t('obStrugglesText');
     body = <StruggleOptions value={pains} onChange={setPains} t={t} />;
     footer = <GradBtn title={nextTitle} onPress={() => next(pains)} disabled={!pains.length} />;
   } else if (phase === 'heard') {
     title = t('pfHeardTitle');
-    text = t('pfHeardText');
     body = (
       <HeardOptions
         value={heard}
@@ -975,6 +1026,20 @@ export default function OnboardingScreen({
       />
     );
     footer = reader || had ? <GradBtn title={nextTitle} onPress={() => next(heard)} disabled={!heard} /> : null;
+  } else if (phase === 'wod') {
+    // Що таке слово дня: Лінго тримає картку-приклад мовою навчання
+    title = t('obWodTitle');
+    text = t('obWodText');
+    const wodLingo = win.height >= 900 ? 180 : win.height >= 720 ? 156 : 132;
+    body = (
+      <View>
+        <View style={s.wodLingo}>
+          <MascotLive pose="encourage" size={wodLingo} enter="hop" testID="wod-lingo" />
+        </View>
+        <WodExample sample={demoExample(curTarget, curNative)} t={t} />
+      </View>
+    );
+    footer = <GradBtn title={nextTitle} onPress={() => next()} />;
   } else if (phase === 'plan') {
     if (building) {
       const cefr = profileNow ? cefrFor(profileNow.level) : null;
@@ -1018,6 +1083,11 @@ export default function OnboardingScreen({
     const key = primaryTopic(profileNow);
     title = t('obPushTitle');
     text = t('obPushText');
+    // Телефон — на всю ширину, що лишилась від полів, але не більший за
+    // справжній; видно стільки, скільки дозволяє екран (телефон «визирає»
+    // знизу), і ніколи менше, ніж годинник зі сповіщенням.
+    const phoneW = Math.round(Math.max(232, Math.min(296, win.width * 0.66)));
+    const phoneH = phoneVisible(phoneW) + 40 + slackPx;
     body = (
       <View>
         <HourChips
@@ -1028,7 +1098,15 @@ export default function OnboardingScreen({
           }}
           t={t}
         />
-        <PushPreview topic={topicName(t, key)} hour={hourLabel(hour)} t={t} />
+        <PushPreview
+          topic={topicName(t, key)}
+          hour={hourLabel(hour)}
+          clock={lockClock(hour)}
+          sample={demoExample(curTarget, curNative)}
+          width={phoneW}
+          height={phoneH}
+          t={t}
+        />
       </View>
     );
     // Єдина кнопка — «Далі»: системне вікно саме спитає «дозволити?»
@@ -1094,12 +1172,15 @@ export default function OnboardingScreen({
   } else if (phase === 'demo') {
     title = t('obDemoTitle');
     // Сцена — скільки дозволяє екран: заголовок, підпис і кнопки мають
-    // уміститись без прокрутки навіть на SE
+    // уміститись без прокрутки навіть на SE. Перша оцінка — на заголовок у
+    // два рядки; далі StepFrame міряє, і сцена добирає чи віддає місце.
     const sceneW = win.width - 48;
-    const sceneH = win.height - insets.top - insets.bottom - 52 - 14 - 46 - 22 - 76 - (canScan || replay ? 148 : 176);
+    const guess = win.height - insets.top - insets.bottom - 52 - 14 - 68 - 22 - 76 - (canScan || replay ? 148 : 176);
+    const sceneH = Math.max(DEMO_MIN_H, Math.min(DEMO_MAX_H, guess + slackPx));
     body = (
       <ScanDemo
         pair={demoPair(curTarget, curNative)}
+        scene={demoScene(curTarget, curNative)}
         t={t}
         width={sceneW}
         height={sceneH}
@@ -1172,6 +1253,11 @@ export default function OnboardingScreen({
     );
   } else if (phase === 'commit') {
     title = t('obCommitTitle');
+    // Лінго підбадьорює, поки людина тримає кільце, і радіє «Домовились!»;
+    // головне тут — кільце, тож Лінго лише поруч із заголовком
+    frame.mascot = (
+      <MascotLive pose={committed ? 'celebrate' : 'encourage'} size={lingoSize + 8} hop={committed} testID="commit-lingo" />
+    );
     body = (
       <View>
         <PledgeCard
@@ -1232,6 +1318,9 @@ const makeStyles = (C) =>
     laterText: { color: C.dim, ...type(16, F.bold, { noLead: true }) },
     usedText: { color: C.dim, ...type(14, F.semi), textAlign: 'center', paddingHorizontal: 6 },
     tryHint: { color: C.accent, ...type(14, F.bold), textAlign: 'center', marginTop: 12 },
+    // Підпис секції на кроці мови: «Моя рідна мова» / «Мова, яку я вчу» —
+    // рівня вище за «Популярні» й «Усі мови» всередині списку
+    section: { color: C.text, ...type(17, F.extra), marginBottom: 10, marginLeft: 2 },
     nativeCard: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -1239,11 +1328,11 @@ const makeStyles = (C) =>
       borderRadius: R.lg,
       paddingHorizontal: 16,
       paddingVertical: 12,
-      minHeight: 60,
+      minHeight: 56,
     },
-    nativeCaps: { color: C.faint, fontSize: 11, fontFamily: F.extra, letterSpacing: 1.1, textTransform: 'uppercase' },
-    nativeRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 3 },
-    nativeFlag: { fontSize: 18 },
+    nativeRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
+    nativeFlag: { fontSize: 22 },
+    wodLingo: { alignItems: 'center', marginTop: -6, marginBottom: -20, zIndex: 0 },
     nativeName: { flexShrink: 1, color: C.text, ...type(17, F.bold, { noLead: true }) },
     nativeChange: { color: C.accent, ...type(15, F.bold, { noLead: true }), marginLeft: 10 },
   });
