@@ -470,7 +470,7 @@ describe('progress during purchase and restore', () => {
 // Онбординг 3.0: «Спробуй зараз» більше немає — про безкоштовний скан каже
 // перший екран пейволу, вже з наліпкою людини (onboarding.md §5.13)
 test('the first paywall screen says the free scan is already in the word list, in every language', () => {
-  expect(STRINGS.uk.opwFirstWordText).toMatch(/^Твій безкоштовний скан — уже в словнику\./);
+  expect(STRINGS.uk.opwFirstWordText).toMatch(/^Твій безкоштовний скан уже в словнику\./);
   expect(STRINGS.en.opwFirstWordText).toMatch(/^Your free scan is already in your word list\./);
   for (const lang of ['de', 'es']) expect(STRINGS[lang].opwFirstWordText).toEqual(expect.any(String));
   for (const lang of ['en', 'uk', 'de', 'es']) expect(STRINGS[lang]).not.toHaveProperty('obWowText');
@@ -587,7 +587,7 @@ describe('the notification preview', () => {
     const sample = { word: 'die Tasse', translation: 'чашка', example: 'In dieser Tasse ist heißer Kaffee.' };
     const tree = await mount(<PushPreview topic="Gastronomie" hour="10:00 AM" sample={sample} t={t} />);
     expect(has(tree, '10:00 AM')).toBe(true);
-    const body = hosts(tree, (n) => n.props.children === 'die Tasse — чашка')[0];
+    const body = hosts(tree, (n) => n.props.children === 'die Tasse · чашка')[0];
     expect(body.props.numberOfLines).toBe(2);
     const title = hosts(tree, (n) => n.props.children === 'Word of the day · Gastronomie')[0];
     expect(title.props.numberOfLines).toBe(2);

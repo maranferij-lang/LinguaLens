@@ -256,7 +256,7 @@ describe('the quiz counts different translations', () => {
     expect(has(tree, 'hub-quiz-lock')).toBe(true);
     const all = texts(tree.root);
     expect(all).toContain(t('learnQuizLeft', { k: 2 }));
-    expect(uk('learnQuizLeft', { k: 2 })).toBe('Ще 2 слова — і квіз відкриється');
+    expect(uk('learnQuizLeft', { k: 2 })).toBe('Ще 2 слова, і квіз відкриється');
     expect(tree.root.findAll((n) => n.props.testID === 'dash-on' && n.type === 'View')).toHaveLength(2);
     expect(tree.root.findAll((n) => n.props.testID === 'dash-off' && n.type === 'View')).toHaveLength(2);
     // тиха підказка про слово дня, а не блок «Як отримати»

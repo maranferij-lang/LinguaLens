@@ -113,7 +113,7 @@ test('Frame lists six rows, then “+N”, numbered from one', async () => {
   const tree = await card(payload(8), 'sceneFrame');
   const all = texts(tree);
   expect(FRAME_ROWS).toBe(6);
-  expect(all).toEqual(expect.arrayContaining([' — настільна лампа', t('sceneCardMore', { n: 2 })]));
+  expect(all).toEqual(expect.arrayContaining([' · настільна лампа', t('sceneCardMore', { n: 2 })]));
   // номери — лише в рядків списку: і в самому списку, і на фото
   const numbers = tree.root.findAll((n) => typeof n.props?.children === 'number').map((n) => n.props.children);
   expect([...new Set(numbers)].sort((a, b) => a - b)).toEqual([1, 2, 3, 4, 5, 6]);

@@ -330,7 +330,7 @@ test('the full path: language → name → work in finance → B2+ → struggles
   // Реакція Lingo на мову — його ж бульбашкою знизу; підзаголовка немає
   expect(title(tree)).toBe(t('obNameTitle'));
   expect(subtitle(tree)).toBeFalsy();
-  expect(has(tree, 'English — great choice!')).toBe(true);
+  expect(has(tree, 'English? Great choice!')).toBe(true);
   expect(nextBtn(tree).props.disabled).toBe(true);
   await typeName(tree, '   Олена  ');
   await advance(NAME_PAUSE_MS);
@@ -391,7 +391,7 @@ test('the full path: language → name → work in finance → B2+ → struggles
   expect(subtitle(tree)).toBe(t('obPushText'));
   expect(hostId(tree, 'push-phone')).toHaveLength(1);
   expect(has(tree, 'Word of the day · Finance')).toBe(true);
-  expect(has(tree, 'mug — чашка')).toBe(true);
+  expect(has(tree, 'mug · чашка')).toBe(true);
   expect(texts(tree).some((s) => /allow/i.test(s))).toBe(false); // App Review 5.1.1(iv)
   await tap(tree, t('obNext'));
   expect(requestPermission).toHaveBeenCalledTimes(1);
@@ -423,7 +423,7 @@ test('the full path: language → name → work in finance → B2+ → struggles
   await tap(tree, t('obNext')); // скану немає (canWow=false) — «Далі»
 
   expect(title(tree)).toBe(t('obCommitTitle'));
-  expect(has(tree, 'I, Олена, will learn English every day — one word at a time')).toBe(true);
+  expect(has(tree, 'I, Олена, will learn English every day, one word at a time')).toBe(true);
   expect(has(tree, t('obCommitGoal'))).toBe(true);
   // Лінго підбадьорює, а після обіцянки — радіє
   const lingo = () => tree.root.findAll((n) => n.props.testID === 'commit-lingo' && n.props.pose)[0];
@@ -564,7 +564,7 @@ test('short variant: Lingo cheers on the goals step, which names the language', 
   await start(tree);
   await pickLang(tree, 'es');
   expect(title(tree)).toBe('Why are you learning Spanish?');
-  expect(has(tree, 'Spanish — great choice!')).toBe(true);
+  expect(has(tree, 'Spanish? Great choice!')).toBe(true);
   expect(events('onboarding_step').every((e) => e.flow === 'short')).toBe(true);
 });
 

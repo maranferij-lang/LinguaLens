@@ -82,7 +82,7 @@ test('the comparison: scans, scenes and languages first, then what stays free', 
     // v1.3 (план §5.12): слова дня й теми — з прапорців; картки, квіз і
     // віджети — один рядок
     { id: 'wodn', free: '1', pro: 5, upTo: true, fresh: true },
-    { id: 'themes', free: '—', none: true, pro: '4', fresh: true },
+    { id: 'themes', free: false, none: true, pro: '4', fresh: true },
     { id: 'core', free: true, pro: true },
   ]);
   expect(PRO_BENEFITS.map((b) => b.id)).toEqual(['scans', 'scene', 'wodn', 'themes', 'langs', 'support']);

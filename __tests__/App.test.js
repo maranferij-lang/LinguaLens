@@ -484,7 +484,7 @@ describe('the streak is kept by learning, not by scanning', () => {
     const all = texts(tree);
     expect(all).toContain('2 days in a row');
     // v1.3: фразу картки серії вибирає streakMessage (src/streak.js)
-    expect(all).toContain('5 more days to a week — then your flame catches fire');
+    expect(all).toContain('5 more days to a week, then your flame catches fire');
     // картка «Мій тиждень»: нових слів немає, а повторення — і вчора, і сьогодні
     await run(() => one(tree, ProfileScreen).props.onShareWeek());
     expect(openShare(tree).stats).toMatchObject({ streak: 2, weekWords: 0, reviews: 7 });

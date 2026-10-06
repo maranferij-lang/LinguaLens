@@ -82,7 +82,7 @@ describe('the Profile card', () => {
     const tree = await render(<StreakCard activeDays={days(5, 9)} now={now} weekStart={2} t={t} />);
     const all = texts(tree.root);
     expect(all).toContain('5 days in a row');
-    expect(all).toContain('2 more days to a week — then your flame catches fire');
+    expect(all).toContain('2 more days to a week, then your flame catches fire');
     expect(all).toContain('5 of 7');
     expect(all).toContain(t('streakGoalWeek'));
     expect(flame(tree.root, 'streak-card-flame').props).toMatchObject({ n: 5, pending: false });
@@ -105,12 +105,12 @@ describe('the Profile card', () => {
 
   test('zero: a start, not a failure; the record when it was longer', async () => {
     let tree = await render(<StreakCard activeDays={[]} now={at(2026, 10, 9)} t={uk} />);
-    expect(texts(tree.root)).toEqual(expect.arrayContaining(['Почни серію сьогодні', 'Збережи слово — і запали перший вогник']));
+    expect(texts(tree.root)).toEqual(expect.arrayContaining(['Почни серію сьогодні', 'Збережи слово й запали перший вогник']));
     expect(flameForm(0).stage).toBe('ember');
     await act(async () => tree.unmount());
 
     tree = await render(<StreakCard activeDays={days(1, 2)} best={12} now={at(2026, 10, 9)} t={uk} />);
-    expect(texts(tree.root)).toEqual(expect.arrayContaining(['Серія згасла. Почни нову сьогодні', 'Рекорд — 12 днів']));
+    expect(texts(tree.root)).toEqual(expect.arrayContaining(['Серія згасла. Почни нову сьогодні', 'Рекорд: 12 днів']));
     await act(async () => tree.unmount());
   });
 
@@ -167,7 +167,7 @@ describe('the chip on Learn', () => {
     expect(flame(tree.root, 'streak-chip-flame').props).toMatchObject({ n: 4, pending: true });
     expect(ids(tree.root, 'streak-chip-dot')).toHaveLength(0);
     const chip = tree.root.findAll((n) => n.props.testID === 'streak-chip' && typeof n.props.onPress === 'function')[0];
-    expect(chip.props.accessibilityLabel).toBe('Streak: 4 days. Not yet today — one word');
+    expect(chip.props.accessibilityLabel).toBe('Streak: 4 days. Not yet today: one word');
     await act(async () => tree.unmount());
   });
 
@@ -193,7 +193,7 @@ describe('the evening banner on Learn', () => {
     expect(ids(tree.root, 'risk-banner')).toHaveLength(1);
     const all = texts(tree.root);
     expect(all).toContain('Серія 5 днів згасне опівночі');
-    expect(all).toContain('Ще 3 год 13 хв. Повтори одне слово — і вогник житиме.');
+    expect(all).toContain('Ще 3 год 13 хв. Повтори одне слово, і вогник житиме.');
     // одна картка, як і обіцяє кнопка
     const cta = tree.root.findAll((n) => n.props.title === 'Повторити 1 картку' && typeof n.props.onPress === 'function')[0];
     await act(async () => cta.props.onPress());

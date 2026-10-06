@@ -217,7 +217,7 @@ describe('buildMyWordsTimeline', () => {
     expect(entries[0].props).toMatchObject({
       state: 'empty',
       message: 'Тут крутитимуться твої слова',
-      hint: 'Збережи слово дня — і почнемо',
+      hint: 'Збережи слово дня, і почнемо',
       link: 'lingualens://word-of-day?from=widget&w=words',
     });
   });
@@ -379,11 +379,11 @@ describe('My Words layout', () => {
 
   test('lock screen: caption, word and translation; inline — one line', () => {
     expect(texts(w.render(entries[0].props, env('accessoryRectangular')))).toEqual(['Мої слова', 'word0', 'слово0']);
-    expect(texts(w.render(entries[0].props, env('accessoryInline')))).toEqual(['word0 — слово0']);
+    expect(texts(w.render(entries[0].props, env('accessoryInline')))).toEqual(['word0 · слово0']);
   });
 
   test('empty: the message and the hint', () => {
     const [empty] = buildMyWordsTimeline([], opts());
-    expect(texts(w.render(empty.props, env('systemSmall')))).toEqual(['Мої слова', 'Тут крутитимуться твої слова', 'Збережи слово дня — і почнемо']);
+    expect(texts(w.render(empty.props, env('systemSmall')))).toEqual(['Мої слова', 'Тут крутитимуться твої слова', 'Збережи слово дня, і почнемо']);
   });
 });

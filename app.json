@@ -136,7 +136,7 @@
             {
               "name": "MyWords",
               "displayName": "My Words",
-              "description": "Your saved words, one at a time — the ones due for review first.",
+              "description": "Your saved words, one at a time, starting with the ones due for review.",
               "ios": {
                 "supportedFamilies": [
                   "systemSmall",

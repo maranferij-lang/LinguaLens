@@ -270,7 +270,7 @@ describe('Word of the Day layout', () => {
   test('lock screen: word, translation and IPA; inline is one line', () => {
     const [entry] = buildWordTimeline(wodCache(1), o);
     expect(texts(w().render(entry.props, env('accessoryRectangular')))).toEqual(['lighthouse', 'маяк', '/ˈlaɪt.haʊs/']);
-    expect(texts(w().render(entry.props, env('accessoryInline')))).toEqual(['lighthouse — маяк']);
+    expect(texts(w().render(entry.props, env('accessoryInline')))).toEqual(['lighthouse · маяк']);
     const [empty] = buildWordTimeline(null, o);
     expect(texts(w().render(empty.props, env('accessoryInline')))).toEqual(['Open LinguaLens']);
     expect(texts(w().render(empty.props, env('systemSmall')))).toEqual(['Word of the day', 'Open LinguaLens for new words']);

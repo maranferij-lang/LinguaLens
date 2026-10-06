@@ -205,7 +205,7 @@ describe('Lingo on the question steps', () => {
     await tap(tree, t('obStart'));
     await act(async () => byId(tree, 'lang-es').at(-1).props.onPress());
     await advance(AUTO_MS);
-    expect(has(tree, 'Spanish — great choice!')).toBe(true);
+    expect(has(tree, 'Spanish? Great choice!')).toBe(true);
     expect(lingo(tree, 'step-lingo').props.pose).toBe('celebrate');
     const bubble = tree.root.findAll((n) => n.props.testID === 'lingo-bubble' && typeof n.type !== 'string')[0];
     expect(bubble.findAll((n) => n.props.source !== undefined && typeof n.type === 'string')).toHaveLength(0);
@@ -225,7 +225,7 @@ describe('the name step', () => {
     const peek = () => lingo(tree, 'name-lingo-mascot');
     expect(peek().props).toMatchObject({ pose: 'wave', enter: 'peek' });
     // поки поле порожнє — реакція на мову
-    expect(has(tree, 'English — great choice!')).toBe(true);
+    expect(has(tree, 'English? Great choice!')).toBe(true);
     await act(async () => nameInput(tree).props.onChangeText('Ole'));
     await act(async () => nameInput(tree).props.onChangeText('Olena'));
     await advance(NAME_PAUSE_MS - 50);
@@ -409,7 +409,7 @@ describe('what the word of the day is', () => {
 
   test('uk copy is exact', () => {
     expect(uk('obWodTitle')).toBe('Що таке слово дня?');
-    expect(uk('obWodText')).toBe('Щодня Лінго підбиратиме тобі одне корисне слово — з перекладом, вимовою й прикладом. Під твої цілі й рівень.');
+    expect(uk('obWodText')).toBe('Щодня Лінго підбиратиме тобі одне корисне слово з перекладом, вимовою й прикладом. Під твої цілі й рівень.');
     expect(t('obWodTitle')).toBe('What’s the word of the day?');
   });
 });
@@ -419,7 +419,9 @@ describe('the push step', () => {
   test('uk copy is exact', () => {
     expect(uk('obPushTitle')).toBe('Обери, коли надсилати тобі слово дня');
     expect(uk('obPushText')).toBe('Змінити можна будь-коли в Параметрах.');
-    expect(uk('obStreakTitle')).toBe('Вчи мову щодня — і розпалюй свій вогник');
+    // заголовки серії й демо — дослівно від власника (жовтень 2026, без тире)
+    expect(uk('obStreakTitle')).toBe('Вчи мову кожного дня та рости свій вогник');
+    expect(uk('obDemoTitle')).toBe('Скануй предмети навколо й отримай їх переклад за 10 секунд');
   });
 
   test('the lock screen clock shows the chosen hour, as the iPhone writes it', () => {
@@ -439,7 +441,7 @@ describe('the push step', () => {
     expect(StyleSheet.flatten(phone.props.style).height).toBe(phoneVisible(250));
     expect(has(tree, '7:00')).toBe(true);
     expect(has(tree, 'Word of the day · Travel')).toBe(true);
-    expect(has(tree, 'mug — чашка')).toBe(true);
+    expect(has(tree, 'mug · чашка')).toBe(true);
     expect(phone.props.accessibilityLabel).toBe(t('obPushPreviewA11y', { title: 'Word of the day · Travel', h: '7:00 PM' }));
     // заголовок ліг у два рядки — сповіщення нижче: телефон видно до його низу
     const banner = tree.root.findAll((n) => typeof n.type === 'string' && typeof n.props.onLayout === 'function')[0];
@@ -495,7 +497,7 @@ describe('the demo', () => {
     await advance(1300);
     await tap(tree, t('obNext')); // план
     await tap(tree, t('obNext')); // серія
-    expect(title(tree)).toBe('Scan things around you and get the translation in 10 seconds');
+    expect(title(tree)).toBe('Scan things around you and get them translated in 10 seconds');
     const demo = () => tree.root.findByType(ScanDemo);
     expect(demo().props.scene).toEqual(demoScene('es', 'uk'));
     expect(hostId(tree, 'demo-tag-plant').length).toBe(1);

@@ -58,7 +58,7 @@ describe('the celebration layer', () => {
     jest.useFakeTimers();
     const onDone = jest.fn();
     const tree = await show({ from: 1, to: 2 }, { onDone });
-    expect(texts(tree.root)).toEqual(expect.arrayContaining(['2 days in a row — keep it up!', '2', '5 more days to a week — then your flame catches fire']));
+    expect(texts(tree.root)).toEqual(expect.arrayContaining(['2 days in a row. Keep it up!', '2', '5 more days to a week, then your flame catches fire']));
     expect(button(tree, t('streakContinue'))).toBeUndefined();
     // вогник учорашньої форми переходить у сьогоднішню
     const flames = tree.root.findAll((n) => typeof n.type !== 'string' && n.props.n !== undefined && /^celebration-flame/.test(n.props.testID || ''));

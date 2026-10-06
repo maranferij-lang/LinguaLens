@@ -52,7 +52,7 @@ test('a tap on the plate says the word in its language', async () => {
 test('VoiceOver hears the title, the word and the streak in one header', async () => {
   const tree = await render({ t: uk });
   const header = tree.root.find((n) => typeof n.type === 'string' && n.props.accessibilityRole === 'header');
-  expect(header.props.accessibilityLabel).toBe(`${uk('obCelebrateTitle')}. la taza — mug. ${uk('obCelebrateStreak')}`);
+  expect(header.props.accessibilityLabel).toBe(`${uk('obCelebrateTitle')}. la taza, mug. ${uk('obCelebrateStreak')}`);
   await act(async () => tree.unmount());
 });
 

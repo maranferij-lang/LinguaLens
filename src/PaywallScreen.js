@@ -423,10 +423,14 @@ export default function PaywallScreen({
                   <View style={s.cellFree}>
                     {free === true ? (
                       <IcCheck size={16} color={C.faint} />
+                    ) : row.none ? (
+                      // «немає» — тихий хрестик у тон галочки, а не риска:
+                      // тире в тексті власник заборонив
+                      <View accessible accessibilityLabel={t('cmpNone')} testID="cmp-none">
+                        <IcClose size={14} color={C.faint} />
+                      </View>
                     ) : (
-                      <Text style={s.cellFreeText} accessibilityLabel={row.none ? t('cmpNone') : undefined}>
-                        {free}
-                      </Text>
+                      <Text style={s.cellFreeText}>{free}</Text>
                     )}
                   </View>
 

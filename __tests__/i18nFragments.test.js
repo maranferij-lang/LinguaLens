@@ -95,13 +95,13 @@ test.each(NAMES)('%s: no key is defined twice inside one language block', (name)
 describe('shared strings', () => {
   test('the owner’s words for the first days, with plurals', () => {
     const uk = makeT('uk');
-    expect(uk('streakKeep', { n: 1 })).toBe('1 день поспіль — так тримати!');
-    expect(uk('streakKeep', { n: 2 })).toBe('2 дні поспіль — так тримати!');
-    expect(uk('streakHabit', { n: 5 })).toBe('5 днів поспіль — звичка вже формується');
-    expect(uk('streakToWeek', { k: 1 })).toBe('До тижня — ще 1 день, і вогник розгориться');
-    expect(uk('streakBest', { n: 21 })).toBe('Рекорд — 21 день');
+    expect(uk('streakKeep', { n: 1 })).toBe('1 день поспіль. Так тримати!');
+    expect(uk('streakKeep', { n: 2 })).toBe('2 дні поспіль. Так тримати!');
+    expect(uk('streakHabit', { n: 5 })).toBe('5 днів поспіль. Звичка вже формується');
+    expect(uk('streakToWeek', { k: 1 })).toBe('До тижня ще 1 день, і вогник розгориться');
+    expect(uk('streakBest', { n: 21 })).toBe('Рекорд: 21 день');
     const en = makeT('en');
-    expect(en('streakKeep', { n: 1 })).toBe('1 day in a row — keep it up!');
+    expect(en('streakKeep', { n: 1 })).toBe('1 day in a row. Keep it up!');
     expect(en('streakToNext', { k: 7, m: 14 })).toBe('Your flame is burning. 7 more to 14 days');
   });
 

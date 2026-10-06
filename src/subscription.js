@@ -260,8 +260,9 @@ export function topBenefits(list = PRO_BENEFITS, n = 4) {
 // людина має бачити не список благ, а СВОЮ ситуацію і те, як вона зміниться.
 // Нижній рядок з галочками з обох боків — теж аргумент: безкоштовне лишається
 // безкоштовним, Pro нічого в людини не забирає.
-//   upTo — значення Pro «до N» (cmpUpTo); none — у безкоштовному цього немає
-//   (риска, VoiceOver читає «немає»); fresh — нове у v1.3 (позначка «нове»).
+//   upTo — значення Pro «до N» (cmpUpTo); none — у безкоштовному цього немає:
+//   free: false, тиха позначка ✕ (не риска: тире власник заборонив), VoiceOver
+//   читає «немає»; fresh — нове у v1.3 (позначка «нове»).
 // Рядки слів дня й тем — лише з увімкненими прапорцями; без варіантів слів
 // дня на їхньому місці звичайне «Слово дня ✓ / ✓». Ліміту колекції й
 // захисту серії тут немає ніколи: у v1.3 їх немає в застосунку.
@@ -272,7 +273,7 @@ export function comparison({ wodOptions = PRO_WOD_OPTIONS, palettes = PALETTES_E
     { id: 'scene', free: String(FREE.scenes), pro: '∞' },
     { id: 'langs', free: String(FREE.languagePairs), pro: '29' },
     most ? { id: 'wodn', free: '1', pro: most, upTo: true, fresh: true } : { id: 'wod', free: true, pro: true },
-    ...(palettes ? [{ id: 'themes', free: '—', none: true, pro: String(PRO_PALETTES.length), fresh: true }] : []),
+    ...(palettes ? [{ id: 'themes', free: false, none: true, pro: String(PRO_PALETTES.length), fresh: true }] : []),
     { id: 'core', free: true, pro: true },
   ];
 }

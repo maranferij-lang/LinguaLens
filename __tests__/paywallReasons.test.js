@@ -167,9 +167,11 @@ describe('the themes paywall', () => {
     expect(price).toBeLessThan(all.indexOf(t('cmp_themes')));
     const rows = all.filter((s) => [t('cmp_scans'), t('cmp_themes'), t('cmp_wodn'), t('cmp_core')].includes(s));
     expect(rows[0]).toBe(t('cmp_themes'));
-    // «—» VoiceOver читає «немає»; у Pro — чотири палітри
-    const dash = tree.root.findAll((n) => n.type === 'Text' && n.props.children === '—')[0];
-    expect(dash.props.accessibilityLabel).toBe(t('cmpNone'));
+    // «немає» — тихий хрестик, а не риска (тире власник заборонив);
+    // VoiceOver читає «немає»; у Pro — чотири палітри
+    const none = tree.root.findAll((n) => n.props.testID === 'cmp-none' && n.props.accessible)[0];
+    expect(none.props.accessibilityLabel).toBe(t('cmpNone'));
+    expect(all.some((s) => /[\u2013\u2014]/.test(s))).toBe(false);
     expect(all).toContain('4');
   });
 
@@ -209,7 +211,7 @@ describe('the words-per-day paywall', () => {
     const all = strings(tree);
     expect(all).toEqual(
       expect.arrayContaining([
-        'До 5 слів на день — у Pro',
+        'До 5 слів на день з Pro',
         'У сповіщеннях і віджеті, о годинах, які обереш. Перше слово дня лишається безкоштовним.',
         'Слова дня',
         'до 5',

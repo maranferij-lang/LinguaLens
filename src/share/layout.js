@@ -117,7 +117,7 @@ export function templatesFor(payload) {
 // Ширини гліфів Nunito ExtraBold у частках кегля — заміряні з самого TTF
 // (hmtx), а не на око. Довге слово має зменшитись ДО рендера:
 // adjustsFontSizeToFit — лише страховка, на вебі (прев'ю) його немає взагалі.
-const NARROW = new Set("iíìïījlIı'.,:;!|іїј");
+const NARROW = new Set("iíìïījlIı'.,:;!|іїј·");
 const SEMI = new Set('frt-гт');
 const WIDE = new Set('mwжфшщюы');
 const WIDE_UP = new Set('MWЖФШЩЮЫ');
@@ -203,6 +203,9 @@ const QUOTES = {
   zh: ['「', '」'],
 };
 
+// Слово й переклад у парі: «mug · чашка». Тире між ними власник заборонив.
+export const PAIR_SEP = ' · ';
+
 export function quote(text, lang) {
   const [open, close] = QUOTES[lang] || ['“', '”'];
   return open + String(text || '').trim() + close;
@@ -222,7 +225,9 @@ export function clipLines(text, lines, fontSize, width = CONTENT_W) {
     if (textEm(next, 0) > budget - 0.6) break;
     out = next;
   }
-  return out.replace(/[\s,;:.!?—–-]+$/, '') + '…';
+  // Хвіст з розділових знаків прибираємо разом із « · » пари і з тире, якщо
+  // воно таки прийшло в тексті слова чи прикладу (дані сервера, від людини)
+  return out.replace(/[\s,;:.!?·—–-]+$/, '') + '…';
 }
 
 // Літера для плитки, коли фото немає. Артикль пропускаємо: для «die Tasse»
@@ -270,8 +275,12 @@ export function dayFromKey(key) {
   return m ? new Date(+m[1], +m[2] - 1, +m[3]) : null;
 }
 
-// «25 вер. – 1 жовт.» / «Sep 24 – 30». formatRange сам знає, як у кожній
-// мові скорочувати діапазон у межах місяця; де його немає — просто «а – б».
+// «25 вер.–1 жовт.» / «Sep 24–30». formatRange сам знає, як у кожній мові
+// скорочувати діапазон у межах місяця; де його немає — просто «а–б».
+// Діапазон — коротке тире без пробілів (правило власника: тире з пробілами
+// в тексті немає ніде), тож пробіли довкола тире з ICU знімаємо.
+const tightRange = (s) => s.replace(/\s*[\u2013\u2014]\s*/g, '\u2013');
+
 export function weekRangeLabel(days, locale) {
   const list = Array.isArray(days) ? days : [];
   const a = dayFromKey(list[0]?.key);
@@ -280,10 +289,10 @@ export function weekRangeLabel(days, locale) {
   const opts = { day: 'numeric', month: 'short' };
   try {
     const f = new Intl.DateTimeFormat(locale, opts);
-    if (typeof f.formatRange === 'function') return f.formatRange(a, b);
-    return f.format(a) + ' – ' + f.format(b);
+    if (typeof f.formatRange === 'function') return tightRange(f.formatRange(a, b));
+    return f.format(a) + '\u2013' + f.format(b);
   } catch (_) {
-    return format(a, undefined, opts) + ' – ' + format(b, undefined, opts);
+    return format(a, undefined, opts) + '\u2013' + format(b, undefined, opts);
   }
 }
 

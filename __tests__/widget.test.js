@@ -109,7 +109,7 @@ describe('buildWordTimeline', () => {
       md: '1',
       exampleTr: 'Приклад.',
       sentenceTitle: 'У реченні',
-      line: 'lighthouse — lighthouse-tr',
+      line: 'lighthouse · lighthouse-tr',
       a11y: 'Слово дня, lighthouse, lighthouse-tr',
       a11yShort: 'Слово дня, lighthouse',
       revealShort: 'Переклад',

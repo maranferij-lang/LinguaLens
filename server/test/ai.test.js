@@ -219,3 +219,83 @@ test('general words keep the old prompt and cache key; every topic has its own n
     assert.ok(!p.includes('Meaning'));
   }
 });
+
+// ---------- правило власника: жодних довгих тире в тексті ----------
+const LONG_DASH = /[\u2014\u2015]|(^|\s)[\u2012\u2013](\s|$)|\s-\s/;
+
+test('every prompt tells the model not to use dashes and has none itself', () => {
+  const prompts = [
+    ai.buildScanPrompt('en', 'uk'),
+    ai.buildScanPrompt('de', 'uk', 2),
+    ai.buildScanPrompt('de', 'uk', 9),
+    ai.buildScenePrompt('es', 'en'),
+    ai.buildScenePrompt('es', 'en', 2),
+    ai.buildTranslatePrompt('mug', 'de', 'uk'),
+    ai.buildTranslatePrompt('ledger', 'de', 'uk', { topic: 'finance', hint: 'accounting book' }),
+  ];
+  for (const p of prompts) {
+    assert.ok(p.includes('Never use an em dash or an en dash as punctuation'), p.slice(0, 60));
+    // модель повторює стиль запиту: у самій підказці тире теж немає
+    assert.ok(!/[\u2014\u2015\u2013]/.test(p), p.slice(0, 60));
+  }
+});
+
+test('undash turns a dash into a comma and leaves everything else alone', () => {
+  for (const [from, to] of [
+    ['I love it — really.', 'I love it, really.'],
+    ['I love it—really.', 'I love it, really.'],
+    ['Ich mag es – wirklich.', 'Ich mag es, wirklich.'],
+    ['mug - чашка', 'mug, чашка'],
+    ['— Hola — dijo Ana.', 'Hola, dijo Ana.'],
+    ['«Привіт, — сказав він.»', '«Привіт, сказав він.»'],
+    ['It is done —.', 'It is done.'],
+    ['Hola, — ¿qué tal?', 'Hola, ¿qué tal?'],
+    ['A note (— really) here', 'A note (really) here'],
+    ['– Ja', 'Ja'],
+    ['Nein –', 'Nein'],
+  ]) {
+    assert.equal(ai.undash(from), to, from);
+  }
+  // дефіс у слові, діапазони, мінус і текст без тире — без змін
+  for (const same of ['Read pages 1–2 of the T-shirt guide.', 'A1–C2', 'It is -5 °C, isn’t it?', '„Hallo“, sagte er.', 'Wait, what?']) {
+    assert.equal(ai.undash(same), same);
+  }
+});
+
+test('model text with dashes reaches the app without them: scan, scene, phrases, word of the day', async () => {
+  const dashed = {
+    word: 'die Tasse',
+    ipa: '/diː ˈtasə/',
+    translation: 'чашка — кружка',
+    example: 'Die Tasse — sie ist leer.',
+    example_translation: 'Чашка — вона порожня.',
+    box: [0, 0, 500, 500],
+  };
+  assert.deepEqual(ai.cleanWord(dashed), {
+    word: 'die Tasse',
+    ipa: '/diː ˈtasə/',
+    translation: 'чашка, кружка',
+    example: 'Die Tasse, sie ist leer.',
+    example_translation: 'Чашка, вона порожня.',
+  });
+  const [obj] = ai.cleanScene({ objects: [dashed] });
+  for (const k of ['word', 'translation', 'example', 'example_translation']) assert.ok(!LONG_DASH.test(obj[k]), k);
+  assert.deepEqual(ai.cleanExtras([{ phrase: 'eine Tasse Tee — bitte', translation: 'чашка чаю — будь ласка' }], 'die Tasse'), [
+    { phrase: 'eine Tasse Tee, bitte', translation: 'чашка чаю, будь ласка' },
+  ]);
+
+  // слово дня: і свіжий переклад, і старий запис кешу (до правила)
+  const term = 'cup-' + crypto.randomUUID().slice(0, 8);
+  reply = JSON.stringify(dashed);
+  const fresh = await ai.translateWord(term, 'de', 'uk');
+  for (const k of ['translation', 'example', 'example_translation']) assert.ok(!LONG_DASH.test(fresh[k]), k);
+  const old = 'old-' + crypto.randomUUID().slice(0, 8);
+  const stale = { word: 'die Tasse', ipa: '', translation: 'чашка', example: 'Die Tasse — leer.', example_translation: 'Чашка — порожня.', source: old };
+  await store.put('wordCache', ai.wordCacheKey(old, 'de', 'uk'), stale);
+  const n = requests.length;
+  const cached = await ai.translateWord(old, 'de', 'uk');
+  assert.equal(requests.length, n); // з кешу, без моделі
+  assert.equal(cached.example, 'Die Tasse, leer.');
+  assert.equal(cached.example_translation, 'Чашка, порожня.');
+  assert.equal(cached.source, old);
+});

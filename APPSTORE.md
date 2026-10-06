@@ -144,7 +144,7 @@ en-US, es-MX і fr. Результат:
 | Локаль | Назва | Підзаголовок | Ключові (символи, байти UTF-8) | Короткий варіант | Промо | Підписів |
 |---|---|---|---|---|---|---|
 | en-US | 28/30 | 25/30 | 96/100 (96 B) | — | 163/170 | 6 |
-| uk | 28/30 | 29/30 | 94/100 (176 B) | 51 симв. / 95 B | 150/170 | 6 |
+| uk | 28/30 | 29/30 | 94/100 (176 B) | 51 симв. / 95 B | 146/170 | 6 |
 | en-GB | 30/30 | 23/30 | 95/100 (95 B) | — | 163/170 | 6 |
 | es-MX | 30/30 | 26/30 | 93/100 (96 B) | — | 157/170 | 6 |
 | fr-FR (банк) | 30/30 | 29/30 | 94/100 (94 B) | — | — | 0 |
@@ -203,36 +203,36 @@ Label Your Kitchen Challenge: scan your kitchen in one shot, get a word sticker 
 ```
 Point. Snap. Learn.
 
-LinguaLens turns the world around you into vocabulary. Point your camera at a cup, a plant or your bike and get its name in the language you're learning — with pronunciation, IPA, translation and an example sentence that fits your level.
+LinguaLens turns the world around you into vocabulary. Point your camera at a cup, a plant or your bike and get its name in the language you're learning, with pronunciation, IPA, translation and an example sentence that fits your level.
 
 YOUR WORDS, AS STICKERS
-Every object you scan is cut out along its outline with a white sticker border. Your dictionary becomes a collection of real things from your life — much easier to remember than a list.
+Every object you scan is cut out along its outline with a white sticker border. Your dictionary becomes a collection of real things from your life, much easier to remember than a list.
 
 A WHOLE ROOM IN ONE SHOT
 Scan a room and every object gets its own label and sticker. Share the scene to Stories.
 
 MADE FOR YOUR LEVEL AND YOUR WORK
-Tell LinguaLens your goals, your field and your level, from A1 to C2. Your word of the day follows your plan: vocabulary for your field, workplace words, everyday words — and no beginner words if you're already advanced. Tap "I know it" and a new word takes its place.
+Tell LinguaLens your goals, your field and your level, from A1 to C2. Your word of the day follows your plan: vocabulary for your field, workplace words, everyday words, and no beginner words if you're already advanced. Tap "I know it" and a new word takes its place.
 
 REMEMBER WHAT YOU SCAN
 • Flashcards with spaced repetition bring words back right before you forget them
 • A quick 10-question quiz; missed words return for review
 • A word of the day with a reminder at the hour you choose
-• Three free widgets: the word of the day with an example sentence (tap to reveal the translation right in the widget), your own words with the photos you took, and your streak — on the Home Screen and the Lock Screen
+• Three free widgets for the Home Screen and the Lock Screen: the word of the day with an example sentence (tap to reveal the translation right in the widget), your own words with the photos you took, and your streak
 • Streaks, levels and 27 achievements
 
 SHARE THE BEST FINDS
-Every word you scan becomes a sticker with no background: put it on your own photo in Instagram Stories, paste it into a chat or save it to Photos. A word, a whole scene or an achievement — or a clean 9:16 card, if you prefer.
+Every word you scan becomes a sticker with no background: put it on your own photo in Instagram Stories, paste it into a chat or save it to Photos. A word, a whole scene or an achievement, or a clean 9:16 card if you prefer.
 
 29 LANGUAGES
 English, Spanish, German, French, Italian, Portuguese, Polish, Ukrainian, Japanese, Korean, Chinese and more. Nouns come with their article where it matters (die Tasse, la taza).
 
 NO ACCOUNT NEEDED
-Open the app and start scanning. Your words and progress stay on your phone. Want a backup? Sign in with Apple to keep your words in sync on all your iPhones — we never ask for your name or email. Photos are used only to recognise the object and are not stored on our servers. Anonymous usage statistics can be turned off in Settings.
+Open the app and start scanning. Your words and progress stay on your phone. Want a backup? Sign in with Apple to keep your words in sync on all your iPhones. We never ask for your name or email. Photos are used only to recognise the object and are not stored on our servers. Anonymous usage statistics can be turned off in Settings.
 
 FREE AND PRO
 Free forever: your dictionary with no word limit, flashcards, quiz, one word of the day and all three widgets. Plus one free AI scan to try (one in total, not per day): an object or a whole room.
-LinguaLens Pro: unlimited AI scans and room scans, all 29 languages, up to 5 words of the day at times you choose, and four color themes for the app and widgets (Ocean, Berry, Graphite, Cocoa). Choose monthly or yearly (the yearly plan may start with a free trial for eligible new subscribers), or Lifetime — a one-time purchase, not a subscription.
+LinguaLens Pro: unlimited AI scans and room scans, all 29 languages, up to 5 words of the day at times you choose, and four color themes for the app and widgets (Ocean, Berry, Graphite, Cocoa). Choose monthly or yearly (the yearly plan may start with a free trial for eligible new subscribers), or Lifetime: a one-time purchase, not a subscription.
 Payment is charged to your Apple ID at confirmation of purchase. Subscriptions renew automatically unless cancelled at least 24 hours before the end of the current period. Manage or cancel in your Apple ID settings.
 
 Terms of Use: https://www.apple.com/legal/internet-services/itunes/dev/stdeula/
@@ -279,49 +279,49 @@ Privacy Policy: https://<server>/privacy
 зіставляє «англійські» з «англійська» (не описано), із «мова» й «вивчення»
 ці фрази в нас теж складуться.
 
-**Промо-текст** (150):
+**Промо-текст** (146):
 ```
-Наведи камеру на чашку, вазон чи велосипед — і отримай англійське слово-наліпку з вимовою. А щодня — нове слово під твій рівень і сферу, від A1 до C2.
+Наведи камеру на чашку, вазон чи велосипед і отримай англійське слово-наліпку з вимовою. А щодня нове слово під твій рівень і сферу, від A1 до C2.
 ```
-Варіант на тиждень події (146):
+Варіант на тиждень події (145):
 ```
-Челендж «Підпиши кухню»: скануй кухню одним кадром — кожен предмет стане словом-наліпкою, а за тиждень вивчиш їх усі. І слово дня під твій рівень.
+Челендж «Підпиши кухню»: скануй кухню одним кадром. Кожен предмет стане словом-наліпкою, а за тиждень вивчиш їх усі. І слово дня під твій рівень.
 ```
 
 **Опис:**
 ```
 Наведи. Зніми. Запам'ятай.
 
-LinguaLens перетворює світ навколо тебе на словник. Наведи камеру на чашку, вазон чи велосипед — і отримай назву мовою, яку вчиш: з вимовою, транскрипцією, перекладом і прикладом під твій рівень.
+LinguaLens перетворює світ навколо тебе на словник. Наведи камеру на чашку, вазон чи велосипед і отримай назву мовою, яку вчиш: з вимовою, транскрипцією, перекладом і прикладом під твій рівень.
 
 СЛОВА-НАЛІПКИ
 Кожен предмет вирізається по контуру з білою облямівкою, як справжня наліпка. Словник стає колекцією речей з твого життя, а такі слова запам'ятовуються набагато легше за список.
 
 ЦІЛА КІМНАТА ОДНИМ КАДРОМ
-Скануй кімнату — і кожен предмет отримає свій підпис і наліпку. Готову сцену можна поширити в Stories.
+Скануй кімнату, і кожен предмет отримає свій підпис і наліпку. Готову сцену можна поширити в Stories.
 
 ПІД ТВІЙ РІВЕНЬ І ТВОЮ РОБОТУ
-Розкажи LinguaLens про свої цілі, сферу й рівень — від A1 до C2. Слово дня йде за твоїм планом: лексика твоєї сфери, робочі слова й повсякденні, а якщо рівень уже високий — жодних базових слів. Натисни «Знаю» — і з'явиться інше слово.
+Розкажи LinguaLens про свої цілі, сферу й рівень (від A1 до C2). Слово дня йде за твоїм планом: лексика твоєї сфери, робочі слова й повсякденні, а якщо рівень уже високий, жодних базових слів. Натисни «Знаю», і з'явиться інше слово.
 
 ЩОБ НЕ ЗАБУТИ
 • Флешкартки з інтервальним повторенням повертають слово саме тоді, коли воно почне забуватись
 • Квіз на 10 питань; помилки повертаються в повторення
 • Слово дня з нагадуванням о зручній годині
-• Три безкоштовні віджети: слово дня з реченням (переклад відкривається дотиком просто у віджеті), твої слова з фото, які ти зняв сам, і серія — на головному екрані й екрані блокування
+• Три безкоштовні віджети для головного екрана й екрана блокування: слово дня з реченням (переклад відкривається дотиком просто у віджеті), твої слова з фото, які ти зняв сам, і серія
 • Серія днів, рівні й 27 досягнень
 
 ДІЛИСЯ НАЙКРАЩИМ
-Кожне відскановане слово стає наліпкою без тла: поклади її на своє фото в Instagram Stories, встав у чат чи збережи у «Фото». Слово, ціла сцена чи досягнення — або охайна картка 9:16, якщо так зручніше.
+Кожне відскановане слово стає наліпкою без тла: поклади її на своє фото в Instagram Stories, встав у чат чи збережи у «Фото». Слово, ціла сцена чи досягнення або охайна картка 9:16, якщо так зручніше.
 
 29 МОВ
-Англійська, іспанська, німецька, французька, італійська, португальська, польська, японська, корейська, китайська та інші. Іменники — з артиклем там, де він важливий (die Tasse, la taza).
+Англійська, іспанська, німецька, французька, італійська, португальська, польська, японська, корейська, китайська та інші. Іменники мають артикль там, де він важливий (die Tasse, la taza).
 
 БЕЗ РЕЄСТРАЦІЇ
-Відкрив і скануєш. Слова й прогрес зберігаються на телефоні. Хочеш резервну копію — увійди через Apple, і словник буде однаковий на всіх твоїх iPhone. Імені й пошти ми не просимо. Фото потрібне лише для розпізнавання і не зберігається на наших серверах. Анонімну статистику можна вимкнути в параметрах.
+Відкрив і скануєш. Слова й прогрес зберігаються на телефоні. Хочеш резервну копію? Увійди через Apple, і словник буде однаковий на всіх твоїх iPhone. Імені й пошти ми не просимо. Фото потрібне лише для розпізнавання і не зберігається на наших серверах. Анонімну статистику можна вимкнути в параметрах.
 
 БЕЗКОШТОВНО І PRO
 Назавжди безкоштовно: словник без ліміту слів, флешкартки, квіз, слово дня й усі три віджети. А ще один безкоштовний AI-скан на пробу (один загалом, а не щодня): предмет або ціла кімната.
-LinguaLens Pro: AI-скани й скани кімнат без ліміту, усі 29 мов, до 5 слів дня о годинах, які обереш, і чотири кольорові теми для застосунку й віджетів (Океан, Ягода, Графіт, Какао). Обери місяць чи рік (річний може починатися з безкоштовного пробного періоду для нових підписників) або «Назавжди» — один платіж, не підписка.
+LinguaLens Pro: AI-скани й скани кімнат без ліміту, усі 29 мов, до 5 слів дня о годинах, які обереш, і чотири кольорові теми для застосунку й віджетів (Океан, Ягода, Графіт, Какао). Обери місяць чи рік (річний може починатися з безкоштовного пробного періоду для нових підписників) або «Назавжди»: один платіж, не підписка.
 Оплата списується з Apple ID після підтвердження покупки. Підписка продовжується автоматично, якщо не скасувати її щонайменше за 24 години до кінця поточного періоду. Керувати підпискою й скасувати її можна в налаштуваннях Apple ID.
 
 Умови використання: https://www.apple.com/legal/internet-services/itunes/dev/stdeula/
@@ -332,7 +332,7 @@ LinguaLens Pro: AI-скани й скани кімнат без ліміту, у
 
 | # | На екрані | Підпис |
 |---|---|---|
-| 1 | Камера на чашці → наліпка *mug* з перекладом | Наведи камеру — отримай англійське слово |
+| 1 | Камера на чашці → наліпка *mug* з перекладом | Наведи камеру й отримай англійське слово |
 | 2 | Сцена: кімната, підписана 7–12 словами | Підпиши всю кімнату англійською |
 | 3 | Повзунок на 8/10 · B2+, поруч слово з фінансів | Англійські слова під твій рівень: A1–C2 |
 | 4 | Віджет на головному екрані й екрані блокування | Віджет зі словом дня на екрані блокування |
@@ -549,24 +549,24 @@ en-US (спостереження розробника з відео, Apple ць
 en:
 ```
 New in LinguaLens:
-• Share as a sticker: no background, straight onto your photo in Instagram Stories — or copy it into any chat and save it to Photos.
-• Three widgets — Word of the Day (now in a large size, with an example sentence and the translation one tap away), My Words and Streak.
+• Share as a sticker: no background, straight onto your photo in Instagram Stories. Or copy it into any chat and save it to Photos.
+• Three widgets: Word of the Day (now in a large size, with an example sentence and the translation one tap away), My Words and Streak.
 • A new scanner with a flashlight, the word language right on the camera and your latest sticker at hand.
 • Your streak comes alive: the flame grows every day and catches fire on day seven, and the first thing you learn each day gets a small celebration.
-• Flashcards and the quiz are visible from the start — with a clear way to unlock them.
+• Flashcards and the quiz are visible from the start, with a clear way to unlock them.
 • LinguaLens Pro adds four color themes and up to 5 words of the day at times you choose.
-Something not working? Settings → Contact support — we answer every message.
+Something not working? Settings → Contact support. We answer every message.
 ```
 uk:
 ```
 Нове в LinguaLens:
-• Ділися наліпкою: без тла, просто на твоє фото в Instagram Stories — або скопіюй у будь-який чат і збережи у «Фото».
-• Три віджети — «Слово дня» (тепер і великий, з реченням і перекладом за один дотик), «Мої слова» і «Серія».
+• Ділися наліпкою: без тла, просто на твоє фото в Instagram Stories. Або скопіюй у будь-який чат і збережи у «Фото».
+• Три віджети: «Слово дня» (тепер і великий, з реченням і перекладом за один дотик), «Мої слова» і «Серія».
 • Новий сканер: ліхтарик, вибір мови просто на камері, наліпка останнього слова.
-• Серія тепер живе: вогник росте щодня й розгоряється на сьомий, а перша дія дня — маленьке свято.
-• Картки й квіз видно з першого запуску — і ясно, як їх відкрити.
+• Серія тепер живе: вогник росте щодня й розгоряється на сьомий, а перша дія дня стає маленьким святом.
+• Картки й квіз видно з першого запуску, і ясно, як їх відкрити.
 • LinguaLens Pro тепер має чотири кольорові теми й до 5 слів дня о годинах, які обереш.
-Щось не так? Параметри → «Написати в підтримку» — відповідаємо на кожен лист.
+Щось не так? Параметри → «Написати в підтримку». Відповідаємо на кожен лист.
 ```
 
 ### Покупки на сторінці (Promoted In-App Purchases)
@@ -576,9 +576,9 @@ Apple радить писати тривалість у назві підпис�
 
 | Продукт | Назва en | Опис en | Назва uk | Опис uk |
 |---|---|---|---|---|
-| Місяць | LinguaLens Pro — 1 Month (24) | Unlimited scans, 29 languages, color themes (43) | LinguaLens Pro — 1 місяць (25) | Безлімітні скани, 29 мов, кольорові теми (40) |
-| Рік | LinguaLens Pro — 1 Year (23) | Unlimited scans, 5 words a day, color themes (44) | LinguaLens Pro — 1 рік (22) | Скани без ліміту, 5 слів на день, теми (38) |
-| Назавжди | LinguaLens Pro — Lifetime (25) | Pay once: unlimited scans and color themes (42) | LinguaLens Pro назавжди (23) | Один платіж: скани без ліміту й теми (36) |
+| Місяць | LinguaLens Pro (1 Month) (24) | Unlimited scans, 29 languages, color themes (43) | LinguaLens Pro (1 місяць) (25) | Безлімітні скани, 29 мов, кольорові теми (40) |
+| Рік | LinguaLens Pro (1 Year) (23) | Unlimited scans, 5 words a day, color themes (44) | LinguaLens Pro (1 рік) (22) | Скани без ліміту, 5 слів на день, теми (38) |
+| Назавжди | LinguaLens Pro (Lifetime) (25) | Pay once: unlimited scans and color themes (42) | LinguaLens Pro назавжди (23) | Один платіж: скани без ліміту й теми (36) |
 
 v1.3: описи з кольоровими темами й словами дня (розділ W5 нижче); назви без змін.
 
@@ -610,8 +610,8 @@ Premium у Promova для українців).
 | Поле | Ліміт | en | uk |
 |---|---|---|---|
 | Назва | 30 | Label Your Kitchen Challenge (28) | Челендж: підпиши кухню (22) |
-| Короткий опис | 50 | Your kitchen in one shot, its words in a week (45) | Кухня одним кадром — і її слова за тиждень (42) |
-| Довгий опис | 120 | Scan your kitchen in one shot: every object gets a word sticker. Learn them all in a week with flashcards and a quiz. (117) | Скануй кухню одним кадром — кожен предмет отримає слово-наліпку. А за тиждень вивчи їх усі з картками й квізом. (111) |
+| Короткий опис | 50 | Your kitchen in one shot, its words in a week (45) | Кухня одним кадром, її слова за тиждень (39) |
+| Довгий опис | 120 | Scan your kitchen in one shot: every object gets a word sticker. Learn them all in a week with flashcards and a quiz. (117) | Скануй кухню одним кадром: кожен предмет отримає слово-наліпку. А за тиждень вивчи їх усі з картками й квізом. (110) |
 
 Людям, у яких застосунку ще немає, пошук показує скріншоти, а не картку
 події (факт Apple). Тож подія — передусім для тих, хто вже встановив, і для
@@ -995,13 +995,13 @@ PRO»), «What's New», описи покупок на сторінці, нот�
 **Що нового (рядки для «What’s New»):**
 - uk: «Новий сканер: ліхтарик, вибір мови просто на камері, наліпка
   останнього слова. Серія тепер живе: вогник росте щодня й розгоряється на
-  сьомий, а перша дія дня — маленьке свято. Картки й квіз видно з першого
-  запуску — і ясно, як їх відкрити.»
+  сьомий, а перша дія дня стає маленьким святом. Картки й квіз видно з
+  першого запуску, і ясно, як їх відкрити.»
 - en: “A new scanner with a flashlight, the word language right on the
   camera and your latest sticker at hand. Your streak comes alive: the
   flame grows every day and catches fire on day seven, and the first
   thing you learn each day gets a small celebration. Flashcards and the
-  quiz are visible from the start — with a clear way to unlock them.”
+  quiz are visible from the start, with a clear way to unlock them.”
 
 **Notes for Review (додати до наявних):**
 - Streak reminder: one local notification at 8 pm, only when the user’s
@@ -1022,9 +1022,9 @@ reminder… plus a widget…»):
 
 | Мова | Текст |
 |---|---|
-| en | • Three free widgets: the word of the day with an example sentence (tap to reveal the translation right in the widget), your own words with the photos you took, and your streak — on the Home Screen and the Lock Screen |
-| uk | • Три безкоштовні віджети: слово дня з реченням (переклад відкривається дотиком просто у віджеті), твої слова з фото, які ти зняв сам, і серія — на головному екрані й екрані блокування |
-| de | • Drei kostenlose Widgets: das Wort des Tages mit Beispielsatz (Übersetzung per Tippen direkt im Widget), deine eigenen Wörter mit deinen Fotos und deine Serie — auf dem Home- und dem Sperrbildschirm |
+| en | • Three free widgets for the Home Screen and the Lock Screen: the word of the day with an example sentence (tap to reveal the translation right in the widget), your own words with the photos you took, and your streak |
+| uk | • Три безкоштовні віджети для головного екрана й екрана блокування: слово дня з реченням (переклад відкривається дотиком просто у віджеті), твої слова з фото, які ти зняв сам, і серія |
+| de | • Drei kostenlose Widgets für Home- und Sperrbildschirm: das Wort des Tages mit Beispielsatz (Übersetzung per Tippen direkt im Widget), deine eigenen Wörter mit deinen Fotos und deine Serie |
 | es | • Tres widgets gratis: la palabra del día con una frase de ejemplo (toca para ver la traducción en el propio widget), tus palabras con tus fotos y tu racha, en la pantalla de inicio y la de bloqueo |
 
 **Рядок «Free forever …»**: «the word of the day and the widget» →
@@ -1039,8 +1039,8 @@ Uhrzeiten deiner Wahl»; es «hasta 5 palabras del día, a las horas que
 elijas».
 
 **Що нового у v1.3 (рядок про віджети)**:
-- en: Three widgets — Word of the Day (now in a large size, with an example sentence and the translation one tap away), My Words and Streak.
-- uk: Три віджети — «Слово дня» (тепер і великий, з реченням і перекладом за один дотик), «Мої слова» і «Серія».
+- en: Three widgets: Word of the Day (now in a large size, with an example sentence and the translation one tap away), My Words and Streak.
+- uk: Три віджети: «Слово дня» (тепер і великий, з реченням і перекладом за один дотик), «Мої слова» і «Серія».
 
 **Скриншот** (за бажанням, слот 4 «Віджет»): головний екран з великим
 «Словом дня» і малими «Серія» й «Мої слова» (макет
@@ -1093,13 +1093,13 @@ achievement or your week into a clean 9:16 card…»):
 
 | Локаль | Текст |
 |---|---|
-| en (U.S., U.K.) | Every word you scan becomes a sticker with no background: put it on your own photo in Instagram Stories, paste it into a chat or save it to Photos. A word, a whole scene or an achievement — or a clean 9:16 card, if you prefer. |
-| uk | Кожне відскановане слово стає наліпкою без тла: поклади її на своє фото в Instagram Stories, встав у чат чи збережи у «Фото». Слово, ціла сцена чи досягнення — або охайна картка 9:16, якщо так зручніше. |
+| en (U.S., U.K.) | Every word you scan becomes a sticker with no background: put it on your own photo in Instagram Stories, paste it into a chat or save it to Photos. A word, a whole scene or an achievement, or a clean 9:16 card if you prefer. |
+| uk | Кожне відскановане слово стає наліпкою без тла: поклади її на своє фото в Instagram Stories, встав у чат чи збережи у «Фото». Слово, ціла сцена чи досягнення або охайна картка 9:16, якщо так зручніше. |
 | es (México) | Cada palabra que escaneas se convierte en una pegatina sin fondo: ponla sobre tu propia foto en Instagram Stories, pégala en un chat o guárdala en Fotos. Una palabra, una escena entera o un logro, o una tarjeta 9:16 si lo prefieres. |
 
 **Що нового у v1.3 (рядок про наліпки):**
-- en: Share as a sticker: no background, straight onto your photo in Instagram Stories — or copy it into any chat and save it to Photos.
-- uk: Ділися наліпкою: без тла, просто на твоє фото в Instagram Stories — або скопіюй у будь-який чат і збережи у «Фото».
+- en: Share as a sticker: no background, straight onto your photo in Instagram Stories. Or copy it into any chat and save it to Photos.
+- uk: Ділися наліпкою: без тла, просто на твоє фото в Instagram Stories. Або скопіюй у будь-який чат і збережи у «Фото».
 
 **Скриншот** (за бажанням, слот «Поділитися»): аркуш з наліпкою чашки на
 шахівниці й кнопкою «Stories з цим фото» поруч зі Stories, де ця наліпка
@@ -1134,14 +1134,14 @@ en:
 ```
 FREE AND PRO
 Free forever: your dictionary with no word limit, flashcards, quiz, one word of the day and all three widgets. Plus one free AI scan to try (one in total, not per day): an object or a whole room.
-LinguaLens Pro: unlimited AI scans and room scans, all 29 languages, up to 5 words of the day at times you choose, and four color themes for the app and widgets (Ocean, Berry, Graphite, Cocoa). Choose monthly or yearly (the yearly plan may start with a free trial for eligible new subscribers), or Lifetime — a one-time purchase, not a subscription.
+LinguaLens Pro: unlimited AI scans and room scans, all 29 languages, up to 5 words of the day at times you choose, and four color themes for the app and widgets (Ocean, Berry, Graphite, Cocoa). Choose monthly or yearly (the yearly plan may start with a free trial for eligible new subscribers), or Lifetime: a one-time purchase, not a subscription.
 ```
 
 uk:
 ```
 БЕЗКОШТОВНО І PRO
 Назавжди безкоштовно: словник без ліміту слів, флешкартки, квіз, слово дня й усі три віджети. А ще один безкоштовний AI-скан на пробу (один загалом, а не щодня): предмет або ціла кімната.
-LinguaLens Pro: AI-скани й скани кімнат без ліміту, усі 29 мов, до 5 слів дня о годинах, які обереш, і чотири кольорові теми для застосунку й віджетів (Океан, Ягода, Графіт, Какао). Обери місяць чи рік (річний може починатися з безкоштовного пробного періоду для нових підписників) або «Назавжди» — один платіж, не підписка.
+LinguaLens Pro: AI-скани й скани кімнат без ліміту, усі 29 мов, до 5 слів дня о годинах, які обереш, і чотири кольорові теми для застосунку й віджетів (Океан, Ягода, Графіт, Какао). Обери місяць чи рік (річний може починатися з безкоштовного пробного періоду для нових підписників) або «Назавжди»: один платіж, не підписка.
 ```
 
 es (México):
@@ -1166,14 +1166,14 @@ LinguaLens Pro: escaneos con IA y de cuartos ilimitados, los 29 idiomas, hasta 5
 Опис підписки в App Store Connect (група «LinguaLens Pro») — так само: до
 сканів і мов додай «color themes» / «кольорові теми». Скріншот пейволу для
 рецензента зніми наново: у таблиці тепер «Слова дня 1 / до 5» і «Кольорові
-теми — / 4» (позначка «нове»), а «Картки, квіз, віджети» — один рядок.
+теми ✕ / 4» (хрестик, позначка «нове»), а «Картки, квіз, віджети» — один рядок.
 
 ### Скріншоти сторінки (пропозиція)
 
 Палітри видно щодня, тож вони варті одного кадру в другій половині набору
 (не першого: перші три — скан, слово, звичка). Ідея кадру: три телефони з
-«Навчанням» в Океані, Ягоді й Какао, підпис en «Make it yours — 4 color
-themes with Pro» / uk «Твій колір — 4 теми в Pro». Знімай у застосунку з
+«Навчанням» в Океані, Ягоді й Какао, підпис en «Make it yours: 4 color
+themes with Pro» / uk «Твій колір: 4 теми в Pro». Знімай у застосунку з
 Pro (імітація покупок у розробці або Sandbox), не малюй окремо: правило 2.3.3
 вимагає показувати застосунок як він є.
 
