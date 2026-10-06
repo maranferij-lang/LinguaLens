@@ -115,6 +115,13 @@ describe('store shots copy', () => {
     expect(plainHead(COPY['es-MX'][0])).toMatch(/\bfoto\b/);
   });
 
+  test('headlines narrow enough for one line carry a forced break', () => {
+    // однорядковий заголовок зсуває підрядок і картку відносно сусідніх
+    // кадрів; рендер попереджає про такі, тут — ті, що вже траплялись
+    expect(COPY.uk[1].head).toContain('\n'); // Твій фотословник
+    expect(COPY['es-MX'][4].head).toContain('\n'); // Inglés para tu nivel
+  });
+
   test('frame 6 uses Apple’s own names of the screens', () => {
     // українська локалізація iOS: «Початковий екран» і «Замкнений екран»
     expect(COPY.uk[5].sub).toMatch(/Початков/);

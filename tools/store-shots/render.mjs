@@ -77,6 +77,10 @@ async function renderFrame(n, loc) {
   await page.goto(fileUrl(f));
   await page.waitForFunction(() => document.body.dataset.ready === '1', null, { timeout: 20000 });
   await page.waitForTimeout(250);
+  // заголовок у два рядки, як на сусідніх кадрах (однорядковий compose
+  // центрує, але краще поставити \n у copy.js)
+  const lines = await page.evaluate(() => document.body.dataset.lines);
+  if (lines !== '2') console.warn(`увага: ${loc} кадр ${n}: заголовок у ${lines} рядок(и); перенос \n у copy.js вирівняє його з сусідами`);
   const shot = await page.screenshot({ clip: { x: 0, y: 0, width: W, height: H } });
   const dest = frameFile(loc, n);
   fs.mkdirSync(path.dirname(dest), { recursive: true });

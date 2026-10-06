@@ -59,7 +59,7 @@ export const COPY = {
     { slug: 'dictionary', head: 'Tu [diccionario de fotos]', sub: 'Palabras de tu vida, en {LANGS} idiomas' },
     { slug: 'flashcards', head: 'Tarjetas [para no olvidar]', sub: 'Repasa cada palabra justo antes de olvidarla' },
     { slug: 'scene', head: 'Tu cuarto entero\n[en una foto]', sub: 'Cada objeto, con su nombre en inglés', pro: true },
-    { slug: 'level', head: 'Inglés para [tu nivel]', sub: 'De A1 a C2, sin lo básico si ya avanzaste' },
+    { slug: 'level', head: 'Inglés para\n[tu nivel]', sub: 'De A1 a C2, sin lo básico si ya avanzaste' },
     { slug: 'widget', head: 'Widget de la\n[palabra del día]', sub: 'En tu pantalla de inicio y de bloqueo' },
     { slug: 'streak', head: 'No rompas [tu racha]', sub: 'Niveles y {ACH} logros por tu constancia' },
     { slug: 'share', head: 'Comparte tus [hallazgos]', sub: 'Stickers y tarjetas para Stories y chats' },

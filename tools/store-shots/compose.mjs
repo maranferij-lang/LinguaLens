@@ -479,13 +479,19 @@ export function frameHtml(n, loc) {
   return `<!doctype html><html lang="${loc}"><head><meta charset="utf-8"><style>${BASE_CSS}</style></head>
   <body><div class="frame">${body}</div>
   <script>
-    // Заголовок — не більше двох рядків (BRIEF §2.3)
+    // Заголовок — не більше двох рядків (BRIEF §2.3). Однорядковий
+    // опускаємо на пів рядка: підрядок і картка стоять там само, де на
+    // сусідніх кадрах, і в рядку кадрів нічого не «стрибає». Скільки вийшло
+    // рядків, render.mjs читає з data-lines і попереджає про не два.
     document.fonts.ready.then(async () => {
       await Promise.all([...document.images].map((i) => (i.complete ? null : new Promise((r) => { i.onload = i.onerror = r; }))));
       for (const h of document.querySelectorAll('[data-fit]')) {
         let size = parseFloat(getComputedStyle(h).fontSize);
         const lines = () => Math.round(h.getBoundingClientRect().height / (size * 1.05));
         while (lines() > 2 && size > 96) { size -= 4; h.style.fontSize = size + 'px'; }
+        const n = lines();
+        if (n === 1) h.style.marginTop = size * 1.05 / 2 + 'px';
+        document.body.dataset.lines = String(n);
       }
       document.body.dataset.ready = '1';
     });
