@@ -45,6 +45,162 @@ describe('AppIcon', () => {
   });
 });
 
+// PNG бренду з майстрів assets/brand/*.svg (tools/export-brand.mjs). Іконку з
+// альфа-каналом App Store відхиляє ще на завантаженні збірки, а з прозорим
+// кутом сплеш чи адаптивна іконка Android показують дірку — тому перевіряємо
+// самі файли, а не лише те, що вони є.
+describe('brand PNGs', () => {
+  const { decode } = require('../tools/png');
+  const file = (f) => path.join(ROOT, 'assets', f);
+  // IHDR і список чанків без розпакування
+  const header = (f) => {
+    const buf = fs.readFileSync(file(f));
+    const chunks = [];
+    for (let off = 8; off < buf.length; off += 12 + buf.readUInt32BE(off)) chunks.push(buf.toString('latin1', off + 4, off + 8));
+    return { size: [buf.readUInt32BE(16), buf.readUInt32BE(20)], depth: buf[24], color: buf[25], chunks };
+  };
+  const alpha = (img, x, y) => img.data[(y * img.width + x) * 4 + 3];
+
+  test.each(['icon.png', 'icon-eye.png'])('%s — 1024 × 1024 RGB without alpha, as the App Store wants', (f) => {
+    const h = header(f);
+    expect(h.size).toEqual([1024, 1024]);
+    // тип кольору 2 — RGB; 6 (RGBA) і прозорість через tRNS заборонені
+    expect([h.depth, h.color]).toEqual([8, 2]);
+    expect(h.chunks).not.toContain('tRNS');
+  });
+
+  test('the main icon and the alternate icon are different pictures', () => {
+    expect(fs.readFileSync(file('icon.png')).equals(fs.readFileSync(file('icon-eye.png')))).toBe(false);
+  });
+
+  test.each([
+    ['splash-icon.png', 1024],
+    ['favicon.png', 48],
+  ])('%s is the rounded icon on transparency', (f, size) => {
+    const img = decode(file(f));
+    expect([img.width, img.height, img.channels]).toEqual([size, size, 4]);
+    for (const [x, y] of [[0, 0], [size - 1, 0], [0, size - 1], [size - 1, size - 1]]) expect(alpha(img, x, y)).toBe(0);
+    expect(alpha(img, size / 2, size / 2)).toBe(255);
+    // край посередині сторони — уже іконка, не прозорість
+    expect(alpha(img, size / 2, 0)).toBe(255);
+  });
+
+  test('adaptive icon: an opaque background and Lingo on transparency, the head inside the 66 dp safe zone', () => {
+    const bg = decode(file('android-icon-background.png'));
+    expect([bg.width, bg.height, bg.channels]).toEqual([512, 512, 3]);
+    const fg = decode(file('android-icon-foreground.png'));
+    expect([fg.width, fg.height, fg.channels]).toEqual([512, 512, 4]);
+    expect(alpha(fg, 0, 0)).toBe(0);
+    expect(alpha(fg, 256, 256)).toBe(255);
+    // шар 108 dp; маска лаунчера будь-якої форми не ріже коло 66 dp. Над
+    // центром — лише голова з очима, і вся вона в цьому колі (плечі внизу
+    // свідомо йдуть до краю: маска їх обрізає, як в іконці iOS).
+    let far = 0;
+    for (let y = 0; y < 256; y++) {
+      for (let x = 0; x < 512; x++) {
+        if (alpha(fg, x, y) > 8) far = Math.max(far, (Math.hypot(x + 0.5 - 256, y + 0.5 - 256) / 512) * 108);
+      }
+    }
+    expect(far).toBeGreaterThan(20);
+    expect(far).toBeLessThan(33);
+    // плечі доходять до нижнього краю — паралакс не відкриє зрізу
+    expect(alpha(fg, 256, 511)).toBe(255);
+  });
+
+  test('app.json uses the brand files; the adaptive background colour is the icon background', () => {
+    const app = JSON.parse(fs.readFileSync(path.join(ROOT, 'app.json'), 'utf8')).expo;
+    expect(app.icon).toBe('./assets/icon.png');
+    expect(app.web.favicon).toBe('./assets/favicon.png');
+    const splash = app.plugins.find((p) => Array.isArray(p) && p[0] === 'expo-splash-screen')[1];
+    expect(splash.image).toBe('./assets/splash-icon.png');
+    const ai = app.android.adaptiveIcon;
+    expect(ai).toMatchObject({
+      foregroundImage: './assets/android-icon-foreground.png',
+      backgroundImage: './assets/android-icon-background.png',
+      monochromeImage: './assets/android-icon-monochrome.png',
+    });
+    // колір — середній у видимих 72 dp шару тла (±6 на канал)
+    const bg = decode(file('android-icon-background.png'));
+    const sum = [0, 0, 0];
+    let n = 0;
+    for (let y = 85; y < 427; y++) {
+      for (let x = 85; x < 427; x++) {
+        for (let c = 0; c < 3; c++) sum[c] += bg.data[(y * 512 + x) * 3 + c];
+        n++;
+      }
+    }
+    const want = sum.map((v) => v / n);
+    const got = [1, 3, 5].map((i) => parseInt(ai.backgroundColor.slice(i, i + 2), 16));
+    got.forEach((v, i) => expect(Math.abs(v - want[i])).toBeLessThan(6));
+  });
+
+  test('themed (monochrome) icon: one colour, eyes and mouth see-through, pupils solid', () => {
+    const img = decode(file('android-icon-monochrome.png'));
+    expect([img.width, img.height, img.channels]).toEqual([512, 512, 4]);
+    // viewBox -288 -284 1600 1600 → 512 px: x = (X + 288) × 0,32
+    const at = (X, Y) => alpha(img, Math.round((X + 288) * 0.32), Math.round((Y + 284) * 0.32));
+    expect(at(512, 300)).toBe(255); // голова
+    expect(at(336, 428)).toBe(255); // зіниця
+    expect(at(234, 422)).toBe(0); // очне яблуко, поза зіницею
+    expect(at(790, 422)).toBe(0);
+    expect(at(512, 720)).toBe(0); // рот
+    expect(at(512, 1000)).toBe(0); // під підборіддям — порожньо (без плечей)
+    const colours = new Set();
+    for (let i = 0; i < img.width * img.height; i++) {
+      if (img.data[i * 4 + 3] > 0) colours.add(img.data.subarray(i * 4, i * 4 + 3).join());
+    }
+    expect([...colours]).toEqual(['0,0,0']);
+  });
+});
+
+// Двоколірний знак для карток і наліпок — голова Лінго з іконки, а не
+// колишній бабл з лінзою. Геометрія — та сама, що в assets/brand/lingo-mark.svg.
+describe('LogoMark', () => {
+  const { LogoMark, MARK } = require('../src/Logo');
+  const { Circle } = require('react-native-svg');
+  const svg = fs.readFileSync(path.join(ROOT, 'assets/brand/lingo-mark.svg'), 'utf8');
+  const group = (id) => new RegExp(`<g id="${id}"[^>]*>([\\s\\S]*?)</g>`).exec(svg)[1];
+  const circles = (g) => [...g.matchAll(/<circle cx="(\d+)" cy="(\d+)" r="(\d+)"/g)].map((m) => m.slice(1).map(Number));
+  const paths = (g) => [...g.matchAll(/<path d="([^"]+)"/g)].map((m) => m[1]);
+
+  test('the geometry is the master’s: silhouette, cut-outs and pupils', () => {
+    expect(svg).toContain(`viewBox="${MARK.viewBox}"`);
+    expect(paths(group('silhouette'))).toEqual([MARK.head]);
+    expect(circles(group('silhouette'))).toEqual(MARK.eyes.map((e) => e.rim));
+    expect(circles(group('cutouts'))).toEqual(MARK.eyes.map((e) => e.ball));
+    expect(paths(group('cutouts'))).toEqual([MARK.mouth]);
+    expect(circles(group('pupils'))).toEqual(MARK.eyes.map((e) => e.pupil));
+    // голова — та сама, що в іконці застосунку
+    expect(fs.readFileSync(path.join(ROOT, 'assets/brand/icon-lingo.svg'), 'utf8')).toContain(`d="${MARK.head}"`);
+  });
+
+  test('colour paints the head, rims and pupils; fg cuts out the eyes and the smile', async () => {
+    const tree = await render(<LogoMark size={22} color="#1F1B16" fg="#FAF8F4" />);
+    const root = tree.root.findByProps({ testID: 'logo-mark' });
+    expect(root.props).toMatchObject({ width: 22, height: 22, viewBox: MARK.viewBox });
+    const fills = (type) => root.findAllByType(type).map((n) => [n.props.d || [n.props.cx, n.props.cy, n.props.r], n.props.fill]);
+    expect(fills(Path)).toEqual([
+      [MARK.head, '#1F1B16'],
+      [MARK.mouth, '#FAF8F4'],
+    ]);
+    expect(fills(Circle)).toEqual([
+      ...MARK.eyes.map((e) => [e.rim, '#1F1B16']),
+      ...MARK.eyes.map((e) => [e.ball, '#FAF8F4']),
+      // зіниці — після очних яблук, інакше їх не видно
+      ...MARK.eyes.map((e) => [e.pupil, '#1F1B16']),
+    ]);
+    await act(async () => tree.unmount());
+  });
+
+  test('without a colour it takes the theme accent; fg defaults to white', async () => {
+    const tree = await render(<LogoMark size={16} />);
+    const head = tree.root.findAllByType(Path)[0];
+    expect(head.props.fill).toBe(THEMES.light.C.accent);
+    expect(tree.root.findAllByType(Path)[1].props.fill).toBe('#FFFFFF');
+    await act(async () => tree.unmount());
+  });
+});
+
 describe('WordPlate', () => {
   const MUG = { word: 'mug', ipa: 'mʌɡ', translation: 'кружка', lang: 'en' };
 
