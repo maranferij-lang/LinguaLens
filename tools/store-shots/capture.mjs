@@ -559,7 +559,8 @@ export async function captureAll({ locales = STORE_LOCALES, only = null } = {}) 
       await a.click(t('showAnswer'));
       await a.wait(1200);
       await a.shot('cards-back');
-      await a.measure('cards-back', { translation: { text: cv.translation }, card: { text: cv.translation, mode: 'card' }, know: { text: t('know'), mode: 'card' }, still: { text: t('stillLearning'), mode: 'card' } });
+      // example — рамка прикладу під перекладом: кадр 3 обрізає зворот над нею
+      await a.measure('cards-back', { translation: { text: cv.translation }, card: { text: cv.translation, mode: 'card' }, example: { text: cv.exampleTranslation, mode: 'card' }, know: { text: t('know'), mode: 'card' }, still: { text: t('stillLearning'), mode: 'card' } });
       await a.measureStickers('cards-back', [CARD]);
     });
 

@@ -36,10 +36,34 @@ describe('store shots layout', () => {
     expect(440 * l.quiz.k).toBeLessThanOrEqual(TRIO.maxQuizW + 1e-6);
   });
 
-  test('frame 3: the front only touches the back (its translation stays visible) and clears the quiz', () => {
+  test('frame 3: the front starts below the back’s translation and clears the quiz', () => {
     const l = trio();
-    expect(l.front.top).toBeGreaterThanOrEqual(700 + 266 * l.back.k - TRIO.overlap);
+    // без text у шматку звороту переклад закінчується backPad над його низом
+    expect(l.front.top).toBeCloseTo(700 + (266 - TRIO.backPad) * l.back.k + TRIO.below, 6);
     expect(l.front.top + 203 * l.front.k + TRIO.gap).toBeLessThanOrEqual(l.quiz.top + 1e-6);
+  });
+
+  // справжні виміри звороту (pt): переклад «mug» і рамка прикладу під ним,
+  // що починається за 24 pt (у всіх чотирьох локалях однаково)
+  const backOf = (translation, example) => ({ card: { x: 20, y: 134, w: 400, h: 639 }, sticker_mug: { y: 291.7 }, translation, example });
+
+  test('frame 3: the back crop ends above the example box, not on the tops of its letters', () => {
+    const t = { x: 191.6, y: 480, w: 56.8, h: 34 };
+    const example = { x: 44, y: 538, w: 352, h: 75 };
+    const back = backCrop(backOf(t, example));
+    expect(back.y + back.h).toBeLessThanOrEqual(example.y - TRIO.exampleGap + 1e-6);
+    // і все ж поле під перекладом лишається, хай і менше за backPad
+    expect(back.y + back.h - (t.y + t.h)).toBeGreaterThanOrEqual(16);
+    // приклад далеко (або його нема) — поле рівно backPad
+    expect(backCrop(backOf(t, { ...example, y: 700 })).h).toBeCloseTo(t.y + t.h + TRIO.backPad - back.y, 6);
+    expect(backCrop(backOf(t)).h).toBeCloseTo(t.y + t.h + TRIO.backPad - back.y, 6);
+  });
+
+  test('frame 3: where the back crop ends does not move the front', () => {
+    const t = { x: 191.6, y: 480, w: 56.8, h: 34 };
+    const at = (example) => flashcardsTrio({ top: 700, back: backCrop(backOf(t, example)), front: { w: 230, h: 203 }, quiz: { w: 440, h: 281 }, W: 1320 });
+    expect(at({ y: 520 }).front.top).toBeCloseTo(at().front.top, 6);
+    expect(at().front.top).toBeCloseTo(700 + (t.y + t.h - backCrop(backOf(t)).y) * TRIO.kBack + TRIO.below, 6);
   });
 
   test('frame 3: the tilted front covers empty back-card space, not the translation', () => {
@@ -50,9 +74,7 @@ describe('store shots layout', () => {
     };
     const front = { x: 105, y: 352, w: 230, h: 203 };
     for (const translation of [{ x: 169.7, y: 480, w: 100.7, h: 34 }, { x: 191.6, y: 480, w: 56.8, h: 34 }]) {
-      const b = { card: { x: 20, y: 134, w: 400, h: 639 }, sticker_mug: { y: 291.7 }, translation };
-      const back = backCrop(b);
-      expect(back.y + back.h).toBeCloseTo(translation.y + translation.h + TRIO.backPad, 6);
+      const back = backCrop(backOf(translation, { x: 44, y: 538, w: 352, h: 75 }));
       const l = flashcardsTrio({ top: 700, back, front, quiz: { w: 440, h: 281 }, W: 1320 });
       // верхній край лиця після повороту на −6° навколо його центру
       const fc = [l.front.left + (front.w * l.front.k) / 2, l.front.top + (front.h * l.front.k) / 2];

@@ -23,18 +23,27 @@ export function faceCrop({ word, ipa, speak }, pad) {
 // IPA, «Слухати») — найбільше, ліворуч під ним, а внизу на всю ширину —
 // квіз. Прямокутники обрізки — у pt; лице й зворот лише трохи заходять одне
 // на одне (переклад на звороті видно), квіз закінчується на BOTTOM.
-// backPad — поле звороту під перекладом (pt): лице, нахилене на −6°, лягає
-// на порожній низ звороту (+8°), а не на хвостики «р», «у», «g» перекладу.
-export const TRIO = { kBack: 2.0, kFront: 4.0, overlap: 10, gap: 60, side: 80, maxQuizW: 1120, backPad: 44 };
+// backPad — поле звороту під перекладом (pt), але не нижче рамки прикладу
+// (exampleGap pt над нею): ~24 pt нижче на звороті починається приклад, і
+// його верхівки літер визирали б з-під лиця. below — на скільки px нижче
+// рядка перекладу звороту (до повороту) верхній край лиця: нахилене на −6°,
+// воно лягає на порожнє поле звороту (+8°), а не на хвостики «р», «у», «g»
+// перекладу, хоч би де закінчився шматок звороту.
+export const TRIO = { kBack: 2.0, kFront: 4.0, below: 78, gap: 60, side: 80, maxQuizW: 1120, backPad: 20, exampleGap: 4 };
 
-// Кадр 3: шматок звороту (pt) від наліпки до перекладу з полем backPad.
-export function backCrop({ card, sticker_mug: st, translation: t }) {
+// Кадр 3: шматок звороту (pt) від наліпки до перекладу з полем backPad, не
+// далі за рамку прикладу (example, якщо capture її виміряв). text — низ
+// рядка перекладу: від нього flashcardsTrio ставить лице.
+export function backCrop({ card, sticker_mug: st, translation: t, example }) {
   const y = st.y - 24;
-  return { x: card.x, y, w: card.w, h: t.y + t.h + TRIO.backPad - y };
+  const text = t.y + t.h;
+  const end = Math.min(text + TRIO.backPad, example ? example.y - TRIO.exampleGap : Infinity);
+  return { x: card.x, y, w: card.w, h: end - y, text };
 }
 export function flashcardsTrio({ top, back, front, quiz, W, bottom = BOTTOM }) {
-  const bh = back.h * TRIO.kBack;
-  const fTop = top + bh - TRIO.overlap;
+  // низ перекладу в шматку звороту (pt); без text — backPad над низом шматка
+  const text = back.text != null ? back.text - back.y : back.h - TRIO.backPad;
+  const fTop = top + text * TRIO.kBack + TRIO.below;
   const fh = front.h * TRIO.kFront;
   const qTop = fTop + fh + TRIO.gap;
   const kq = Math.min(TRIO.maxQuizW / quiz.w, (bottom - qTop) / quiz.h);
