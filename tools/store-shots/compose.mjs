@@ -10,6 +10,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { COPY, countAchievements, countLangs, fill, ukGenitivePlural } from './copy.js';
 import { BOTTOM, cardBelow, faceCrop, flashcardsTrio, insetLeft, lockScreenDate, resolveIcon, stackTwo } from './layout.js';
+import { shapeInCropOf, stickerCropOf } from './art/backing.js';
 import { LOCALES, WIDGET_WOD, vocab as vocabFor } from './data.mjs';
 import codec from '../png.js';
 import { ART as ART_DIR, FONTS, IPA_FONTS, LIB, ROOT, STATIC as STATIC_DIR, UI as UI_DIR, fileUrl, readJson } from './paths.mjs';
@@ -139,21 +140,20 @@ function objSticker(name, { size, left, top, rot = 0, z = 5, glow = true }) {
   return `<div class="abs" style="left:${left}px;top:${top}px;width:${size}px;height:${size}px;transform:rotate(${rot}deg);z-index:${z};${glow ? 'filter:drop-shadow(0 26px 34px rgba(20,10,60,0.33))' : ''}">${stickerSvg({ uri: ART(`obj-${name}.jpg`), shape: sh, size, maxBorder: MAX_BORDER })}</div>`;
 }
 // Наліпка, вирізана з фото сцени рівно як cutout.js (stickerCrop/shapeInCrop):
-// що всередині контуру (стіл біля дна, стіна в ручці), те й на наліпці, як
-// у застосунку.
+// що всередині контуру, те й на наліпці, як у застосунку. Ріже з
+// <scene>-sticker.jpg, якщо він є: намальований арт підкладає там біле під
+// вирубку (art/backing.js), щоб у ручці чашки не було стіни, а під дном
+// стола; справжнє фото власника (PHOTOS) ріжеться як є.
 function sceneSticker(scene, key, { size, left, top, rot = 0, z = 5 }) {
   const sc = shapes()[scene];
   const o = sc.objects[key];
-  const [y1, x1, y2, x2] = o.box;
-  const Wp = sc.width, Hp = sc.height, PAD = 0.06;
-  const l = (x1 / 1000 - PAD) * Wp, t = (y1 / 1000 - PAD) * Hp;
-  const w = ((x2 - x1) / 1000 + PAD * 2) * Wp, h = ((y2 - y1) / 1000 + PAD * 2) * Hp;
-  const S = Math.min(Math.max(w, h), Math.min(Wp, Hp));
-  const L = Math.max(0, Math.min(Wp - S, l + w / 2 - S / 2));
-  const T = Math.max(0, Math.min(Hp - S, t + h / 2 - S / 2));
-  const shape = o.outline.map(([y, x]) => [((x / 1000) * Wp - L) / S, ((y / 1000) * Hp - T) / S]);
+  const Wp = sc.width, Hp = sc.height;
+  const crop = stickerCropOf(o.box, Wp, Hp);
+  const { L, T, S } = crop;
+  const shape = shapeInCropOf(o.outline, Wp, Hp, crop);
   const k = size / S;
-  const uri = ART(scene + '.jpg');
+  const backed = scene + '-sticker.jpg';
+  const uri = ART(fs.existsSync(path.join(ART_DIR, backed)) ? backed : scene + '.jpg');
   return `<div class="abs" style="left:${left}px;top:${top}px;width:${size}px;height:${size}px;transform:rotate(${rot}deg);z-index:${z};filter:drop-shadow(0 26px 34px rgba(20,10,60,0.33))">${stickerSvg({ uri, shape, size, img: { x: -L * k, y: -T * k, w: Wp * k, h: Hp * k }, maxBorder: MAX_BORDER })}</div>`;
 }
 

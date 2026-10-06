@@ -204,9 +204,12 @@ export function kitchenScene() {
   return { width: 1080, height: 1920, defs, bg, objects, fg };
 }
 
-export function sceneSvg(sc, only = null) {
+// only — лише цей предмет (його маску обводить build-art); bg: false — сцена
+// без тла: предмети й те, що перед ними (миска, віньєтка), для білої
+// підкладки наліпок (backing.js).
+export function sceneSvg(sc, only = null, { bg = true } = {}) {
   const body = only
     ? sc.objects.filter((o) => o.key === only).map((o) => o.markup).join('')
-    : sc.bg + sc.objects.map((o) => o.markup).join('') + sc.fg;
+    : (bg ? sc.bg : '') + sc.objects.map((o) => o.markup).join('') + sc.fg;
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${sc.width}" height="${sc.height}" viewBox="0 0 ${sc.width} ${sc.height}"><defs>${sc.defs}</defs>${body}</svg>`;
 }

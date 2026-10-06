@@ -54,6 +54,9 @@ export function applyPhotos(dir) {
     fs.copyFileSync(src, path.join(ART, f));
     const name = f.replace(/\.jpg$/, '');
     if (SCENE_PHOTOS.includes(name)) {
+      // копію намальованого фото з білою підкладкою (build-art) прибираємо:
+      // наліпку кадру 1 справжнє фото дає саме, як у застосунку
+      fs.rmSync(path.join(ART, `${name}-sticker.jpg`), { force: true });
       const { width, height } = jpegSize(src);
       if (Math.abs(width / height - 9 / 16) > 0.02) warn.push(`${f}: ${width}×${height}, а треба портрет 9:16 (1080×1920)`);
       const sc = given?.[name];
