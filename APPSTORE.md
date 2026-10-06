@@ -440,10 +440,10 @@ PARA NO OLVIDAR
 • Tarjetas con repetición espaciada que vuelven justo antes de que olvides
 • Un quiz rápido de 10 preguntas
 • La palabra del día con recordatorio
-• Tres widgets gratis: la palabra del día con una frase de ejemplo (toca para ver la traducción en el propio widget), tus palabras con tus fotos y tu racha, en la pantalla de inicio y la de bloqueo
+• Tres widgets gratis: la palabra del día con una frase de ejemplo (toca para ver la traducción en el propio widget), tus palabras con tus fotos y tu racha, en la pantalla de inicio y en la bloqueada
 • Rachas, niveles y 27 logros
 
-COMPARTE TUS HALLAZGOS
+COMPARTE LO QUE DESCUBRES
 Cada palabra que escaneas se convierte en una pegatina sin fondo: ponla sobre tu propia foto en Instagram Stories, pégala en un chat o guárdala en Fotos. Una palabra, una escena entera o un logro, o una tarjeta 9:16 si lo prefieres.
 
 29 IDIOMAS
@@ -1139,7 +1139,7 @@ reminder… plus a widget…»):
 | en | • Three free widgets for the Home Screen and the Lock Screen: the word of the day with an example sentence (tap to reveal the translation right in the widget), your own words with the photos you took, and your streak |
 | uk | • Три безкоштовні віджети для головного екрана й екрана блокування: слово дня з реченням (переклад відкривається дотиком просто у віджеті), твої слова з фото, які ти зняв сам, і серія |
 | de | • Drei kostenlose Widgets für Home- und Sperrbildschirm: das Wort des Tages mit Beispielsatz (Übersetzung per Tippen direkt im Widget), deine eigenen Wörter mit deinen Fotos und deine Serie |
-| es | • Tres widgets gratis: la palabra del día con una frase de ejemplo (toca para ver la traducción en el propio widget), tus palabras con tus fotos y tu racha, en la pantalla de inicio y la de bloqueo |
+| es | • Tres widgets gratis: la palabra del día con una frase de ejemplo (toca para ver la traducción en el propio widget), tus palabras con tus fotos y tu racha, en la pantalla de inicio y en la bloqueada |
 
 **Рядок «Free forever …»**: «the word of the day and the widget» →
 «the word of the day and all three widgets» (uk: «слово дня й усі три
