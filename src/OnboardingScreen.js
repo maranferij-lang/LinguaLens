@@ -122,6 +122,7 @@ import { demoExample, demoPair, demoScene } from './demoWords';
 import { langLabel } from './langPick';
 import { draftFresh } from './storage';
 import { flagFor, nameFor, LANGS } from './speech';
+import { isVariant } from './langVariants';
 import { phoneUiLang } from './locale';
 import { flag, track } from './analytics';
 import { SafeAreaInsetsContext } from 'react-native-safe-area-context';
@@ -256,6 +257,9 @@ export function restoreDraft(d, now = Date.now()) {
     phase: d.phase === 'celebrate' ? 'commit' : rewind ? 'wod' : toHeard ? 'heard' : d.phase,
     variant,
     target: okLang(d.target),
+    // варіант мови навчання (англійська США чи Британії…); старі чернетки
+    // його не мають — тоді той, що обраний зараз
+    targetVariant: isVariant(d.target, d.targetVariant) ? d.targetVariant : null,
     native: okLang(d.native),
     name: cleanName(d.name),
     goals,
@@ -333,10 +337,11 @@ function BreathingBtn({ on, children }) {
 //   t, uiLang — мова інтерфейсу; onDone(result) — фінал;
 //   profile, heardFrom, name, struggles — поточні відповіді (лише в повторі;
 //     перший запуск їх не підставляє);
-//   targetLang, nativeLang — мови з налаштувань; phoneNative — мова телефона
+//   targetLang, nativeLang — мови з налаштувань; targetVariant — варіант
+//     мови навчання (src/langVariants.js); phoneNative — мова телефона
 //     (defaultLanguages): з неї стартує «Моя рідна мова» (мова перекладу);
-//   onLanguages({ targetLang, nativeLang }) — мови обрано: App одразу
-//     зберігає їх, тож план, слово дня й перший скан ідуть цією парою;
+//   onLanguages({ targetLang, nativeLang, targetVariant }) — мови обрано: App
+//     одразу зберігає їх, тож план, слово дня й перший скан ідуть цією парою;
 //   prepareWod(profile) → Promise<слово на сьогодні | null> — App зберігає
 //     профіль і тягне слово дня під нього (стан «складаємо…» плану);
 //   todayWord — слово дня з кешу (повтор, віджети);
@@ -351,7 +356,7 @@ function BreathingBtn({ on, children }) {
 //   paywall — 'show' | 'skip' | 'none' (для статистики onboarding_complete);
 //   draft / onDraft — чернетка з минулого запуску і запис нової.
 // onDone({ profile, heardFrom, name?, struggles?, wodEnabled?, wodHour?,
-//   scanned, firstWord?, flow, targetLang, nativeLang }).
+//   scanned, firstWord?, flow, targetLang, targetVariant, nativeLang }).
 export default function OnboardingScreen({
   t,
   uiLang,
@@ -361,6 +366,7 @@ export default function OnboardingScreen({
   name = '',
   struggles = [],
   targetLang = 'en',
+  targetVariant = null,
   nativeLang = null,
   phoneNative = null,
   onLanguages = null,
@@ -420,6 +426,9 @@ export default function OnboardingScreen({
   // Мови: у першому запуску мову навчання ще не обрано; мова перекладу —
   // мова телефона (її можна змінити згори на кроці мови)
   const [target, setTarget] = useState(() => (replay ? targetLang : saved?.target || null));
+  // Варіант мови навчання з рядка, який людина обрала («English (UK)»);
+  // null — ще не обирала (тоді прапорець і голос — варіант з налаштувань)
+  const [targetVar, setTargetVar] = useState(() => (replay ? targetVariant : saved?.targetVariant || null));
   const [native, setNative] = useState(() => (replay ? nativeLang : saved?.native || phoneNative || nativeLang || 'en'));
   const curTarget = target || targetLang;
   const curNative = native || nativeLang || 'en';
@@ -558,6 +567,7 @@ export default function OnboardingScreen({
       phase,
       variant: flowName,
       target,
+      targetVariant: targetVar,
       native,
       name: nameDraft,
       goals,
@@ -683,6 +693,7 @@ export default function OnboardingScreen({
       targetLang: curTarget,
       nativeLang: curNative,
     };
+    if (isVariant(curTarget, targetVar)) out.targetVariant = targetVar;
     // Імʼя й «що заважає» — лише якщо ці кроки були в потоці
     if (flow.includes('name')) out.name = cleanName(nameDraft);
     if (flow.includes('struggles')) out.struggles = cleanStruggles(pains);
@@ -712,10 +723,14 @@ export default function OnboardingScreen({
   }
 
   // ── Мова ────────────────────────────────────────────────────────────────
-  function pickTarget(code) {
+  // variant — рядок варіанта («English (UK)»): той самий крок, та сама мова
+  // в статистиці (value — базовий код), варіант окремим полем.
+  function pickTarget(code, variant) {
+    const v = isVariant(code, variant) ? variant : null;
     setTarget(code);
-    onLanguages?.({ targetLang: code, nativeLang: curNative });
-    event('onboarding_answer', { step: 'lang', value: code, native: curNative });
+    setTargetVar(v);
+    onLanguages?.({ targetLang: code, nativeLang: curNative, ...(v ? { targetVariant: v } : null) });
+    event('onboarding_answer', { step: 'lang', value: code, native: curNative, ...(v ? { variant: v } : null) });
     autoNext('lang');
   }
 
@@ -732,7 +747,7 @@ export default function OnboardingScreen({
   // профіль, але не менше BUILD_MIN_MS і не довше BUILD_MAX_MS. Те саме вже
   // складене (повернулись назад і нічого не міняли) вдруге не складаємо.
   const profileNow = profileFromAnswers({ goals, field, level }, replay ? profile : null);
-  const planKey = JSON.stringify([curTarget, curNative, goals, field, level]);
+  const planKey = JSON.stringify([curTarget, targetVar, curNative, goals, field, level]);
   const [today, setToday] = useState(replay ? todayWord : null);
   const [build, setBuild] = useState({ key: null, busy: false, wod: false });
   useEffect(() => {
@@ -1006,7 +1021,16 @@ export default function OnboardingScreen({
           <Text style={s.nativeChange}>{t('obNativeChange')} ›</Text>
         </Pressable>
         <Text style={[s.section, { marginTop: 22 }]}>{t('obLangLearnLabel')}</Text>
-        <LangList value={target} off={curNative} offNote={t('obLangIsNative')} popularFor={curNative} onPick={pickTarget} t={t} ui={ui} />
+        <LangList
+          value={target}
+          variant={targetVar}
+          off={curNative}
+          offNote={t('obLangIsNative')}
+          popularFor={curNative}
+          onPick={pickTarget}
+          t={t}
+          ui={ui}
+        />
       </View>
     );
     // Без VoiceOver вибір веде далі сам; кнопка — лише коли мову вже обрано

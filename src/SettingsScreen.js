@@ -36,6 +36,7 @@ import { PRIVACY_URL, SUPPORT_EMAIL, TERMS_URL } from './config';
 import { formatDate } from './locale';
 import { restoreNote } from './purchases';
 import { LANGS, flagFor, nameFor } from './speech';
+import { expandOptions, optionKey, parseOption } from './langVariants';
 import { IcCheck, IcChevron, IcCloud } from './icons';
 import { PCrown } from './ProIcons';
 import { Mascot } from './Mascot';
@@ -56,17 +57,26 @@ export { hourLabel } from './settings/WodSection';
 const NOOP = () => {};
 const NO_SETTINGS = {};
 
-// Тогл-лист вибору мови: розгортається на ~4 рядки, далі скрол
-function LangPicker({ label, hint, value, onChange, C, s }) {
+const CODES = LANGS.map((l) => l.code);
+
+// Тогл-лист вибору мови: розгортається на ~4 рядки, далі скрол. variants —
+// мова навчання: англійська й іспанська по рядку на варіант («English
+// (US)», «English (UK)»), onChange(code, variant); без них — лише мови,
+// onChange(code). variant — обраний варіант value.
+function LangPicker({ label, hint, value, variant = null, variants = false, onChange, C, s }) {
   const [open, setOpen] = useState(false);
+  const current = variants ? optionKey(value, variant) : value;
+  const head = parseOption(current);
 
   function toggle() {
     layoutNext();
     setOpen(!open);
   }
-  function select(code) {
+  function select(key) {
     Haptics.selectionAsync();
-    onChange(code);
+    const { code, variant: v } = parseOption(key);
+    if (v) onChange(code, v);
+    else onChange(code);
     layoutNext();
     setOpen(false);
   }
@@ -76,9 +86,9 @@ function LangPicker({ label, hint, value, onChange, C, s }) {
       <Text style={s.sectionLabel}>{label}</Text>
       <Glass style={{ padding: 0, overflow: 'hidden' }}>
         <Pressable style={s.pickerHead} onPress={toggle}>
-          <Text style={{ fontSize: 22 }}>{flagFor(value)}</Text>
+          <Text style={{ fontSize: 22 }}>{flagFor(head.code, head.variant || undefined)}</Text>
           <View style={{ flex: 1 }}>
-            <Text style={s.pickerValue}>{nameFor(value)}</Text>
+            <Text style={s.pickerValue}>{nameFor(head.code, head.variant)}</Text>
             <Text style={s.pickerHint}>{hint}</Text>
           </View>
           <View style={open ? { transform: [{ rotate: '180deg' }] } : null}>
@@ -88,17 +98,21 @@ function LangPicker({ label, hint, value, onChange, C, s }) {
 
         {open ? (
           <ScrollView style={s.list} nestedScrollEnabled showsVerticalScrollIndicator>
-            {LANGS.map((l) => {
-              const active = value === l.code;
+            {(variants ? expandOptions(CODES) : CODES).map((key) => {
+              const active = current === key;
+              const { code, variant: v } = parseOption(key);
               return (
                 <Pressable
-                  key={l.code}
+                  key={key}
+                  testID={'setlang-' + key}
                   style={[s.listRow, active && s.listRowActive]}
-                  onPress={() => select(l.code)}
+                  onPress={() => select(key)}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: active }}
                 >
-                  <Text style={{ fontSize: 18 }}>{l.flag}</Text>
+                  <Text style={{ fontSize: 18 }}>{flagFor(code, v || undefined)}</Text>
                   <Text style={[s.listName, active && { color: C.text, fontFamily: F.bold }]}>
-                    {l.name}
+                    {nameFor(code, v)}
                   </Text>
                   {active ? <IcCheck color={C.accent} /> : null}
                 </Pressable>
@@ -319,6 +333,8 @@ function AccountCard({ account, sync, pro, onSignIn, onSignOut, onSyncNow, lang,
 export default function SettingsScreen(props) {
   const {
     targetLang,
+    // Варіант мови навчання (англійська США чи Британії…), src/langVariants.js
+    targetVariant = null,
     onSetLang,
     nativeLang,
     onSetNative,
@@ -503,6 +519,8 @@ export default function SettingsScreen(props) {
           label={t('learnLang')}
           hint={t('learnLangHint')}
           value={targetLang}
+          variant={targetVariant}
+          variants
           onChange={onSetLang}
           C={C}
           s={s}

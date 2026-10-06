@@ -107,7 +107,7 @@ const nameInput = (tree) => tree.root.find((n) => typeof n.props.onChangeText ==
 
 async function toGoals(tree) {
   await tap(tree, t('obStart'));
-  await act(async () => byId(tree, 'lang-en').at(-1).props.onPress());
+  await act(async () => byId(tree, 'lang-en-us').at(-1).props.onPress());
   await advance(AUTO_MS);
   await tap(tree, t('obSkip')); // імʼя
   await tap(tree, t('obSkip')); // звідки
@@ -217,7 +217,7 @@ describe('Lingo on the question steps', () => {
   test('beside the title with a pose for each step, hopping on every choice, never read by VoiceOver', async () => {
     const tree = await render();
     await tap(tree, t('obStart'));
-    await act(async () => byId(tree, 'lang-en').at(-1).props.onPress());
+    await act(async () => byId(tree, 'lang-en-us').at(-1).props.onPress());
     await advance(AUTO_MS);
     await tap(tree, t('obSkip')); // імʼя
     expect(title(tree)).toBe(t('pfHeardTitle'));
@@ -267,7 +267,7 @@ describe('Lingo on the question steps', () => {
     require('../src/analytics').flag.mockImplementation(async () => 'short');
     const tree = await render();
     await tap(tree, t('obStart'));
-    await act(async () => byId(tree, 'lang-es').at(-1).props.onPress());
+    await act(async () => byId(tree, 'lang-es-es').at(-1).props.onPress());
     await advance(AUTO_MS);
     expect(has(tree, 'Spanish? Great choice!')).toBe(true);
     expect(lingo(tree, 'step-lingo').props.pose).toBe('celebrate');
@@ -282,7 +282,7 @@ describe('the name step', () => {
   test('Lingo peeks from behind the button and waves; after a pause it greets the person by name', async () => {
     const tree = await render();
     await tap(tree, t('obStart'));
-    await act(async () => byId(tree, 'lang-en').at(-1).props.onPress());
+    await act(async () => byId(tree, 'lang-en-us').at(-1).props.onPress());
     await advance(AUTO_MS);
     expect(title(tree)).toBe(t('obNameTitle'));
     expect(lingo(tree, 'step-lingo')).toBeUndefined();
@@ -307,7 +307,7 @@ describe('the name step', () => {
   test('no privacy subtitle any more; the old string is gone from every language', async () => {
     const tree = await render();
     await tap(tree, t('obStart'));
-    await act(async () => byId(tree, 'lang-en').at(-1).props.onPress());
+    await act(async () => byId(tree, 'lang-en-us').at(-1).props.onPress());
     await advance(AUTO_MS);
     expect(tree.root.findByType(StepFrame).props.text).toBeFalsy();
     for (const l of LOCALES) {
@@ -438,7 +438,9 @@ describe('welcome', () => {
     // на екрані — лише назва, привітання, заголовок, кнопка й таблички наліпок
     const shown = new Set(tree.root.findAll((n) => n.type === 'Text' && typeof n.props.children === 'string').map((n) => n.props.children));
     expect([...shown].sort()).toEqual(
-      ['LinguaLens', 'Привіт! Я Лінго.', 'Я стану твоїм провідником у світ мов', 'Почати', 'mug', 'planta', 'Schlüssel', '🇬🇧', '🇪🇸', '🇩🇪'].sort()
+      // прапорці — варіантів мов за замовчуванням (телефон у тестах — регіон
+      // США: англійська американська, іспанська латиноамериканська)
+      ['LinguaLens', 'Привіт! Я Лінго.', 'Я стану твоїм провідником у світ мов', 'Почати', 'mug', 'planta', 'Schlüssel', '🇺🇸', '🇲🇽', '🇩🇪'].sort()
     );
     for (const l of LOCALES) expect(STRINGS[l]).not.toHaveProperty('ob3HookText');
     expect(STRINGS.en.ob3Hello).toBe('Hi! I’m Lingo.');
@@ -652,7 +654,7 @@ describe('the push step', () => {
   test('on the step the phone fills the screen down to the button', async () => {
     const tree = await render();
     await tap(tree, t('obStart'));
-    await act(async () => byId(tree, 'lang-en').at(-1).props.onPress());
+    await act(async () => byId(tree, 'lang-en-us').at(-1).props.onPress());
     await advance(AUTO_MS);
     for (let i = 0; i < 5; i++) await tap(tree, t('obSkip'));
     await tap(tree, t('obNext')); // слово дня
@@ -688,7 +690,7 @@ describe('the demo', () => {
     const dims = jest.spyOn(require('react-native'), 'useWindowDimensions').mockReturnValue({ width: 440, height: 956, scale: 3, fontScale: 1 });
     const tree = await render({ targetLang: 'es', phoneNative: 'uk' });
     await tap(tree, t('obStart'));
-    await act(async () => byId(tree, 'lang-es').at(-1).props.onPress());
+    await act(async () => byId(tree, 'lang-es-es').at(-1).props.onPress());
     await advance(AUTO_MS);
     for (let i = 0; i < 5; i++) await tap(tree, t('obSkip'));
     await tap(tree, t('obNext')); // слово дня

@@ -19,8 +19,9 @@ const LANGS = ['en', 'uk', 'de', 'es'];
 const FORMS = { en: 2, uk: 3, de: 2, es: 2 };
 // Ці рядки капсом свідомо: бейдж слова дня малюється без textTransform,
 // літери днів тижня — це не текст, а сім підписів під стовпчиками, а ІТ —
-// абревіатура, її й VoiceOver читає по літерах.
-const CAPS_OK = ['wordOfDay', 'topic_it', 'field_it'];
+// абревіатура, її й VoiceOver читає по літерах. Так само США, US, UK,
+// EE. UU. у назвах варіантів мов («англійська (США)»).
+const CAPS_OK = ['wordOfDay', 'topic_it', 'field_it', 'langRegion_us', 'langRegion_gb'];
 
 const PLACEHOLDER = /\{(\w+)(?:\|[^{}]*)?\}/g;
 const PLURAL = /\{(\w+)\|([^{}]*)\}/g;

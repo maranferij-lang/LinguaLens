@@ -134,6 +134,19 @@ function langOr(code, fallback) {
   return typeof code === 'string' && Object.hasOwn(ai.LANG_NAMES, code) ? code : fallback;
 }
 
+// Варіанти мов (англійська США / Британії, іспанська Іспанії / Латинської
+// Америки) — лише зі списку ai.VARIETIES і лише ті, що є в цієї мови;
+// решта — null, тобто як до варіантів. src — тіло чи параметри запиту.
+function variantsOf(src, lang, nativeLang) {
+  const get = (k) => (typeof src?.get === 'function' ? src.get(k) : src?.[k]);
+  return { variant: ai.variantOr(lang, get('variant')), nativeVariant: ai.variantOr(nativeLang, get('nativeVariant')) };
+}
+
+// «en-gb→es-latam» для журналу
+function pairTag(lang, nativeLang, vars) {
+  return ai.langTag(lang, vars.variant) + '→' + ai.langTag(nativeLang, vars.nativeVariant);
+}
+
 // ---------- HTTP-утиліти ----------
 function readBody(req, limit) {
   return new Promise((resolve, reject) => {
@@ -268,6 +281,8 @@ const NOTHING_SEEN = [422, { error: "Не бачу чіткого об'єкта.
 async function scanWithSlot(req, body, scene, user, day, slot, t0) {
   const lang = langOr(body.lang, 'en');
   const nativeLang = langOr(body.nativeLang, 'uk');
+  // Варіанти мов: який різновид англійської чи іспанської писати
+  const vars = variantsOf(body, lang, nativeLang);
   // Рівень зі слайдера (1–10) робить приклад простішим чи багатшим, а від 7
   // додає вирази. Немає рівня — відповідь рівно така, як до персоналізації.
   const level = profile.level(body.level);
@@ -275,8 +290,8 @@ async function scanWithSlot(req, body, scene, user, day, slot, t0) {
   let parsed;
   try {
     parsed = scene
-      ? await ai.recognizeScene(body.image, lang, nativeLang, level)
-      : await ai.recognize(body.image, lang, nativeLang, level);
+      ? await ai.recognizeScene(body.image, lang, nativeLang, level, vars)
+      : await ai.recognize(body.image, lang, nativeLang, level, vars);
   } catch (e) {
     if (e.name === 'TimeoutError' || e.name === 'AbortError') {
       console.error(new Date().toISOString(), 'AI TIMEOUT');
@@ -314,7 +329,7 @@ async function scanWithSlot(req, body, scene, user, day, slot, t0) {
   console.log(
     new Date().toISOString(),
     ai.PROVIDER,
-    lang + '→' + nativeLang + (level ? ' L' + level : ''),
+    pairTag(lang, nativeLang, vars) + (level ? ' L' + level : ''),
     Math.round((Date.now() - t0) / 100) / 10 + 's',
     '→',
     scene ? 'сцена: ' + result.objects.map((o) => o.word).join(', ') : result.word
@@ -392,6 +407,7 @@ async function handleWordOfDay(req, res, user) {
   const days = Math.min(Math.max(Number(url.searchParams.get('days') || 7), 1), 14);
   const lang = langOr(url.searchParams.get('lang'), 'en');
   const native = langOr(url.searchParams.get('native'), 'uk');
+  const vars = variantsOf(url.searchParams, lang, native);
   // Дати рахуємо від ЛОКАЛЬНОГО «сьогодні» клієнта: інакше ввечері в США
   // сервер (UTC) уже жив би завтрашнім днем і картка була б порожня.
   const today = billing.localDay(url.searchParams.get('today'));
@@ -405,14 +421,14 @@ async function handleWordOfDay(req, res, user) {
       const date = billing.addDays(today, i);
       const en = words.wordFor(list, base + i);
       try {
-        return { date, ...(await ai.translateWord(en, lang, native)) };
+        return { date, ...(await ai.translateWord(en, lang, native, vars)) };
       } catch (_) {
         // якщо AI недоступний — віддаємо принаймні англійське слово
         return { date, word: en, ipa: '', translation: '', example: '', example_translation: '', source: en };
       }
     })
   );
-  console.log(new Date().toISOString(), 'word-of-day', lang + '→' + native, out.length + 'д');
+  console.log(new Date().toISOString(), 'word-of-day', pairTag(lang, native, vars), out.length + 'д');
   return json(res, 200, { words: out });
 }
 
@@ -474,6 +490,7 @@ async function handleWordOfDayPost(req, res, user) {
   const days = Math.min(wodDays(body.days), Math.floor(WOD_MAX_WORDS / perDay));
   const lang = langOr(body.lang, 'en');
   const native = langOr(body.native, 'uk');
+  const vars = variantsOf(body, lang, native);
   // Дати — від локального «сьогодні» клієнта, як у GET.
   const today = billing.localDay(body.today);
   const plan = wordplan.schedule({
@@ -488,7 +505,7 @@ async function handleWordOfDayPost(req, res, user) {
   // Невдалий переклад не валить решту — слово лишається хоча б англійським.
   const out = await mapLimit(plan, WOD_PARALLEL, async ({ date, slot, en, topic, hint }) => {
     try {
-      return { date, slot, ...(await ai.translateWord(en, lang, native, { topic, hint })), source: en, topic };
+      return { date, slot, ...(await ai.translateWord(en, lang, native, { topic, hint, ...vars })), source: en, topic };
     } catch (_) {
       return { date, slot, word: en, ipa: '', translation: '', example: '', example_translation: '', source: en, topic };
     }
@@ -496,7 +513,7 @@ async function handleWordOfDayPost(req, res, user) {
   const topics = {};
   for (const w of out) topics[w.topic] = (topics[w.topic] || 0) + 1;
   const mix = Object.entries(topics).map(([k, n]) => k + '×' + n).join(' ');
-  console.log(new Date().toISOString(), 'word-of-day', lang + '→' + native, days + 'д×' + perDay, mix);
+  console.log(new Date().toISOString(), 'word-of-day', pairTag(lang, native, vars), days + 'д×' + perDay, mix);
   return json(res, 200, { words: out, perDay });
 }
 

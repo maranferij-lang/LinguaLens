@@ -2,6 +2,7 @@
 // Ключі AI живуть ТІЛЬКИ на сервері. Адреса й токени — у src/config.js.
 import { APP_TOKEN, SERVER_URL } from './config';
 import { localDayKey } from './storage';
+import { variantFields } from './langVariants';
 
 // Токен пристрою — ставиться після ensureSession() (див. auth.js)
 let sessionToken = '';
@@ -187,8 +188,11 @@ export function cleanExtras(list) {
   return out;
 }
 
-export async function recognizeImage(base64Jpeg, lang = 'en', nativeLang = 'uk', level) {
-  const data = await scanRequest({ image: base64Jpeg, lang, nativeLang, ...levelField(level) }, SCAN_TIMEOUT);
+// vars — варіанти мов ({ variant, nativeVariant }, src/langVariants.js):
+// без них — обраний людиною варіант мови навчання й варіант «моєї мови» з
+// регіону телефона. Для мов без варіантів полів у запиті немає.
+export async function recognizeImage(base64Jpeg, lang = 'en', nativeLang = 'uk', level, vars = variantFields(lang, nativeLang)) {
+  const data = await scanRequest({ image: base64Jpeg, lang, nativeLang, ...vars, ...levelField(level) }, SCAN_TIMEOUT);
   if (!data || !data.word) throw codeError('SCAN_EMPTY');
 
   return {
@@ -210,8 +214,8 @@ export const SCENE_MAX_OBJECTS = 8;
 // Кадр — уже обрізаний до 9:16 (див. src/cutout.js), рамки й силуети —
 // відносно нього. Предмет без слова чи без рамки поставити на фото нікуди:
 // такі відкидаємо тут, навіть якщо сервер їх пропустив.
-export async function recognizeScene(base64Jpeg, lang = 'en', nativeLang = 'uk', level) {
-  const data = await scanRequest({ image: base64Jpeg, lang, nativeLang, mode: 'scene', ...levelField(level) }, SCENE_TIMEOUT);
+export async function recognizeScene(base64Jpeg, lang = 'en', nativeLang = 'uk', level, vars = variantFields(lang, nativeLang)) {
+  const data = await scanRequest({ image: base64Jpeg, lang, nativeLang, mode: 'scene', ...vars, ...levelField(level) }, SCENE_TIMEOUT);
   const objects = (Array.isArray(data?.objects) ? data.objects : [])
     .filter((o) => o && typeof o.word === 'string' && o.word.trim() && validBox(o.box))
     .slice(0, SCENE_MAX_OBJECTS)
@@ -234,12 +238,16 @@ export async function recognizeScene(base64Jpeg, lang = 'en', nativeLang = 'uk',
 // perDay (Pro, v1.3) — 3 або 5 слів на день; 1 не шлемо, і тіло запиту
 // лишається таким, як у старих версій. Сервер без Pro дає одне слово й
 // каже про це в perDay відповіді; GET (старий сервер) про слоти не знає.
-export async function apiWordOfDay({ days, lang, native, profile = null, known = [], perDay = 1 }) {
+// variant / nativeVariant — варіанти мов (англійська США чи Британії…);
+// шлемо лише ті, що є в мови, тож для інших мов тіло як раніше.
+export async function apiWordOfDay({ days, lang, native, profile = null, known = [], perDay = 1, variant = null, nativeVariant = null }) {
   const today = localDayKey();
+  const vars = variantFields(lang, native, { variant, nativeVariant });
   const body = {
     days,
     lang,
     native,
+    ...vars,
     today,
     ...(profile ? { profile } : null),
     ...(known.length ? { known } : null),
@@ -249,7 +257,10 @@ export async function apiWordOfDay({ days, lang, native, profile = null, known =
     return await request('/word-of-day', { method: 'POST', body, timeout: 45000 });
   } catch (e) {
     if (e.status !== 404 && e.status !== 405) throw e;
-    const q = `days=${days}&lang=${lang}&native=${native}&today=${today}`;
+    const extra = Object.entries(vars)
+      .map(([k, v]) => `&${k}=${v}`)
+      .join('');
+    const q = `days=${days}&lang=${lang}&native=${native}${extra}&today=${today}`;
     return request('/word-of-day?' + q, { timeout: 45000 });
   }
 }

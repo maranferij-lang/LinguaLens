@@ -102,7 +102,11 @@ describe('the demo word', () => {
 
   test('the word in the language you learn, the translation in yours, IPA only from the learnt language', () => {
     expect(demoPair('en', 'uk')).toEqual({ word: 'mug', ipa: '/mʌɡ/', translation: 'чашка', lang: 'en' });
-    expect(demoPair('es', 'en')).toEqual({ word: 'la taza', ipa: '/la ˈta.θa/', translation: 'mug', lang: 'es' });
+    expect(demoPair('es', 'en', 'es')).toEqual({ word: 'la taza', ipa: '/la ˈta.θa/', translation: 'mug', lang: 'es' });
+    // латиноамериканська іспанська — з seseo (і вона ж за замовчуванням на
+    // телефоні з регіоном США, як у тестах)
+    expect(demoPair('es', 'en', 'latam')).toEqual({ word: 'la taza', ipa: '/la ˈta.sa/', translation: 'mug', lang: 'es' });
+    expect(demoPair('es', 'en')).toEqual(demoPair('es', 'en', 'latam'));
     expect(demoPair('uk', 'en')).toEqual({ word: 'чашка', ipa: '', translation: 'mug', lang: 'uk' });
     expect(demoPair('ja', 'de')).toMatchObject({ word: 'マグカップ', translation: 'die Tasse' });
   });
@@ -123,7 +127,16 @@ describe('the animation', () => {
     let tree;
     await act(async () => {
       tree = create(
-        <ScanDemo pair={demoPair('es', 'uk')} scene={demoScene('es', 'uk')} t={props.t || t} width={342} height={420} onFinal={onFinal} onAction={onAction} {...props} />
+        <ScanDemo
+          pair={demoPair('es', 'uk', 'es')}
+          scene={demoScene('es', 'uk', 'es')}
+          t={props.t || t}
+          width={342}
+          height={420}
+          onFinal={onFinal}
+          onAction={onAction}
+          {...props}
+        />
       );
     });
     await act(async () => {});
@@ -147,6 +160,11 @@ describe('the animation', () => {
     }
     expect(tree.root.findAll((n) => typeof n.type === 'string' && n.props.testID === 'demo-mode')).toHaveLength(1);
     await act(async () => tree.unmount());
+    // латиноамериканською ноутбук — «la laptop»; переклад іспанською теж під
+    // варіант «моєї мови»
+    expect(demoScene('es', 'uk', 'latam').find((x) => x.key === 'laptop')).toEqual({ key: 'laptop', word: 'la laptop', translation: 'ноутбук' });
+    expect(demoScene('en', 'es', 'us', 'latam').find((x) => x.key === 'laptop')).toEqual({ key: 'laptop', word: 'laptop', translation: 'la laptop' });
+    expect(demoScene('en', 'es', 'us', 'es').find((x) => x.key === 'laptop').translation).toBe('el portátil');
   });
 
   test('the plate speaks the chosen pair; VoiceOver hears one sentence with it', async () => {

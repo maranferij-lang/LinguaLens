@@ -194,7 +194,9 @@ test('language chip: shows the scan language, opens the picker, is off while rec
   const onChangeLang = jest.fn();
   const tree = await render({ onChangeLang, scansLeft: Infinity });
   expect(texts(tree)).toContain('ES');
-  const chip = () => byLabel(tree, t('scanLangA11y', { l: 'Español' }));
+  // прапорець варіанта: телефон у регіоні США, тож іспанська латиноамериканська
+  expect(texts(tree)).toContain('🇲🇽');
+  const chip = () => byLabel(tree, t('scanLangA11y', { l: 'Español (Latinoamérica)' }));
   await press(() => chip().props.onPress());
   expect(onChangeLang).toHaveBeenCalledTimes(1);
   await act(async () => {

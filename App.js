@@ -52,6 +52,7 @@ import {
 import { applyPractice, applyReview, dueWords, newSrs } from './src/srs';
 import { activeDaySet, streakInfo } from './src/streak';
 import { LANGS, initAudio } from './src/speech';
+import { isVariant, nativeVariantOf, pickVariant, setChosenVariants } from './src/langVariants';
 import { makeT } from './src/i18n';
 import { useUiLang } from './src/locale';
 import { initAnalytics, analyticsAvailable, resetAnalytics, setAnalyticsEnabled, setProps, track } from './src/analytics';
@@ -168,6 +169,11 @@ SplashScreen.setOptions({ duration: 250, fade: true });
 // Старі й альтернативні коди мов, які віддають iOS/Android.
 const LANG_ALIAS = { nb: 'no', nn: 'no', iw: 'he', in: 'id' };
 
+// Обрані варіанти мов зі сховища: об'єкт, а не те, що могло там зіпсуватись.
+function variantMap(v) {
+  return v && typeof v === 'object' && !Array.isArray(v) ? v : {};
+}
+
 // Мова перекладів («моя мова») за замовчуванням — перша з бажаних мов
 // телефону, яку ми підтримуємо. Вчити — англійську; англомовним — іспанську.
 // Мова інтерфейсу звідси не береться: вона завжди мовою телефону (useUiLang).
@@ -189,6 +195,12 @@ function defaultLanguages() {
 function defaultSettings() {
   return {
     ...defaultLanguages(),
+    // Обрані варіанти мов навчання: { en: 'gb', es: 'latam' } (базовий код →
+    // id, src/langVariants.js). Немає — варіант за замовчуванням: англійська
+    // США, іспанська латиноамериканська в Америках і іспанська Іспанії деінде.
+    // Слова й далі зберігаються з базовим кодом, тож зміна варіанта нічого
+    // не ділить.
+    variants: {},
     theme: 'system',
     wodEnabled: true,
     wodHour: DEFAULT_HOUR,
@@ -276,6 +288,11 @@ export default function App() {
   // сервер): замикання бачило б ті, що були на момент тапу.
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
+  // Обрані варіанти мов — для прапорців і озвучки на всіх екранах
+  // (flagFor / speak у src/speech.js): до рендеру дітей, тож вони вже
+  // бачать новий вибір.
+  setChosenVariants(settings.variants);
+  const targetVariant = pickVariant(settings.targetLang, settings.variants);
   const [activity, setActivity] = useState({});
   const [stats, setStats] = useState({});
   const [seenAch, setSeenAch] = useState([]);
@@ -755,8 +772,8 @@ export default function App() {
     }
     const next = { ...settings, ...patch };
     commitSettings(next);
-    // мови змінились — перезавантажуємо слово дня
-    if (patch.targetLang || patch.nativeLang) {
+    // мови (чи варіант мови) змінились — перезавантажуємо слово дня
+    if (patch.targetLang || patch.nativeLang || patch.variants) {
       syncWordOfDay(wodArgs(next, true)).then((c) => c && setWod(c));
     }
   }
@@ -764,6 +781,7 @@ export default function App() {
   // Нові налаштування: на екран, у ref для асинхронних дій і в сховище.
   function commitSettings(next) {
     settingsRef.current = next;
+    setChosenVariants(next.variants);
     setSettings(next);
     persistSettings(next);
   }
@@ -777,6 +795,9 @@ export default function App() {
     return {
       lang: st.targetLang,
       native: st.nativeLang,
+      // варіанти мов: обраний для мови навчання, для «моєї» — з регіону
+      variant: pickVariant(st.targetLang, st.variants),
+      nativeVariant: nativeVariantOf(st.nativeLang),
       enabled: st.wodEnabled,
       hour: st.wodHour,
       hours: slotHours(st, proRef.current),
@@ -789,13 +810,17 @@ export default function App() {
 
   // Безкоштовно — одна мова навчання. Ліміт описаний у MONETIZATION.md і
   // показаний у пейволі, тож має реально діяти, а не лише рекламуватись.
-  function setTargetLang(code) {
+  // variant — варіант мови (англійська США чи Британії…): це та сама мова,
+  // тож інший варіант своєї мови ліміт не чіпає.
+  function setTargetLang(code, variant) {
     const deny = canUseLanguage({ pro: sub.pro, words, nextLang: code });
     if (deny) {
       openPaywall(deny);
       return;
     }
-    saveSetting({ targetLang: code });
+    const patch = { targetLang: code };
+    if (isVariant(code, variant)) patch.variants = { ...variantMap(settings.variants), [code]: variant };
+    saveSetting(patch);
   }
 
   // Системний запит дозволу на сповіщення + статистика відповіді. Уже
@@ -1421,13 +1446,16 @@ export default function App() {
     setProps({
       ui_lang: ui,
       target_lang: settings.targetLang,
+      // варіант мови навчання ('us', 'gb', 'es', 'latam'); у мов без
+      // варіантів — null. Мова лишається базовим кодом, як і в словах.
+      target_variant: isVariant(settings.targetLang, targetVariant) ? targetVariant : null,
       native_lang: settings.nativeLang,
       level: settings.profile?.level ?? null,
       goals: settings.profile?.goals || [],
       field: settings.profile?.field || null,
       pro: !!sub.pro,
     });
-  }, [ready, ui, settings.nativeLang, settings.targetLang, settings.profile, sub.pro, settings.analytics]);
+  }, [ready, ui, settings.nativeLang, settings.targetLang, targetVariant, settings.profile, sub.pro, settings.analytics]);
 
   const dueCount = useMemo(() => dueWords(words).length, [words, tab]);
   const profile = { name: settings.profileName, avatar: settings.avatar || 'wave' };
@@ -1723,16 +1751,21 @@ export default function App() {
   // й перший скан ідуть уже обраною парою. Слів на цьому кроці ще немає, тож
   // ліміт мов не діє; а якщо слова є (онбординг у розробці поверх даних),
   // безкоштовна мова вже зайнята — іншу дав би лише пейвол, тому лишаємо її.
-  function onbLanguages({ targetLang, nativeLang } = {}) {
+  function onbLanguages({ targetLang, nativeLang, targetVariant } = {}) {
     const cur = settingsRef.current;
     const ok = (c) => LANGS.some((l) => l.code === c);
     const next = { ...cur };
     if (ok(nativeLang)) next.nativeLang = nativeLang;
     if (ok(targetLang) && !(wordsRef.current.length && canUseLanguage({ pro: sub.pro, words: wordsRef.current, nextLang: targetLang }))) {
       next.targetLang = targetLang;
+      // варіант (англійська США чи Британії…) — разом із мовою
+      if (isVariant(targetLang, targetVariant)) next.variants = { ...variantMap(cur.variants), [targetLang]: targetVariant };
     }
     if (next.targetLang === next.nativeLang) return;
-    if (next.targetLang === cur.targetLang && next.nativeLang === cur.nativeLang) return;
+    // явний вибір варіанта зберігаємо, навіть якщо він і так за замовчуванням:
+    // інакше зміна регіону телефона мовчки змінила б обраний людиною варіант
+    const sameVariant = variantMap(next.variants)[next.targetLang] === variantMap(cur.variants)[next.targetLang];
+    if (next.targetLang === cur.targetLang && next.nativeLang === cur.nativeLang && sameVariant) return;
     commitSettings(next);
     // Повтор не складає план (prepareWod) — слово дня, віджет і сповіщення
     // беремо новою мовою одразу, як і зміна мови в налаштуваннях. Перший
@@ -1868,6 +1901,7 @@ export default function App() {
             name={onbReplay.current ? settings.profileName : ''}
             struggles={onbReplay.current ? settings.struggles : []}
             targetLang={settings.targetLang}
+            targetVariant={targetVariant}
             nativeLang={settings.nativeLang}
             // «Моя рідна мова» (мова перекладу) стартує з мови телефона
             phoneNative={defaultLanguages().nativeLang}
@@ -2058,6 +2092,7 @@ export default function App() {
               <FadeIn style={{ flex: 1 }} dy={10}>
                 <SettingsScreen
                   targetLang={settings.targetLang}
+                  targetVariant={targetVariant}
                   onSetLang={setTargetLang}
                   nativeLang={settings.nativeLang}
                   onSetNative={(code) => saveSetting({ nativeLang: code })}
@@ -2224,10 +2259,13 @@ export default function App() {
         <LangSheet
           visible={langSheet}
           current={settings.targetLang}
+          variant={targetVariant}
           native={settings.nativeLang}
-          onPick={(code) => {
+          onPick={(code, variant) => {
             setLangSheet(false);
-            if (code !== settings.targetLang) setTargetLang(code);
+            // обраний рядок варіанта зберігаємо, навіть коли він збігається з
+            // варіантом за замовчуванням (див. onbLanguages)
+            if (code !== settings.targetLang || (variant && variant !== variantMap(settings.variants)[code])) setTargetLang(code, variant);
           }}
           onClose={() => setLangSheet(false)}
           t={t}

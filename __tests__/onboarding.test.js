@@ -144,8 +144,10 @@ const events = (name) => track.mock.calls.filter(([e]) => e === name).map(([, p]
 async function start(tree) {
   await tap(tree, t('obStart'));
 }
+// Англійська й іспанська в списку — по рядку на варіант (src/langVariants.js)
+const ROW = { en: 'en-us', es: 'es-es' };
 async function pickLang(tree, code = 'en') {
-  await press(byId(tree, 'lang-' + code).at(-1));
+  await press(byId(tree, 'lang-' + (ROW[code] || code)).at(-1));
   await advance(AUTO_MS);
 }
 async function typeName(tree, value) {
@@ -335,9 +337,9 @@ test('the full path: language → name → heard → work in finance → B2+ →
   expect(hostId(tree, 'onb-act-0')).toHaveLength(1);
   expect(nextBtn(tree)).toBeUndefined();
   expect(tree.root.findAll((n) => n.props.testID?.startsWith?.('lang-') && n.props.accessibilityState?.checked)).toHaveLength(0);
-  await press(byId(tree, 'lang-en').at(-1));
-  // мови йдуть в App одразу, ще до переходу
-  expect(onLanguages).toHaveBeenCalledWith({ targetLang: 'en', nativeLang: 'uk' });
+  await press(byId(tree, 'lang-en-gb').at(-1));
+  // мови йдуть в App одразу, ще до переходу, з варіантом рядка
+  expect(onLanguages).toHaveBeenCalledWith({ targetLang: 'en', nativeLang: 'uk', targetVariant: 'gb' });
   expect(title(tree)).toBe(t('obLangTitle'));
   await advance(AUTO_MS);
 
@@ -462,6 +464,7 @@ test('the full path: language → name → heard → work in finance → B2+ →
     scanned: false,
     flow: 'control',
     targetLang: 'en',
+    targetVariant: 'gb',
     nativeLang: 'uk',
   });
 
@@ -488,7 +491,7 @@ test('the full path: language → name → heard → work in finance → B2+ →
   expect(events('onboarding_step').find((e) => e.step === 'heard')).toMatchObject({ index: 3, total: 12 });
   expect(events('onboarding_step').find((e) => e.step === 'wod')).toMatchObject({ index: 8, total: 13 });
   expect(events('onboarding_answer')).toEqual([
-    { step: 'lang', value: 'en', native: 'uk', flow: 'control', ver: 5 },
+    { step: 'lang', value: 'en', native: 'uk', variant: 'gb', flow: 'control', ver: 5 },
     { step: 'name', value: 'given', flow: 'control', ver: 5 },
     { step: 'heard', value: 'tiktok', flow: 'control', ver: 5 },
     { step: 'goals', value: ['work'], flow: 'control', ver: 5 },
@@ -524,7 +527,8 @@ describe('which language you learn', () => {
     await start(tree);
     const input = () => tree.root.find((n) => n.props.testID === 'lang-search' && typeof n.props.onChangeText === 'function');
     await act(async () => input().props.onChangeText('espanol'));
-    expect(byId(tree, 'lang-es').length).toBeGreaterThan(0);
+    expect(byId(tree, 'lang-es-es').length).toBeGreaterThan(0);
+    expect(byId(tree, 'lang-es-latam').length).toBeGreaterThan(0);
     expect(byId(tree, 'lang-de')).toHaveLength(0);
     await act(async () => input().props.onChangeText('qqq'));
     expect(has(tree, t('obLangNone'))).toBe(true);
@@ -917,9 +921,11 @@ describe('demo and the first scan', () => {
   // Повтор без слів відкривається на мові, яка вже обрана: без «Далі» це був
   // глухий кут (ні «Пропустити», ні «Назад», ні хрестика)
   test('replay without words: the language is already ticked, so “Next” is there at once', async () => {
-    const { tree, onLanguages } = await render({ replay: true, hasWords: false, targetLang: 'en' });
+    const { tree, onLanguages } = await render({ replay: true, hasWords: false, targetLang: 'en', targetVariant: 'gb' });
     expect(title(tree)).toBe(t('obLangTitle'));
-    expect(byId(tree, 'lang-en').at(-1).props.accessibilityState).toMatchObject({ checked: true });
+    // обраний варіант — з налаштувань
+    expect(byId(tree, 'lang-en-gb').at(-1).props.accessibilityState).toMatchObject({ checked: true });
+    expect(byId(tree, 'lang-en-us').at(-1).props.accessibilityState).toMatchObject({ checked: false });
     expect(nextBtn(tree)).toBeDefined();
     expect(nextBtn(tree).props.disabled).toBe(false);
     await press(nextBtn(tree));
