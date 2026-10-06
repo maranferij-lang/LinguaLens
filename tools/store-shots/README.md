@@ -118,8 +118,10 @@ OUT=store-shots-out/ppo-icon-eye WORK=store-shots-out/.work REF=… \
 - **en-US:** іспанська Латинської Америки, за замовчуванням в обох
   Америках: голос es-MX, сесео (z і c перед e/i — /s/: /la ˈtasa/,
   /la manˈsana/), мексиканські й нейтральні слова (los audífonos, los
-  tenis, los lentes, la tabla de picar, la cobija). Іспанської Іспанії
-  (θ, auriculares, gafas) тут немає.
+  tenis, los lentes, la tabla de picar, la cobija; жовтий лимон — el
+  limón amarillo, бо «el limón» у Мексиці — лайм). Слово віджета — la
+  resiliencia (/la resiˈljensja/), як resilient на інших сторінках.
+  Іспанської Іспанії (θ, auriculares, gafas) тут немає.
 - **en-GB:** англійська Британії: RP (/ˈhaʊsplɑːnt/, /ˈwɪndəʊ/,
   /əˈlɑːm klɒk/, без «r» після голосної) і британські слова (trainer,
   rucksack, chopping board, tea towel), голос en-GB. За замовчуванням і в
@@ -127,7 +129,8 @@ OUT=store-shots-out/ppo-icon-eye WORK=store-shots-out/.work REF=… \
   кладе цей вибір у налаштування (`variantsFor` у `data.mjs`), як зробив
   би список мов.
 
-IPA іспанських слів з артиклем, як у сервера. Засів кладе варіант і в кеш
+IPA іспанських слів з артиклем і вузька, як у сервера (/el ˈliβɾo/): b, d,
+g після голосної, і через межу слова, — β, ð, ɣ (/la βenˈtana/). Засів кладе варіант і в кеш
 слова дня, з тими самими варіантами, з якими застосунок його звіряє. Окремі
 елементи (картки й наліпки кадру 8, віджети) отримують варіанти так само:
 `shot-gallery.js` бере `setChosenVariants` застосунку через прокладку

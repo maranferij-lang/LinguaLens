@@ -127,14 +127,17 @@ const VOCAB = {
   }),
   // іспанська Латинської Америки (голос es-MX): сесео (z і c перед e/i —
   // /s/), мексиканські й нейтральні слова: los audífonos, los tenis, los
-  // lentes, la tabla de picar. Переклади американською англійською.
+  // lentes, la tabla de picar; жовтий лимон — «el limón amarillo» («el
+  // limón» у Мексиці — зелений лайм). IPA вузька, як у сервера (/el ˈliβɾo/):
+  // b, d, g після голосної, і через межу слова, — β, ð, ɣ (/la βenˈtana/).
+  // Переклади американською англійською.
   'es-latam>en': {
     mug: ['la taza', '/la ˈtasa/', 'mug'],
     plant: ['la planta', '/la ˈplanta/', 'houseplant'],
     apple: ['la manzana', '/la manˈsana/', 'apple'],
     headphones: ['los audífonos', '/los awˈðifonos/', 'headphones'],
     sneaker: ['los tenis', '/los ˈtenis/', 'sneakers'],
-    lemon: ['el limón', '/el liˈmon/', 'lemon'],
+    lemon: ['el limón amarillo', '/el liˈmon amaˈɾiʝo/', 'lemon'],
     camera: ['la cámara', '/la ˈkamaɾa/', 'camera'],
     backpack: ['la mochila', '/la moˈtʃila/', 'backpack'],
     umbrella: ['el paraguas', '/el paˈɾaɣwas/', 'umbrella'],
@@ -145,7 +148,7 @@ const VOCAB = {
     kettle: ['la tetera', '/la teˈteɾa/', 'kettle'],
     banana: ['el plátano', '/el ˈplatano/', 'banana'],
     scissors: ['las tijeras', '/las tiˈxeɾas/', 'scissors'],
-    window: ['la ventana', '/la benˈtana/', 'window'],
+    window: ['la ventana', '/la βenˈtana/', 'window'],
     pan: ['la sartén', '/la saɾˈten/', 'frying pan'],
     jar: ['el frasco', '/el ˈfɾasko/', 'jar'],
     board: ['la tabla de picar', '/la ˈtaβla ðe piˈkaɾ/', 'cutting board'],
@@ -194,12 +197,14 @@ export const WOD = {
 // Кадр 6 (віджет) показує слово ІНШОГО дня — загальне слово рівня B2 з
 // server/topics/general.js, щоб кадри 5 і 6 не повторювались і набір не
 // виглядав лише для айтішників. topic 'general' → кепс «English · слово дня».
-// en-US: blizzard → «la ventisca». deployment і resilient у RP звучать так
-// само, як у США, тож en-GB бере ту саму IPA.
+// en-US — «la resiliencia», те саме слово, що resilient на інших сторінках,
+// і з сесео (/resiˈljensja/), а не «la ventisca»: хуртовина мексиканцю ні
+// до чого. deployment і resilient у RP звучать так само, як у США, тож
+// en-GB бере ту саму IPA.
 const RESILIENT = { word: 'resilient', ipa: '/rɪˈzɪliənt/', example: 'Kids are more resilient than we think.', topic: 'general' };
 export const WIDGET_WOD = {
   uk: { ...RESILIENT, translation: 'стійкий', example_translation: 'Діти стійкіші, ніж ми думаємо.' },
-  'en-US': { word: 'la ventisca', ipa: '/la benˈtiska/', translation: 'blizzard', example: 'La ventisca nos dejó en casa todo el día.', example_translation: 'The blizzard kept us home all day.', topic: 'general' },
+  'en-US': { word: 'la resiliencia', ipa: '/la resiˈljensja/', translation: 'resilience', example: 'La resiliencia se construye día a día.', example_translation: 'Resilience is built day by day.', topic: 'general' },
   'en-GB': { ...RESILIENT, translation: 'стійкий', example_translation: 'Діти стійкіші, ніж ми думаємо.' },
   'es-MX': { ...RESILIENT, translation: 'resiliente', example_translation: 'Los niños son más resilientes de lo que creemos.' },
 };

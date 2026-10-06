@@ -123,6 +123,16 @@ describe('store shots: words and IPA of the variant', () => {
     const all = words(loc);
     for (const latam of ['los audífonos', 'los tenis', 'los lentes', 'la cobija']) expect(all).toContain(latam);
     for (const spain of ['auriculares', 'zapatilla', 'gafas', 'manta']) expect(all).not.toContain(spain);
+    // у Мексиці «el limón» — зелений лайм; жовтий лимон на наліпці — «amarillo»
+    expect(data.vocab[loc].lemon).toMatchObject({ word: 'el limón amarillo', translation: 'lemon' });
+    // слово віджета — та сама «resilient», що на інших сторінках, із сесео
+    expect(data.widget[loc]).toMatchObject({ word: 'la resiliencia', ipa: '/la resiˈljensja/', translation: 'resilience' });
+  });
+
+  test('Latin American Spanish IPA in one narrow style: β, ð, ɣ after a vowel, across the article too', () => {
+    const [loc] = byVariant('es', 'latam');
+    for (const v of entries(loc)) expect([v.word, v.ipa, /[aeiou][\sˈˌ.]*[bdg]/.test(v.ipa)]).toEqual([v.word, v.ipa, false]);
+    expect(data.vocab[loc].window.ipa).toBe('/la βenˈtana/');
   });
 
   test('es-MX translations are Mexican, like the phone’s region', () => {
