@@ -40,18 +40,23 @@ describe('store shots copy', () => {
     }
   });
 
-  test('no long dashes anywhere (owner rule)', () => {
+  // Правило власника: у підписах немає жодного тире, навіть короткого в
+  // діапазоні «A1–C2» (у мініатюрі пошуку він читається як довгий):
+  // діапазон словами, «від A1 до C2». Дефіс (‐ ‑ -), цифровий (‒), короткий
+  // (–), довгий (—), горизонтальна риска (―), мінус (−), ⸺ ⸻ і «--».
+  test('no dash glyph anywhere (owner rule), ranges in words', () => {
     for (const cp of all()) {
       for (const s of texts(cp)) {
-        expect([cp.loc, cp.n, s, /[—―⸺⸻]/.test(s)]).toEqual([cp.loc, cp.n, s, false]); // — ― ⸺ ⸻
-        expect([cp.loc, cp.n, s, /(^|\s)[–‒−-](\s|$)/.test(s)]).toEqual([cp.loc, cp.n, s, false]); // « – », « - » як тире
-        expect([cp.loc, cp.n, s, /--/.test(s)]).toEqual([cp.loc, cp.n, s, false]);
-        // короткий тире — лише в діапазоні без пробілів: A1–C2
-        for (const m of s.matchAll(/–/g)) {
-          expect([cp.loc, cp.n, s.slice(m.index - 2, m.index + 3)]).toEqual([cp.loc, cp.n, expect.stringMatching(/^\S\S–\S\S$/)]);
-        }
+        expect([cp.loc, cp.n, s, /[\u2010-\u2015\u2212\u2E3A\u2E3B\uFE58\uFE63\uFF0D-]/.test(s)]).toEqual([cp.loc, cp.n, s, false]);
       }
     }
+    const level = Object.fromEntries(LOCALES.map((loc) => [loc, COPY[loc][4].sub]));
+    expect(level).toEqual({
+      uk: expect.stringMatching(/^Від A1 до C2/),
+      'en-US': expect.stringMatching(/^A1 to C2/),
+      'en-GB': expect.stringMatching(/^A1 to C2/),
+      'es-MX': expect.stringMatching(/^De A1 a C2/),
+    });
   });
 
   test('no prices, «free», ranks or other brands (rule 2.3.7)', () => {
@@ -106,6 +111,15 @@ describe('store shots copy', () => {
   test('frame 1 names the language being learnt (search row)', () => {
     const lang = { uk: /англійськ/i, 'en-US': /Spanish/, 'en-GB': /English/, 'es-MX': /inglés/ };
     for (const loc of LOCALES) expect([loc, lang[loc].test(plainHead(COPY[loc][0]))]).toEqual([loc, true]);
+    // і дію з фото: «Apunta» без додатка читалось як «запиши»
+    expect(plainHead(COPY['es-MX'][0])).toMatch(/\bfoto\b/);
+  });
+
+  test('frame 6 uses Apple’s own names of the screens', () => {
+    // українська локалізація iOS: «Початковий екран» і «Замкнений екран»
+    expect(COPY.uk[5].sub).toMatch(/Початков/);
+    expect(COPY.uk[5].sub).toMatch(/Замкнен/);
+    for (const loc of ['en-US', 'en-GB']) expect(COPY[loc][5].sub).toMatch(/Home Screen.*Lock Screen/);
   });
 
   test('only frame 4 (scene, Pro) carries the PRO chip', () => {

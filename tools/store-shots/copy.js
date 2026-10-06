@@ -13,8 +13,9 @@
 //
 // Правила тексту (їх стереже тест):
 //   • заголовок ≤ 28 символів, підрядок ≤ ~45;
-//   • ЖОДНИХ довгих тире (правило власника): ні «—», ні « – » чи « - » як
-//     тире. Короткий тире без пробілів у діапазоні «A1–C2» можна;
+//   • ЖОДНОГО тире (правило власника): ні «—», ні « – » чи « - » як тире,
+//     ні навіть короткого в діапазоні: «від A1 до C2», «A1 to C2», «de A1
+//     a C2» словами;
 //   • без цін, «free», «безкоштовно», «gratis», «№1» і чужих брендів;
 //   • заголовок кадру 1 називає мову, якої вчать (пошук бачить лише перші
 //     три кадри): uk «англійськ…», en-US «Spanish», en-GB «English»,
@@ -25,12 +26,12 @@
 export const COPY = {
   uk: [
     { slug: 'scan', head: 'Фотографуй\nі [вчи англійську]', sub: 'Річ стає наліпкою з вимовою й прикладом' },
-    { slug: 'dictionary', head: 'Твій [фотословник]', sub: 'Слова з твого життя й {LANGS} мов на вибір' },
+    { slug: 'dictionary', head: 'Твій\n[фотословник]', sub: 'Слова з твого життя, {LANGS} мов на вибір' },
     { slug: 'flashcards', head: 'Картки, що\n[не дають забути]', sub: 'Повторення повертає слово саме вчасно' },
     { slug: 'scene', head: 'Ціла кімната\n[за один кадр]', sub: 'Кожен предмет отримає англійську назву', pro: true },
-    { slug: 'level', head: 'Слова [твого рівня], A1–C2', sub: 'Жодних базових слів, якщо ти вже B2+' },
-    { slug: 'widget', head: 'Віджет [«Слово дня»]', sub: 'На головному екрані й екрані блокування' },
-    { slug: 'streak', head: 'Не переривай [серію]', sub: 'Рівні й {ACH} досягнень за кожен крок' },
+    { slug: 'level', head: 'Англійська\n[під твій рівень]', sub: 'Від A1 до C2, без базових слів для B2+' },
+    { slug: 'widget', head: 'Віджет [«Слово дня»]', sub: 'На Початковому й Замкненому екрані' },
+    { slug: 'streak', head: 'Не переривай [серію]', sub: 'Рівні та {ACH} досягнень за твої успіхи' },
     { slug: 'share', head: 'Поділись [знахідками]', sub: 'Наліпки й картки для Stories і чатів' },
   ],
   'en-US': [
@@ -38,7 +39,7 @@ export const COPY = {
     { slug: 'dictionary', head: 'Your [picture dictionary]', sub: 'Words from your own life, in {LANGS} languages' },
     { slug: 'flashcards', head: 'Flashcards [that stick]', sub: 'Spaced repetition brings words back on time' },
     { slug: 'scene', head: 'Label your [whole room]', sub: 'One shot, every object named in Spanish', pro: true },
-    { slug: 'level', head: 'Words for [your level], A1–C2', sub: 'No beginner words once you’re advanced' },
+    { slug: 'level', head: 'Spanish words for [your level]', sub: 'A1 to C2, no basics once you’re advanced' },
     { slug: 'widget', head: '[Word of the day] widget', sub: 'On your Home Screen and Lock Screen' },
     { slug: 'streak', head: 'Build a daily [word habit]', sub: 'Streaks, levels, and {ACH} achievements' },
     { slug: 'share', head: 'Share your [best finds]', sub: 'Stickers and cards for Stories and chats' },
@@ -48,19 +49,19 @@ export const COPY = {
     { slug: 'dictionary', head: 'Your [picture dictionary]', sub: 'Words from your own life, in {LANGS} languages' },
     { slug: 'flashcards', head: 'Flashcards [that stick]', sub: 'Spaced repetition brings words back on time' },
     { slug: 'scene', head: 'Label your [whole room]', sub: 'One shot, every object named in English', pro: true },
-    { slug: 'level', head: 'Vocabulary for [your level]', sub: 'A1 to C2, no basics once you’re advanced' },
+    { slug: 'level', head: 'English words for [your level]', sub: 'A1 to C2, no basics once you’re advanced' },
     { slug: 'widget', head: '[Word of the day] widget', sub: 'On your Home Screen and Lock Screen' },
     { slug: 'streak', head: 'Build a daily [word habit]', sub: 'Streaks, levels and {ACH} achievements' },
     { slug: 'share', head: 'Share your [best finds]', sub: 'Stickers and cards for Stories and chats' },
   ],
   'es-MX': [
-    { slug: 'scan', head: 'Apunta y [aprende inglés]', sub: 'Con pronunciación y un ejemplo de uso' },
+    { slug: 'scan', head: 'Tómale foto y [aprende inglés]', sub: 'Con pronunciación y un ejemplo de uso' },
     { slug: 'dictionary', head: 'Tu [diccionario de fotos]', sub: 'Palabras de tu vida, en {LANGS} idiomas' },
-    { slug: 'flashcards', head: 'Tarjetas [para no olvidar]', sub: 'El repaso te trae cada palabra a tiempo' },
+    { slug: 'flashcards', head: 'Tarjetas [para no olvidar]', sub: 'Repasa cada palabra justo antes de olvidarla' },
     { slug: 'scene', head: 'Tu cuarto entero\n[en una foto]', sub: 'Cada objeto, con su nombre en inglés', pro: true },
-    { slug: 'level', head: 'Palabras de [tu nivel], A1–C2', sub: 'Nada de palabras básicas si ya eres avanzado' },
+    { slug: 'level', head: 'Inglés para [tu nivel]', sub: 'De A1 a C2, sin lo básico si ya avanzaste' },
     { slug: 'widget', head: 'Widget de la\n[palabra del día]', sub: 'En tu pantalla de inicio y de bloqueo' },
-    { slug: 'streak', head: 'No rompas [tu racha]', sub: 'Rachas, niveles y {ACH} logros' },
+    { slug: 'streak', head: 'No rompas [tu racha]', sub: 'Niveles y {ACH} logros por tu constancia' },
     { slug: 'share', head: 'Comparte tus [hallazgos]', sub: 'Stickers y tarjetas para Stories y chats' },
   ],
 };
