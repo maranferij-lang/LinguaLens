@@ -345,4 +345,20 @@ describe('in the app', () => {
     await settle();
     expect(wodPosts().length).toBe(n);
   });
+
+  test('an explicit pick of the default variant is kept: a new phone region does not flip it', async () => {
+    const tree = await renderApp({ nativeLang: 'uk', targetLang: 'es' });
+    const sheet = () => tree.root.findByType(LangSheet);
+    expect(sheet().props.variant).toBe('es'); // Україна — іспанська Іспанії за замовчуванням
+    await act(async () => sheet().props.onPick('es', 'es'));
+    await settle();
+    expect((await stored()).variants).toEqual({ es: 'es' });
+    // людина переїхала: регіон телефона — Мексика, а обрана іспанська та сама
+    setPhone('uk-MX');
+    await act(async () => tree.root.findByType(LangSheet).props.onClose());
+    await settle();
+    expect(sheet().props.variant).toBe('es');
+    expect(variantOf('es')).toBe('es');
+    expect(nativeVariantOf('es')).toBe('latam');
+  });
 });

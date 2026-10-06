@@ -1762,7 +1762,9 @@ export default function App() {
       if (isVariant(targetLang, targetVariant)) next.variants = { ...variantMap(cur.variants), [targetLang]: targetVariant };
     }
     if (next.targetLang === next.nativeLang) return;
-    const sameVariant = pickVariant(next.targetLang, next.variants) === pickVariant(cur.targetLang, cur.variants);
+    // явний вибір варіанта зберігаємо, навіть якщо він і так за замовчуванням:
+    // інакше зміна регіону телефона мовчки змінила б обраний людиною варіант
+    const sameVariant = variantMap(next.variants)[next.targetLang] === variantMap(cur.variants)[next.targetLang];
     if (next.targetLang === cur.targetLang && next.nativeLang === cur.nativeLang && sameVariant) return;
     commitSettings(next);
     // Повтор не складає план (prepareWod) — слово дня, віджет і сповіщення
@@ -2261,7 +2263,9 @@ export default function App() {
           native={settings.nativeLang}
           onPick={(code, variant) => {
             setLangSheet(false);
-            if (code !== settings.targetLang || (variant && variant !== targetVariant)) setTargetLang(code, variant);
+            // обраний рядок варіанта зберігаємо, навіть коли він збігається з
+            // варіантом за замовчуванням (див. onbLanguages)
+            if (code !== settings.targetLang || (variant && variant !== variantMap(settings.variants)[code])) setTargetLang(code, variant);
           }}
           onClose={() => setLangSheet(false)}
           t={t}
