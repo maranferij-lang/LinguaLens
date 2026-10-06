@@ -102,7 +102,11 @@ describe('shared strings', () => {
     expect(uk('streakBest', { n: 21 })).toBe('Рекорд: 21 день');
     const en = makeT('en');
     expect(en('streakKeep', { n: 1 })).toBe('1 day in a row. Keep it up!');
-    expect(en('streakToNext', { k: 7, m: 14 })).toBe('Your flame is burning. 7 more to 14 days');
+    // «7 more to 14 days» читалось незграбно: тепер з одиницею й дієсловом
+    expect(en('streakToNext', { k: 7, m: 14 })).toBe('Your flame is burning. 7 more days to reach 14');
+    expect(en('streakToNext', { k: 1, m: 30 })).toBe('Your flame is burning. 1 more day to reach 30');
+    // «До 14 днів ще 2» без тире звучало обрубано
+    expect(uk('streakToNext', { k: 2, m: 14 })).toBe('Вогонь горить. До 14 днів лишилося 2');
     // «Noch 4 bis 14 Tage» читалося як «ще від 4 до 14 днів»
     const de = makeT('de');
     expect(de('streakToNext', { k: 4, m: 14 })).toBe('Deine Flamme brennt. Noch 4 bis zum 14. Tag');

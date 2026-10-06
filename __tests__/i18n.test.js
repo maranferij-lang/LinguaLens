@@ -359,3 +359,23 @@ describe('interface language = phone language', () => {
     expect(STRINGS.uk.uiLangTitle).toBe('Мова інтерфейсу');
   });
 });
+
+// Вичитка мовою носія (скріншоти App Store, жовтень 2026): дослівні кальки з
+// української й рядки, які на кадрах читались не так.
+describe('native speaker review', () => {
+  test('level 8 is natural English and Spanish, not a word-for-word copy of uk', () => {
+    expect(STRINGS.en.lvl8).toBe('I use it at work and read articles');
+    expect(STRINGS.es.lvl8).toBe('Lo uso en el trabajo y leo artículos');
+  });
+
+  test('es: the flashcard button is what Mexicans say', () => {
+    expect(STRINGS.es.know).toBe('Me la sé');
+  });
+
+  // Під чипом «🇪🇸 Español» кепс «WORD OF THE DAY · IT» читався як код
+  // італійської. Сфера в профілі лишається «IT», тема слова — «Tech».
+  test('en: the IT topic is “Tech”, so the word-of-the-day chip is not read as Italian', () => {
+    expect(STRINGS.en.topic_it).toBe('Tech');
+    expect(STRINGS.en.field_it).toBe('IT');
+  });
+});
