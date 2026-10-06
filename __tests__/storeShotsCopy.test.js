@@ -127,6 +127,17 @@ describe('store shots copy', () => {
     expect(COPY.uk[5].sub).toMatch(/Початков/);
     expect(COPY.uk[5].sub).toMatch(/Замкнен/);
     for (const loc of ['en-US', 'en-GB']) expect(COPY[loc][5].sub).toMatch(/Home Screen.*Lock Screen/);
+    // іспанська (Мексика) локалізація iOS: «pantalla de inicio» і «pantalla
+    // bloqueada»; «pantalla de bloqueo» — слово Android
+    expect(COPY['es-MX'][5].sub).toMatch(/pantalla de inicio.*pantalla bloqueada/);
+    expect(COPY['es-MX'][5].sub).not.toMatch(/bloqueo/);
+    // назва функції — як власна назва: «Word of the Day», як «Слово дня» в лапках
+    for (const loc of ['en-US', 'en-GB']) expect(plainHead(COPY[loc][5])).toBe('Word of the Day widget');
+  });
+
+  test('es-MX frame 4 does not promise a bedroom: in Mexico «cuarto» is a bedroom, the photo is a kitchen', () => {
+    expect(plainHead(COPY['es-MX'][3])).toBe('Nombra todo en una sola foto');
+    expect(plainHead(COPY['es-MX'][3])).not.toMatch(/cuarto/);
   });
 
   test('only frame 4 (scene, Pro) carries the PRO chip', () => {
