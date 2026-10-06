@@ -269,7 +269,7 @@ describe('streakMessage — one choice of words for every screen', () => {
     expect(msg({ n: 7, doneToday: true })).toBe(uk('streakWeek'));
     expect(msg({ n: 10, doneToday: true })).toBe('Вогонь горить. До 14 днів лишилося 4');
     expect(msg({ n: 30, doneToday: true })).toBe(uk('streak30'));
-    expect(streakMessage({ n: 31, doneToday: true }, en)).toBe('Your flame is burning. 29 more days to reach 60');
+    expect(streakMessage({ n: 31, doneToday: true }, en)).toBe('You’re on fire! 29 more days to\u00A060');
   });
 
   test('the second line counts down to the next milestone', () => {

@@ -102,9 +102,11 @@ describe('shared strings', () => {
     expect(uk('streakBest', { n: 21 })).toBe('Рекорд: 21 день');
     const en = makeT('en');
     expect(en('streakKeep', { n: 1 })).toBe('1 day in a row. Keep it up!');
-    // «7 more to 14 days» читалось незграбно: тепер з одиницею й дієсловом
-    expect(en('streakToNext', { k: 7, m: 14 })).toBe('Your flame is burning. 7 more days to reach 14');
-    expect(en('streakToNext', { k: 1, m: 30 })).toBe('Your flame is burning. 1 more day to reach 30');
+    // «7 more to 14 days» читалось незграбно: тепер з одиницею й дієсловом;
+    // «Your flame is burning» звучало калькою, «You’re on fire!» — живою мовою.
+    // Перед числом нерозривний пробіл: у віджеті «14» не лишається саме в рядку
+    expect(en('streakToNext', { k: 7, m: 14 })).toBe('You’re on fire! 7 more days to\u00A014');
+    expect(en('streakToNext', { k: 1, m: 30 })).toBe('You’re on fire! 1 more day to\u00A030');
     // «До 14 днів ще 2» без тире звучало обрубано
     expect(uk('streakToNext', { k: 2, m: 14 })).toBe('Вогонь горить. До 14 днів лишилося 2');
     // «Noch 4 bis 14 Tage» читалося як «ще від 4 до 14 днів»
@@ -114,8 +116,9 @@ describe('shared strings', () => {
     const es = makeT('es');
     expect(es('streakToWeek', { k: 1 })).toBe('Falta 1 día para la semana, y tu llama se encenderá');
     expect(es('streakToWeek', { k: 3 })).toBe('Faltan 3 días para la semana, y tu llama se encenderá');
-    expect(es('streakToNext', { k: 1, m: 14 })).toBe('Tu llama arde. Falta 1 para los 14 días');
-    expect(es('streakToNext', { k: 5, m: 30 })).toBe('Tu llama arde. Faltan 5 para los 30 días');
+    // «Tu llama arde» — калька; «¡Vas en racha!» так і кажуть
+    expect(es('streakToNext', { k: 1, m: 14 })).toBe('¡Vas en racha! Falta 1 para los 14\u00A0días');
+    expect(es('streakToNext', { k: 5, m: 30 })).toBe('¡Vas en racha! Faltan 5 para los 30\u00A0días');
     // після «до» — родовий відмінок за числом m: «до 14 дней», «до 21 дня»
     const ru = makeT('ru');
     expect(ru('streakKeep', { n: 1 })).toBe('1 день подряд. Так держать!');

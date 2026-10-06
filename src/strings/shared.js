@@ -20,7 +20,8 @@ export default {
     streakHabit: '{n} {n|day|days} in a row. It’s becoming a habit',
     streakToWeek: '{k} more {k|day|days} to a week, then your flame catches fire',
     streakWeek: 'A whole week! Your flame is lit',
-    streakToNext: 'Your flame is burning. {k} more {k|day|days} to reach {m}',
+    // «to 14» нерозривним пробілом: число не лишається саме в рядку віджета
+    streakToNext: 'You’re on fire! {k} more {k|day|days} to\u00A0{m}',
     streak30: 'A month without a break!',
     streakPending: 'Not yet today: one word keeps it growing',
     streakPendingShort: 'Not yet today: one word',
@@ -89,7 +90,7 @@ export default {
     streakHabit: '{n} {n|día seguido|días seguidos}: ya se está volviendo un hábito',
     streakToWeek: '{k|Falta|Faltan} {k} {k|día|días} para la semana, y tu llama se encenderá',
     streakWeek: '¡Una semana entera! Tu llama ya arde',
-    streakToNext: 'Tu llama arde. {k|Falta|Faltan} {k} para los {m} días',
+    streakToNext: '¡Vas en racha! {k|Falta|Faltan} {k} para los {m}\u00A0días',
     streak30: '¡Un mes sin descanso!',
     streakPending: 'Hoy todavía no: una palabra y la racha crece',
     streakPendingShort: 'Hoy todavía no: una palabra',
