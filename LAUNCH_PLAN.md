@@ -192,7 +192,7 @@ ReWord продає разову «Повну версію» до $18.99. Тоб
 | Локаль | Де шукають | Назва | Підзаголовок |
 |---|---|---|---|
 | English (U.S.) | США | `Photo Vocabulary: LinguaLens` | `Snap Objects, Learn Words` |
-| Українська | Україна | `Англійські слова: LinguaLens` | `Фото-словник, картки й вимова` |
+| Українська | Україна | `Англійські слова: LinguaLens` | `Фотословник, картки й вимова` |
 | English (U.K.) | Україна, Польща, Німеччина | `English Vocabulary: LinguaLens` | `Learn Words From Photos` |
 | Español (México) | США | `Vocabulario inglés: LinguaLens` | `Aprende palabras con fotos` |
 | French (банк) | США | `Picture Dictionary: LinguaLens` | `Spanish Vocabulary Flashcards` |
