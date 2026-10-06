@@ -1021,7 +1021,7 @@ Use and Sharing» і попросити згоду в застосунку.
 - [ ] Сервер розгорнуто **до** TestFlight: `POST /word-of-day` приймає `perDay` (W2), `/privacy` має речення про фото тлом для Stories (W4)
 - [ ] `node scripts/check-dev-assets.js` — у релізному експорті немає тестового фото симулятора
 - [ ] Meta App ID у `EXPO_PUBLIC_FACEBOOK_APP_ID` (`USER_TODO.md`, крок 10): інакше в аркуші «Поділитися» немає кнопок Instagram
-- [ ] RevenueCat → offering `default` → metadata `onboarding_paywall`: `"show"` (типово, і так само без ключа) чи `"skip"` — обране на запуск
+- [ ] RevenueCat → offering `default` → metadata `onboarding_paywall`: `"show"` (рішення 6 жовтня 2026: пейвол після онбордингу і на другому скані; так само без ключа)
 - [ ] Галерея віджетів на iPhone українською: «Слово дня», «Мої слова», «Серія»; на англійському — Word of the Day, My Words, Streak
 - [ ] Чекліст пристрою D1–D16 з `TESTING.md` (розділ «v1.3 · Інтеграція») пройдено; знахідки — у реєстрі
 - [ ] Sandbox: Параметри → «Тема» → «Ягода» → пейвол із прев'ю → кружечок
