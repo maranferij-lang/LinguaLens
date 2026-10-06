@@ -187,7 +187,7 @@ describe('the themes paywall', () => {
   });
 
   test('the palette names in the text are the tile names, in every language', () => {
-    for (const lang of ['en', 'uk', 'de', 'es']) {
+    for (const lang of ['en', 'uk', 'de', 'es', 'ru']) {
       const s = STRINGS[lang];
       for (const k of ['ocean', 'berry', 'graphite', 'cocoa']) expect([lang, s.pwThemesText.includes(s['palette_' + k])]).toEqual([lang, true]);
     }
@@ -225,7 +225,7 @@ describe('the table and the benefits follow the flags', () => {
     const ids = comparison().map((r) => r.id);
     expect(ids).toEqual(['scans', 'scene', 'langs', 'wodn', 'themes', 'core']);
     for (const gone of ['words', 'freeze', 'srs', 'speech', 'wod']) expect(ids).not.toContain(gone);
-    for (const lang of ['en', 'uk', 'de', 'es']) {
+    for (const lang of ['en', 'uk', 'de', 'es', 'ru']) {
       expect(STRINGS[lang].cmp_words).toBeUndefined();
       expect(STRINGS[lang].cmp_freeze).toBeUndefined();
     }

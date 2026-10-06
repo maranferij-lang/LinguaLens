@@ -308,7 +308,7 @@ describe('dates and numbers', () => {
     expect(label).toMatch(/1 Oct/);
     // діапазон — коротке тире без пробілів, навіть коли ICU ставить їх між
     // місяцями (правило власника: тире з пробілами немає ніде)
-    for (const loc of ['en-GB', 'en-US', 'uk-UA', 'de-DE', 'es-ES']) {
+    for (const loc of ['en-GB', 'en-US', 'uk-UA', 'de-DE', 'es-ES', 'ru-RU']) {
       const s = weekRangeLabel(cross, loc);
       expect([loc, /\s[\u2013\u2014-]|[\u2013\u2014-]\s/.test(s)]).toEqual([loc, false]);
       expect(s).toMatch(/\u2013/);

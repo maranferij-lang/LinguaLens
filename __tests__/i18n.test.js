@@ -7,16 +7,17 @@ import fs from 'fs';
 import path from 'path';
 
 import { STRINGS, makeT, pickUiLang, pluralIndex, uiLang } from '../src/i18n';
-import { formatDate } from '../src/locale';
+import { formatDate, localeFor } from '../src/locale';
 import { ACHIEVEMENTS } from '../src/achievements';
 import { COMPARISON, PLANS, PRO_BENEFITS } from '../src/subscription';
 import { FIELDS, GOALS, HEARD, HEARD_BRANDS, STRUGGLES, TOPICS } from '../src/profile';
 import { LANGS as LEARN_LANGS } from '../src/speech';
 
 const ROOT = path.join(__dirname, '..');
-const LANGS = ['en', 'uk', 'de', 'es'];
-// Скільки форм множини в {n|…}: українська — три (1 слово, 2 слова, 5 слів)
-const FORMS = { en: 2, uk: 3, de: 2, es: 2 };
+const LANGS = ['en', 'uk', 'de', 'es', 'ru'];
+// Скільки форм множини в {n|…}: українська й російська — три (1 слово,
+// 2 слова, 5 слів / слов)
+const FORMS = { en: 2, uk: 3, de: 2, es: 2, ru: 3 };
 // Ці рядки капсом свідомо: бейдж слова дня малюється без textTransform,
 // літери днів тижня — це не текст, а сім підписів під стовпчиками, а ІТ —
 // абревіатура, її й VoiceOver читає по літерах.
@@ -164,6 +165,18 @@ describe('placeholders and plurals', () => {
     expect(idx(1.5)).toBe(1); // 1,5 години
   });
 
+  // Те саме східнослов'янське правило: «1 день, 2 дня, 5 дней, 11 дней,
+  // 21 день», дробові — «1,5 часа»
+  test('Russian plural rule is the same as Ukrainian', () => {
+    const idx = (n) => pluralIndex('ru', n);
+    expect([1, 21, 101, 1001].map(idx)).toEqual([0, 0, 0, 0]); // день
+    expect([2, 3, 4, 22, 34, 102].map(idx)).toEqual([1, 1, 1, 1, 1, 1]); // дня
+    expect([0, 5, 9, 11, 12, 13, 14, 25, 111, 112].map(idx)).toEqual([2, 2, 2, 2, 2, 2, 2, 2, 2, 2]); // дней
+    expect(idx(1.5)).toBe(1); // 1,5 часа
+    expect(idx(Infinity)).toBe(2);
+    for (const n of [0, 1, 2, 5, 11, 21, 22, 111, 1.5]) expect(pluralIndex('ru', n)).toBe(pluralIndex('uk', n));
+  });
+
   test('two-form plural rule for en/de/es', () => {
     for (const lang of ['en', 'de', 'es']) {
       expect([0, 1, 2, 21].map((n) => pluralIndex(lang, n))).toEqual([1, 0, 1, 1]);
@@ -181,6 +194,16 @@ describe('makeT', () => {
     expect(makeT('en')('dueToday', { n: 1 })).toBe('Due today: 1 word');
     expect(makeT('en')('dueToday', { n: 4 })).toBe('Due today: 4 words');
     expect(makeT('de')('inDays', { n: 2 })).toBe('in 2 Tagen');
+    const ru = makeT('ru');
+    expect([1, 3, 11, 21, 25].map((n) => ru('dueToday', { n }))).toEqual([
+      'На сегодня: 1 слово',
+      'На сегодня: 3 слова',
+      'На сегодня: 11 слов',
+      'На сегодня: 21 слово',
+      'На сегодня: 25 слов',
+    ]);
+    expect([1, 2, 5].map((n) => ru('inDays', { n }))).toEqual(['через 1 день', 'через 2 дня', 'через 5 дней']);
+    expect(ru('inHours', { n: 22 })).toBe('через 22 часа');
   });
 
   test('unknown language falls back to English, unknown key to the key itself', () => {
@@ -224,6 +247,30 @@ describe('copy style', () => {
     expect(bad).toEqual([]);
   });
 
+  // Російський блок не скопійовано з українського й не перекладено
+  // машинально: жодної літери, якої в російській немає (і, ї, є, ґ, ʼ), лапки
+  // лише «ялинки», апострофів немає зовсім.
+  test('ru: Russian letters and «» quotes only, no apostrophes', () => {
+    const bad = Object.entries(STRINGS.ru)
+      .filter(([, s]) => /[іїєґІЇЄҐʼ’“”„]/u.test(s))
+      .map(([k, s]) => `ru.${k}: ${s}`);
+    expect(bad).toEqual([]);
+  });
+
+  // Рід того, хто читає, ми не знаємо: «узнал/узнала», «сам/сама», «рад/рада»
+  // не пишемо, речення перебудовуємо («Откуда ты о нас знаешь?»). \b у JS
+  // бачить лише латиницю, тож межі слова — через \p{L}.
+  const GENDERED = /(?<!\p{L})(?:сам|сама|рад|рада|готов|готова|уверен|уверена|должен|должна|узнал|узнала|выбрал|выбрала|решил|решила)(?!\p{L})/iu;
+  test('ru: nothing assumes the reader’s gender', () => {
+    expect(GENDERED.test('Откуда ты о нас узнал?')).toBe(true);
+    expect(GENDERED.test('Фото, которое ты сам выберешь')).toBe(true);
+    expect(GENDERED.test('Почти готово…')).toBe(false);
+    const bad = Object.entries(STRINGS.ru)
+      .filter(([, s]) => GENDERED.test(s))
+      .map(([k, s]) => `ru.${k}: ${s}`);
+    expect(bad).toEqual([]);
+  });
+
   // «so viel du willst» — підрядне речення, тож перед ним кома, як у
   // pwScansText: «Mit Pro scannst du, so viel du willst.»
   test('de: a comma before «so viel/oft du willst»', () => {
@@ -247,7 +294,7 @@ describe('copy style', () => {
 // v1.3: безкоштовно — один скан на все життя, а не на день. Жоден рядок не
 // обіцяє скан «на сьогодні», «на день» чи «завтра», а серію тримає навчання.
 describe('a lifetime free scan', () => {
-  const PER_DAY = /today|tomorrow|a day|per day|every day|сьогодні|завтра|щодня|на день|heute|morgen|pro Tag|jeden Tag|hoy|mañana|al día|cada día/i;
+  const PER_DAY = /today|tomorrow|a day|per day|every day|сьогодні|завтра|щодня|на день|сегодня|ежедневно|каждый день|в день|heute|morgen|pro Tag|jeden Tag|hoy|mañana|al día|cada día/i;
   const SCAN = /scan|скан|escane/i;
   const SCAN_KEYS = ['scanFreeLeft', 'pwScansTitle', 'pwScansText', 'cmp_scans', 'pwContinueFree', 'pwContinueFreeNoScans'];
 
@@ -291,6 +338,15 @@ describe('a lifetime free scan', () => {
     expect(en('pwScansTitle', { n: 1 })).toBe('You’ve used your free scan');
     expect(makeT('de')('scanFreeLeft', { n: 1 })).toBe('1 Gratis-Scan');
     expect(makeT('es')('scanFreeLeft', { n: 2 })).toBe('2 escaneos gratis');
+    const ru = makeT('ru');
+    expect([1, 2, 5, 21].map((n) => ru('scanFreeLeft', { n }))).toEqual([
+      '1 бесплатный скан',
+      '2 бесплатных скана',
+      '5 бесплатных сканов',
+      '21 бесплатный скан',
+    ]);
+    expect(ru('pwScansTitle', { n: 1 })).toBe('Бесплатный скан использован');
+    expect(ru('pwScansTitle', { n: 3 })).toBe('Бесплатные сканы использованы');
   });
 });
 
@@ -308,6 +364,9 @@ describe('dates', () => {
   test('translated interfaces keep their own date format', () => {
     expect(formatDate(ts, 'uk')).not.toBe(formatDate(ts, 'en'));
     expect(formatDate(ts, 'de')).toMatch(/Oktober/);
+    // «Бесплатно до 8 октября»: родовий відмінок місяця, як пишуть по-російськи
+    expect(formatDate(ts, 'ru')).toMatch(/^8 октября$/);
+    expect(localeFor('ru')).toBe('ru-RU');
   });
 });
 
@@ -319,21 +378,30 @@ describe('interface language = phone language', () => {
   test('the first preferred language we have a UI for', () => {
     expect(pickUiLang(loc('uk-UA'))).toBe('uk');
     expect(pickUiLang(loc('uk-UA', 'en-US'))).toBe('uk');
-    expect(pickUiLang(loc('ru-RU', 'uk-UA'))).toBe('uk');
+    // Телефон російською — інтерфейс російською, навіть якщо українська друга
+    expect(pickUiLang(loc('ru-RU', 'uk-UA'))).toBe('ru');
+    expect(pickUiLang(loc('ru-UA'))).toBe('ru');
+    expect(pickUiLang(loc('uk-UA', 'ru-RU'))).toBe('uk');
     expect(pickUiLang(loc('pl-PL', 'es-ES', 'en-US'))).toBe('es');
     expect(pickUiLang(loc('de-AT'))).toBe('de');
   });
 
   test('nothing we speak → English, as iOS falls back to the development language', () => {
     expect(pickUiLang(loc('fr-FR'))).toBe('en');
-    expect(pickUiLang(loc('pl-PL', 'ru-RU'))).toBe('en');
+    expect(pickUiLang(loc('pl-PL', 'fr-FR'))).toBe('en');
     expect(pickUiLang([])).toBe('en');
     expect(pickUiLang(null)).toBe('en');
     expect(pickUiLang([{ languageCode: 'constructor' }])).toBe('en');
   });
 
+  test('a phone in a language we do not speak picks the next one, Russian included', () => {
+    expect(pickUiLang(loc('pl-PL', 'ru-RU'))).toBe('ru');
+    expect(pickUiLang(loc('be-BY', 'ru-RU', 'en-US'))).toBe('ru');
+  });
+
   test('a locale without languageCode still counts by its tag', () => {
     expect(pickUiLang([{ languageCode: null, languageTag: 'es-MX' }])).toBe('es');
+    expect(pickUiLang([{ languageCode: null, languageTag: 'ru-UA' }])).toBe('ru');
     expect(pickUiLang([{ languageTag: 'UK_ua' }])).toBe('uk');
   });
 
@@ -357,6 +425,7 @@ describe('interface language = phone language', () => {
       if (l !== 'en') expect(STRINGS[l].uiLangHint).not.toBe(STRINGS.en.uiLangHint);
     }
     expect(STRINGS.uk.uiLangTitle).toBe('Мова інтерфейсу');
+    expect(STRINGS.ru.uiLangTitle).toBe('Язык интерфейса');
   });
 });
 

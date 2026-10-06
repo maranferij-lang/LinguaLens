@@ -11,7 +11,7 @@ const plugin = require('../plugins/withWidgetLocalizations');
 const appJson = require('../app.json');
 const table = require('../locales/widgets.json');
 
-const LANGS = ['en', 'uk', 'de', 'es'];
+const LANGS = ['en', 'uk', 'de', 'es', 'ru'];
 
 describe('strings for the widget gallery', () => {
   const keys = plugin.widgetKeys(appJson.expo);
@@ -28,10 +28,11 @@ describe('strings for the widget gallery', () => {
       for (const k of keys) expect([lang, k, typeof table[lang][k]]).toEqual([lang, k, 'string']);
     }
     // перекладено, а не скопійовано англійське
-    for (const lang of ['uk', 'de', 'es']) {
+    for (const lang of ['uk', 'de', 'es', 'ru']) {
       expect(keys.filter((k) => table[lang][k] === k)).toEqual([]);
     }
     expect(table.uk['Word of the Day']).toBe('Слово дня');
+    expect(table.ru['My Words']).toBe('Мои слова');
   });
 
   test('one .strings file per language with all keys; quotes and backslashes are escaped', () => {
@@ -137,7 +138,7 @@ describe('the widget extension target in the Xcode project', () => {
     // фаза Resources — у таргеті розширення
     const target = out.slice(out.indexOf('AAAA00000000000000000003 /* ExpoWidgetsTarget */ = {'));
     expect(target.slice(0, target.indexOf('};'))).toMatch(/\/\* Resources \*\//);
-    expect(out.replace(/\s+/g, ' ')).toContain('knownRegions = ( en, Base, uk, de, es, );');
+    expect(out.replace(/\s+/g, ' ')).toContain('knownRegions = ( en, Base, uk, de, es, ru, );');
     // група Localizable.strings — у групі таргета
     const group = out.slice(out.indexOf('AAAA00000000000000000002 /* ExpoWidgetsTarget */ = {'));
     expect(group.slice(0, group.indexOf('};'))).toContain('/* Localizable.strings */');

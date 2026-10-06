@@ -21,7 +21,7 @@ test('every app language has gallery names for the three widgets', () => {
   const table = require('../locales/widgets.json');
   const widgets = appJson.expo.plugins.find((p) => Array.isArray(p) && p[0] === 'expo-widgets')[1].widgets;
   const keys = widgets.flatMap((w) => [w.displayName, w.description]);
-  for (const lang of ['uk', 'de', 'es']) {
+  for (const lang of ['uk', 'de', 'es', 'ru']) {
     expect([lang, keys.filter((k) => !table[lang]?.[k])]).toEqual([lang, []]);
   }
 });

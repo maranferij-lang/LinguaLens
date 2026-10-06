@@ -1,8 +1,9 @@
 // Рядки v1.3 потоку W4 (наліпки без тла: Stories, «Копіювати», «Зберегти»). Власник — W4; інші потоки
 // цей файл лише читають.
 //
-// Правила тексту — у шапці src/i18n.js: однаковий набір ключів у чотирьох
-// мовах, множини {n|…}, «» / “” / „“, ʼ в українській, без емодзі й капсу.
+// Правила тексту — у шапці src/i18n.js: однаковий набір ключів у пʼяти
+// мовах, множини {n|…}, «» / “” / „“, ʼ в українській (у російській
+// апострофа немає), без емодзі й капсу.
 // Ключ, який уже є в іншому фрагменті, не дублюємо. Наявний ключ із
 // src/i18n.js перекриваємо, лише назвавши його в OVERRIDES (стереже
 // __tests__/i18nFragments.test.js). Кожна мова — окремий блок у цьому ж
@@ -111,5 +112,30 @@ export default {
     shareOpenSettings: 'Abrir Ajustes',
     shareCopyError: 'No se pudo copiar. Inténtalo de nuevo.',
     shareSaveError: 'No se pudo guardar. Inténtalo de nuevo.',
+  },
+
+  ru: {
+    // ── W4 ──
+    shareTplSticker: 'Предмет',
+    shareModeSticker: 'Наклейка',
+    shareModeCard: 'Карточка',
+    shareStickerHint: 'Без фона: ляжет на любое фото',
+    shareStickerLabel: 'Наклейка без фона: {w}',
+    shareStyleObject: 'Предмет и слово',
+    shareStyleWord: 'Только слово',
+    shareStoriesThisPhoto: 'Stories с этим фото',
+    shareStoriesMyPhoto: 'Stories с твоим фото',
+    shareStoriesPickOther: 'или выбрать фото из галереи',
+    shareStoriesPlain: 'Stories',
+    shareCopy: 'Копировать',
+    shareCopyCta: 'Копировать наклейку',
+    shareSave: 'Сохранить',
+    shareMore: 'Ещё',
+    shareCopied: 'Скопировано. Открой Stories или чат, нажми на экран и выбери «Вставить».',
+    shareSaved: 'Сохранено в Фото, с прозрачным фоном.',
+    shareSaveDenied: 'LinguaLens не может добавлять в Фото. Разреши это в Настройках.',
+    shareOpenSettings: 'Открыть Настройки',
+    shareCopyError: 'Не удалось скопировать. Попробуй ещё раз.',
+    shareSaveError: 'Не удалось сохранить. Попробуй ещё раз.',
   },
 };

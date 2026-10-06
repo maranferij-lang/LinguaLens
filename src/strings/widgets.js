@@ -1,8 +1,9 @@
 // Рядки v1.3 потоку W2 (віджети й Pro «кілька слів на день»). Власник — W2; інші потоки
 // цей файл лише читають.
 //
-// Правила тексту — у шапці src/i18n.js: однаковий набір ключів у чотирьох
-// мовах, множини {n|…}, «» / “” / „“, ʼ в українській, без емодзі й капсу.
+// Правила тексту — у шапці src/i18n.js: однаковий набір ключів у пʼяти
+// мовах, множини {n|…}, «» / “” / „“, ʼ в українській (у російській
+// апострофа немає), без емодзі й капсу.
 // Ключ, який уже є в іншому фрагменті, не дублюємо. Наявний ключ із
 // src/i18n.js перекриваємо, лише назвавши його в OVERRIDES (стереже
 // __tests__/i18nFragments.test.js). Кожна мова — окремий блок у цьому ж
@@ -166,5 +167,43 @@ export default {
     wodSlotA11y: 'Palabra {n} a las {t}',
     wodSlotOf: 'Palabra {i} de {n}',
     wodNextLocked: 'La siguiente palabra se abre a las {t}',
+  },
+
+  ru: {
+    // ── W2 ──
+    widgetReveal: 'Перевод',
+    widgetRevealLong: 'Показать перевод',
+    widgetSentence: 'В предложении',
+    widgetThisWeek: 'На этой неделе',
+    widgetToday: 'Сегодня',
+    widgetSlot: '{i} из {n}',
+    widgetNextAt: 'Следующее слово в {t}',
+    widgetWordsTitle: 'Мои слова',
+    widgetDue: '{n} на повторение',
+    widgetLearned: 'Выучено {k} из {n}',
+    widgetReview: 'Повторить',
+    widgetUpNext: 'Дальше',
+    widgetWordsEmpty: 'Здесь будут твои слова по очереди',
+    widgetWordsEmptyHint: 'Сохрани слово дня, и начнём',
+    widgetStreakTitle: 'Серия',
+    widgetDays: '{n|день|дня|дней}',
+    widgetHow1: 'Зажми пустое место',
+    widgetHow2: '«Изменить» → «Добавить виджет»',
+    widgetHow3: 'Найди LinguaLens',
+    widgetHowA11y: 'Как добавить виджет: зажми пустое место на экране «Домой», нажми «Изменить», затем «Добавить виджет» и найди LinguaLens.',
+    widgetPreviewA11y: 'Предпросмотр виджетов',
+    settingsWidgets: 'Виджеты',
+    settingsHideTr: 'Скрывать перевод до касания',
+    settingsHideTrHint: 'На экране блокировки перевод виден всегда',
+    settingsHowWidget: 'Как добавить виджет',
+    widgetFastClock: 'Ускоренное время виджетов',
+    widgetFastClockHint: 'Час становится минутой: смена слов, фазы серии и слова Pro за несколько минут. Только сборка для разработки.',
+    wodPerDay: 'Слов в день',
+    wodPerDayHint: 'Каждое слово приходит в своё время: уведомлением и в виджете',
+    wodPerDayPro: '3 и 5 слов в день с Pro',
+    wodSlotN: 'Слово {n}',
+    wodSlotA11y: 'Слово {n} в {t}',
+    wodSlotOf: 'Слово {i} из {n}',
+    wodNextLocked: 'Следующее слово откроется в {t}',
   },
 };
