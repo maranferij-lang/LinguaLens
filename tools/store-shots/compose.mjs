@@ -23,6 +23,13 @@ const UI = (loc, name) => fileUrl(path.join(UI_DIR, loc, name + '.png'));
 const ART = (name) => fileUrl(path.join(ART_DIR, name));
 const STATIC = (name) => fileUrl(path.join(STATIC_DIR, name));
 const FONT = (w) => fileUrl(path.join(FONTS, w, `Nunito_${w}.ttf`));
+// IPA: у Nunito немає θ, ʌ, ɡ, ʊ, ː…, і браузер добирав би їх з іншого
+// шрифту посеред слова. Транскрипцію на фішці кадру 1 пишемо одним шрифтом
+// з повним IPA: Inter, що лежить у залежностях проєкту (expo-dev-client →
+// expo-dev-menu), або системний.
+const IPA_FONT = path.join(ROOT, 'node_modules/expo-dev-menu/android/src/debug/res/font/inter_semibold.ttf');
+const IPA_FACE = fs.existsSync(IPA_FONT) ? `@font-face { font-family: LLIPA; font-weight: 600; src: url(${fileUrl(IPA_FONT)}); }` : '';
+const IPA_STACK = `LLIPA, 'SF Pro Rounded', 'SF Pro Text', 'Helvetica Neue', 'DejaVu Sans', sans-serif`;
 export const W = 1320;
 export const H = 2868;
 const PT = { w: 440, h: 956 }; // логічний екран iPhone 17 Pro Max
@@ -71,6 +78,7 @@ const BASE_CSS = `
 @font-face { font-family: Nunito; font-weight: 600; src: url(${FONT('600SemiBold')}); }
 @font-face { font-family: Nunito; font-weight: 700; src: url(${FONT('700Bold')}); }
 @font-face { font-family: Nunito; font-weight: 800; src: url(${FONT('800ExtraBold')}); }
+${IPA_FACE}
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { width: ${W}px; height: ${H}px; overflow: hidden; background: #000; }
 body { font-family: Nunito, sans-serif; -webkit-font-smoothing: antialiased; }
@@ -125,6 +133,10 @@ function objSticker(name, { size, left, top, rot = 0, z = 5, glow = true }) {
   return `<div class="abs" style="left:${left}px;top:${top}px;width:${size}px;height:${size}px;transform:rotate(${rot}deg);z-index:${z};${glow ? 'filter:drop-shadow(0 26px 34px rgba(20,10,60,0.33))' : ''}">${stickerSvg({ uri: ART(`obj-${name}.jpg`), shape: sh, size, maxBorder: MAX_BORDER })}</div>`;
 }
 // Наліпка, вирізана з фото сцени рівно як cutout.js (stickerCrop/shapeInCrop).
+// Якщо поруч є прозорий шар самого предмета (art/<сцена>-<key>.png, лише
+// намальований замінник), фото під контуром — він: у вирізку не потрапляє
+// ні стільниця, ні стіна в ручці. Зі справжнім фото шару немає, і наліпка
+// така, як її виріже застосунок.
 function sceneSticker(scene, key, { size, left, top, rot = 0, z = 5 }) {
   const sc = shapes()[scene];
   const o = sc.objects[key];
@@ -137,7 +149,9 @@ function sceneSticker(scene, key, { size, left, top, rot = 0, z = 5 }) {
   const T = Math.max(0, Math.min(Hp - S, t + h / 2 - S / 2));
   const shape = o.outline.map(([y, x]) => [((x / 1000) * Wp - L) / S, ((y / 1000) * Hp - T) / S]);
   const k = size / S;
-  return `<div class="abs" style="left:${left}px;top:${top}px;width:${size}px;height:${size}px;transform:rotate(${rot}deg);z-index:${z};filter:drop-shadow(0 26px 34px rgba(20,10,60,0.33))">${stickerSvg({ uri: ART(scene + '.jpg'), shape, size, img: { x: -L * k, y: -T * k, w: Wp * k, h: Hp * k }, maxBorder: MAX_BORDER })}</div>`;
+  const layer = `${scene}-${key}.png`;
+  const uri = fs.existsSync(path.join(ART_DIR, layer)) ? ART(layer) : ART(scene + '.jpg');
+  return `<div class="abs" style="left:${left}px;top:${top}px;width:${size}px;height:${size}px;transform:rotate(${rot}deg);z-index:${z};filter:drop-shadow(0 26px 34px rgba(20,10,60,0.33))">${stickerSvg({ uri, shape, size, img: { x: -L * k, y: -T * k, w: Wp * k, h: Hp * k }, maxBorder: MAX_BORDER })}</div>`;
 }
 
 // Типографіка: слова з дефісом і діапазони (A1–C2) не розриваються, а
@@ -213,12 +227,23 @@ const sparkle = (x, y, s, color, rot = 0) =>
 
 // Табличка слова біля головної наліпки: фішка сцени застосунку (біла
 // пігулка, слово жирним, переклад сірим) у маркетинговому розмірі, щоб
-// слово читалось у рядку пошуку (≥ 150 px → ~15 px при 10%).
-function wordChip(word, translation, { cx, top, rot = -3, z = 7 }) {
+// слово читалось у рядку пошуку (≥ 150 px → ~15 px при 10%). Під словом —
+// /IPA/ з кнопкою «Слухати» (IcSpeaker з src/icons.js), як на картці слова
+// в застосунку: підрядок обіцяє вимову, і її видно.
+const SPEAKER = (size, color) =>
+  `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4.5 6.5 8.5H3.5v7h3l4.5 4z"/><path d="M15 9.2a4 4 0 0 1 0 5.6M17.9 6.3a8 8 0 0 1 0 11.4"/></svg>`;
+function wordChip(word, translation, { cx, top, rot = -3, z = 7, ipa = null }) {
   const big = word.length > 9 ? 136 : 168;
+  const pron = ipa
+    ? `<div style="display:flex;align-items:center;justify-content:center;gap:20px;margin-top:10px">
+        <div style="width:92px;height:92px;border-radius:46px;background:${C.accentSoft};display:flex;align-items:center;justify-content:center">${SPEAKER(54, C.accent)}</div>
+        <div style="font-family:${IPA_STACK};font-weight:600;font-size:62px;line-height:1;color:${C.accent}">${ipa}</div>
+      </div>`
+    : '';
   return `<div class="abs" style="left:${cx}px;top:${top}px;transform:translateX(-50%) rotate(${rot}deg);z-index:${z};background:#fff;border-radius:64px;padding:26px 70px 34px;text-align:center;white-space:nowrap;box-shadow:0 26px 60px rgba(20,10,60,0.32), 0 6px 16px rgba(20,10,60,0.14)">
     <div style="font-weight:800;font-size:${big}px;line-height:1.04;color:${C.text};letter-spacing:-0.02em">${word}</div>
-    <div style="font-weight:700;font-size:70px;line-height:1.1;color:${C.dim};margin-top:2px">${translation}</div>
+    ${pron}
+    <div style="font-weight:700;font-size:70px;line-height:1.1;color:${C.dim};margin-top:${ipa ? 12 : 2}px">${translation}</div>
   </div>`;
 }
 
@@ -298,9 +323,11 @@ const FRAMES = {
     const y1 = (cam.hint ? cam.hint.y + cam.hint.h : 553) + 24;
     const toCanvas = ([y, x]) => [CL + (ox + (x / 1000) * v.vw * s) * K, CT + (oy + (y / 1000) * v.vh * s - y0) * K];
     const g = outlinePath(mug.outline.map(toCanvas));
-    const ghost = `<svg class="abs" style="left:${g.sx}px;top:${g.sy}px;z-index:3;overflow:visible" width="${g.side}" height="${g.side}">
-      <path d="${g.d}" fill="rgba(255,255,255,0.84)" stroke="#fff" stroke-width="9" stroke-dasharray="22 16" stroke-linecap="round" stroke-linejoin="round"/>
-      <path d="${g.d}" fill="none" stroke="rgba(91,79,214,0.35)" stroke-width="3" stroke-dasharray="22 16" stroke-dashoffset="0" transform="translate(0 3)"/>
+    // Лише пунктир скану й м'яке сяйво: сама чашка в прицілі лишається
+    // червоною, у повному кольорі, тож «ця річ стає цією наліпкою» видно й
+    // у рядку пошуку.
+    const ghost = `<svg class="abs" style="left:${g.sx}px;top:${g.sy}px;z-index:3;overflow:visible;filter:drop-shadow(0 0 14px rgba(255,255,255,0.75)) drop-shadow(0 4px 10px rgba(20,10,60,0.35))" width="${g.side}" height="${g.side}">
+      <path d="${g.d}" fill="none" stroke="#fff" stroke-width="10" stroke-dasharray="24 17" stroke-linecap="round" stroke-linejoin="round"/>
     </svg>`;
     // наліпка відходить від свого «отвору»: більша за привид, зсунута
     // вниз-праворуч, лягає на нижній край картки під підказкою
@@ -316,7 +343,7 @@ const FRAMES = {
       ${trail(a, b, [a[0] + 200, a[1] + 10], [b[0] + 170, b[1] - 170])}
       ${sparkle(a[0] + 120, a[1] - 70, 0.9, C.mint, 12)}
       ${sceneSticker('hero', 'mug', { size: S, left: cx - S / 2, top: cy - S / 2, rot: -6, z: 6 })}
-      ${wordChip(v1.word, v1.translation, { cx: cx - 60, top: cy + S * 0.27, rot: -3 })}
+      ${wordChip(v1.word, v1.translation, { cx: cx - 60, top: cy + S * 0.27, rot: -3, ipa: v1.ipa })}
       ${lingo('wave', { left: W - 360, top: H - 290, size: 470, rot: -14, z: 4 })}`;
   },
 

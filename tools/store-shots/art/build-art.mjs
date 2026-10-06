@@ -2,6 +2,9 @@
 // віддала б застосунку модель розпізнавання (16–32 точки):
 //   WORK/art/obj-<name>.jpg    «фото» предмета, 800×800 (з нього ріжеться наліпка)
 //   WORK/art/hero.jpg          чашка на столі, 1080×1920
+//   WORK/art/hero-mug.png      та сама чашка без тла (прозорий PNG 1080×1920):
+//                              з неї кадр 1 ріже наліпку, щоб у вирізку не
+//                              потрапили ні стільниця, ні стіна в ручці
 //   WORK/art/kitchen.jpg       кухня, 1080×1920
 //   WORK/art/shapes.json       { objects: {name: {shape}}, hero: {...}, kitchen: {...} }
 // shape   = [[x, y], …] 0–1 у квадратному фото (по ньому обрізає наліпка);
@@ -104,9 +107,21 @@ export async function buildArt() {
   for (const [key, sc] of [['hero', heroScene()], ['kitchen', kitchenScene()]]) {
     const jpg = await page.evaluate(([svg, w, h]) => raster(svg, w, h), [sceneSvg(sc), sc.width, sc.height]);
     fs.writeFileSync(path.join(OUT, `${key}.jpg`), Buffer.from(jpg, 'base64'));
+    // Кадр 1: предмет окремим прозорим шаром. Наліпку кадру ріже той самий
+    // контур, але фото під ним — лише сама чашка: як у вдалого скану, де
+    // контур щільно обходить предмет, без смуги столу й стіни в ручці.
+    if (key === 'hero') {
+      for (const o of sc.objects) {
+        const png = await page.evaluate(([svg, w, h]) => raster(svg, w, h, 'image/png'), [sceneSvg(sc, o.key), sc.width, sc.height]);
+        fs.writeFileSync(path.join(OUT, `${key}-${o.key}.png`), Buffer.from(png, 'base64'));
+      }
+    }
     const objs = {};
     for (const o of sc.objects) {
-      const t = await page.evaluate(([svg, w, h]) => trace(svg, w, h, 0.25, 28, 2), [sceneSvg(sc, o.key), sc.width, sc.height]);
+      // hero — щільний контур (розширення 1 px), бо кадр 1 показує його
+      // великим; кухня — з запасом, як від моделі
+      const dil = key === 'hero' ? 1 : 2;
+      const t = await page.evaluate(([svg, w, h, dil]) => trace(svg, w, h, 0.25, 28, dil), [sceneSvg(sc, o.key), sc.width, sc.height, dil]);
       const [x1, y1, x2, y2] = t.bbox;
       objs[o.key] = {
         box: [y1 / sc.height, x1 / sc.width, y2 / sc.height, x2 / sc.width].map((v) => Math.round(v * 1000)),
