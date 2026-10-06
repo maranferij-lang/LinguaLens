@@ -3,7 +3,7 @@
 // до нової версії — Apple показує в тесті лише іконки з бінарника
 // опублікованої версії. Фікстура — project.pbxproj, який prebuild Expo SDK 57
 // робить для LinguaLens (з таргетом віджетів). Повну перевірку дає
-// `npx expo prebuild --platform ios` (TESTING.md).
+// `npx expo prebuild --platform ios` (TESTING.md, «Іконка «Лінго»»).
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
