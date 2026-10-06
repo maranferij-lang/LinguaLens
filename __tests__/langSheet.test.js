@@ -10,6 +10,7 @@ import { makeT } from '../src/i18n';
 
 const t = makeT('en');
 const uk = makeT('uk');
+const ru = makeT('ru');
 
 async function render(el) {
   let tree;
@@ -171,6 +172,39 @@ describe('language variants', () => {
       expect([q, found()]).toEqual([q, want]);
     }
     await act(async () => tree.unmount());
+  });
+
+  // Російською регіон — «Великобритания», тож «брит» знаходять слова з
+  // terms, а не назва регіону; так само «американ», «мексик», «латиноамер».
+  test('search in Russian and Ukrainian finds a variant by the adjective too', async () => {
+    const tree = await render(<LangSheet visible current="de" native="ru" onPick={() => {}} onClose={() => {}} t={ru} ui="ru" />);
+    const input = tree.root.find((n) => n.props.testID === 'lang-search' && typeof n.props.onChangeText === 'function');
+    const found = () => rows(tree).map((r) => r.props.testID);
+    for (const [q, want] of [
+      ['брит', ['lang-en-gb']],
+      ['британский', ['lang-en-gb']],
+      ['великобр', ['lang-en-gb']],
+      ['американ', ['lang-en-us']],
+      ['мексик', ['lang-es-latam']],
+      ['латиноамер', ['lang-es-latam']],
+      ['латин', ['lang-es-latam']],
+      ['англ', ['lang-en-us', 'lang-en-gb']],
+    ]) {
+      await act(async () => input.props.onChangeText(q));
+      expect([q, found()]).toEqual([q, want]);
+    }
+    await act(async () => tree.unmount());
+    const ua = await render(<LangSheet visible current="de" native="uk" onPick={() => {}} onClose={() => {}} t={uk} ui="uk" />);
+    const field = ua.root.find((n) => n.props.testID === 'lang-search' && typeof n.props.onChangeText === 'function');
+    for (const [q, want] of [
+      ['британська', ['lang-en-gb']],
+      ['американська', ['lang-en-us']],
+      ['мексиканська', ['lang-es-latam']],
+    ]) {
+      await act(async () => field.props.onChangeText(q));
+      expect([q, rows(ua).map((r) => r.props.testID)]).toEqual([q, want]);
+    }
+    await act(async () => ua.unmount());
   });
 
   test('the translation language picks a language, not a variant', async () => {

@@ -29,11 +29,13 @@ const AMERICAS = [
 
 // name — ендонім для списків («English (US)»), flag — прапорець, tts — голос
 // iOS; alt — інші теги того ж варіанта, якщо основного голосу на телефоні
-// немає; terms — чим його ще шукають (англійською й самою мовою).
+// немає; terms — чим його ще шукають (англійською й самою мовою, а ще
+// українською й російською, коли регіон у назві починається інакше: «брит»
+// не початок «Великобритании», «американ» не початок «США»).
 export const VARIANTS = {
   en: [
-    { id: 'us', name: 'English (US)', flag: '🇺🇸', tts: 'en-US', terms: ['american', 'usa', 'america'] },
-    { id: 'gb', name: 'English (UK)', flag: '🇬🇧', tts: 'en-GB', terms: ['british', 'britain', 'uk', 'england'] },
+    { id: 'us', name: 'English (US)', flag: '🇺🇸', tts: 'en-US', terms: ['american', 'usa', 'america', 'американский', 'американська'] },
+    { id: 'gb', name: 'English (UK)', flag: '🇬🇧', tts: 'en-GB', terms: ['british', 'britain', 'uk', 'england', 'британия', 'британский', 'британська'] },
   ],
   es: [
     { id: 'es', name: 'Español (España)', flag: '🇪🇸', tts: 'es-ES', terms: ['spain', 'castellano', 'castilian'] },
@@ -44,7 +46,7 @@ export const VARIANTS = {
       tts: 'es-MX',
       alt: ['es-US', 'es-419'],
       regions: AMERICAS,
-      terms: ['latin america', 'latam', 'mexico', 'mexican', 'latino'],
+      terms: ['latin america', 'latam', 'mexico', 'mexican', 'latino', 'мексика', 'мексиканский', 'мексиканська', 'латиноамериканский', 'латиноамериканська'],
     },
   ],
 };
