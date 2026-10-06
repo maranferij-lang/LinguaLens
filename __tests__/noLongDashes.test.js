@@ -130,6 +130,15 @@ describe('server/public/*.html', () => {
     const hits = htmlVisibleText(fs.readFileSync(path.join(dir, page), 'utf8')).filter((s) => longDashes(s).length);
     expect(hits).toEqual([]);
   });
+
+  // Без тире адреса не стоїть окремим «реченням»: «support@x.app. Зазвичай
+  // відповідаємо…». Перед нею завжди слова: «Пиши на …», «Email us at …».
+  test.each(pages)('%s: the email address is part of a sentence', (page) => {
+    const html = fs.readFileSync(path.join(dir, page), 'utf8');
+    const spans = [...html.matchAll(/<p>([^<]*)<span class="contact">/g)];
+    expect(spans.length).toBe((html.match(/class="contact"/g) || []).length);
+    for (const [, before] of spans) expect(before.trim()).not.toBe('');
+  });
 });
 
 // ── літерали в коді ──
