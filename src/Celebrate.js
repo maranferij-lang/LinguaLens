@@ -82,7 +82,9 @@ export default function Celebrate({ word, t }) {
   // прогресом із порожньою половиною екрана під ним. SE — як було.
   const lift = Math.min(110, Math.max(0, (useWindowDimensions().height - 700) * 0.36));
   const uri = photoUri(word?.photo);
-  const pair = word?.translation ? `${word.word} — ${word.translation}` : word?.word || '';
+  // Пара для VoiceOver — через кому: на ній голос робить природну паузу
+  // (тире в тексті власник заборонив)
+  const pair = word?.translation ? `${word.word}, ${word.translation}` : word?.word || '';
   const label = [t('obCelebrateTitle'), pair, t('obCelebrateStreak')].filter(Boolean).join('. ');
 
   useEffect(() => {

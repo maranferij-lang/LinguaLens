@@ -328,10 +328,11 @@ function BadgeSticker({ payload, t }) {
   );
 }
 
-// Підпис для VoiceOver: що саме на наліпці.
+// Підпис для VoiceOver: що саме на наліпці. Слово й переклад — через кому:
+// на ній голос робить природну паузу (тире в тексті власник заборонив).
 export function stickerLabel(payload, t) {
   if (payload?.kind === 'word' && payload.word) {
-    return [payload.word.word, payload.word.translation].filter(Boolean).join(' — ');
+    return [payload.word.word, payload.word.translation].filter(Boolean).join(', ');
   }
   if (payload?.kind === 'scene' && payload.scene) return t('sceneCardWords', { n: payload.scene.objects?.length || 0 });
   if (payload?.kind === 'achievement' && payload.achievement) return t('ach_' + payload.achievement.id);

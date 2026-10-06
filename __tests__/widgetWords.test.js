@@ -379,7 +379,7 @@ describe('My Words layout', () => {
 
   test('lock screen: caption, word and translation; inline — one line', () => {
     expect(texts(w.render(entries[0].props, env('accessoryRectangular')))).toEqual(['Мої слова', 'word0', 'слово0']);
-    expect(texts(w.render(entries[0].props, env('accessoryInline')))).toEqual(['word0 — слово0']);
+    expect(texts(w.render(entries[0].props, env('accessoryInline')))).toEqual(['word0 · слово0']);
   });
 
   test('empty: the message and the hint', () => {

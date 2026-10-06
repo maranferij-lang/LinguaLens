@@ -164,10 +164,10 @@ test('stickers ignore Dynamic Type: they are pictures, not interface', async () 
 
 test('VoiceOver label says what is on the sticker', () => {
   const t = makeT('uk');
-  expect(stickerLabel(payloadFor('object', 'uk'), t)).toBe('mug — кружка');
+  expect(stickerLabel(payloadFor('object', 'uk'), t)).toBe('mug, кружка');
   expect(stickerLabel(payloadFor('scene', 'uk'), t)).toBe(t('sceneCardWords', { n: 8 }));
   expect(stickerLabel(payloadFor('badge', 'uk'), t)).toBe(t('ach_streak_7'));
-  expect(t('shareStickerLabel', { w: 'mug — кружка' })).toBe('Наліпка без тла: mug — кружка');
+  expect(t('shareStickerLabel', { w: 'mug, кружка' })).toBe('Наліпка без тла: mug, кружка');
 });
 
 // Ярлик на «Предмет і слово» стоїть біля правого верхнього краю самого

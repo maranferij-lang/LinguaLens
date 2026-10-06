@@ -317,8 +317,9 @@ export function PushPreview({ topic, hour, clock, sample, t, width = 270, height
   const s = useMemo(() => makeStyles(C), [C]);
   const title = topic ? t('obPushPreviewTopic', { topic }) : t('obPushPreviewTitle');
   // Тіло — саме слово з перекладом: воно коротке й не обірветься навіть на
-  // вузькому телефоні (власник: жодних обрізаних текстів)
-  const body = sample ? `${sample.word} — ${sample.translation}` : '';
+  // вузькому телефоні (власник: жодних обрізаних текстів). Пара — через
+  // « · », як у справжньому сповіщенні слова дня (тире власник заборонив)
+  const body = sample ? `${sample.word} · ${sample.translation}` : '';
   const a11y = t('obPushPreviewA11y', { title, h: hour });
   // низ сповіщення на екрані телефона (з рамкою) і ще трохи шпалер під ним
   // (під згасанням): до виміру — 0

@@ -391,7 +391,7 @@ test('the full path: language → name → work in finance → B2+ → struggles
   expect(subtitle(tree)).toBe(t('obPushText'));
   expect(hostId(tree, 'push-phone')).toHaveLength(1);
   expect(has(tree, 'Word of the day · Finance')).toBe(true);
-  expect(has(tree, 'mug — чашка')).toBe(true);
+  expect(has(tree, 'mug · чашка')).toBe(true);
   expect(texts(tree).some((s) => /allow/i.test(s))).toBe(false); // App Review 5.1.1(iv)
   await tap(tree, t('obNext'));
   expect(requestPermission).toHaveBeenCalledTimes(1);

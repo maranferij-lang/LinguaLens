@@ -439,7 +439,7 @@ describe('the push step', () => {
     expect(StyleSheet.flatten(phone.props.style).height).toBe(phoneVisible(250));
     expect(has(tree, '7:00')).toBe(true);
     expect(has(tree, 'Word of the day · Travel')).toBe(true);
-    expect(has(tree, 'mug — чашка')).toBe(true);
+    expect(has(tree, 'mug · чашка')).toBe(true);
     expect(phone.props.accessibilityLabel).toBe(t('obPushPreviewA11y', { title: 'Word of the day · Travel', h: '7:00 PM' }));
     // заголовок ліг у два рядки — сповіщення нижче: телефон видно до його низу
     const banner = tree.root.findAll((n) => typeof n.type === 'string' && typeof n.props.onLayout === 'function')[0];

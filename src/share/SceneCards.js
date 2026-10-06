@@ -23,7 +23,7 @@ import { F, type } from '../theme';
 import { LiftedObjects, Leaders, SceneChip, sceneShapes } from '../scene/SceneArt';
 import { anchorOf, chipSize, contourPoints, layoutChips, rectOf } from '../scene/sceneLayout';
 import { sceneImageUri } from '../scene/scenes';
-import { CARD_H, CARD_W, CONTENT_W, PAD_BOTTOM, PAD_TOP, PAD_X, dateLabel, textEm } from './layout';
+import { CARD_H, CARD_W, CONTENT_W, PAD_BOTTOM, PAD_TOP, PAD_X, PAIR_SEP, dateLabel, textEm } from './layout';
 
 // Кольори підписів на фото для кожної палітри картки. Плашка світла або
 // графітова, акцент палітри — лише в перекладі й крапці: так фото лишається
@@ -273,10 +273,10 @@ function LabelsCard({ scene, uri, frame, pal, t }) {
 }
 
 // ─── «Рамка» ───────────────────────────────────────────────────────────────
-// Кегль списку — один на всі рядки, щоб номери й тире стояли рівно; довге
-// німецьке слово зменшує весь список, а не стирчить окремо.
+// Кегль списку — один на всі рядки, щоб номери й пари «слово · переклад»
+// стояли рівно; довге німецьке слово зменшує весь список, а не стирчить окремо.
 export function listFontSize(objects, width = CONTENT_W - 26) {
-  const widest = Math.max(0, ...objects.map((o) => textEm(o.word) + (o.translation ? textEm(' — ' + o.translation, 0) * 0.95 : 0)));
+  const widest = Math.max(0, ...objects.map((o) => textEm(o.word) + (o.translation ? textEm(PAIR_SEP + o.translation, 0) * 0.95 : 0)));
   if (!widest) return 17;
   return Math.max(12, Math.min(17, Math.floor((width * 0.96) / widest)));
 }
@@ -385,7 +385,7 @@ function FrameCard({ scene, uri, pal, t, locale }) {
             )}
             <Txt numberOfLines={1} style={{ flex: 1, color: pal.text, fontFamily: F.extra, fontSize: size, lineHeight: Math.round(size * 1.3), letterSpacing: -0.1 }}>
               {o.word}
-              {o.translation ? <Txt style={{ color: pal.muted, fontFamily: F.reg }}>{' — ' + o.translation}</Txt> : null}
+              {o.translation ? <Txt style={{ color: pal.muted, fontFamily: F.reg }}>{PAIR_SEP + o.translation}</Txt> : null}
             </Txt>
           </View>
         ))}

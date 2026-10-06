@@ -243,6 +243,16 @@ describe('text helpers', () => {
     expect(clipLines('', 2, 18)).toBe('');
   });
 
+  test('a cut never ends on the « · » of a pair or on a dash', () => {
+    // слово з парою: обрізали відразу після « · » — точка йде разом із пробілом
+    const pair = 'Schreibtischlampe · настільна лампа з довгим поясненням, яке точно не влізе в один рядок картки';
+    const cut = clipLines(pair, 1, 18);
+    expect(cut.endsWith('…')).toBe(true);
+    expect(cut).not.toMatch(/[\s·\u2013\u2014-]…$/);
+    // тире з даних (слово, приклад) теж не висить перед трикрапкою
+    expect(clipLines('Schreibtischlampe \u2014 настільна лампа з довгим поясненням, яке не влізе', 1, 18)).not.toMatch(/[\s\u2014]…$/);
+  });
+
   test('quotes follow the language of the example', () => {
     expect(quote('Hallo', 'de')).toBe('„Hallo“');
     expect(quote(' Привіт ', 'uk')).toBe('«Привіт»');
@@ -291,11 +301,18 @@ describe('dates and numbers', () => {
 
   test('week range collapses the month when it can', () => {
     const same = week(24, [0, 0, 0, 0, 0, 0, 0]); // 24–30 вересня
-    expect(norm(weekRangeLabel(same, 'en-US'))).toMatch(/^Sep 24 – 30$/);
+    expect(norm(weekRangeLabel(same, 'en-US'))).toMatch(/^Sep 24–30$/);
     const cross = week(25, [0, 0, 0, 0, 0, 0, 0]); // 25 вересня – 1 жовтня
     const label = norm(weekRangeLabel(cross, 'en-GB'));
     expect(label).toMatch(/25/);
     expect(label).toMatch(/1 Oct/);
+    // діапазон — коротке тире без пробілів, навіть коли ICU ставить їх між
+    // місяцями (правило власника: тире з пробілами немає ніде)
+    for (const loc of ['en-GB', 'en-US', 'uk-UA', 'de-DE', 'es-ES']) {
+      const s = weekRangeLabel(cross, loc);
+      expect([loc, /\s[\u2013\u2014-]|[\u2013\u2014-]\s/.test(s)]).toEqual([loc, false]);
+      expect(s).toMatch(/\u2013/);
+    }
     expect(weekRangeLabel([], 'en')).toBe('');
     expect(weekRangeLabel(undefined, 'en')).toBe('');
   });

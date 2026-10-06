@@ -159,7 +159,7 @@ function wordProps(ctx, { w, at, k, pool, stats }) {
     example: md || examplePlain(example, lang, EXAMPLE),
     md: md ? '1' : '',
     exampleTr: example ? text(w.exampleTranslation || w.example_translation) : '',
-    line: translation ? `${word} — ${translation}` : word,
+    line: translation ? `${word} · ${translation}` : word, // пара через « · »: тире власник заборонив
     dir: ctx.dir,
     photo: ctx.photo(id),
     letter: headLetter(word, lang),

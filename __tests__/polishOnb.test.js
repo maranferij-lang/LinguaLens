@@ -587,7 +587,7 @@ describe('the notification preview', () => {
     const sample = { word: 'die Tasse', translation: 'чашка', example: 'In dieser Tasse ist heißer Kaffee.' };
     const tree = await mount(<PushPreview topic="Gastronomie" hour="10:00 AM" sample={sample} t={t} />);
     expect(has(tree, '10:00 AM')).toBe(true);
-    const body = hosts(tree, (n) => n.props.children === 'die Tasse — чашка')[0];
+    const body = hosts(tree, (n) => n.props.children === 'die Tasse · чашка')[0];
     expect(body.props.numberOfLines).toBe(2);
     const title = hosts(tree, (n) => n.props.children === 'Word of the day · Gastronomie')[0];
     expect(title.props.numberOfLines).toBe(2);

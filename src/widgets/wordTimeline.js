@@ -161,7 +161,7 @@ function wordProps(ctx, { day, slots, s, labels, week }) {
     example: md || examplePlain(example, lang, EXAMPLE),
     md: md ? '1' : '',
     exampleTr: example ? text(w.example_translation) : '',
-    line: translation ? `${word} — ${translation}` : word,
+    line: translation ? `${word} · ${translation}` : word, // пара через « · »: тире власник заборонив
     message: '',
     slotLabel: n > 1 ? t('widgetSlot', { i: s + 1, n }) : '',
     slotN: n > 1 ? String(n) : '',
