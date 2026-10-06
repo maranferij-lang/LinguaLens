@@ -448,4 +448,12 @@ describe('native speaker review', () => {
     expect(STRINGS.en.topic_it).toBe('Tech');
     expect(STRINGS.en.field_it).toBe('IT');
   });
+
+  // «Informática» — слово Іспанії: на мексиканській сторінці кепс «PALABRA
+  // DEL DÍA · INFORMÁTICA» тягнув набір до Іспанії. «Tecnología» кажуть у
+  // Латинській Америці, і в Іспанії його теж розуміють, як «Tech» в en.
+  test('es: the IT field and topic are «Tecnología», as Latin America says it', () => {
+    expect(STRINGS.es.topic_it).toBe('Tecnología');
+    expect(STRINGS.es.field_it).toBe('Tecnología');
+  });
 });
