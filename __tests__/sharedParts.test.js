@@ -153,6 +153,54 @@ describe('brand PNGs', () => {
   });
 });
 
+// Двоколірний знак для карток і наліпок — голова Лінго з іконки, а не
+// колишній бабл з лінзою. Геометрія — та сама, що в assets/brand/lingo-mark.svg.
+describe('LogoMark', () => {
+  const { LogoMark, MARK } = require('../src/Logo');
+  const { Circle } = require('react-native-svg');
+  const svg = fs.readFileSync(path.join(ROOT, 'assets/brand/lingo-mark.svg'), 'utf8');
+  const group = (id) => new RegExp(`<g id="${id}"[^>]*>([\\s\\S]*?)</g>`).exec(svg)[1];
+  const circles = (g) => [...g.matchAll(/<circle cx="(\d+)" cy="(\d+)" r="(\d+)"/g)].map((m) => m.slice(1).map(Number));
+  const paths = (g) => [...g.matchAll(/<path d="([^"]+)"/g)].map((m) => m[1]);
+
+  test('the geometry is the master’s: silhouette, cut-outs and pupils', () => {
+    expect(svg).toContain(`viewBox="${MARK.viewBox}"`);
+    expect(paths(group('silhouette'))).toEqual([MARK.head]);
+    expect(circles(group('silhouette'))).toEqual(MARK.eyes.map((e) => e.rim));
+    expect(circles(group('cutouts'))).toEqual(MARK.eyes.map((e) => e.ball));
+    expect(paths(group('cutouts'))).toEqual([MARK.mouth]);
+    expect(circles(group('pupils'))).toEqual(MARK.eyes.map((e) => e.pupil));
+    // голова — та сама, що в іконці застосунку
+    expect(fs.readFileSync(path.join(ROOT, 'assets/brand/icon-lingo.svg'), 'utf8')).toContain(`d="${MARK.head}"`);
+  });
+
+  test('colour paints the head, rims and pupils; fg cuts out the eyes and the smile', async () => {
+    const tree = await render(<LogoMark size={22} color="#1F1B16" fg="#FAF8F4" />);
+    const root = tree.root.findByProps({ testID: 'logo-mark' });
+    expect(root.props).toMatchObject({ width: 22, height: 22, viewBox: MARK.viewBox });
+    const fills = (type) => root.findAllByType(type).map((n) => [n.props.d || [n.props.cx, n.props.cy, n.props.r], n.props.fill]);
+    expect(fills(Path)).toEqual([
+      [MARK.head, '#1F1B16'],
+      [MARK.mouth, '#FAF8F4'],
+    ]);
+    expect(fills(Circle)).toEqual([
+      ...MARK.eyes.map((e) => [e.rim, '#1F1B16']),
+      ...MARK.eyes.map((e) => [e.ball, '#FAF8F4']),
+      // зіниці — після очних яблук, інакше їх не видно
+      ...MARK.eyes.map((e) => [e.pupil, '#1F1B16']),
+    ]);
+    await act(async () => tree.unmount());
+  });
+
+  test('without a colour it takes the theme accent; fg defaults to white', async () => {
+    const tree = await render(<LogoMark size={16} />);
+    const head = tree.root.findAllByType(Path)[0];
+    expect(head.props.fill).toBe(THEMES.light.C.accent);
+    expect(tree.root.findAllByType(Path)[1].props.fill).toBe('#FFFFFF');
+    await act(async () => tree.unmount());
+  });
+});
+
 describe('WordPlate', () => {
   const MUG = { word: 'mug', ipa: 'mʌɡ', translation: 'кружка', lang: 'en' };
 
