@@ -37,6 +37,7 @@ const uk = makeT('uk');
 const en = makeT('en');
 const de = makeT('de');
 const es = makeT('es');
+const ru = makeT('ru');
 const locales = (...tags) =>
   tags.map((tag) => {
     const [code, region = null] = tag.split('-');
@@ -166,8 +167,13 @@ describe('names in the interface language', () => {
     expect(variantLabel('en', 'us', es, 'es')).toBe('inglés (EE. UU.)');
     expect(optionLabel('es-latam', es, 'es')).toBe('español (Latinoamérica)');
     expect(optionLabel('de', uk, 'uk')).toBe('німецька');
-    // кожен регіон є в чотирьох мовах інтерфейсу
-    for (const l of ['en', 'uk', 'de', 'es']) {
+    // російською, як і українською: мова з малої посеред рядка, регіон з великої
+    expect(variantLabel('en', 'us', ru, 'ru')).toBe('английский (США)');
+    expect(variantLabel('en', 'gb', ru, 'ru', { capital: true })).toBe('Английский (Великобритания)');
+    expect(optionLabel('es-es', ru, 'ru')).toBe('испанский (Испания)');
+    expect(optionLabel('es-latam', ru, 'ru', { capital: true })).toBe('Испанский (Латинская Америка)');
+    // кожен регіон є в п'яти мовах інтерфейсу
+    for (const l of ['en', 'uk', 'de', 'es', 'ru']) {
       for (const list of Object.values(VARIANTS)) for (const v of list) expect(STRINGS[l]['langRegion_' + v.id]).toBeTruthy();
     }
   });

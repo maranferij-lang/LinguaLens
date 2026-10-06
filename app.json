@@ -108,7 +108,8 @@
             "en",
             "uk",
             "de",
-            "es"
+            "es",
+            "ru"
           ]
         }
       ],
@@ -178,7 +179,8 @@
       "en": "./locales/en.json",
       "uk": "./locales/uk.json",
       "de": "./locales/de.json",
-      "es": "./locales/es.json"
+      "es": "./locales/es.json",
+      "ru": "./locales/ru.json"
     }
   }
 }

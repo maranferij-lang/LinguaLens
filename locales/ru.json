@@ -1,0 +1,8 @@
+{
+  "ios": {
+    "NSCameraUsageDescription": "LinguaLens использует камеру, чтобы распознать предмет и показать, как он называется на языке, который ты учишь.",
+    "NSPhotoLibraryUsageDescription": "LinguaLens открывает только то фото, которое ты выберешь, чтобы положить на него наклейку для Stories.",
+    "NSPhotoLibraryAddUsageDescription": "LinguaLens сохраняет твои наклейки и карточки в Фото, когда ты нажимаешь «Сохранить».",
+    "CFBundleDisplayName": "LinguaLens"
+  }
+}

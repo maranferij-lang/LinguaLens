@@ -191,9 +191,9 @@ test('signing out offline still forgets the account token: no silent way back in
   expect((await loadAccount()).id).toBeNull();
 });
 
-test('every error key exists in all four languages', () => {
+test('every error key exists in all five languages', () => {
   const codes = ['OFFLINE', 'TIMEOUT', 'APPLE_INVALID', 'APPLE_UNAVAILABLE', 'RATE', 'SESSION', 'FAILED', 'DICT_FULL', 'HTTP_500'];
   const keys = new Set([...codes.map(accountErrorKey), ...codes.map(syncErrorKey)]);
-  for (const lang of ['en', 'uk', 'de', 'es']) for (const k of keys) expect(STRINGS[lang]).toHaveProperty(k);
+  for (const lang of ['en', 'uk', 'de', 'es', 'ru']) for (const k of keys) expect(STRINGS[lang]).toHaveProperty(k);
   expect(syncErrorKey(null)).toBeNull();
 });

@@ -278,8 +278,8 @@ describe('v1.2 paywall', () => {
   // Безкоштовний скан один на все життя: витрачено — кнопка не обіцяє ні
   // ще одного сьогодні, ні «наступного завтра»: просто «продовжити».
   test('once the free scan is used, the free way out just continues — never a scan tomorrow', async () => {
-    const TIME = /today|tomorrow|a day|per day|сьогодні|завтра|щодня|на день|heute|morgen|pro Tag|hoy|mañana|al día/i;
-    for (const lang of ['en', 'uk', 'de', 'es']) {
+    const TIME = /today|tomorrow|a day|per day|сьогодні|завтра|щодня|на день|сегодня|ежедневно|в день|heute|morgen|pro Tag|hoy|mañana|al día/i;
+    for (const lang of ['en', 'uk', 'de', 'es', 'ru']) {
       const tl = makeT(lang);
       const tree = await open({ reason: 'intro', plans: PLANS, freeScans: 1, scansLeft: 0, lang, t: tl });
       const all = strings(tree);

@@ -11,7 +11,7 @@ import path from 'path';
 import { BASE_STRINGS, FRAGMENTS, STRINGS, makeT } from '../src/i18n';
 
 const ROOT = path.join(__dirname, '..');
-const LANGS = ['en', 'uk', 'de', 'es'];
+const LANGS = ['en', 'uk', 'de', 'es', 'ru'];
 const NAMES = ['shared', 'core', 'widgets', 'onb', 'share', 'pro'];
 const keysOf = (name) => Object.keys(FRAGMENTS[name].default.en);
 
@@ -20,7 +20,7 @@ test('six fragments, merged in a fixed order', () => {
   for (const f of NAMES) expect(fs.existsSync(path.join(ROOT, 'src/strings', `${f}.js`))).toBe(true);
 });
 
-test.each(NAMES)('%s has the four languages with the same keys', (name) => {
+test.each(NAMES)('%s has the five languages with the same keys', (name) => {
   const frag = FRAGMENTS[name].default;
   expect(Object.keys(frag).sort()).toEqual([...LANGS].sort());
   const en = Object.keys(frag.en).sort();
@@ -116,6 +116,15 @@ describe('shared strings', () => {
     expect(es('streakToWeek', { k: 3 })).toBe('Faltan 3 días para la semana, y tu llama se encenderá');
     expect(es('streakToNext', { k: 1, m: 14 })).toBe('Tu llama arde. Falta 1 para los 14 días');
     expect(es('streakToNext', { k: 5, m: 30 })).toBe('Tu llama arde. Faltan 5 para los 30 días');
+    // після «до» — родовий відмінок за числом m: «до 14 дней», «до 21 дня»
+    const ru = makeT('ru');
+    expect(ru('streakKeep', { n: 1 })).toBe('1 день подряд. Так держать!');
+    expect(ru('streakKeep', { n: 3 })).toBe('3 дня подряд. Так держать!');
+    expect(ru('streakToNext', { k: 2, m: 14 })).toBe('Огонь горит. До 14 дней осталось 2');
+    expect(ru('streakToNext', { k: 7, m: 21 })).toBe('Огонь горит. До 21 дня осталось 7');
+    expect(ru('streakBest', { n: 22 })).toBe('Рекорд: 22 дня');
+    expect(ru('streakToWeek', { k: 1 })).toBe('1 день до недели, и огонёк вспыхнет');
+    expect(ru('streakToWeek', { k: 6 })).toBe('6 дней до недели, и огонёк вспыхнет');
   });
 
   test('the footer slogan no longer repeats the name; the version has a label', () => {
@@ -125,5 +134,6 @@ describe('shared strings', () => {
     }
     expect(makeT('uk')('versionLabel', { v: '1.3.0' })).toBe('Версія 1.3.0');
     expect(STRINGS.uk.footer).toBe('Скануй · вивчай · повторюй');
+    expect(makeT('ru')('versionLabel', { v: '1.3.0' })).toBe('Версия 1.3.0');
   });
 });

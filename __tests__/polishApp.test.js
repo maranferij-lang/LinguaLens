@@ -632,7 +632,7 @@ describe('dictionary on a small phone', () => {
 describe('profile hero speaks of the collection, not a level', () => {
   const ws = (n) => Array.from({ length: n }, (_, i) => ({ id: 'w' + i, word: 'w' + i, translation: 't', lang: 'en', addedAt: Date.now() - i * 1000 }));
 
-  test.each(['uk', 'en', 'de', 'es'])('%s', async (lang) => {
+  test.each(['uk', 'en', 'de', 'es', 'ru'])('%s', async (lang) => {
     const tl = makeT(lang);
     const tree = await render(
       <ProfileScreen words={ws(14)} activity={{}} stats={{}} profile={{ name: 'Lena', avatar: 'wave' }} onUpdateProfile={() => {}} t={tl} />
@@ -649,6 +649,13 @@ describe('profile hero speaks of the collection, not a level', () => {
     expect(uk('collWords', { c: 0, n: 3 })).toBe('0 із 3 слів');
     expect(uk('collWords', { c: 15, n: 21 })).toBe('15 із 21 слова');
     expect(uk('collStage', { n: 3 })).toBe('Колекція · етап 3');
+  });
+
+  test('the Russian total agrees with its number too', () => {
+    const ru = makeT('ru');
+    expect(ru('collWords', { c: 14, n: 27 })).toBe('14 из 27 слов');
+    expect(ru('collWords', { c: 15, n: 21 })).toBe('15 из 21 слова');
+    expect(ru('collWords', { c: 2, n: 3 })).toBe('2 из 3 слов');
   });
 });
 
@@ -911,13 +918,13 @@ describe('settings: word of the day reminder', () => {
 
   test('the offline scan error says what to do', () => {
     expect(STRINGS.uk.scanErrOffline).toBe('Немає інтернету. Перевір зʼєднання і спробуй ще раз.');
-    for (const lang of ['en', 'de', 'es']) expect(STRINGS[lang].scanErrOffline.split('. ').length).toBe(2);
+    for (const lang of ['en', 'de', 'es', 'ru']) expect(STRINGS[lang].scanErrOffline.split('. ').length).toBe(2);
   });
 });
 
 // ─── app-17: дні тижня ─────────────────────────────────────────────────────
 describe('weekday labels', () => {
-  test.each(['uk', 'en', 'de', 'es'])('%s: seven distinct labels from Sunday', (lang) => {
+  test.each(['uk', 'en', 'de', 'es', 'ru'])('%s: seven distinct labels from Sunday', (lang) => {
     const labels = weekdayLabels(STRINGS[lang].dowShort);
     expect(labels).toHaveLength(7);
     expect(new Set(labels).size).toBe(7);

@@ -50,7 +50,7 @@ jest.mock('expo-haptics', () => ({
 
 const t = makeT('en');
 const uk = makeT('uk');
-const LOCALES = ['en', 'uk', 'de', 'es'];
+const LOCALES = ['en', 'uk', 'de', 'es', 'ru'];
 
 beforeEach(() => {
   jest.useFakeTimers();
@@ -554,6 +554,8 @@ describe('welcome', () => {
     }
     expect(wrapLines(uk('ob3HookTitle'), 22, welcomeSizes(screens[1], copy('uk')).titleWidth)).toEqual(['Я стану твоїм', 'провідником у світ мов']);
     expect(wrapLines(uk('ob3HookTitle'), 22, 327)).toEqual(['Я стану твоїм провідником у', 'світ мов']);
+    // російський заголовок на SE — два рівні рядки, без куцого «в мир языков»
+    expect(wrapLines(makeT('ru')('ob3HookTitle'), 22, welcomeSizes(screens[1], copy('ru')).titleWidth)).toEqual(['Я стану твоим гидом', 'в мире языков']);
     // коротке влазить в один рядок — ширина вся
     expect(balancedWidth('Hi', 22, 300)).toBe(300);
   });

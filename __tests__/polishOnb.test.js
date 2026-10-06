@@ -18,6 +18,7 @@ import { LANGS } from '../src/speech';
 import { PLANS, SIMULATED_PLANS } from '../src/subscription';
 import { THEMES, ThemeProvider } from '../src/theme';
 import { STRINGS, makeT } from '../src/i18n';
+import { textEm } from '../src/share/layout';
 
 jest.mock('../src/wordOfDay', () => ({
   ...jest.requireActual('../src/wordOfDay'),
@@ -40,7 +41,7 @@ jest.mock('../src/config', () => ({ ...jest.requireActual('../src/config'), SUPP
 
 const t = makeT('en');
 const uk = makeT('uk');
-const LOCALES = ['en', 'uk', 'de', 'es'];
+const LOCALES = ['en', 'uk', 'de', 'es', 'ru'];
 
 const mounted = [];
 afterEach(async () => {
@@ -285,6 +286,24 @@ describe('paywall footer', () => {
     expect(STRINGS.uk.pwContinueFreeNoScans).toBe('Продовжити безкоштовно');
     expect(STRINGS.de.pwContinueFreeNoScans).toBe('Kostenlos weiter');
     expect(STRINGS.es.pwContinueFreeNoScans).toBe('Seguir gratis');
+    expect(STRINGS.ru.pwContinueFreeNoScans).toBe('Продолжить бесплатно');
+  });
+
+  // Російська довша за українську, а вузькі місця на SE перевірені саме
+  // українською: заголовок кроку сповіщень (у три рядки сповзав телефон),
+  // підрядок тарифу (у два рядки «Навсегда» ховалося під кнопку) й підвал
+  // пейволу. Тут ширина в em — не більша за українську з запасом 10 %.
+  test('ru: the tight SE lines are no wider than the Ukrainian ones', () => {
+    const tight = ['obPushTitle', 'obPushText', 'obStreakTitle', 'ob3HookTitle', 'planSubWeek', 'planSubMonth', 'privacy', 'pwContinueFreeNoScans', 'startTrial'];
+    const wide = tight.filter((k) => textEm(STRINGS.ru[k]) > textEm(STRINGS.uk[k]) * 1.1).map((k) => `${k}: ${STRINGS.ru[k]}`);
+    expect(wide).toEqual([]);
+    // підвал пейволу — один рядок, як український: «Восстановить покупки ·
+    // Условия · Приватность»
+    const footer = (l) => ['restore', 'terms', 'privacy'].reduce((sum, k) => sum + textEm(STRINGS[l][k]), 0);
+    expect(footer('ru')).toBeLessThanOrEqual(footer('uk'));
+    // серія у малому віджеті — у два рядки, як українська
+    const week = (l) => textEm(makeT(l)('streakToWeek', { k: 6 }));
+    expect(week('ru')).toBeLessThanOrEqual(week('uk'));
   });
 
   test('a failed purchase: a two-line note above the legal line, which stays', async () => {
@@ -473,8 +492,9 @@ describe('progress during purchase and restore', () => {
 test('the first paywall screen says the free scan is already in the word list, in every language', () => {
   expect(STRINGS.uk.opwFirstWordText).toMatch(/^Твій безкоштовний скан уже в словнику\./);
   expect(STRINGS.en.opwFirstWordText).toMatch(/^Your free scan is already in your word list\./);
+  expect(STRINGS.ru.opwFirstWordText).toMatch(/^Твой бесплатный скан уже в словаре\./);
   for (const lang of ['de', 'es']) expect(STRINGS[lang].opwFirstWordText).toEqual(expect.any(String));
-  for (const lang of ['en', 'uk', 'de', 'es']) expect(STRINGS[lang]).not.toHaveProperty('obWowText');
+  for (const lang of LOCALES) expect(STRINGS[lang]).not.toHaveProperty('obWowText');
 });
 
 // ─── onb-11: вітання в темній темі ─────────────────────────────────────────
@@ -577,8 +597,8 @@ describe('level and plan cards say each thing once', () => {
     const tree = await mount(<PlanBody profile={{ goals: ['travel'], level: 5 }} struggles={['forget', 'time', 'boring', 'start']} t={tl} />);
     const shown = strings(tree).join('\n');
     expect(shown).toContain(tl('plan_time'));
-    expect(shown).not.toMatch(/widget|віджет/i);
-    for (const k of ['plan_forget', 'plan_time', 'plan_boring', 'plan_start']) expect([k, tl(k)]).not.toEqual([k, expect.stringMatching(/widget|віджет/i)]);
+    expect(shown).not.toMatch(/widget|віджет|виджет/i);
+    for (const k of ['plan_forget', 'plan_time', 'plan_boring', 'plan_start']) expect([k, tl(k)]).not.toEqual([k, expect.stringMatching(/widget|віджет|виджет/i)]);
     expect(tl('plan_time').toLocaleLowerCase(lang)).toContain(tl('wordOfDay').toLocaleLowerCase(lang));
   });
 

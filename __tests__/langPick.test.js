@@ -10,6 +10,7 @@ const en = makeT('en');
 const uk = makeT('uk');
 const de = makeT('de');
 const es = makeT('es');
+const ru = makeT('ru');
 
 describe('popular', () => {
   test('per translation language, never more than six, never the translation language itself', () => {
@@ -41,6 +42,9 @@ describe('search', () => {
     expect(searchLangs('ja', en, 'en')).toContain('ja');
     // англійська назва працює й з українським інтерфейсом
     expect(searchLangs('german', uk, 'uk')).toEqual(['de']);
+    // і російська назва з російським інтерфейсом
+    expect(searchLangs('нем', ru, 'ru')).toEqual(['de']);
+    expect(searchLangs('укр', ru, 'ru')).toEqual(['uk']);
     // за початком будь-якого слова: «indo» — і «Bahasa Indonesia»
     expect(searchLangs('indo', en, 'en')).toEqual(['id']);
     expect(searchLangs('bahasa ind', en, 'en')).toEqual(['id']);
@@ -64,6 +68,7 @@ describe('order and names', () => {
     expect([...names].sort((a, b) => a.localeCompare(b, 'uk'))).toEqual(names);
     expect(sortLangs('en', en)[0]).toBe('ar'); // Arabic
     expect(sortLangs('de', de)[0]).toBe('ar'); // Arabisch
+    expect(sortLangs('ru', ru)[0]).toBe('en'); // «Английский»
   });
 
   test('sections: popular, then all the rest; with a query — only the matches', () => {
@@ -76,13 +81,15 @@ describe('order and names', () => {
     expect(langSections({ native: 'uk', query: 'pol', t: en, ui: 'en' })).toEqual({ results: ['pl'] });
   });
 
-  test('language names mid-sentence: lower case in Ukrainian and Spanish, capitalised at the start', () => {
+  test('language names mid-sentence: lower case in Ukrainian, Russian and Spanish, capitalised at the start', () => {
     expect(langLabel('en', uk, 'uk')).toBe('англійська');
     expect(langLabel('en', uk, 'uk', { capital: true })).toBe('Англійська');
     expect(langLabel('de', es, 'es')).toBe('alemán');
+    expect(langLabel('en', ru, 'ru')).toBe('английский');
+    expect(langLabel('en', ru, 'ru', { capital: true })).toBe('Английский');
     expect(langLabel('de', de, 'de')).toBe('Deutsch');
     expect(langLabel('ja', en, 'en')).toBe('Japanese');
-    // усі 29 назв є в чотирьох мовах інтерфейсу
-    for (const t of [en, uk, de, es]) for (const c of CODES) expect(t('langName_' + c)).not.toBe('langName_' + c);
+    // усі 29 назв є в пʼяти мовах інтерфейсу
+    for (const t of [en, uk, de, es, ru]) for (const c of CODES) expect(t('langName_' + c)).not.toBe('langName_' + c);
   });
 });

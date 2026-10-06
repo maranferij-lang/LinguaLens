@@ -9,7 +9,7 @@ import { execFileSync } from 'child_process';
 
 const ROOT = path.join(__dirname, '..');
 const app = JSON.parse(fs.readFileSync(path.join(ROOT, 'app.json'), 'utf8')).expo;
-const LOCALES = ['en', 'uk', 'de', 'es'];
+const LOCALES = ['en', 'uk', 'de', 'es', 'ru'];
 const locale = (l) => JSON.parse(fs.readFileSync(path.join(ROOT, 'locales', `${l}.json`), 'utf8')).ios;
 const plugin = (name) => {
   const p = app.plugins.find((x) => (Array.isArray(x) ? x[0] : x) === name);
@@ -71,7 +71,7 @@ describe('photos', () => {
     expect(plugin('expo-camera').cameraPermission).toEqual(expect.any(String));
   });
 
-  test('both photo keys and the camera key are translated in all four languages', () => {
+  test('both photo keys and the camera key are translated in all five languages', () => {
     const en = locale('en');
     expect(en.NSPhotoLibraryUsageDescription).toBe(PICK);
     expect(en.NSPhotoLibraryAddUsageDescription).toBe(SAVE);

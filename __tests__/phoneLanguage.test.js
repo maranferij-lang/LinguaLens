@@ -2,7 +2,8 @@
 // «моя мова» з налаштувань — лише мова перекладів. Тут — у зв'язці з App:
 //   • перший кадр онбордингу вже мовою телефону, і вибір «моєї мови» (в
 //     онбордингу чи в Параметрах) екранів не перемикає;
-//   • [ru, uk] → українська (перша, для якої є переклад), [fr] → англійська;
+//   • [ru, uk] → російська, [uk, ru] → українська (перша, для якої є
+//     переклад), [fr] → англійська;
 //   • сповіщення слова дня, віджет, пейвол і межа помилок — тією ж мовою;
 //   • мова телефону змінилась на ходу — інтерфейс і сповіщення за нею.
 // Мови телефону задає заглушка expo-localization із jest.setup.js.
@@ -44,6 +45,7 @@ jest.setTimeout(20000);
 const uk = makeT('uk');
 const en = makeT('en');
 const de = makeT('de');
+const ru = makeT('ru');
 const metrics = { frame: { x: 0, y: 0, width: 393, height: 852 }, insets: { top: 59, left: 0, right: 0, bottom: 34 } };
 
 const phone = (...tags) => Localization.__setLocales(tags, { silent: true });
@@ -117,12 +119,24 @@ describe('first launch', () => {
     expect(texts(tree)).toContain(uk('ob3HookTitle'));
   });
 
-  test('[ru, uk] → Ukrainian interface (the first we speak); translations stay in Russian', async () => {
+  // Багато хто в Україні тримає телефон російською: тоді й застосунок
+  // російською, а не українською «за сусідством»
+  test('[ru, uk] → Russian interface (the first we speak); translations in Russian', async () => {
     phone('ru-RU', 'uk-UA');
+    const tree = await renderApp();
+    expect(texts(tree)).toContain(ru('ob3HookTitle'));
+    expect(one(tree, OnboardingScreen).props.uiLang).toBe('ru');
+    await run(() => one(tree, OnboardingScreen).props.onDone({ wodEnabled: false }));
+    expect(await stored('ll_settings_v1')).toMatchObject({ nativeLang: 'ru', targetLang: 'en' });
+    expect(tabLabels(tree)).toEqual(TABS(ru));
+    expect(TABS(ru)).toEqual(['Профиль', 'Словарь', 'Сканер', 'Учёба', 'Настройки']);
+  });
+
+  test('[uk, ru] → Ukrainian interface', async () => {
+    phone('uk-UA', 'ru-RU');
     const tree = await renderApp();
     expect(texts(tree)).toContain(uk('ob3HookTitle'));
     await run(() => one(tree, OnboardingScreen).props.onDone({ wodEnabled: false }));
-    expect(await stored('ll_settings_v1')).toMatchObject({ nativeLang: 'ru', targetLang: 'en' });
     expect(tabLabels(tree)).toEqual(TABS(uk));
   });
 
@@ -168,6 +182,19 @@ describe('a returning user', () => {
     }
   });
 
+  test('a Russian phone with Ukrainian translations: the app and the paywall are Russian', async () => {
+    phone('ru-RU');
+    await returning({ nativeLang: 'uk', targetLang: 'en' });
+    const tree = await renderApp();
+    expect(tabLabels(tree)).toEqual(TABS(ru));
+    await openTab(tree, 'settings');
+    expect(texts(tree)).toContain(ru('setTitle'));
+    expect(one(tree, SettingsScreen).props).toMatchObject({ nativeLang: 'uk', uiLang: 'ru' });
+    await run(() => one(tree, SettingsScreen).props.onOpenPaywall());
+    expect(one(tree, PaywallScreen).props).toMatchObject({ lang: 'ru' });
+    expect(one(tree, PaywallScreen).props.t('pwTitle')).toBe('Сними ограничения');
+  });
+
   test('the paywall dates follow the interface, not “my language”', async () => {
     phone('uk-UA');
     await returning({ nativeLang: 'de', targetLang: 'en' });
@@ -199,6 +226,18 @@ describe('notifications and the widget', () => {
     // віджетів три (v1.3) — беремо саме «Слово дня»
     return require('expo-widgets').__widgets.WordOfDay.updateTimeline.mock.calls.at(-1)[0];
   };
+
+  test('a Russian phone: the widget caption and the notification titles are Russian', async () => {
+    phone('ru-RU', 'uk-UA');
+    await returning({ nativeLang: 'en', targetLang: 'es', wodEnabled: true }, [['ll_wod_v1', JSON.stringify(wod)]]);
+    const tree = await renderApp();
+    expect(lastTimeline()[0].props.caption).toBe('Español · Финансы');
+    await openTab(tree, 'settings');
+    Notifications.scheduleNotificationAsync.mockClear();
+    await run(() => one(tree, SettingsScreen).props.onSetWodHour(18));
+    expect(titles().length).toBeGreaterThan(0);
+    for (const title of titles()) expect(title).toBe('Финансы · liquidez');
+  });
 
   test('word-of-the-day notifications and the widget speak the phone language', async () => {
     phone('uk-UA');
@@ -242,8 +281,12 @@ describe('notifications and the widget', () => {
 });
 
 // Межа помилок стоїть над App і не бачить його стану — але мова та сама.
-test('the crash screen speaks the phone language too', async () => {
-  phone('ru-RU', 'uk-UA');
+test.each([
+  [['uk-UA', 'ru-RU'], 'uk'],
+  [['ru-RU', 'uk-UA'], 'ru'],
+])('the crash screen speaks the phone language too: %j → %s', async (tags, lang) => {
+  const tl = makeT(lang);
+  phone(...tags);
   const Boom = () => {
     throw new Error('boom');
   };
@@ -261,6 +304,6 @@ test('the crash screen speaks the phone language too', async () => {
   } finally {
     spy.mockRestore();
   }
-  expect(texts(tree)).toEqual(expect.arrayContaining([uk('crashTitle'), uk('crashText')]));
+  expect(texts(tree)).toEqual(expect.arrayContaining([tl('crashTitle'), tl('crashText')]));
   await act(async () => tree.unmount());
 });
