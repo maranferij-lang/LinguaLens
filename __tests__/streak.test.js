@@ -262,21 +262,21 @@ describe('streakMessage — one choice of words for every screen', () => {
   });
 
   test('done today: the owner’s words for the first days, then the habit, the week and beyond', () => {
-    expect(msg({ n: 1, doneToday: true })).toBe('1 день поспіль — так тримати!');
-    expect(msg({ n: 2, doneToday: true, phase: 'late' })).toBe('2 дні поспіль — так тримати!');
+    expect(msg({ n: 1, doneToday: true })).toBe('1 день поспіль. Так тримати!');
+    expect(msg({ n: 2, doneToday: true, phase: 'late' })).toBe('2 дні поспіль. Так тримати!');
     expect(msg({ n: 3, doneToday: true })).toBe(uk('streakHabit', { n: 3 }));
     expect(msg({ n: 6, doneToday: true })).toBe(uk('streakHabit', { n: 6 }));
     expect(msg({ n: 7, doneToday: true })).toBe(uk('streakWeek'));
-    expect(msg({ n: 10, doneToday: true })).toBe('Вогонь горить. До 14 днів — ще 4');
+    expect(msg({ n: 10, doneToday: true })).toBe('Вогонь горить. До 14 днів ще 4');
     expect(msg({ n: 30, doneToday: true })).toBe(uk('streak30'));
     expect(streakMessage({ n: 31, doneToday: true }, en)).toBe('Your flame is burning. 29 more to 60 days');
   });
 
   test('the second line counts down to the next milestone', () => {
     expect(msg({ n: 0 }, { line: 'next' })).toBe('');
-    expect(msg({ n: 4, doneToday: true }, { line: 'next' })).toBe('До тижня — ще 3 дні, і вогник розгориться');
-    expect(msg({ n: 6 }, { line: 'next' })).toBe('До тижня — ще 1 день, і вогник розгориться');
-    expect(msg({ n: 8 }, { line: 'next' })).toBe('Вогонь горить. До 14 днів — ще 6');
+    expect(msg({ n: 4, doneToday: true }, { line: 'next' })).toBe('До тижня ще 3 дні, і вогник розгориться');
+    expect(msg({ n: 6 }, { line: 'next' })).toBe('До тижня ще 1 день, і вогник розгориться');
+    expect(msg({ n: 8 }, { line: 'next' })).toBe('Вогонь горить. До 14 днів ще 6');
   });
 });
 

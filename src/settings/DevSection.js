@@ -28,7 +28,7 @@ import { F, R, type } from '../theme';
 
 export const RESET_TITLE = 'Почати з нуля?';
 export const RESET_TEXT =
-  'Слова, фото, налаштування, вхід Apple і лічильник сканів на цьому телефоні буде стерто. Сервер дасть новий запис — і новий безкоштовний скан.';
+  'Слова, фото, налаштування, вхід Apple і лічильник сканів на цьому телефоні буде стерто. Сервер дасть новий запис і новий безкоштовний скан.';
 
 function Server({ ctx }) {
   const { t, C, s } = ctx;
@@ -97,7 +97,7 @@ export default function DevSection({ ctx, extra = {} }) {
           <>
             <Pressable onPress={confirmReset} style={({ pressed }) => [d.row, pressed && { opacity: 0.6 }]} accessibilityRole="button" testID="dev-reset">
               <Text style={[d.title, { color: C.red }]}>Почати з нуля</Text>
-              <Text style={s.dimText}>Стирає все на цьому телефоні й ідентичність, перезапускає застосунок. Далі — як після встановлення.</Text>
+              <Text style={s.dimText}>Стирає все на цьому телефоні й ідентичність, перезапускає застосунок. Далі все як після встановлення.</Text>
             </Pressable>
             <View style={s.sepInner} />
           </>

@@ -103,14 +103,14 @@ describe('intro after the first scan', () => {
         t('tlRemindText'),
         t('tlDay', { n: 7 }),
         t('tlChargeText', { p: '$59.99' }),
-        'Continue for free — 1 scan left',
+        'Continue for free (1 scan left)',
         t('terms'),
         t('restore'),
       ])
     );
     expect(all).not.toContain(t('colFree'));
     expect(tree.root.findAll((n) => n.props.title === t('startTrial')).length).toBeGreaterThan(0);
-    await press(tree, 'Continue for free — 1 scan left');
+    await press(tree, 'Continue for free (1 scan left)');
     expect(onClose).toHaveBeenCalledTimes(1);
     expect(tree.root.findAll((n) => n.props.accessibilityLabel === t('close') && n.props.onPress).length).toBeGreaterThan(0);
   });
@@ -119,9 +119,9 @@ describe('intro after the first scan', () => {
     const uk = makeT('uk');
     // коротко, щоб на SE кнопка була в один рядок
     for (const [n, text] of [
-      [1, 'Продовжити безкоштовно — ще 1 скан'],
-      [3, 'Продовжити безкоштовно — ще 3 скани'],
-      [5, 'Продовжити безкоштовно — ще 5 сканів'],
+      [1, 'Продовжити безкоштовно (ще 1 скан)'],
+      [3, 'Продовжити безкоштовно (ще 3 скани)'],
+      [5, 'Продовжити безкоштовно (ще 5 сканів)'],
     ]) {
       const tree = await open({ reason: 'intro', plans: PLANS, freeScans: 10, scansLeft: n, t: uk });
       expect(strings(tree)).toContain(text);
@@ -148,9 +148,9 @@ describe('intro after the first scan', () => {
     expect(all).not.toContain(t('tlToday'));
     expect(all).toContain(t('pwTitle'));
     expect(all).not.toContain(t('colFree'));
-    expect(all).toContain('Today — $9.99, then every month');
+    expect(all).toContain('$9.99 today, then every month');
     expect(all).toContain('$9.99 a month, renews automatically. Cancel anytime in your Apple ID settings.');
-    expect(all).toContain('Continue for free — 5 scans left');
+    expect(all).toContain('Continue for free (5 scans left)');
     expect(tree.root.findAll((n) => n.props.title === t('subscribe')).length).toBeGreaterThan(0);
     await press(tree, t('planLifetime'));
     expect(strings(tree)).toContain(t('pwTodayLifetime'));
@@ -298,7 +298,7 @@ describe('v1.2 paywall', () => {
   test('with scans left, the free way out names what is left, not the ceiling', async () => {
     const tree = await open({ reason: 'intro', plans: PLANS, freeScans: 3, scansLeft: 1 });
     const all = strings(tree);
-    expect(all).toContain('Continue for free — 1 scan left');
+    expect(all).toContain('Continue for free (1 scan left)');
     expect(all).not.toContain(t('pwContinueFreeNoScans'));
     expect(all.some((x) => /a day|today|tomorrow/.test(x))).toBe(false);
   });
@@ -329,13 +329,13 @@ describe('the scans wall for a lifetime free scan', () => {
     let tree = (mounted = await render({ reason: 'scans', freeScans: 1, plans: PLANS, t: uk, lang: 'uk' }));
     let all = texts(tree);
     expect(all).toContain('Безкоштовний скан використано');
-    expect(all).toContain('Безкоштовно — 1 скан на пробу. З Pro скануй скільки хочеш. Словник, картки й слово дня лишаються безкоштовними.');
+    expect(all).toContain('Безкоштовно є 1 скан на пробу. З Pro скануй скільки хочеш. Словник, картки й слово дня лишаються безкоштовними.');
     expect(all).toContain('Сканів загалом');
     expect(all.some((x) => /сьогодні|завтра|на день|щодня/.test(x))).toBe(false);
     await act(async () => tree.unmount());
     tree = mounted = await render({ reason: 'scans', freeScans: 3, plans: PLANS, t: uk, lang: 'uk' });
     all = texts(tree);
     expect(all).toContain('Безкоштовні скани використано');
-    expect(all).toContain('Безкоштовно — 3 скани на пробу. З Pro скануй скільки хочеш. Словник, картки й слово дня лишаються безкоштовними.');
+    expect(all).toContain('Безкоштовно є 3 скани на пробу. З Pro скануй скільки хочеш. Словник, картки й слово дня лишаються безкоштовними.');
   });
 });

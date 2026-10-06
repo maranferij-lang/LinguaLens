@@ -166,8 +166,8 @@ describe('the animation', () => {
     expect(caption(tree)).toBe(t('obDemoBeat3'));
     await advance(1800);
     expect(caption(tree)).toBe(t('obDemoBeat4'));
-    expect(t('obDemoBeat4')).toBe('Or a whole scene — every word at once');
-    expect(uk('obDemoBeat4')).toBe('Або цілу сцену — і всі слова одразу');
+    expect(t('obDemoBeat4')).toBe('Or a whole scene, every word at once');
+    expect(uk('obDemoBeat4')).toBe('Або цілу сцену з усіма словами одразу');
     await advance(3000);
     expect(caption(tree)).toBe(t('obDemoFinal'));
     expect(onFinal).not.toHaveBeenCalled();

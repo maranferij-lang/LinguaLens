@@ -72,7 +72,7 @@ describe('scheduling', () => {
     expect(Notifications.scheduleNotificationAsync).toHaveBeenCalledTimes(1);
     expect(Notifications.scheduleNotificationAsync).toHaveBeenCalledWith({
       identifier: STREAK_RISK_ID,
-      content: { title: 'Не дай вогнику згаснути', body: 'Серія — 4 дні. Одне слово сьогодні — і вона жива.', data: { type: 'streak' } },
+      content: { title: 'Не дай вогнику згаснути', body: 'Серія: 4 дні. Одне слово сьогодні, і вона жива.', data: { type: 'streak' } },
       trigger: { type: 'date', date: at(20) },
     });
   });
@@ -87,7 +87,7 @@ describe('scheduling', () => {
     expect(await syncStreakRisk({ n: 5, doneToday: true, t, now: at(9) })).toBe(true);
     expect(Notifications.scheduleNotificationAsync).toHaveBeenCalledWith({
       identifier: STREAK_RISK_ID,
-      content: { title: 'Не дай вогнику згаснути', body: 'Серія — 5 днів. Одне слово сьогодні — і вона жива.', data: { type: 'streak' } },
+      content: { title: 'Не дай вогнику згаснути', body: 'Серія: 5 днів. Одне слово сьогодні, і вона жива.', data: { type: 'streak' } },
       trigger: { type: 'date', date: new Date(2026, 9, 5, 20) },
     });
   });

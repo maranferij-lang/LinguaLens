@@ -111,7 +111,7 @@ test('trial → reminder → plans, each screen reported, prices only on the las
   // безкоштовний скан (один на все життя) вже витрачено — ще одного не
   // обіцяємо ні сьогодні, ні завтра: лишаються словник і картки
   expect(all).toContain(t('pwContinueFreeNoScans'));
-  expect(all.some((s) => s.startsWith('Continue for free — 1') || /tomorrow|a day/.test(s))).toBe(false);
+  expect(all.some((s) => s.startsWith('Continue for free (1') || /tomorrow|a day/.test(s))).toBe(false);
   await press(tree, t('pwContinueFreeNoScans'));
   expect(onClose).toHaveBeenCalledWith(2);
 });
@@ -145,7 +145,7 @@ test('no trial in the offering: straight to the plans, no timeline, no “free�
   const all = strings(tree);
   expect(all).not.toContain(t('tlToday'));
   expect(all.some((s) => /free for/i.test(s))).toBe(false);
-  expect(all).toContain('Continue for free — 1 scan left');
+  expect(all).toContain('Continue for free (1 scan left)');
   expect(tree.root.findAll((n) => n.props.title === t('subscribe')).length).toBeGreaterThan(0);
 });
 

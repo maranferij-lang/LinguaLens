@@ -32,7 +32,7 @@ export default {
 
     // Пейвол «themes»
     pwThemesTitle: 'Color themes with Pro',
-    pwThemesText: 'Ocean, Berry, Graphite or Cocoa — in light and dark. Your widgets change color too.',
+    pwThemesText: 'Ocean, Berry, Graphite or Cocoa, in light and dark. Your widgets change color too.',
     pwThemesPreview: 'How the app looks in {p}',
     themeSampleWord: 'el pasaporte',
     themeSampleIpa: '/el pasaˈpoɾte/',
@@ -62,22 +62,22 @@ export default {
     palette_berry: 'Ягода',
     palette_graphite: 'Графіт',
     palette_cocoa: 'Какао',
-    paletteProHint: 'Палітри з короною — у Pro. Вони фарбують і віджети на головному екрані.',
+    paletteProHint: 'Палітри з короною доступні з Pro. Вони фарбують і віджети на головному екрані.',
     paletteHint: 'Палітра фарбує і віджети на головному екрані.',
     paletteKept: '{p} повернеться разом із Pro. Поки що застосунок у «Крейді».',
     paletteA11yPro: '{p}, палітра Pro',
     themeModeA11y: 'Вигляд',
 
     // Пейвол «themes»
-    pwThemesTitle: 'Кольорові теми — у Pro',
-    pwThemesText: 'Океан, Ягода, Графіт чи Какао — у світлому й темному вигляді. Віджети теж змінять колір.',
+    pwThemesTitle: 'Кольорові теми з Pro',
+    pwThemesText: 'Океан, Ягода, Графіт чи Какао у світлому й темному вигляді. Віджети теж змінять колір.',
     pwThemesPreview: 'Так виглядатиме застосунок у палітрі {p}',
     themeSampleWord: 'boarding pass',
     themeSampleIpa: '/ˈbɔːdɪŋ pɑːs/',
     themeSampleTr: 'посадковий талон',
 
     // Пейвол «wod_per_day»
-    pwWodTitle: 'До {n} {n|слова|слів|слів} на день — у Pro',
+    pwWodTitle: 'До {n} {n|слова|слів|слів} на день з Pro',
     pwWodText: 'У сповіщеннях і віджеті, о годинах, які обереш. Перше слово дня лишається безкоштовним.',
 
     // Таблиця порівняння й переваги Pro
@@ -87,7 +87,7 @@ export default {
     cmpUpTo: 'до {n}',
     cmpNone: 'немає',
     cmpNew: 'нове',
-    pro_wodn: 'До {n} {n|слова|слів|слів} дня — о годинах, які обереш',
+    pro_wodn: 'До {n} {n|слова|слів|слів} дня о годинах, які обереш',
     pro_themes: 'Кольорові теми для застосунку й віджетів',
   },
 
@@ -108,7 +108,7 @@ export default {
 
     // Пейвол «themes»
     pwThemesTitle: 'Farbthemen mit Pro',
-    pwThemesText: 'Ozean, Beere, Graphit oder Kakao – hell und dunkel. Auch deine Widgets wechseln die Farbe.',
+    pwThemesText: 'Ozean, Beere, Graphit oder Kakao, hell und dunkel. Auch deine Widgets wechseln die Farbe.',
     pwThemesPreview: 'So sieht die App in {p} aus',
     themeSampleWord: 'boarding pass',
     themeSampleIpa: '/ˈbɔːdɪŋ pɑːs/',

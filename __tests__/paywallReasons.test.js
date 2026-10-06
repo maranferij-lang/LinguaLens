@@ -171,6 +171,7 @@ describe('the themes paywall', () => {
     // VoiceOver читає «немає»; у Pro — чотири палітри
     const none = tree.root.findAll((n) => n.props.testID === 'cmp-none' && n.props.accessible)[0];
     expect(none.props.accessibilityLabel).toBe(t('cmpNone'));
+    expect(all.some((s) => /[\u2013\u2014]/.test(s))).toBe(false);
     expect(all).toContain('4');
   });
 
@@ -210,7 +211,7 @@ describe('the words-per-day paywall', () => {
     const all = strings(tree);
     expect(all).toEqual(
       expect.arrayContaining([
-        'До 5 слів на день — у Pro',
+        'До 5 слів на день з Pro',
         'У сповіщеннях і віджеті, о годинах, які обереш. Перше слово дня лишається безкоштовним.',
         'Слова дня',
         'до 5',

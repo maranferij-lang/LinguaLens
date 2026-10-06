@@ -470,7 +470,7 @@ describe('progress during purchase and restore', () => {
 // Онбординг 3.0: «Спробуй зараз» більше немає — про безкоштовний скан каже
 // перший екран пейволу, вже з наліпкою людини (onboarding.md §5.13)
 test('the first paywall screen says the free scan is already in the word list, in every language', () => {
-  expect(STRINGS.uk.opwFirstWordText).toMatch(/^Твій безкоштовний скан — уже в словнику\./);
+  expect(STRINGS.uk.opwFirstWordText).toMatch(/^Твій безкоштовний скан уже в словнику\./);
   expect(STRINGS.en.opwFirstWordText).toMatch(/^Your free scan is already in your word list\./);
   for (const lang of ['de', 'es']) expect(STRINGS[lang].opwFirstWordText).toEqual(expect.any(String));
   for (const lang of ['en', 'uk', 'de', 'es']) expect(STRINGS[lang]).not.toHaveProperty('obWowText');
