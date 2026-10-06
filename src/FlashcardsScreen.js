@@ -791,7 +791,7 @@ const makeStyles = (C) =>
     },
     cardInner: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
     cardWord: { color: C.text, ...type(38, F.bold), textAlign: 'center' },
-    cardIpa: { color: C.dim, ...type(17, F.reg), marginTop: 8 },
+    cardIpa: { color: C.dim, ...type(17, F.ipa), fontWeight: '500', marginTop: 8 },
     speakBtn: {
       marginTop: 20,
       backgroundColor: C.card2,

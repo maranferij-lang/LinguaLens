@@ -29,7 +29,7 @@ import { nameFor } from '../speech';
 import { topicName } from '../profile';
 import { ipaLabel } from '../share/layout';
 import { useReducedMotion } from '../motion';
-import { F, R, useTheme } from '../theme';
+import { F, R, ipaFont, useTheme } from '../theme';
 import { exampleMarkdown } from './format';
 import { mix, widgetPalette } from './palette';
 import { streakLines } from './streakTimeline';
@@ -245,7 +245,7 @@ const makeStyles = (pal, k = 1) => {
     wordRow: { flexDirection: 'row', alignItems: 'baseline', gap: z(8) },
     wordBig: { flexShrink: 1, color: pal.ink, fontFamily: F.extra, fontSize: z(30), letterSpacing: z(-0.6) },
     wordSmall: { color: pal.ink, fontFamily: F.extra, fontSize: z(23), letterSpacing: z(-0.3) },
-    ipa: { color: pal.dim, fontFamily: F.reg, fontSize: z(12) },
+    ipa: { color: pal.dim, ...ipaFont('500'), fontSize: z(12) },
     translation: { color: pal.soft, fontFamily: F.bold, fontSize: z(16), marginTop: z(2) },
     translationSmall: { color: pal.soft, fontFamily: F.bold, fontSize: z(14), marginTop: z(6) },
     example: { color: pal.dim, fontFamily: F.reg, fontSize: z(12), marginTop: z(4) },

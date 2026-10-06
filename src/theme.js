@@ -21,18 +21,36 @@
 // Вогник серії (5.10.2026, рішення власника) — у кольорах палітри: кожна
 // перефарбовує його під себе, жодного оранжево-жовтого вогника.
 import { createContext, useContext } from 'react';
+import { Platform } from 'react-native';
 import { PALETTES_ENABLED } from './flags';
 
 // Радіуси з макета: картка 28, рядок 22, поле 16, чип-пігулка 999.
 export const R = { xl: 28, lg: 22, md: 16, sm: 12, pill: 999 };
 export const SP = { xs: 8, sm: 12, md: 16, lg: 20, xl: 24, xxl: 32 };
 
+// Транскрипція (IPA). У Nunito немає ʊ, ɪ, ɔ, θ, β, ʝ…: iOS добирав би
+// їх із системного шрифту посеред слова, іншої ваги й ширини, а власний ˈ
+// у Nunito завширшки з літеру «a» («/ˈ haʊsplænt/»). Тому IPA пишемо
+// системним заокругленим шрифтом, як і SwiftUI-віджети (rounded): у SF Pro
+// Rounded є весь IPA, тож транскрипція — одним шрифтом. На вебі — той
+// самий шрифт, якщо він є, інакше системний.
+const IPA_FAMILY = Platform.select({
+  ios: 'ui-rounded',
+  android: 'sans-serif',
+  default: '"SF Pro Rounded", ui-rounded, system-ui, sans-serif',
+});
+
 export const F = {
   reg: 'Nunito_500Medium',
   semi: 'Nunito_600SemiBold',
   bold: 'Nunito_700Bold',
   extra: 'Nunito_800ExtraBold',
+  ipa: IPA_FAMILY,
 };
+
+// Шрифт транскрипції вагою weight: '500' там, де поруч F.reg, '600' — F.semi,
+// '700' — F.bold. Системний шрифт один на всі ваги, тож вага — окремо.
+export const ipaFont = (weight = '500') => ({ fontFamily: F.ipa, fontWeight: weight });
 
 // ===== ТИПОГРАФІКА =====
 // Правило Apple: трекінг і інтерліньяж залежать від кегля, одне значення на всі

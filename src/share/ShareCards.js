@@ -17,7 +17,7 @@ import { Mascot } from '../Mascot';
 import { photoUri } from '../photos';
 import { flagFor, nameFor } from '../speech';
 import { StickerLarge } from '../Sticker';
-import { F, type } from '../theme';
+import { F, ipaFont, type } from '../theme';
 import {
   CAPS_TRACK,
   CARD_H,
@@ -204,7 +204,7 @@ function IpaPill({ ipa, pal, style }) {
         style,
       ]}
     >
-      <Txt numberOfLines={1} style={{ color: pal.pillText, fontFamily: F.semi, fontSize: 15, lineHeight: 20 }}>
+      <Txt numberOfLines={1} style={{ color: pal.pillText, ...ipaFont('600'), fontSize: 15, lineHeight: 20 }}>
         {label}
       </Txt>
     </View>
@@ -299,7 +299,7 @@ function WordEntry({ word, pal, t, locale }) {
       <View style={{ marginTop: uri ? 92 : 64 }}>
         <BigWord word={word.word} pal={pal} max={54} align="left" />
         {word.ipa ? (
-          <Txt numberOfLines={1} style={{ color: pal.muted, fontFamily: F.reg, fontSize: 17, lineHeight: 22, marginTop: 4 }}>
+          <Txt numberOfLines={1} style={{ color: pal.muted, ...ipaFont('500'), fontSize: 17, lineHeight: 22, marginTop: 4 }}>
             {ipaLabel(word.ipa)}
           </Txt>
         ) : null}

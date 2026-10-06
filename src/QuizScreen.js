@@ -379,7 +379,7 @@ const makeStyles = (C) =>
       alignItems: 'center',
       justifyContent: 'center',
     },
-    qIpa: { color: C.dim, ...type(15, F.reg), marginTop: 6 },
+    qIpa: { color: C.dim, ...type(15, F.ipa), fontWeight: '500', marginTop: 6 },
     option: { backgroundColor: C.card, borderRadius: R.md, paddingVertical: 15, paddingHorizontal: 16 },
     optionText: { color: C.text, ...type(16, F.semi), textAlign: 'center' },
   });

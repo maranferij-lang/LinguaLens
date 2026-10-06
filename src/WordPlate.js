@@ -15,7 +15,7 @@
 import { Text, View } from 'react-native';
 import { flagFor, nameFor } from './speech';
 import { fontSizeForWord, ipaLabel } from './share/layout';
-import { F } from './theme';
+import { F, ipaFont } from './theme';
 
 export const PLATE = {
   face: '#FFFFFF',
@@ -105,7 +105,7 @@ export default function WordPlate({ word, size = 'md', tilt = 0, ipa = size === 
         {text}
       </T>
       {ipaText ? (
-        <T numberOfLines={1} style={{ color: PLATE.dim, fontFamily: F.semi, fontSize: m.ipa, lineHeight: Math.round(m.ipa * 1.27) }}>
+        <T numberOfLines={1} style={{ color: PLATE.dim, ...ipaFont('600'), fontSize: m.ipa, lineHeight: Math.round(m.ipa * 1.27) }}>
           {ipaText}
         </T>
       ) : null}

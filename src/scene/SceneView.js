@@ -605,7 +605,8 @@ const makeStyles = (C) =>
     cardWord: { color: C.text, ...type(28, F.bold) },
     ipa: {
       color: C.accent,
-      ...type(14, F.bold, { noLead: true }),
+      ...type(14, F.ipa, { noLead: true }),
+      fontWeight: '700',
       marginTop: 6,
       alignSelf: 'flex-start',
       backgroundColor: C.accentSoft,

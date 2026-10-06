@@ -58,7 +58,7 @@ import { ProIcon, PCrown } from './ProIcons';
 import { IcBell, IcCheck, IcClose, IcFlame, IcSpeaker } from './icons';
 import { Mascot, MascotBob } from './Mascot';
 import { FadeIn, GradBtn, Press } from './ui';
-import { CAPS, F, PALETTE_KEYS, PRO_PALETTES, R, THEMES, themeKeyOf, type, useTheme } from './theme';
+import { CAPS, F, PALETTE_KEYS, PRO_PALETTES, R, THEMES, ipaFont, themeKeyOf, type, useTheme } from './theme';
 
 // Нижче за це (iPhone SE, mini, збільшений шрифт дисплея) — без Lingo і з
 // тіснішою шапкою: тарифи мають влізти над кнопкою без прокрутки.
@@ -779,7 +779,7 @@ const makePreviewStyles = (P) =>
     streakText: { color: P.text, ...type(11, F.extra, { noLead: true }) },
     row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     word: { color: P.text, ...type(20, F.extra, { noLead: true }), lineHeight: 25 },
-    ipa: { color: P.dim, fontFamily: F.reg },
+    ipa: { color: P.dim, ...ipaFont('500') },
     tr: { color: P.text, ...type(13, F.semi, { noLead: true }), lineHeight: 17, marginTop: 1 },
     actions: { flexDirection: 'row', gap: 7, marginTop: 10 },
     btn: { height: 30, borderRadius: 10, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },

@@ -36,7 +36,7 @@ import { newSceneId } from './scene/scenes';
 import { useSafeAreaInsets } from './SafeArea';
 import { FadeIn, GradBtn, Press, SecBtn } from './ui';
 import { EASE, layoutNext, useReducedMotion } from './motion';
-import { CAPS, F, R, useTheme } from './theme';
+import { CAPS, F, R, ipaFont, useTheme } from './theme';
 import { CAM, CAM_FONT, CamGlass } from './scanner/CamGlass';
 import TopBar from './scanner/TopBar';
 import Viewfinder from './scanner/Viewfinder';
@@ -1012,7 +1012,7 @@ const makeStyles = (C) =>
     ipa: {
       color: C.accent,
       fontSize: 15,
-      fontFamily: F.bold,
+      ...ipaFont('700'),
       marginTop: 10,
       alignSelf: 'center',
       backgroundColor: C.accentSoft,

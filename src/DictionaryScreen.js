@@ -741,7 +741,7 @@ const makeStyles = (C, SHADOW_SM) =>
       paddingTop: 12,
       gap: 8,
     },
-    ipa: { color: C.dim, ...type(15, F.reg) },
+    ipa: { color: C.dim, ...type(15, F.ipa), fontWeight: '500' },
     example: { color: C.text, ...type(14, F.reg) },
     exampleTr: { color: C.dim, ...type(13, F.reg), marginTop: 4 },
     exampleSpeaker: { position: 'absolute', top: 2, right: 0 },

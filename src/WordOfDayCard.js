@@ -29,7 +29,7 @@ import { layoutNext, useReducedMotion } from './motion';
 import { cefrFor } from './profile';
 import { todaySlots } from './wordOfDay';
 import { hourLabel } from './widgets/format';
-import { CAPS, F, R, type, useTheme } from './theme';
+import { CAPS, F, R, ipaFont, type, useTheme } from './theme';
 import { quote } from './share/layout';
 
 const same = (a, b) => String(a || '').toLowerCase() === String(b || '').toLowerCase();
@@ -435,7 +435,7 @@ const makeStyles = (C) =>
     pagerRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     word: { color: C.text, fontSize: 26, fontFamily: F.extra },
-    ipa: { color: C.dim, fontSize: 14, fontFamily: F.reg, marginTop: 2 },
+    ipa: { color: C.dim, fontSize: 14, ...ipaFont('500'), marginTop: 2 },
     translation: { color: C.text, opacity: 0.8, fontSize: 16, fontFamily: F.semi, marginTop: 4 },
     locked: {
       flexDirection: 'row',

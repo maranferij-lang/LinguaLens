@@ -357,7 +357,8 @@ const makeStyles = (C) =>
     // транскрипція — кольоровий піл-бейдж, як на картці результату скану
     ipa: {
       color: C.accent,
-      ...type(15, F.bold, { noLead: true }),
+      ...type(15, F.ipa, { noLead: true }),
+      fontWeight: '700',
       marginTop: 10,
       alignSelf: 'center',
       backgroundColor: C.accentSoft,
