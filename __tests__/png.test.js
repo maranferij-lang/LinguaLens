@@ -110,3 +110,16 @@ describe('resize', () => {
     expect(out.equals(fs.readFileSync(path.join(ROOT, 'assets/app-icon-192.png')))).toBe(true);
   });
 });
+
+// Після злиття store-shots кодек один: tools/png.mjs видалено, скрипти
+// кадрів App Store беруть той самий tools/png.js, що й іконки.
+describe('one codec', () => {
+  test('tools/png.mjs is gone; every script imports tools/png.js', () => {
+    expect(fs.existsSync(path.join(ROOT, 'tools/png.mjs'))).toBe(false);
+    const scripts = ['tools/export-app-icon.mjs', 'tools/export-brand.mjs', 'tools/store-shots/render.mjs', 'tools/store-shots/compose.mjs'];
+    for (const f of scripts) {
+      const src = fs.readFileSync(path.join(ROOT, f), 'utf8');
+      expect([f, /png\.mjs/.test(src), /png\.js'/.test(src)]).toEqual([f, false, true]);
+    }
+  });
+});
