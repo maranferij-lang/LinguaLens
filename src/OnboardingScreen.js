@@ -94,6 +94,7 @@ import {
   PledgeCard,
   PushPreview,
   TodayCard,
+  WELCOME_FONT_MAX,
   WELCOME_PAD,
   WelcomeHero,
   WodExample,
@@ -884,7 +885,10 @@ export default function OnboardingScreen({
   if (phase === 'welcome') {
     const hello = t('ob3Hello');
     const title = t('ob3HookTitle');
-    const size = welcomeSizes({ width: win.width, height: win.height - insets.top - insets.bottom }, { hello, title });
+    const size = welcomeSizes(
+      { width: win.width, height: win.height - insets.top - insets.bottom, fontScale: win.fontScale },
+      { hello, title },
+    );
     return (
       <View style={s.root}>
         <View style={s.brand}>
@@ -895,7 +899,11 @@ export default function OnboardingScreen({
           <WelcomeHero size={size.hero} />
           <HelloBubble text={hello} size={size.hello} />
           <FadeIn delay={320} testID="welcome-title">
-            <Text style={[s.heroTitle, type(size.title, F.extra), { maxWidth: size.titleWidth }]} accessibilityRole="header">
+            <Text
+              style={[s.heroTitle, type(size.title, F.extra), { maxWidth: size.titleWidth }]}
+              maxFontSizeMultiplier={WELCOME_FONT_MAX}
+              accessibilityRole="header"
+            >
               {title}
             </Text>
           </FadeIn>

@@ -13,6 +13,7 @@ import {
   NAME_PAUSE_MS,
   NameLingo,
   PushPreview,
+  WELCOME_FONT_MAX,
   WELCOME_PAD,
   balancedWidth,
   lockClock,
@@ -416,6 +417,22 @@ describe('welcome', () => {
     }
   });
 
+  test('large system text: the hello and the title grow at most by WELCOME_FONT_MAX; the title box is measured for that size', async () => {
+    const dims = { width: 393, height: 852 };
+    const copy = { hello: t('ob3Hello'), title: t('ob3HookTitle') };
+    await withDims({ ...dims, fontScale: 1.12 }, async () => {
+      const tree = await render();
+      const hello = hostText(tree, t('ob3Hello'));
+      const title = hostText(tree, t('ob3HookTitle'));
+      expect(hello.props.maxFontSizeMultiplier).toBe(WELCOME_FONT_MAX);
+      expect(title.props.maxFontSizeMultiplier).toBe(WELCOME_FONT_MAX);
+      const box = StyleSheet.flatten(title.props.style).maxWidth;
+      // рамка ширша, ніж для звичайного кегля, і така, як рахує welcomeSizes
+      expect(box).toBe(welcomeSizes({ ...dims, fontScale: 1.12 }, copy).titleWidth);
+      expect(box).toBeGreaterThan(welcomeSizes(dims, copy).titleWidth);
+    });
+  });
+
   test('VoiceOver: the hello, then the title, both read as headers; Lingo and the stickers are hidden', async () => {
     const tree = await render({ t: uk, uiLang: 'uk' });
     const headers = tree.root.findAll((n) => typeof n.type === 'string' && n.props.accessibilityRole === 'header').map((n) => n.props.children);
@@ -463,6 +480,23 @@ describe('welcome', () => {
         const even = wrapLines(copy(l).title, size.title, size.titleWidth);
         expect([...at, even.length]).toEqual([...at, full.length]);
         expect([...at, even.at(-1).length >= even[0].length / 2]).toEqual([...at, true]);
+      }
+    }
+    // Великий системний шрифт: заголовок росте не більш як на
+    // WELCOME_FONT_MAX, рядків стільки ж, скільки на всю ширину рамки,
+    // без самотнього останнього слова, і привітання все одно більше
+    for (const scr of screens.slice(1)) {
+      for (const l of LOCALES) {
+        for (const fontScale of [0.88, 1, 1.12, 1.24, 1.3, 1.35, 2]) {
+          const size = welcomeSizes({ ...scr, fontScale }, copy(l));
+          const k = Math.min(fontScale, WELCOME_FONT_MAX);
+          const at = [l, scr.width + 'x' + scr.height, fontScale];
+          const full = wrapLines(copy(l).title, size.title * k, Math.min(360, scr.width - 2 * WELCOME_PAD));
+          const even = wrapLines(copy(l).title, size.title * k, size.titleWidth);
+          expect([...at, even.length]).toEqual([...at, full.length]);
+          expect([...at, even.at(-1).length >= even[0].length / 2]).toEqual([...at, true]);
+          expect([...at, size.hello * k > size.title * k]).toEqual([...at, true]);
+        }
       }
     }
     expect(wrapLines(uk('ob3HookTitle'), 22, welcomeSizes(screens[1], copy('uk')).titleWidth)).toEqual(['Я стану твоїм', 'провідником у світ мов']);
