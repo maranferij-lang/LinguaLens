@@ -84,6 +84,7 @@ import {
   StruggleOptions,
 } from './ProfileSteps';
 import {
+  HelloBubble,
   HourChips,
   LingoBubble,
   NameLingo,
@@ -93,11 +94,13 @@ import {
   PledgeCard,
   PushPreview,
   TodayCard,
+  WELCOME_PAD,
   WelcomeHero,
   WodExample,
   hourLabel,
   lockClock,
   phoneVisible,
+  welcomeSizes,
 } from './OnboardingParts';
 import HoldToCommit from './HoldToCommit';
 import LangSheet, { LangList } from './LangSheet';
@@ -875,9 +878,13 @@ export default function OnboardingScreen({
   const slackPx = slack.key === phase ? slack.px : 0;
 
   // ═══ Рендер ═════════════════════════════════════════════════════════════
-  // Вітання: підзаголовка немає (правка власника 6.10.2026)
+  // Вітання: великий Lingo, під ним його «Привіт! Я Лінго.» — найбільший
+  // текст екрана — і заголовок, трохи менший. Підзаголовка немає (правка
+  // власника 6.10.2026): лише привітання й обіцянка.
   if (phase === 'welcome') {
-    const heroSize = Math.round(Math.max(170, Math.min(270, win.height * 0.3)));
+    const hello = t('ob3Hello');
+    const title = t('ob3HookTitle');
+    const size = welcomeSizes({ width: win.width, height: win.height - insets.top - insets.bottom }, { hello, title });
     return (
       <View style={s.root}>
         <View style={s.brand}>
@@ -885,11 +892,11 @@ export default function OnboardingScreen({
           <Text style={s.brandName}>LinguaLens</Text>
         </View>
         <View style={s.hero}>
-          <WelcomeHero size={heroSize} />
-          <FadeIn delay={160} style={{ alignItems: 'center' }}>
-            <LingoBubble text={t('ob3Hello')} style={{ alignSelf: 'center', marginTop: 4 }} />
-            <Text style={s.heroTitle} accessibilityRole="header">
-              {t('ob3HookTitle')}
+          <WelcomeHero size={size.hero} />
+          <HelloBubble text={hello} size={size.hello} />
+          <FadeIn delay={320} testID="welcome-title">
+            <Text style={[s.heroTitle, type(size.title, F.extra), { maxWidth: size.titleWidth }]} accessibilityRole="header">
+              {title}
             </Text>
           </FadeIn>
         </View>
@@ -1318,8 +1325,8 @@ const makeStyles = (C) =>
     root: { flex: 1, backgroundColor: C.bg },
     brand: { flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 20, paddingTop: 14 },
     brandName: { color: C.text, ...type(17, F.extra, { noLead: true }) },
-    hero: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28 },
-    heroTitle: { color: C.text, ...type(28, F.extra), textAlign: 'center', maxWidth: 340, marginTop: 6 },
+    hero: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: WELCOME_PAD },
+    heroTitle: { color: C.text, textAlign: 'center', marginTop: 16 },
     heroFooter: { paddingHorizontal: 24, paddingTop: 8, paddingBottom: 24 },
     later: { alignItems: 'center', justifyContent: 'center', minHeight: 48 },
     laterText: { color: C.dim, ...type(16, F.bold, { noLead: true }) },
