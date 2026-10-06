@@ -296,6 +296,30 @@ test('model text with dashes reaches the app without them: scan, scene, phrases,
   const cached = await ai.translateWord(old, 'de', 'uk');
   assert.equal(requests.length, n); // з кешу, без моделі
   assert.equal(cached.example, 'Die Tasse, leer.');
-  assert.equal(cached.example_translation, 'Чашка, порожня.');
+  assert.equal(cached.example_translation, 'Чашка порожня.');
   assert.equal(cached.source, old);
+});
+
+test('a Ukrainian copula dash in an example disappears instead of turning into a comma', () => {
+  const card = (example, example_translation, translation = 'чашка') =>
+    ai.cleanWord({ word: 'die Tasse', ipa: '', translation, example, example_translation });
+  for (const [from, to] of [
+    ['Кава — мій улюблений напій.', 'Кава мій улюблений напій.'],
+    ['Це — моя чашка.', 'Це моя чашка.'],
+    ['Моя сестра – лікарка.', 'Моя сестра лікарка.'],
+    ['Чашка - порожня.', 'Чашка порожня.'],
+    // займенник після тире: тут потрібна пауза, тож кома
+    ['Чашка — вона порожня.', 'Чашка, вона порожня.'],
+    ['Чашка — Вона порожня.', 'Чашка, Вона порожня.'],
+    // пряма мова й діалогове тире, як і раніше
+    ['— Привіт, — сказав він.', 'Привіт, сказав він.'],
+  ]) {
+    assert.equal(card('Die Tasse ist leer.', from).example_translation, to, from);
+    assert.equal(card(from, 'The cup is empty.').example, to, from);
+  }
+  // поза кирилицею і в слові чи перекладі тире, як і раніше, стає комою
+  assert.equal(card('Die Tasse — sie ist leer.', 'x').example, 'Die Tasse, sie ist leer.');
+  assert.equal(card('x', 'x', 'чашка — кружка').translation, 'чашка, кружка');
+  // без тире текст не змінюється ані на символ
+  assert.equal(card('x', 'Чашка порожня, а кава гаряча.').example_translation, 'Чашка порожня, а кава гаряча.');
 });

@@ -135,7 +135,7 @@ function langName(code, fallback) {
 // обходиться без тире: модель охоче повторює стиль запиту. Те, що все ж
 // прослизне, прибирає undash() у cleanWord/cleanExtras.
 const NO_DASHES_RULE =
-  'Never use an em dash or an en dash as punctuation in any text you write (word, translation, example, example_translation, phrases): use a comma, a colon or a full stop instead. Hyphens inside words and number ranges like 1-2 are fine.';
+  'Never use an em dash or an en dash as punctuation in any text you write (word, translation, example, example_translation, phrases): rewrite the sentence so it needs none. Where Ukrainian or Russian would put a dash between the subject and the predicate, never put a comma there: leave the dash out ("Чашка порожня", "Це моя чашка") or use a verb ("Я люблю каву"). Hyphens inside words and number ranges like 1-2 are fine.';
 
 function wordRules(lang) {
   const L = langName(lang, 'English');
@@ -561,13 +561,32 @@ function cleanText(v, max) {
   return undash(clean(v, max));
 }
 
+// Тире між підметом і присудком в українському (і російському) реченні
+// комою не заміниш: «Кава — мій улюблений напій» стало б «Кава, мій
+// улюблений напій». У реченні прикладу таке тире просто зникає: «Кава мій
+// улюблений напій», «Чашка порожня». Перед займенником («Чашка — вона
+// порожня») і поза кирилицею лишається кома з undash(). Слово, переклад
+// і вирази це не зачіпає: там тире розділяє варіанти («чашка, кружка»).
+const CYRILLIC = /[\u0400-\u04FF]/;
+const COPULA_DASH =
+  /([\p{L}\d])\s+[\u2012\u2013\u2014\u2015-]\s+(?!(?:він|вона|воно|вони|он|она|оно|они)(?![\p{L}\d]))(?=[\p{L}\d])/giu;
+
+function uncopula(s) {
+  return CYRILLIC.test(s) ? s.replace(COPULA_DASH, '$1 ') : s;
+}
+
+// Речення прикладу на картці: обрізане і без довгих тире.
+function cleanSentence(v, max) {
+  return undash(uncopula(clean(v, max)));
+}
+
 function cleanWord(o) {
   return {
     word: cleanText(o.word, 60),
     ipa: clean(o.ipa, 80),
     translation: cleanText(o.translation, 80),
-    example: cleanText(o.example, 240),
-    example_translation: cleanText(o.example_translation, 240),
+    example: cleanSentence(o.example, 240),
+    example_translation: cleanSentence(o.example_translation, 240),
   };
 }
 
