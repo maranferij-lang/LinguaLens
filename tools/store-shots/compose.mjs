@@ -9,9 +9,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { COPY, countAchievements, countLangs, fill, ukGenitivePlural } from './copy.js';
+import { cardBelow, faceCrop, flashcardsLayout, resolveIcon, stackTwo } from './layout.js';
 import { LOCALES, WIDGET_WOD, vocab as vocabFor } from './data.mjs';
 import codec from '../png.js';
-import { ART as ART_DIR, FONTS, LIB, STATIC as STATIC_DIR, UI as UI_DIR, fileUrl, readJson } from './paths.mjs';
+import { ART as ART_DIR, FONTS, LIB, ROOT, STATIC as STATIC_DIR, UI as UI_DIR, fileUrl, readJson } from './paths.mjs';
 
 // PNG — спільним кодеком проєкту (tools/png.js, CommonJS: default-імпорт)
 const { info } = codec;
@@ -49,6 +50,7 @@ export function countsFor(loc) {
 // верхній край на y=700, UI обрізано одразу під статус-баром (жодного 9:41,
 // крім годинника екрана блокування в кадрі 6).
 const CL = 100, CT = 700, CW = 1120;
+// Нижній край вмісту кадрів 3, 5 і 7 — спільний BOTTOM (layout.js).
 const K = CW / 440; // px на pt для картки на всю ширину екрана
 const SB = 62; // висота статус-бару iPhone 17 Pro Max (pt)
 
@@ -355,16 +357,18 @@ const FRAMES = {
     const b = rects(loc, 'cards-back');
     const st = b.sticker_plant;
     const by0 = st.y - 30, by1 = b.translation.y + b.translation.h + 22;
-    const fy0 = f.word.y - 150, fy1 = f.ipa.y + f.ipa.h + 150;
-    const kb = 2.45, kf = 2.75;
+    // лице: слово, IPA й «Слухати» рівно посередині, поля згори й знизу
+    // однакові (без порожньої нижньої третини)
+    const { y0: fy0, y1: fy1 } = faceCrop(f, 64);
+    const kb = 2.55, kf = 2.85;
     const backCrop = { x: b.card.x, y: by0, w: b.card.w, h: by1 - by0 };
     const frontCrop = { x: f.card.x, y: fy0, w: f.card.w, h: fy1 - fy0 };
     const btn = { x: 0, y: b.still.y - 12, w: PT.w, h: b.still.h + 24 };
-    // лице картки — під зворотом, щоб переклад на звороті було видно цілим
-    const fTop = Math.max(1270, CT + 10 + backCrop.h * kb + 110);
-    const bTop = fTop + frontCrop.h * kf + 90;
+    // лице картки — під зворотом, щоб переклад на звороті було видно цілим;
+    // вільне місце до спільного низу — між картками й кнопками
+    const { fTop, bTop } = flashcardsLayout({ top: CT + 10, backH: backCrop.h * kb, frontH: frontCrop.h * kf, btnH: btn.h * K });
     return `${bgA(2)}${captionA(cp, counts)}
-      ${screen({ loc, shot: 'cards-back', k: kb, left: 250, top: CT + 10, crop: backCrop, radius: 60, rot: 6, z: 2 })}
+      ${screen({ loc, shot: 'cards-back', k: kb, left: Math.round((W - backCrop.w * kb) / 2) + 60, top: CT + 10, crop: backCrop, radius: 60, rot: 6, z: 2 })}
       ${screen({ loc, shot: 'cards-front', k: kf, left: Math.round((W - frontCrop.w * kf) / 2) - 10, top: fTop, crop: frontCrop, radius: 64, rot: -3, z: 3 })}
       ${screen({ loc, shot: 'cards-back', k: K, left: CL, top: bTop, crop: btn, radius: 56, z: 4 })}`;
   },
@@ -384,11 +388,12 @@ const FRAMES = {
     const p = rects(loc, 'pf-level');
     const y0 = p.chip.y - 18, y1 = (p.name ? p.name.y + p.name.h : p.c2.y + p.c2.h) + 24;
     const wod = rects(loc, 'learn-wod').wod;
-    const kw = (CW - 120) / wod.w;
-    const top2 = CT + (y1 - y0) * K + 70;
+    // картка слова дня — завширшки як картка рівня й до спільного низу
+    const { k: kw, top: top2 } = cardBelow({ above: CT + (y1 - y0) * K, w: wod.w, h: wod.h, maxW: CW + 40 });
+    const w2 = wod.w * kw;
     return `${bgA(4)}${captionA(cp, counts)}
       ${uiCard(loc, 'pf-level', { y0, y1, z: 2 })}
-      ${screen({ loc, shot: 'learn-wod', k: kw, left: CL + 60, top: top2, crop: { x: wod.x, y: wod.y, w: wod.w, h: wod.h }, radius: 22 * kw, rot: -3, z: 3 })}`;
+      ${screen({ loc, shot: 'learn-wod', k: kw, left: Math.round((W - w2) / 2), top: top2, crop: { x: wod.x, y: wod.y, w: wod.w, h: wod.h }, radius: 22 * kw, rot: -3, z: 3 })}`;
   },
 
   // 6 — віджет «Слово дня»: екран блокування й головний екран, трохи
@@ -400,14 +405,29 @@ const FRAMES = {
   },
 
   // 7 — щоденна звичка, темна тема. Лінго — аватар самого профілю, що
-  // святкує, просто над серією. Картка має тонку лінію й сяйво, щоб
-  // відокремитись від (світлішого) фіолетового тла.
+  // святкує, просто над серією. Під профілем (до картки серії) — перший
+  // ряд вкладки «Досягнення» того ж профілю, нахилений, як картка слова дня
+  // на кадрі 5: підрядок обіцяє досягнення, і їх видно. Картки мають тонку
+  // лінію й сяйво, щоб відокремитись від (світлішого) фіолетового тла.
   7(loc, cp, counts) {
     const pr = rects(loc, 'profile-dark');
-    // до рядка «слів усього · за тиждень · повторень»: графік нижче обрізався б
-    const y1 = pr.stats ? pr.stats.y + pr.stats.h + 12 : Math.min(pr.tabbar.y - 8, pr.share.y + pr.share.h + 28);
+    const ach = rects(loc, 'profile-ach');
+    const glow = 'box-shadow:0 0 0 2px rgba(255,255,255,0.10), 0 0 90px rgba(155,143,255,0.35), 0 40px 90px rgba(10,6,40,0.5)';
+    const x0 = 12, x1 = 428, k = CW / (x1 - x0);
+    if (!ach.ach0 || !pr.streak) {
+      // без вкладки досягнень — як раніше: до рядка «слів усього»
+      const y1 = pr.stats ? pr.stats.y + pr.stats.h + 12 : Math.min(pr.tabbar.y - 8, pr.share.y + pr.share.h + 28);
+      return `${bgDark()}${captionA(cp, counts)}
+        ${uiCard(loc, 'profile-dark', { y1, x0, x1, z: 2, extra: glow })}`;
+    }
+    const y1 = pr.streak.y + pr.streak.h + 8;
+    const row = { x: x0, y: ach.ach0.y - 12, w: x1 - x0, h: ach.ach0.h + 24 };
+    // обидві картки в одному масштабі, разом із проміжком — до спільного низу
+    const { k: kk, top2 } = stackTwo({ top: CT, h1: y1 - SB, h2: row.h, kMax: k });
+    const wk = (x1 - x0) * kk;
     return `${bgDark()}${captionA(cp, counts)}
-      ${uiCard(loc, 'profile-dark', { y1, x0: 12, x1: 428, z: 2, extra: 'box-shadow:0 0 0 2px rgba(255,255,255,0.10), 0 0 90px rgba(155,143,255,0.35), 0 40px 90px rgba(10,6,40,0.5)' })}`;
+      ${uiCard(loc, 'profile-dark', { y1, x0, x1, k: kk, z: 2, extra: glow })}
+      ${screen({ loc, shot: 'profile-ach', k: kk, left: Math.round((W - wk) / 2), top: top2, crop: row, radius: 64, rot: -2.5, z: 3, shadow: '', extra: glow })}`;
   },
 
   // 8 — поділитися: картка сцени позаду, спереду — наліпка чашки без тла

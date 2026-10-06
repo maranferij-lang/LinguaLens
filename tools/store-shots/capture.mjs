@@ -14,6 +14,15 @@ import { LOCALES, STORE_LOCALES, WIDGET_WOD, WOD, olderWords, vocab } from './da
 import { COLLECTION } from './art/objects.mjs';
 import { ART, LIB, UI, WEB, WORK, fileUrl, isMain, launch } from './paths.mjs';
 
+// layout.js — ESM без "type": "module" (його читає й jest): запущений сам,
+// скрипт не друкує попередження Node про це (render.mjs робить те саме).
+if (isMain(import.meta.url)) {
+  process.removeAllListeners('warning');
+  process.on('warning', (w) => {
+    if (w.code !== 'MODULE_TYPELESS_PACKAGE_JSON') console.warn(w.stack || String(w));
+  });
+}
+
 const VP = { width: 440, height: 956 };
 const DAY = 86400000;
 
@@ -453,7 +462,19 @@ export async function captureAll({ locales = STORE_LOCALES, only = null } = {}) 
       await a.wait(1200);
       await a.page.evaluate(() => { window.__fixRand = false; });
       await a.shot('cards-front');
-      await a.measure('cards-front', { card: { text: t('tapFlip'), mode: 'card' }, word: { text: cv.word }, ipa: { text: cv.ipa } });
+      // word — перший у DOM (лице картки): той самий текст має й зворот
+      await a.measure('cards-front', { card: { text: t('tapFlip'), mode: 'card' }, word: { text: cv.word, nth: 0 }, ipa: { text: cv.ipa } });
+      // кнопка «Слухати» під IPA: кадр 3 обрізає лице картки симетрично
+      // довкола слова, IPA й динаміка
+      await a.save('cards-front', {
+        speak: await a.page.evaluate((label) => {
+          const vis = [...document.querySelectorAll(`[aria-label="${label}"]`)]
+            .map((el) => el.getBoundingClientRect())
+            .filter((r) => r.width > 0 && r.height > 0 && r.top < innerHeight);
+          const r = vis.sort((p, q) => q.width * q.height - p.width * p.height)[0];
+          return r ? { x: r.x, y: r.y, w: r.width, h: r.height } : null;
+        }, t('listen')),
+      });
       await a.click(t('showAnswer'));
       await a.wait(1200);
       await a.shot('cards-back');
@@ -505,6 +526,12 @@ export async function captureAll({ locales = STORE_LOCALES, only = null } = {}) 
         stats: { text: t('wordsTotal'), mode: 'card' },
       });
       await a.measureTabBar('profile-dark', t('tabProfile'));
+      // вкладка «Досягнення N/M»: перший ряд плиток — під профілем кадру 7
+      await a.click(t('achievements'), { exact: false });
+      await a.wait(1100);
+      await a.shot('profile-ach');
+      const ids = ACH_IDS();
+      await a.measure('profile-ach', Object.fromEntries(ids.slice(0, 6).map((id, i) => ['ach' + i, { text: t('ach_' + id), mode: 'card' }])));
     });
 
     // 6 і 8 — елементи застосунку поодинці (shot-gallery.js)
@@ -517,7 +544,13 @@ export async function captureAll({ locales = STORE_LOCALES, only = null } = {}) 
       for (let i = 6; i >= 0; i--) { const d = new Date(now - i * DAY); days.push({ key: localKey(d), dow: d.getDay(), value: act[localKey(d)] || 0 }); }
       const recent = words.filter((w) => w.addedAt >= now - 7 * DAY);
       const week = { words: words.length, weekWords: recent.length, streak: 12, reviews: 38, days, stickers: recent.filter((w) => w.photo).slice(-6).reverse(), langs: [L.learn] };
-      const scene = JSON.parse(base.ll_scenes_v1)[0];
+      // Картка сцени кадру 8: дошка й рушник лежать під карткою тижня, і їхні
+      // фішки різало б навпіл. Застосунок тут має перемикач «Показувати на
+      // картці»: вимкнені предмети в картку не йдуть (SceneView, objects:
+      // visible), так і знімаємо (layout.js, cardScene).
+      const { cardScene } = await import('./layout.js');
+      const fullScene = JSON.parse(base.ll_scenes_v1)[0];
+      const scene = cardScene(fullScene);
       const mugWord = words.find((w) => w.id === 'w-mug');
       const shots = [
         // картки 9:16 («Зберегти зображення»)
@@ -525,7 +558,7 @@ export async function captureAll({ locales = STORE_LOCALES, only = null } = {}) 
         ['card-week-graphite', { what: 'card', template: 'week', pal: 'graphite', payload: { kind: 'week', stats: week } }],
         // наліпки без тла (головне, чим ділиться v1.3)
         ['sticker-object', { what: 'sticker', kind: 'object', payload: { kind: 'word', word: mugWord } }, { transparent: true }],
-        ['sticker-scene', { what: 'sticker', kind: 'scene', payload: { kind: 'scene', scene } }, { transparent: true }],
+        ['sticker-scene', { what: 'sticker', kind: 'scene', payload: { kind: 'scene', scene: fullScene } }, { transparent: true }],
         // живий перегляд віджетів з перекладом, відкритим кнопкою «Показати переклад»
         [
           'widget',
@@ -534,7 +567,10 @@ export async function captureAll({ locales = STORE_LOCALES, only = null } = {}) 
         ],
       ];
       for (const [name, shot, opts = {}] of shots) {
-        const l = await elementShot(browser, { port, shot: { lang: L.ui, ...shot }, out: path.join(outDir, name + '.png'), ...opts });
+        // locale — дати на картках (діапазон тижня, дата внизу) у форматі
+        // локалі магазину: en-GB «30 Sept–6 Oct», а не американське
+        // «Sep 30–Oct 6», яке застосунок дає будь-якій англійській
+        const l = await elementShot(browser, { port, shot: { lang: L.ui, locale: L.date, ...shot }, out: path.join(outDir, name + '.png'), ...opts });
         logs.push(...l.map((x) => name + ': ' + x));
       }
       console.log(`  ${loc} parts`);

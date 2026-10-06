@@ -3,7 +3,8 @@
 // копії). Один елемент застосунку рівно так, як його малює застосунок,
 // за window.__SHOT__ = { what, lang, … }:
 //   what: 'card'    — картка 9:16 (ShareCard / SceneCard), яку знімає
-//                     «Зберегти зображення»: { template, pal, payload };
+//                     «Зберегти зображення»: { template, pal, payload,
+//                     locale } (locale — дати картки, типово localeFor(lang));
 //   what: 'sticker' — наліпка без тла (StickerArt, «Поділитися» → наліпка):
 //                     { kind: 'object' | 'word' | 'scene' | 'badge', payload };
 //   what: 'widget'  — живий перегляд віджетів (WidgetPreview з кроку
@@ -43,7 +44,7 @@ export default function ShotGallery() {
   }
   return (
     <View nativeID="card" style={{ alignSelf: 'flex-start' }}>
-      <ShareCard payload={shot.payload} template={shot.template} pal={paletteByKey(shot.pal)} t={t} locale={localeFor(shot.lang)} />
+      <ShareCard payload={shot.payload} template={shot.template} pal={paletteByKey(shot.pal)} t={t} locale={shot.locale || localeFor(shot.lang)} />
     </View>
   );
 }
