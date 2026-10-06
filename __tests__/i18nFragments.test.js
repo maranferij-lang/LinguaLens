@@ -123,8 +123,8 @@ describe('shared strings', () => {
     expect(ru('streakToNext', { k: 2, m: 14 })).toBe('Огонь горит. До 14 дней осталось 2');
     expect(ru('streakToNext', { k: 7, m: 21 })).toBe('Огонь горит. До 21 дня осталось 7');
     expect(ru('streakBest', { n: 22 })).toBe('Рекорд: 22 дня');
-    expect(ru('streakToWeek', { k: 1 })).toBe('1 день до недели, и огонёк вспыхнет');
-    expect(ru('streakToWeek', { k: 6 })).toBe('6 дней до недели, и огонёк вспыхнет');
+    expect(ru('streakToWeek', { k: 1 })).toBe('Ещё 1 день до недели, и огонь вспыхнет');
+    expect(ru('streakToWeek', { k: 6 })).toBe('Ещё 6 дней до недели, и огонь вспыхнет');
   });
 
   test('the footer slogan no longer repeats the name; the version has a label', () => {

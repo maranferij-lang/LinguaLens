@@ -132,7 +132,7 @@ export default {
     shareSave: 'Сохранить',
     shareMore: 'Ещё',
     shareCopied: 'Скопировано. Открой Stories или чат, нажми на экран и выбери «Вставить».',
-    shareSaved: 'Сохранено в Фото, с прозрачным фоном.',
+    shareSaved: 'Сохранено в Фото с прозрачным фоном.',
     shareSaveDenied: 'LinguaLens не может добавлять в Фото. Разреши это в Настройках.',
     shareOpenSettings: 'Открыть Настройки',
     shareCopyError: 'Не удалось скопировать. Попробуй ещё раз.',

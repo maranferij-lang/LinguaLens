@@ -183,7 +183,7 @@ export default {
     widgetLearned: 'Выучено {k} из {n}',
     widgetReview: 'Повторить',
     widgetUpNext: 'Дальше',
-    widgetWordsEmpty: 'Здесь будут твои слова по очереди',
+    widgetWordsEmpty: 'Здесь будут сменяться твои слова',
     widgetWordsEmptyHint: 'Сохрани слово дня, и начнём',
     widgetStreakTitle: 'Серия',
     widgetDays: '{n|день|дня|дней}',
