@@ -431,8 +431,11 @@ async function session(browser, { loc, theme = 'light', seed, port, outDir, step
 // adjustsFontSizeToFit: на iPhone вони зменшуються, щоб уміститись у рядок
 // (до minimumFontScale), а react-native-web цього не вміє й обрізає їх
 // трьома крапками («MIS PALAB…»); тут зменшуємо їх так само, як iOS.
-async function elementShot(browser, { port, shot, out, transparent = false, reveal = [], parts = [], fit = [] }) {
-  const ctx = await browser.newContext({ viewport: { width: 460, height: 760 }, deviceScaleFactor: 3, reducedMotion: 'reduce' });
+// shot.variants — варіанти мов (settings.variants), з якими елемент
+// показує прапорець (🇬🇧 на наліпці en-GB); locale — мова й регіон
+// телефона, як у сесії застосунку цієї локалі.
+async function elementShot(browser, { port, shot, out, locale, transparent = false, reveal = [], parts = [], fit = [] }) {
+  const ctx = await browser.newContext({ viewport: { width: 460, height: 760 }, deviceScaleFactor: 3, reducedMotion: 'reduce', ...(locale ? { locale } : null) });
   await ctx.addInitScript((s) => { window.__SHOT__ = s; }, shot);
   await addIpaFont(ctx, `http://127.0.0.1:${port}`);
   const page = await ctx.newPage();
@@ -688,7 +691,7 @@ export async function captureAll({ locales = STORE_LOCALES, only = null } = {}) 
         // locale — дати на картках (діапазон тижня, дата внизу) у форматі
         // локалі магазину: en-GB «30 Sept–6 Oct», а не американське
         // «Sep 30–Oct 6», яке застосунок дає будь-якій англійській
-        const l = await elementShot(browser, { port, shot: { lang: L.ui, locale: L.date, ...shot }, out: path.join(outDir, name + '.png'), ...opts });
+        const l = await elementShot(browser, { port, shot: { lang: L.ui, locale: L.date, variants: variantsFor(loc), ...shot }, out: path.join(outDir, name + '.png'), locale: L.browser, ...opts });
         logs.push(...l.map((x) => name + ': ' + x));
       }
       console.log(`  ${loc} parts`);

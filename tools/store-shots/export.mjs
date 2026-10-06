@@ -38,6 +38,15 @@ function copyPure(srcRoot, rel, seen = new Set()) {
   fs.writeFileSync(dest, code);
 }
 
+// Прокладка для shot-gallery.js: варіанти мов (src/langVariants.js) є не в
+// кожній версії, а Metro не збере імпорт файла, якого немає. Без варіантів
+// setChosenVariants нічого не робить, як і застосунок тієї версії.
+export function variantsShim(hasVariants) {
+  return hasVariants
+    ? "export { setChosenVariants } from './src/langVariants';\n"
+    : 'export function setChosenVariants() {}\n';
+}
+
 export const STATIC_FILES = ['icon.png', 'lingo-wave.png', 'lingo-celebrate.png', 'lingo-think.png', 'lingo-encourage.png'];
 
 export function exportWeb({ ref = process.env.REF || 'HEAD', keep = false } = {}) {
@@ -55,6 +64,7 @@ export function exportWeb({ ref = process.env.REF || 'HEAD', keep = false } = {}
     if (imports.join() !== expected.join()) console.warn(`увага: index.js у ${ref} імпортує ${imports.join(', ')}; перевір app-entry/index.js`);
     fs.copyFileSync(path.join(HERE, 'app-entry/index.js'), path.join(tmp, 'index.js'));
     fs.copyFileSync(path.join(HERE, 'app-entry/shot-gallery.js'), path.join(tmp, 'shot-gallery.js'));
+    fs.writeFileSync(path.join(tmp, 'shot-variants.js'), variantsShim(fs.existsSync(path.join(tmp, 'src/langVariants.js'))));
     fs.rmSync(WEB, { recursive: true, force: true });
     fs.mkdirSync(WORK, { recursive: true });
     console.log(`expo export -p web: ${ref} (${rev}) …`);

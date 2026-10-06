@@ -191,3 +191,27 @@ describe('store shots seed', () => {
     expect(samePair({ ...gb, variant: 'us' }, { lang: 'en', native: 'uk', variant: 'gb', nativeVariant: null })).toBe(false);
   });
 });
+
+describe('store shots: element shots get the variants too', () => {
+  // shot-gallery.js імпортує setChosenVariants з прокладки, яку export.mjs
+  // кладе поруч: справжня функція застосунку, а у версії без варіантів мов
+  // заглушка (інакше Metro не збере старішу версію)
+  const shim = run(`
+    import { variantsShim } from ${JSON.stringify(url('export.mjs'))};
+    console.log(JSON.stringify({ with: variantsShim(true), without: variantsShim(false) }));
+  `);
+
+  test('the shim re-exports the app’s setChosenVariants, or a no-op without variants', () => {
+    expect(shim.with).toMatch(/export \{ setChosenVariants \} from '\.\/src\/langVariants'/);
+    expect(shim.without).toMatch(/export function setChosenVariants\(\) \{\}/);
+    expect(typeof require('../src/langVariants').setChosenVariants).toBe('function');
+  });
+
+  test('the gallery applies shot.variants before it renders, and capture passes them', () => {
+    const fs = require('fs');
+    const gallery = fs.readFileSync(path.join(DIR, 'app-entry/shot-gallery.js'), 'utf8');
+    expect(gallery).toMatch(/from '\.\/shot-variants'/);
+    expect(gallery).toMatch(/setChosenVariants\(shot\.variants\)/);
+    expect(fs.readFileSync(path.join(DIR, 'capture.mjs'), 'utf8')).toMatch(/variants: variantsFor\(loc\)/);
+  });
+});

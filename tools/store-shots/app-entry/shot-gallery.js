@@ -1,7 +1,8 @@
 // Лише для скріншотів App Store (копіюється в тимчасову копію версії поруч
 // з index.js, у збірку застосунку не потрапляє; імпорти — від кореня тієї
 // копії). Один елемент застосунку рівно так, як його малює застосунок,
-// за window.__SHOT__ = { what, lang, … }:
+// за window.__SHOT__ = { what, lang, variants, … } (variants — варіанти мов,
+// як settings.variants: від них прапорець на картці й наліпці):
 //   what: 'card'    — картка 9:16 (ShareCard / SceneCard), яку знімає
 //                     «Зберегти зображення»: { template, pal, payload,
 //                     locale } (locale — дати картки, типово localeFor(lang));
@@ -22,11 +23,16 @@ import { paletteByKey } from './src/share/layout';
 import { WidgetPreview } from './src/widgets/WidgetPreview';
 import { makeT } from './src/i18n';
 import { localeFor } from './src/locale';
+// export.mjs кладе поруч прокладку: setChosenVariants з src/langVariants.js
+// або, у версії без варіантів мов, функцію, що нічого не робить
+import { setChosenVariants } from './shot-variants';
 
 export default function ShotGallery() {
   const [ok] = useFonts({ Nunito_500Medium, Nunito_600SemiBold, Nunito_700Bold, Nunito_800ExtraBold });
   const shot = (typeof window !== 'undefined' && window.__SHOT__) || null;
   if (!ok || !shot) return null;
+  // як App на кожному рендері: прапорці (flagFor) бачать вибір людини
+  setChosenVariants(shot.variants);
   const t = makeT(shot.lang);
   if (shot.what === 'sticker') {
     return (
