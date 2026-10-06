@@ -315,6 +315,19 @@ describe('the card itself', () => {
     expect(strings(tree.root).some((s) => s.includes(' · '))).toBe(false);
   });
 
+  // Приклад — речення мови слова, і лапки в нього ті самі, що у віджеті й на
+  // картках «Поділитися» (quote з share/layout): іспанське «…», англійське “…”.
+  // Раніше картка завжди ставила “…”, а віджет поруч — «…».
+  test('the example sits in the quotes of its own language, like in the widget', async () => {
+    let tree = await card({ lang: 'es', word: { ...word, word: 'la llovizna', example: 'Salimos bajo la llovizna.' } });
+    await expand(tree);
+    expect(strings(tree.root)).toContain('«Salimos bajo la llovizna.»');
+    await act(async () => tree.unmount());
+    tree = await card({});
+    await expand(tree);
+    expect(strings(tree.root)).toContain('“Cash gives liquidity.”');
+  });
+
   test('“I know it” is a separate, labelled button that is ignored while a new word loads', async () => {
     const onKnow = jest.fn();
     let tree = await card({ onKnow });

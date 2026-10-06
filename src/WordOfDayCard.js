@@ -30,6 +30,7 @@ import { cefrFor } from './profile';
 import { todaySlots } from './wordOfDay';
 import { hourLabel } from './widgets/format';
 import { CAPS, F, R, type, useTheme } from './theme';
+import { quote } from './share/layout';
 
 const same = (a, b) => String(a || '').toLowerCase() === String(b || '').toLowerCase();
 
@@ -326,7 +327,7 @@ export default function WordOfDayCard({
                 <View style={s.exampleSpeaker}>
                   <IcSpeaker size={14} color={C.dim} />
                 </View>
-                <Text style={s.example}>“{cur.example}”</Text>
+                <Text style={s.example}>{quote(cur.example, lang)}</Text>
                 <Text style={s.exampleTr}>{cur.example_translation}</Text>
               </Press>
             </View>

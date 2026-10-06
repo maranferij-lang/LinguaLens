@@ -45,6 +45,7 @@ import Shutter from './scanner/Shutter';
 import LastWord from './scanner/LastWord';
 import ZoomButton from './scanner/ZoomButton';
 import { SHUTTER, SIDE_OFFSET, scannerLayout } from './scanner/layout';
+import { quote } from './share/layout';
 
 // Зум щипком: найбільше значення (iOS рахує зум як maxZoom^value).
 const MAX_ZOOM = 0.6;
@@ -814,7 +815,7 @@ export default function ScannerScreen({
                       <View style={s.exampleSpeaker}>
                         <IcSpeaker size={15} color={C.dim} />
                       </View>
-                      <Text style={s.example}>“{result.example}”</Text>
+                      <Text style={s.example}>{quote(result.example, targetLang)}</Text>
                       <Text style={s.exampleTr}>{result.exampleTranslation}</Text>
                     </Press>
                   </FadeIn>

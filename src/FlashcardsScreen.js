@@ -28,6 +28,7 @@ import { UNDER_TAB } from './Chrome';
 
 import { F, R, type, useTheme } from './theme';
 import { DUR, EASE, useReducedMotion } from './motion';
+import { quote } from './share/layout';
 
 // Скільки видно ярлик «Відкрито!» і скільки світиться підказаний блок
 export const UNLOCK_MS = 2000;
@@ -502,7 +503,7 @@ export default function FlashcardsScreen({
             <Text style={s.cardTranslation}>{current.translation}</Text>
             {current.example ? (
               <View style={s.exampleBox}>
-                <Text style={s.example}>“{current.example}”</Text>
+                <Text style={s.example}>{quote(current.example, current.lang)}</Text>
                 {current.exampleTranslation ? <Text style={s.exampleTr}>{current.exampleTranslation}</Text> : null}
               </View>
             ) : null}

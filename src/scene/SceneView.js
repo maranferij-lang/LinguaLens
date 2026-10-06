@@ -37,6 +37,7 @@ import { LiftedObjects, Leaders, SceneChip, sceneShapes } from './SceneArt';
 import { anchorOf, chipSize, fitContain, layoutChips, rectOf } from './sceneLayout';
 import { hasWord, sceneImageUri } from './scenes';
 import { PLATE } from '../WordPlate';
+import { quote } from '../share/layout';
 
 const TOP_BAR = 52;
 const BTN_H = 54;
@@ -484,7 +485,7 @@ function WordCard({ o, lang, cut, saved, busy, shownOnCard, onToggle, onSave, on
             <View style={s.exampleSpeaker}>
               <IcSpeaker size={15} color={C.dim} />
             </View>
-            <Text style={s.example}>“{o.example}”</Text>
+            <Text style={s.example}>{quote(o.example, lang)}</Text>
             {o.exampleTranslation ? <Text style={s.exampleTr}>{o.exampleTranslation}</Text> : null}
           </Press>
         ) : null}

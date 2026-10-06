@@ -32,6 +32,7 @@ import { useSafeAreaInsets } from './SafeArea';
 import { FadeIn, GradBtn, Press } from './ui';
 import { DUR, EASE, SPRING, useReducedMotion } from './motion';
 import { F, R, type, useTheme } from './theme';
+import { quote } from './share/layout';
 
 // ─── Артиклі ────────────────────────────────────────────────────────────────
 // Для мов, де рід не вгадати зі слова, сервер зберігає слово з означеним
@@ -305,7 +306,7 @@ function SheetBody({ item, art, s, C, t, onShare, onDelete }) {
             <View style={s.exampleSpeaker}>
               <IcSpeaker size={15} color={C.dim} />
             </View>
-            <Text style={s.example}>“{item.example}”</Text>
+            <Text style={s.example}>{quote(item.example, lang)}</Text>
             {item.exampleTranslation ? <Text style={s.exampleTr}>{item.exampleTranslation}</Text> : null}
           </Press>
         </FadeIn>

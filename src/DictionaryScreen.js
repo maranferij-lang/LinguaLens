@@ -30,7 +30,7 @@ import WordSheet, { confirmDelete, LetterTile, splitArticle } from './WordSheet'
 import { photoUri } from './photos';
 import SceneView from './scene/SceneView';
 import { sceneImageUri } from './scene/scenes';
-import { dateLabel, safeLocale } from './share/layout';
+import { dateLabel, quote, safeLocale } from './share/layout';
 import { FadeIn, GradBtn, Press } from './ui';
 import { UNDER_TAB } from './Chrome';
 import { layoutNext, SPRING, useReducedMotion } from './motion';
@@ -584,7 +584,7 @@ const ListRow = memo(function ListRow({ item, open, flag, onToggle, onAskDelete,
               <View style={s.exampleSpeaker}>
                 <IcSpeaker size={14} color={C.dim} />
               </View>
-              <Text style={s.example}>“{item.example}”</Text>
+              <Text style={s.example}>{quote(item.example, lang)}</Text>
               {item.exampleTranslation ? <Text style={s.exampleTr}>{item.exampleTranslation}</Text> : null}
             </Pressable>
           ) : null}
