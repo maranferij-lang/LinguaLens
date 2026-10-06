@@ -213,6 +213,17 @@ describe('copy style', () => {
     expect(bad).toEqual([]);
   });
 
+  // Милозвучність (правопис §24): між двома приголосними «із», а не «з»:
+  // «доступний із Pro», «кадр із Pro», але «мова з Pro» і «З Pro скануй».
+  test('uk: «із» rather than «з» between two consonants', () => {
+    const C = 'бвгґджзклмнпрстфхцчшщьйbcdfghjklmnpqrstvwxz';
+    const between = new RegExp(`[${C}]\\s+з\\s+[${C}]`, 'iu');
+    const bad = Object.entries(STRINGS.uk)
+      .filter(([, s]) => between.test(s))
+      .map(([k, s]) => `uk.${k}: ${s}`);
+    expect(bad).toEqual([]);
+  });
+
   // Підписи секцій і кепс-лейбли переводить у верхній регістр стиль
   // (CAPS, sectionLabel). Капс у самому рядку VoiceOver читає по літерах.
   test('strings are not written in ALL CAPS', () => {

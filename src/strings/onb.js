@@ -205,7 +205,7 @@ export default {
     obDemoBeat1: 'Наведи камеру на предмет',
     obDemoBeat2: 'LinguaLens вирізає його й називає',
     obDemoBeat3: 'Слово летить у твій словник',
-    obDemoFinal: 'Твоя черга. Це 10 секунд',
+    obDemoFinal: 'Твоя черга. Це займе 10 секунд',
     obDemoWords: 'Мої слова',
     obDemoReplay: 'Ще раз',
     obDemoTry: 'Спробувати',

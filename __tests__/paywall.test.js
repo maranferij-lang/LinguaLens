@@ -329,13 +329,13 @@ describe('the scans wall for a lifetime free scan', () => {
     let tree = (mounted = await render({ reason: 'scans', freeScans: 1, plans: PLANS, t: uk, lang: 'uk' }));
     let all = texts(tree);
     expect(all).toContain('Безкоштовний скан використано');
-    expect(all).toContain('Безкоштовно є 1 скан на пробу. З Pro скануй скільки хочеш. Словник, картки й слово дня лишаються безкоштовними.');
+    expect(all).toContain('Безкоштовно можна зробити 1 скан на пробу. З Pro скануй скільки хочеш. Словник, картки й слово дня лишаються безкоштовними.');
     expect(all).toContain('Сканів загалом');
     expect(all.some((x) => /сьогодні|завтра|на день|щодня/.test(x))).toBe(false);
     await act(async () => tree.unmount());
     tree = mounted = await render({ reason: 'scans', freeScans: 3, plans: PLANS, t: uk, lang: 'uk' });
     all = texts(tree);
     expect(all).toContain('Безкоштовні скани використано');
-    expect(all).toContain('Безкоштовно є 3 скани на пробу. З Pro скануй скільки хочеш. Словник, картки й слово дня лишаються безкоштовними.');
+    expect(all).toContain('Безкоштовно можна зробити 3 скани на пробу. З Pro скануй скільки хочеш. Словник, картки й слово дня лишаються безкоштовними.');
   });
 });

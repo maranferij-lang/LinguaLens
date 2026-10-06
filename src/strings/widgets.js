@@ -85,7 +85,7 @@ export default {
     widgetFastClockHint: 'Година стає хвилиною: ротація слів, фази серії й слова Pro за кілька хвилин. Лише збірка для розробки.',
     wodPerDay: 'Слів на день',
     wodPerDayHint: 'Кожне слово приходить о своїй годині: сповіщенням і у віджеті',
-    wodPerDayPro: '3 і 5 слів на день з Pro',
+    wodPerDayPro: '3 і 5 слів на день із Pro',
     wodSlotN: 'Слово {n}',
     wodSlotA11y: 'Слово {n} о {t}',
     wodSlotOf: 'Слово {i} з {n}',

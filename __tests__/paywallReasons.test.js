@@ -211,7 +211,7 @@ describe('the words-per-day paywall', () => {
     const all = strings(tree);
     expect(all).toEqual(
       expect.arrayContaining([
-        'До 5 слів на день з Pro',
+        'До 5 слів на день із Pro',
         'У сповіщеннях і віджеті, о годинах, які обереш. Перше слово дня лишається безкоштовним.',
         'Слова дня',
         'до 5',
