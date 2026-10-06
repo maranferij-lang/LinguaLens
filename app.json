@@ -28,7 +28,7 @@
       "package": "com.marik.lingualens",
       "versionCode": 1,
       "adaptiveIcon": {
-        "backgroundColor": "#FAF8F4",
+        "backgroundColor": "#372E9F",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"

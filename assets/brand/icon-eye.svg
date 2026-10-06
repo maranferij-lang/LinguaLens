@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Альтернативна іконка «Око Лінго» (концепт A) для A/B-тесту іконки в App
+       Store (Product Page Optimization): око-турель хамелеона, яке водночас є
+       обʼєктивом. Кільця зміщені в бік погляду, тож читаються як конус турелі;
+       кольори взято зі шкіри Лінго (бірюзове тіло → фіолетова голова).
+       Майстер для tools/export-brand.mjs → assets/icon-eye.png → набір
+       AppIcon-Eye у збірці (plugins/withAlternateIcons.js). -->
+  <defs>
+    <linearGradient id="bg" x1="0.15" y1="0" x2="0.85" y2="1">
+      <stop offset="0" stop-color="#6F62F4"/>
+      <stop offset="1" stop-color="#3E32B8"/>
+    </linearGradient>
+    <linearGradient id="r1" x1="0.1" y1="1" x2="0.9" y2="0">
+      <stop offset="0" stop-color="#37BBAE"/>
+      <stop offset="1" stop-color="#7CE6D8"/>
+    </linearGradient>
+    <linearGradient id="r2" x1="0.1" y1="1" x2="0.9" y2="0">
+      <stop offset="0" stop-color="#6C86E4"/>
+      <stop offset="1" stop-color="#93B4F4"/>
+    </linearGradient>
+    <linearGradient id="r3" x1="0.1" y1="1" x2="0.9" y2="0">
+      <stop offset="0" stop-color="#A69CF6"/>
+      <stop offset="1" stop-color="#E2DDFF"/>
+    </linearGradient>
+    <radialGradient id="pupil" cx="0.4" cy="0.36" r="0.72">
+      <stop offset="0" stop-color="#34307A"/>
+      <stop offset="0.7" stop-color="#1A1642"/>
+      <stop offset="1" stop-color="#100D2A"/>
+    </radialGradient>
+    <filter id="sh" x="-25%" y="-25%" width="150%" height="150%">
+      <feDropShadow dx="0" dy="24" stdDeviation="28" flood-color="#1B1460" flood-opacity="0.38"/>
+    </filter>
+    <filter id="step" x="-25%" y="-25%" width="150%" height="150%">
+      <feDropShadow dx="-8" dy="14" stdDeviation="12" flood-color="#1B1460" flood-opacity="0.22"/>
+    </filter>
+  </defs>
+  <rect id="background" width="1024" height="1024" fill="url(#bg)"/>
+  <g id="eye">
+    <circle cx="494" cy="546" r="368" fill="url(#r1)" filter="url(#sh)"/>
+    <circle cx="532" cy="502" r="284" fill="url(#r2)" filter="url(#step)"/>
+    <circle cx="566" cy="464" r="204" fill="url(#r3)" filter="url(#step)"/>
+    <circle cx="590" cy="440" r="140" fill="#FFFFFF" filter="url(#step)"/>
+    <circle cx="602" cy="430" r="92" fill="url(#pupil)"/>
+    <circle cx="602" cy="430" r="58" fill="none" stroke="#5B4FD6" stroke-width="10" opacity="0.75"/>
+    <circle cx="570" cy="394" r="30" fill="#FFFFFF"/>
+  </g>
+</svg>
