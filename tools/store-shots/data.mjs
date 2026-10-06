@@ -4,12 +4,20 @@
 //   uk     інтерфейс uk, вчить англійську, переклади uk
 //   en-US  інтерфейс en, вчить іспанську (з артиклями: la taza), переклади en
 //   en-GB  інтерфейс en, вчить англійську, переклади uk — так застосунок бачить
-//          українець з англійським телефоном; слова британські (trainer,
-//          chopping board, tea towel)
+//          українець з англійським телефоном
 //   es-MX  інтерфейс es, вчить англійську, переклади es (мексиканські:
 //          audífonos, tenis, lentes)
 // Слова, IPA й переклади — такі, які повертає сервер для цих предметів.
 // Перед поданням їх можна замінити справжніми сканами власника (BRIEF §9).
+//
+// Варіант мови — той, який людина чує в застосунку. Сервер (server/ai.js)
+// просить у моделі просто «English» чи «Spanish», а озвучка (LANGS у
+// src/speech.js) — en-US і es-ES. Тож англійська тут американська (sneaker,
+// /ˈhaʊsplænt/, /ˈɡlæsɪz/) у всіх трьох локалях, зокрема en-GB: британський
+// телефон не робить британськими ні слова моделі, ні голос. Іспанська, якої
+// вчать в en-US, — іспанська Іспанії, як голос es-ES і прапорець 🇪🇸: θ
+// у /la ˈtaθa/ (так пише й зразок сервера), auriculares, zapatilla, gafas.
+// IPA іспанських слів — з артиклем, як у сервера: «/la ˈtaθa/».
 
 export const STORE_LOCALES = ['uk', 'en-US', 'en-GB', 'es-MX'];
 
@@ -23,88 +31,74 @@ export const LOCALES = {
   'es-MX': { ui: 'es', learn: 'en', native: 'es', name: 'Marco', browser: 'es-MX', date: 'es-MX' },
 };
 
-// Набір слів: пара «мова навчання > мова перекладу», а для en-GB — свій
-// (британські назви).
-const SET = { uk: 'en>uk', 'en-US': 'es>en', 'en-GB': 'en-GB>uk', 'es-MX': 'en>es' };
+// Набір слів: пара «мова навчання > мова перекладу». en-GB бачить ті самі
+// англійські слова, що й uk (див. вище).
+const SET = { uk: 'en>uk', 'en-US': 'es>en', 'en-GB': 'en>uk', 'es-MX': 'en>es' };
+
+// Англійська, американська вимова (голос en-US): key → [word, ipa]
+const EN = {
+  mug: ['mug', '/mʌɡ/'],
+  plant: ['houseplant', '/ˈhaʊsplænt/'],
+  apple: ['apple', '/ˈæpəl/'],
+  headphones: ['headphones', '/ˈhedfoʊnz/'],
+  sneaker: ['sneaker', '/ˈsniːkər/'],
+  lemon: ['lemon', '/ˈlemən/'],
+  camera: ['camera', '/ˈkæmərə/'],
+  backpack: ['backpack', '/ˈbækpæk/'],
+  umbrella: ['umbrella', '/ʌmˈbrelə/'],
+  clock: ['alarm clock', '/əˈlɑːrm klɑːk/'],
+  book: ['book', '/bʊk/'],
+  cactus: ['cactus', '/ˈkæktəs/'],
+  glasses: ['glasses', '/ˈɡlæsɪz/'],
+  kettle: ['kettle', '/ˈketl/'],
+  banana: ['banana', '/bəˈnænə/'],
+  scissors: ['scissors', '/ˈsɪzərz/'],
+  // лише сцена кухні
+  window: ['window', '/ˈwɪndoʊ/'],
+  pan: ['frying pan', '/ˈfraɪɪŋ pæn/'],
+  jar: ['jar', '/dʒɑːr/'],
+  board: ['cutting board', '/ˈkʌtɪŋ bɔːrd/'],
+  towel: ['dish towel', '/ˈdɪʃ taʊəl/'],
+};
+const withTranslations = (tr) => Object.fromEntries(Object.entries(EN).map(([k, [w, ipa]]) => [k, [w, ipa, tr[k]]]));
 
 // key → [word, ipa, translation]
-const EN_UK = {
-  mug: ['mug', '/mʌɡ/', 'кружка'],
-  plant: ['houseplant', '/ˈhaʊsplɑːnt/', 'кімнатна рослина'],
-  apple: ['apple', '/ˈæpəl/', 'яблуко'],
-  headphones: ['headphones', '/ˈhedfəʊnz/', 'навушники'],
-  sneaker: ['sneaker', '/ˈsniːkə/', 'кросівок'],
-  lemon: ['lemon', '/ˈlemən/', 'лимон'],
-  camera: ['camera', '/ˈkæmərə/', 'фотоапарат'],
-  backpack: ['backpack', '/ˈbækpæk/', 'рюкзак'],
-  umbrella: ['umbrella', '/ʌmˈbrelə/', 'парасолька'],
-  clock: ['alarm clock', '/əˈlɑːm klɒk/', 'будильник'],
-  book: ['book', '/bʊk/', 'книжка'],
-  cactus: ['cactus', '/ˈkæktəs/', 'кактус'],
-  glasses: ['glasses', '/ˈɡlɑːsɪz/', 'окуляри'],
-  kettle: ['kettle', '/ˈketl/', 'чайник'],
-  banana: ['banana', '/bəˈnɑːnə/', 'банан'],
-  scissors: ['scissors', '/ˈsɪzəz/', 'ножиці'],
-  // лише сцена кухні
-  window: ['window', '/ˈwɪndəʊ/', 'вікно'],
-  pan: ['frying pan', '/ˈfraɪɪŋ pæn/', 'сковорідка'],
-  jar: ['jar', '/dʒɑː/', 'банка'],
-  board: ['cutting board', '/ˈkʌtɪŋ bɔːd/', 'обробна дошка'],
-  towel: ['tea towel', '/ˈtiː taʊəl/', 'кухонний рушник'],
-};
-
 const VOCAB = {
-  'en>uk': EN_UK,
-  'en-GB>uk': {
-    ...EN_UK,
-    sneaker: ['trainer', '/ˈtreɪnə/', 'кросівок'],
-    board: ['chopping board', '/ˈtʃɒpɪŋ bɔːd/', 'обробна дошка'],
-  },
+  'en>uk': withTranslations({
+    mug: 'кружка', plant: 'кімнатна рослина', apple: 'яблуко', headphones: 'навушники', sneaker: 'кросівок', lemon: 'лимон',
+    camera: 'фотоапарат', backpack: 'рюкзак', umbrella: 'парасолька', clock: 'будильник', book: 'книжка', cactus: 'кактус',
+    glasses: 'окуляри', kettle: 'чайник', banana: 'банан', scissors: 'ножиці',
+    window: 'вікно', pan: 'сковорідка', jar: 'банка', board: 'обробна дошка', towel: 'кухонний рушник',
+  }),
+  'en>es': withTranslations({
+    mug: 'taza', plant: 'planta de interior', apple: 'manzana', headphones: 'audífonos', sneaker: 'tenis', lemon: 'limón',
+    camera: 'cámara', backpack: 'mochila', umbrella: 'paraguas', clock: 'despertador', book: 'libro', cactus: 'cactus',
+    glasses: 'lentes', kettle: 'tetera', banana: 'plátano', scissors: 'tijeras',
+    window: 'ventana', pan: 'sartén', jar: 'frasco', board: 'tabla de picar', towel: 'trapo de cocina',
+  }),
+  // іспанська Іспанії (голос es-ES), переклади англійською
   'es>en': {
-    mug: ['la taza', '/ˈta.sa/', 'mug'],
-    plant: ['la planta', '/ˈplan.ta/', 'houseplant'],
-    apple: ['la manzana', '/manˈsa.na/', 'apple'],
-    headphones: ['los audífonos', '/awˈði.fo.nos/', 'headphones'],
-    sneaker: ['el tenis', '/ˈte.nis/', 'sneaker'],
-    lemon: ['el limón', '/liˈmon/', 'lemon'],
-    camera: ['la cámara', '/ˈka.ma.ɾa/', 'camera'],
-    backpack: ['la mochila', '/moˈt͡ʃi.la/', 'backpack'],
-    umbrella: ['el paraguas', '/paˈɾa.ɣwas/', 'umbrella'],
-    clock: ['el despertador', '/des.peɾ.taˈðoɾ/', 'alarm clock'],
-    book: ['el libro', '/ˈli.βɾo/', 'book'],
-    cactus: ['el cactus', '/ˈkak.tus/', 'cactus'],
-    glasses: ['los lentes', '/ˈlen.tes/', 'glasses'],
-    kettle: ['la tetera', '/teˈte.ɾa/', 'kettle'],
-    banana: ['el plátano', '/ˈpla.ta.no/', 'banana'],
-    scissors: ['las tijeras', '/tiˈxe.ɾas/', 'scissors'],
-    window: ['la ventana', '/benˈta.na/', 'window'],
-    pan: ['la sartén', '/saɾˈten/', 'frying pan'],
-    jar: ['el frasco', '/ˈfɾas.ko/', 'jar'],
-    board: ['la tabla de picar', '/ˈta.βla ðe piˈkaɾ/', 'cutting board'],
-    towel: ['el trapo', '/ˈtɾa.po/', 'dish towel'],
-  },
-  'en>es': {
-    mug: ['mug', '/mʌɡ/', 'taza'],
-    plant: ['houseplant', '/ˈhaʊsplænt/', 'planta de interior'],
-    apple: ['apple', '/ˈæpəl/', 'manzana'],
-    headphones: ['headphones', '/ˈhedfoʊnz/', 'audífonos'],
-    sneaker: ['sneaker', '/ˈsniːkər/', 'tenis'],
-    lemon: ['lemon', '/ˈlemən/', 'limón'],
-    camera: ['camera', '/ˈkæmərə/', 'cámara'],
-    backpack: ['backpack', '/ˈbækpæk/', 'mochila'],
-    umbrella: ['umbrella', '/ʌmˈbrelə/', 'paraguas'],
-    clock: ['alarm clock', '/əˈlɑːrm klɑːk/', 'despertador'],
-    book: ['book', '/bʊk/', 'libro'],
-    cactus: ['cactus', '/ˈkæktəs/', 'cactus'],
-    glasses: ['glasses', '/ˈɡlæsɪz/', 'lentes'],
-    kettle: ['kettle', '/ˈketl/', 'tetera'],
-    banana: ['banana', '/bəˈnænə/', 'plátano'],
-    scissors: ['scissors', '/ˈsɪzərz/', 'tijeras'],
-    window: ['window', '/ˈwɪndoʊ/', 'ventana'],
-    pan: ['frying pan', '/ˈfraɪɪŋ pæn/', 'sartén'],
-    jar: ['jar', '/dʒɑːr/', 'frasco'],
-    board: ['cutting board', '/ˈkʌtɪŋ bɔːrd/', 'tabla de picar'],
-    towel: ['dish towel', '/ˈdɪʃ taʊəl/', 'trapo de cocina'],
+    mug: ['la taza', '/la ˈtaθa/', 'mug'],
+    plant: ['la planta', '/la ˈplanta/', 'houseplant'],
+    apple: ['la manzana', '/la manˈθana/', 'apple'],
+    headphones: ['los auriculares', '/los awɾikuˈlaɾes/', 'headphones'],
+    sneaker: ['la zapatilla', '/la θapaˈtiʝa/', 'sneaker'],
+    lemon: ['el limón', '/el liˈmon/', 'lemon'],
+    camera: ['la cámara', '/la ˈkamaɾa/', 'camera'],
+    backpack: ['la mochila', '/la moˈtʃila/', 'backpack'],
+    umbrella: ['el paraguas', '/el paˈɾaɣwas/', 'umbrella'],
+    clock: ['el despertador', '/el despeɾtaˈðoɾ/', 'alarm clock'],
+    book: ['el libro', '/el ˈliβɾo/', 'book'],
+    cactus: ['el cactus', '/el ˈkaktus/', 'cactus'],
+    glasses: ['las gafas', '/las ˈɡafas/', 'glasses'],
+    kettle: ['la tetera', '/la teˈteɾa/', 'kettle'],
+    banana: ['el plátano', '/el ˈplatano/', 'banana'],
+    scissors: ['las tijeras', '/las tiˈxeɾas/', 'scissors'],
+    window: ['la ventana', '/la benˈtana/', 'window'],
+    pan: ['la sartén', '/la saɾˈten/', 'frying pan'],
+    jar: ['el frasco', '/el ˈfɾasko/', 'jar'],
+    board: ['la tabla de cortar', '/la ˈtaβla ðe koɾˈtaɾ/', 'cutting board'],
+    towel: ['el trapo', '/el ˈtɾapo/', 'dish towel'],
   },
 };
 
@@ -116,11 +110,10 @@ const EN_UK_EXAMPLES = {
 };
 const EXAMPLES = {
   'en>uk': EN_UK_EXAMPLES,
-  'en-GB>uk': EN_UK_EXAMPLES,
   'es>en': {
     mug: ['Tomo café en mi taza roja cada mañana.', 'I drink coffee from my red mug every morning.'],
     plant: ['Riego la planta una vez a la semana.', 'I water the plant once a week.'],
-    umbrella: ['Lleva el paraguas, va a llover.', 'Take the umbrella, it’s going to rain.'],
+    umbrella: ['Llévate el paraguas, va a llover.', 'Take the umbrella, it’s going to rain.'],
   },
   'en>es': {
     mug: ['I drink my morning coffee from this red mug.', 'Tomo mi café de la mañana en esta taza roja.'],
@@ -140,7 +133,7 @@ export function vocab(loc, key) {
 const DEPLOY_EN = { word: 'deployment', ipa: '/dɪˈplɔɪmənt/', example: 'The deployment went live at midnight.', topic: 'it' };
 export const WOD = {
   uk: { ...DEPLOY_EN, translation: 'розгортання', example_translation: 'Розгортання запустили опівночі.' },
-  'en-US': { word: 'el despliegue', ipa: '/desˈpljeɣe/', translation: 'deployment', example: 'Hicimos el despliegue a medianoche.', example_translation: 'We deployed at midnight.', topic: 'it' },
+  'en-US': { word: 'el despliegue', ipa: '/el desˈpljeɣe/', translation: 'deployment', example: 'Hicimos el despliegue a medianoche.', example_translation: 'We deployed at midnight.', topic: 'it' },
   'en-GB': { ...DEPLOY_EN, translation: 'розгортання', example_translation: 'Розгортання запустили опівночі.' },
   'es-MX': { ...DEPLOY_EN, translation: 'despliegue', example_translation: 'El despliegue salió a producción a medianoche.' },
 };
@@ -151,7 +144,7 @@ export const WOD = {
 const RESILIENT = { word: 'resilient', ipa: '/rɪˈzɪliənt/', example: 'Kids are more resilient than we think.', topic: 'general' };
 export const WIDGET_WOD = {
   uk: { ...RESILIENT, translation: 'стійкий', example_translation: 'Діти стійкіші, ніж ми думаємо.' },
-  'en-US': { word: 'la llovizna', ipa: '/ʝoˈβis.na/', translation: 'drizzle', example: 'Salimos a caminar bajo la llovizna.', example_translation: 'We went for a walk in the drizzle.', topic: 'general' },
+  'en-US': { word: 'la llovizna', ipa: '/la ʝoˈβiθna/', translation: 'drizzle', example: 'Salimos a pasear bajo la llovizna.', example_translation: 'We went for a walk in the drizzle.', topic: 'general' },
   'en-GB': { ...RESILIENT, translation: 'стійкий', example_translation: 'Діти стійкіші, ніж ми думаємо.' },
   'es-MX': { ...RESILIENT, translation: 'resiliente', example_translation: 'Los niños son más resilientes de lo que creemos.' },
 };
@@ -162,8 +155,7 @@ export const WIDGET_WOD = {
 const OLDER_EN_UK = [['chair', 'стілець'], ['lamp', 'лампа'], ['pillow', 'подушка'], ['fork', 'виделка'], ['spoon', 'ложка'], ['plate', 'тарілка'], ['key', 'ключ'], ['wallet', 'гаманець'], ['candle', 'свічка'], ['towel', 'рушник'], ['mirror', 'дзеркало'], ['blanket', 'ковдра'], ['bottle', 'пляшка'], ['notebook', 'блокнот']];
 const OLDER = {
   'en>uk': OLDER_EN_UK,
-  'en-GB>uk': OLDER_EN_UK,
-  'es>en': [['la silla', 'chair'], ['la lámpara', 'lamp'], ['la almohada', 'pillow'], ['el tenedor', 'fork'], ['la cuchara', 'spoon'], ['el plato', 'plate'], ['la llave', 'key'], ['la cartera', 'wallet'], ['la vela', 'candle'], ['la toalla', 'towel'], ['el espejo', 'mirror'], ['la cobija', 'blanket'], ['la botella', 'bottle'], ['el cuaderno', 'notebook']],
+  'es>en': [['la silla', 'chair'], ['la lámpara', 'lamp'], ['la almohada', 'pillow'], ['el tenedor', 'fork'], ['la cuchara', 'spoon'], ['el plato', 'plate'], ['la llave', 'key'], ['la cartera', 'wallet'], ['la vela', 'candle'], ['la toalla', 'towel'], ['el espejo', 'mirror'], ['la manta', 'blanket'], ['la botella', 'bottle'], ['el cuaderno', 'notebook']],
   'en>es': [['chair', 'silla'], ['lamp', 'lámpara'], ['pillow', 'almohada'], ['fork', 'tenedor'], ['spoon', 'cuchara'], ['plate', 'plato'], ['key', 'llave'], ['wallet', 'cartera'], ['candle', 'vela'], ['towel', 'toalla'], ['mirror', 'espejo'], ['blanket', 'cobija'], ['bottle', 'botella'], ['notebook', 'cuaderno']],
 };
 export const olderWords = (loc) => OLDER[SET[loc]].map(([word, translation]) => ({ word, translation }));

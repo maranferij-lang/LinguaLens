@@ -61,8 +61,10 @@ const ACH_IDS = () => {
 //           сховища, коли Math.random пришпилено, див. session())
 // exclude — слова, яких немає (знімок сцени: усі її предмети нові, тож
 //           кнопка «Зберегти всі (9)» каже те саме, що «9 слів у кадрі»)
-// older   — ще 14 старіших слів без фото (профіль: разом 30 слів)
-function seedFor(loc, { theme = 'light', withScene = false, words: wordKeys = COLLECTION, origin, shapes, mugSaved = true, first = null, exclude = [], older = false, avatar = 'wave' }) {
+// older   — ще 14 старіших слів без фото: разом 30 слів, і саме 30 кажуть
+//           і словник («Збережено: 30»), і профіль («30 слів усього»).
+//           Старіші — найдавніші, тож у колекції вони нижче за край кадру.
+export function seedFor(loc, { theme = 'light', withScene = false, words: wordKeys = COLLECTION, origin, shapes, mugSaved = true, first = null, exclude = [], older = true, avatar = 'wave' }) {
   const L = LOCALES[loc];
   const now = Date.now();
   let keys = wordKeys.filter((k) => (mugSaved || k !== 'mug') && !exclude.includes(k));
@@ -490,8 +492,9 @@ export async function captureAll({ locales = STORE_LOCALES, only = null } = {}) 
       await a.measureTestId('pf-level', { name: 'level-name' });
     });
 
-    // 7 — профіль у темній темі: аватар — Лінго, що святкує; 30 слів
-    await run('profile-dark', { theme: 'dark', seed: { avatar: 'celebrate', older: true } }, async (a) => {
+    // 7 — профіль у темній темі: аватар — Лінго, що святкує; 30 слів, як і
+    // в словнику кадру 2
+    await run('profile-dark', { theme: 'dark', seed: { avatar: 'celebrate' } }, async (a) => {
       await a.click(t('tabProfile'));
       await a.wait(1400);
       await a.shot('profile-dark');
