@@ -32,6 +32,14 @@ export const ART = path.join(WORK, 'art'); // намальовані предм�
 export const UI = path.join(WORK, 'ui'); // знімки екранів застосунку
 export const TMP = path.join(WORK, 'compose'); // HTML кадрів
 export const FONTS = path.join(ROOT, 'node_modules/@expo-google-fonts/nunito');
+// Транскрипцію застосунок пише системним заокругленим шрифтом (F.ipa у
+// src/theme.js, SF Pro Rounded на iPhone). SF поза Apple немає; найближчий
+// шрифт із повним IPA, що вже лежить у залежностях проєкту, — Inter
+// (expo-dev-client → expo-dev-menu). Ним і підміняємо SF на знімках.
+export const IPA_FONTS = {
+  dir: path.join(ROOT, 'node_modules/expo-dev-menu/android/src/debug/res/font'),
+  faces: [[400, 'inter_regular.ttf'], [500, 'inter_medium.ttf'], [600, 'inter_semibold.ttf'], [700, 'inter_bold.ttf']],
+};
 export const PHOTOS = process.env.PHOTOS ? path.resolve(process.env.PHOTOS) : null;
 
 export const fileUrl = (p) => pathToFileURL(p).href;

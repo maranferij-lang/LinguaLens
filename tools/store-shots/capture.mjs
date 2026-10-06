@@ -10,9 +10,8 @@
 import http from 'http';
 import fs from 'fs';
 import path from 'path';
-import { LOCALES, STORE_LOCALES, WIDGET_WOD, WOD, olderWords, vocab } from './data.mjs';
-import { COLLECTION } from './art/objects.mjs';
-import { ART, LIB, UI, WEB, WORK, fileUrl, isMain, launch } from './paths.mjs';
+import { LOCALES, STORE_LOCALES, WIDGET_WOD, WOD, collectionFor, firstWeekdayFor, olderWords, vocab } from './data.mjs';
+import { ART, IPA_FONTS, LIB, UI, WEB, WORK, fileUrl, isMain, launch } from './paths.mjs';
 
 // layout.js — ESM без "type": "module" (його читає й jest): запущений сам,
 // скрипт не друкує попередження Node про це (render.mjs робить те саме).
@@ -35,11 +34,12 @@ async function serve() {
     let p = decodeURIComponent(req.url.split('?')[0]);
     let f;
     if (p.startsWith('/art/')) f = path.join(ART, p.slice(5));
+    else if (p.startsWith('/ipa-font/')) f = path.join(IPA_FONTS.dir, path.basename(p));
     else {
       if (p === '/' || !path.extname(p)) p = '/index.html';
       f = path.join(WEB, p);
     }
-    if (!f.startsWith(ART) && !f.startsWith(WEB)) { res.writeHead(403); return res.end(); }
+    if (!f.startsWith(ART) && !f.startsWith(WEB) && !f.startsWith(IPA_FONTS.dir)) { res.writeHead(403); return res.end(); }
     if (!fs.existsSync(f)) { res.writeHead(404); return res.end(); }
     res.writeHead(200, { 'content-type': types[path.extname(f)] || 'application/octet-stream', 'access-control-allow-origin': '*' });
     fs.createReadStream(f).pipe(res);
@@ -53,6 +53,27 @@ async function serve() {
     if (ok) return { port, server };
   }
   throw new Error('немає вільного порту серед ' + PORTS.join(', '));
+}
+
+// Транскрипція в застосунку — системним заокругленим шрифтом (F.ipa у
+// src/theme.js: ui-rounded на iOS, «SF Pro Rounded» на вебі). SF у Linux
+// немає, тож сторінка отримує під цим іменем Inter (IPA_FONTS у paths.mjs):
+// повний IPA, метрики близькі до SF. Без цього Chromium добирав би ʊ, ɪ, θ
+// з DejaVu Sans, і транскрипція на кадрах була б не такою, як на iPhone.
+const ipaFontCss = (origin) =>
+  IPA_FONTS.faces
+    .map(([weight, file]) => `@font-face { font-family: 'SF Pro Rounded'; font-weight: ${weight}; src: url(${origin}/ipa-font/${file}); }`)
+    .join('\n');
+async function addIpaFont(ctx, origin) {
+  await ctx.addInitScript((css) => {
+    const add = () => {
+      const st = document.createElement('style');
+      st.textContent = css;
+      document.head.appendChild(st);
+    };
+    if (document.head) add();
+    else document.addEventListener('DOMContentLoaded', add);
+  }, ipaFontCss(origin));
 }
 
 const localKey = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
@@ -73,11 +94,17 @@ const ACH_IDS = () => {
 // older   — ще 14 старіших слів без фото: разом 30 слів, і саме 30 кажуть
 //           і словник («Збережено: 30»), і профіль («30 слів усього»).
 //           Старіші — найдавніші, тож у колекції вони нижче за край кадру.
-export function seedFor(loc, { theme = 'light', withScene = false, words: wordKeys = COLLECTION, origin, shapes, mugSaved = true, first = null, exclude = [], older = true, avatar = 'wave' }) {
+// at      — [ключ, місце]: слово на цьому місці у сховищі (квіз іде в
+//           порядку сховища, коли Math.random пришпилено: сьоме питання)
+export function seedFor(loc, { theme = 'light', withScene = false, words: wordKeys = collectionFor(loc), origin, shapes, mugSaved = true, first = null, at = null, exclude = [], older = true, avatar = 'wave' }) {
   const L = LOCALES[loc];
   const now = Date.now();
   let keys = wordKeys.filter((k) => (mugSaved || k !== 'mug') && !exclude.includes(k));
   if (first && keys.includes(first)) keys = [first, ...keys.filter((k) => k !== first)];
+  if (at && keys.includes(at[0])) {
+    keys = keys.filter((k) => k !== at[0]);
+    keys.splice(at[1], 0, at[0]);
+  }
   const words = keys
     .map((k, i) => {
       const v = vocab(loc, k);
@@ -180,6 +207,18 @@ async function session(browser, { loc, theme = 'light', seed, port, outDir, step
     const r = Math.random;
     Math.random = () => (window.__fixRand ? 0.99999 : r());
   });
+  // Перший день тижня — як у календаря iPhone цього регіону (США й Мексика:
+  // неділя). Веб-версія expo-localization бере його з
+  // resolvedOptions().weekInfo, якого Chromium не дає, і застосунок падає
+  // на понеділок; підставляємо число в нумерації iOS (1 — неділя), саме
+  // його getCalendars()[0].firstWeekday віддає застосунку.
+  await ctx.addInitScript((first) => {
+    const ro = Intl.DateTimeFormat.prototype.resolvedOptions;
+    Intl.DateTimeFormat.prototype.resolvedOptions = function () {
+      return { ...ro.call(this), weekInfo: { firstDay: first } };
+    };
+  }, firstWeekdayFor(loc));
+  await addIpaFont(ctx, `http://127.0.0.1:${port}`);
   await ctx.addInitScript((s) => {
     if (!sessionStorage.getItem('seeded')) {
       localStorage.clear();
@@ -279,6 +318,19 @@ async function session(browser, { loc, theme = 'light', seed, port, outDir, step
       }, keys);
       return this.save(name, rects);
     },
+    async measureAria(name, spec) {
+      const rects = await page.evaluate((spec) => {
+        const out = {};
+        for (const [k, label] of Object.entries(spec)) {
+          const el = [...document.querySelectorAll(`[aria-label="${label}"]`)].find((e) => e.getBoundingClientRect().width > 0);
+          if (!el) { out[k] = null; continue; }
+          const r = el.getBoundingClientRect();
+          out[k] = { x: r.x, y: r.y, w: r.width, h: r.height };
+        }
+        return out;
+      }, spec);
+      return this.save(name, rects);
+    },
     async measureTestId(name, spec) {
       const rects = await page.evaluate((spec) => {
         const out = {};
@@ -371,10 +423,14 @@ async function session(browser, { loc, theme = 'light', seed, port, outDir, step
 // зберігає «Зберегти зображення», наліпка без тла (прозорий PNG — так її
 // і віддає застосунок) чи живий перегляд віджетів. reveal — testID кнопок
 // «Показати переклад», які треба натиснути перед знімком; parts — testID
-// елементів, які знімаємо ще й окремо (<out>-<testID>.png).
-async function elementShot(browser, { port, shot, out, transparent = false, reveal = [], parts = [] }) {
+// елементів, які знімаємо ще й окремо (<out>-<testID>.png). fit — тексти з
+// adjustsFontSizeToFit: на iPhone вони зменшуються, щоб уміститись у рядок
+// (до minimumFontScale), а react-native-web цього не вміє й обрізає їх
+// трьома крапками («MIS PALAB…»); тут зменшуємо їх так само, як iOS.
+async function elementShot(browser, { port, shot, out, transparent = false, reveal = [], parts = [], fit = [] }) {
   const ctx = await browser.newContext({ viewport: { width: 460, height: 760 }, deviceScaleFactor: 3, reducedMotion: 'reduce' });
   await ctx.addInitScript((s) => { window.__SHOT__ = s; }, shot);
+  await addIpaFont(ctx, `http://127.0.0.1:${port}`);
   const page = await ctx.newPage();
   const logs = [];
   page.on('pageerror', (e) => logs.push('pageerror: ' + e.message.slice(0, 240)));
@@ -386,6 +442,23 @@ async function elementShot(browser, { port, shot, out, transparent = false, reve
     else logs.push('no testID: ' + id);
   }
   if (reveal.length) await page.waitForTimeout(700);
+  for (const f of fit) {
+    const n = await page.evaluate(({ text, min }) => {
+      const norm = (v) => String(v || '').replace(/\s+/g, ' ').trim().toLowerCase();
+      let hits = [...document.querySelectorAll('div,span')].filter((el) => norm(el.innerText) === norm(text));
+      hits = hits.filter((el) => !hits.some((o) => o !== el && el.contains(o)));
+      for (const el of hits) {
+        const base = parseFloat(getComputedStyle(el).fontSize);
+        let size = base;
+        while (el.scrollWidth > el.clientWidth + 0.5 && size > base * min) {
+          size -= base * 0.02;
+          el.style.fontSize = size + 'px';
+        }
+      }
+      return hits.length;
+    }, f);
+    if (!n) logs.push('fit: no text ' + f.text);
+  }
   const card = page.locator('#card');
   if (!(await card.count())) logs.push('nothing rendered: ' + out);
   else await card.screenshot({ path: out, omitBackground: transparent });
@@ -438,15 +511,16 @@ export async function captureAll({ locales = STORE_LOCALES, only = null } = {}) 
       await a.click(t('viewCollection'));
       await a.wait(1600);
       await a.shot('dict-grid');
-      await a.measure('dict-grid', Object.fromEntries(COLLECTION.slice(0, 12).map((k) => [k, { text: vocab(loc, k).word }])));
-      await a.measureStickers('dict-grid', COLLECTION.slice(0, 12));
+      const grid = collectionFor(loc).slice(0, 12);
+      await a.measure('dict-grid', { ...Object.fromEntries(grid.map((k) => [k, { text: vocab(loc, k).word }])), seg: { text: t('viewList'), mode: 'card' } });
+      await a.measureStickers('dict-grid', grid);
       await a.measureTabBar('dict-grid', t('tabProfile'));
     });
 
     // 3 і 5 — «Навчання»: відкрита картка слова дня (кадр 5) і картки (кадр 3:
-    // колоду відкриває рослина — другий відтінок поруч із червоною чашкою
-    // кадру 1)
-    const CARD = 'plant';
+    // колоду відкриває та сама чашка, що на кадрі 1: «моя чашка → мій
+    // словник → мої картки»)
+    const CARD = 'mug';
     const cv = vocab(loc, CARD);
     await run('learn', { seed: { first: CARD } }, async (a) => {
       await a.click(t('tabLearn'));
@@ -482,6 +556,32 @@ export async function captureAll({ locales = STORE_LOCALES, only = null } = {}) 
       await a.measureStickers('cards-back', [CARD]);
     });
 
+    // 3 — квіз на сьомому питанні з десяти: шість правильних поспіль, сьома
+    // відповідь (яблуко) щойно підсвітилась зеленим. Math.random пришпилено,
+    // поки квіз складає питання: тоді вони йдуть у порядку сховища, а
+    // правильний варіант — перший.
+    const QUIZ = 'apple';
+    await run('quiz', { seed: { at: [QUIZ, 6] } }, async (a) => {
+      await a.click(t('tabLearn'));
+      await a.wait(1400);
+      await a.page.evaluate(() => { window.__fixRand = true; });
+      await a.click(t('quiz'));
+      await a.wait(1200);
+      await a.page.evaluate(() => { window.__fixRand = false; });
+      const order = JSON.parse(await a.page.evaluate(() => localStorage.getItem('ll_words_v1'))).filter((w) => w.translation);
+      for (let i = 0; i < 7; i++) {
+        await a.click(order[i].translation.trim());
+        if (i < 6) await a.wait(1300);
+      }
+      await a.wait(250);
+      await a.shot('quiz', 0);
+      await a.measure('quiz', {
+        meta: { text: t('quizQ', { i: 7, n: 10 }) },
+        word: { text: vocab(loc, QUIZ).word },
+        right: { text: vocab(loc, QUIZ).translation, mode: 'card' },
+      });
+    });
+
     // 4 — сцена кухні з історії (усі її предмети нові: «Зберегти всі (9)»)
     await run('scene', { seed: { withScene: true, exclude: Object.keys(shapes.kitchen.objects) } }, async (a) => {
       await a.click(t('tabDict'));
@@ -489,6 +589,8 @@ export async function captureAll({ locales = STORE_LOCALES, only = null } = {}) 
       await a.page.locator('[aria-label^="' + t('sceneThumb') + '"]').first().click({ force: true }).catch(() => {});
       await a.wait(2400);
       await a.shot('scene');
+      // кнопка «Закрити» над фото: кадр 4 обрізає екран під нею
+      await a.measureAria('scene', { close: t('close') });
     });
 
     // 5 — рівень у редакторі профілю: той самий крок, що в онбордингу 4.0
@@ -563,7 +665,16 @@ export async function captureAll({ locales = STORE_LOCALES, only = null } = {}) 
         [
           'widget',
           { what: 'widget', width: 404, wod: { ...WIDGET_WOD[loc] }, sample: vocab(loc, 'apple'), streakN: 12, targetLang: L.learn },
-          { reveal: ['preview-reveal', 'preview-reveal-words'], parts: ['preview-wod', 'preview-streak', 'preview-words'] },
+          {
+            reveal: ['preview-reveal', 'preview-reveal-words'],
+            parts: ['preview-wod', 'preview-streak', 'preview-words'],
+            // ті самі тексти, що мають adjustsFontSizeToFit у WidgetPreview
+            fit: [
+              { text: t('widgetWordsTitle'), min: 0.7 },
+              { text: WIDGET_WOD[loc].word, min: 0.6 },
+              { text: vocab(loc, 'apple').word, min: 0.6 },
+            ],
+          },
         ],
       ];
       for (const [name, shot, opts = {}] of shots) {

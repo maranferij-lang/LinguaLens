@@ -23,8 +23,10 @@ const data = run(`
   import * as d from ${JSON.stringify(url('data.mjs'))};
   import { COLLECTION } from ${JSON.stringify(url('art/objects.mjs'))};
   const keys = [...COLLECTION, 'window', 'pan', 'jar', 'board', 'towel'];
-  const out = { locales: d.STORE_LOCALES, learn: {}, vocab: {}, wod: d.WOD, widget: d.WIDGET_WOD, older: {} };
+  const out = { locales: d.STORE_LOCALES, learn: {}, vocab: {}, wod: d.WOD, widget: d.WIDGET_WOD, older: {}, week: {}, grid: {}, collection: COLLECTION };
   for (const l of d.STORE_LOCALES) {
+    out.week[l] = d.firstWeekdayFor(l);
+    out.grid[l] = d.collectionFor(l);
     out.learn[l] = d.LOCALES[l].learn;
     out.vocab[l] = Object.fromEntries(keys.map((k) => [k, d.vocab(l, k)]));
     out.older[l] = d.olderWords(l);
@@ -68,6 +70,28 @@ describe('store shots demo data', () => {
     }
     const words = [...es, ...data.older['en-US']].map((v) => v.word);
     for (const latam of ['audífonos', 'lentes', 'tenis', 'cobija']) expect(words.join(' ')).not.toMatch(new RegExp(latam));
+  });
+});
+
+describe('store shots: what a phone of that region shows', () => {
+  // смужка тижня серії (кадр 7) починається з дня, який дає календар iPhone
+  // регіону: США й Мексика — з неділі, Британія й Україна — з понеділка
+  test('first day of the week, as iOS numbers it (1 Sunday, 2 Monday)', () => {
+    expect(data.week).toEqual({ uk: 2, 'en-US': 1, 'en-GB': 2, 'es-MX': 1 });
+  });
+
+  // кадр 2 показує перші 12 наліпок: в en-GB серед них немає американського
+  // «sneaker» (британською trainer), а колекція та сама, 16 слів
+  test('en-GB grid has no sneaker on screen; every locale keeps all 16 stickers', () => {
+    expect(data.grid['en-GB'].slice(0, 12)).not.toContain('sneaker');
+    for (const l of data.locales) expect([...data.grid[l]].sort()).toEqual([...data.collection].sort());
+    expect(data.grid.uk).toEqual(data.collection);
+  });
+
+  // «el trapo» — це ганчірка; рушник для посуду — «trapo de cocina»
+  test('a dish towel is «trapo de cocina» in both directions', () => {
+    expect(data.vocab['en-US'].towel.word).toBe('el trapo de cocina');
+    expect(data.vocab['es-MX'].towel.translation).toBe('trapo de cocina');
   });
 });
 

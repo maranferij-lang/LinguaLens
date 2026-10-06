@@ -18,18 +18,42 @@
 // вчать в en-US, — іспанська Іспанії, як голос es-ES і прапорець 🇪🇸: θ
 // у /la ˈtaθa/ (так пише й зразок сервера), auriculares, zapatilla, gafas.
 // IPA іспанських слів — з артиклем, як у сервера: «/la ˈtaθa/».
+import { COLLECTION } from './art/objects.mjs';
 
 export const STORE_LOCALES = ['uk', 'en-US', 'en-GB', 'es-MX'];
 
 // ui — мова інтерфейсу (phone language), learn — мова навчання,
 // native — мова перекладів; browser — мова, яку бачить веб-збірка;
 // date — локаль дат, які малює компонувальник (екран блокування).
+// Перший день тижня — не тут, а з регіону локалі (firstWeekdayFor нижче).
 export const LOCALES = {
   uk: { ui: 'uk', learn: 'en', native: 'uk', name: 'Марко', browser: 'uk-UA', date: 'uk-UA' },
   'en-US': { ui: 'en', learn: 'es', native: 'en', name: 'Mark', browser: 'en-US', date: 'en-US' },
   'en-GB': { ui: 'en', learn: 'en', native: 'uk', name: 'Marko', browser: 'en-GB', date: 'en-GB' },
   'es-MX': { ui: 'es', learn: 'en', native: 'es', name: 'Marco', browser: 'es-MX', date: 'es-MX' },
 };
+
+// Перший день тижня, як його віддає календар iPhone цього регіону
+// (expo-localization getCalendars()[0].firstWeekday: 1 неділя, 2 понеділок).
+// Веб-збірка цього не знає й завжди бере понеділок, тож capture.mjs
+// підставляє сторінці саме це число. За CLDR: США й Мексика — з неділі,
+// Британія й Україна — з понеділка.
+export function firstWeekdayFor(loc) {
+  const L = new Intl.Locale(LOCALES[loc].browser);
+  const info = typeof L.getWeekInfo === 'function' ? L.getWeekInfo() : L.weekInfo;
+  return (info.firstDay % 7) + 1; // ISO (1 пн … 7 нд) → iOS (1 нд, 2 пн …)
+}
+
+// Порядок наліпок у колекції (словник, засів). en-GB: американського
+// «sneaker» (британською trainer) немає серед перших дванадцяти, які видно
+// на кадрі 2; на його місці окуляри. Слово лишається в колекції нижче.
+export function collectionFor(loc) {
+  if (loc !== 'en-GB') return COLLECTION;
+  const out = COLLECTION.filter((k) => k !== 'glasses' && k !== 'sneaker');
+  out.splice(COLLECTION.indexOf('sneaker'), 0, 'glasses');
+  out.splice(COLLECTION.indexOf('glasses'), 0, 'sneaker');
+  return out;
+}
 
 // Набір слів: пара «мова навчання > мова перекладу». en-GB бачить ті самі
 // англійські слова, що й uk (див. вище).
@@ -98,7 +122,7 @@ const VOCAB = {
     pan: ['la sartén', '/la saɾˈten/', 'frying pan'],
     jar: ['el frasco', '/el ˈfɾasko/', 'jar'],
     board: ['la tabla de cortar', '/la ˈtaβla ðe koɾˈtaɾ/', 'cutting board'],
-    towel: ['el trapo', '/el ˈtɾapo/', 'dish towel'],
+    towel: ['el trapo de cocina', '/el ˈtɾapo ðe koˈθina/', 'dish towel'],
   },
 };
 
@@ -141,10 +165,12 @@ export const WOD = {
 // Кадр 6 (віджет) показує слово ІНШОГО дня — загальне слово рівня B2 з
 // server/topics/general.js, щоб кадри 5 і 6 не повторювались і набір не
 // виглядав лише для айтішників. topic 'general' → кепс «English · слово дня».
+// en-US: blizzard → «la ventisca», слово без θ: іспанська тут та, яку чути
+// в застосунку (es-ES), але кадр не мусить підкреслювати саме Іспанію.
 const RESILIENT = { word: 'resilient', ipa: '/rɪˈzɪliənt/', example: 'Kids are more resilient than we think.', topic: 'general' };
 export const WIDGET_WOD = {
   uk: { ...RESILIENT, translation: 'стійкий', example_translation: 'Діти стійкіші, ніж ми думаємо.' },
-  'en-US': { word: 'la llovizna', ipa: '/la ʝoˈβiθna/', translation: 'drizzle', example: 'Salimos a pasear bajo la llovizna.', example_translation: 'We went for a walk in the drizzle.', topic: 'general' },
+  'en-US': { word: 'la ventisca', ipa: '/la benˈtiska/', translation: 'blizzard', example: 'La ventisca nos dejó en casa todo el día.', example_translation: 'The blizzard kept us home all day.', topic: 'general' },
   'en-GB': { ...RESILIENT, translation: 'стійкий', example_translation: 'Діти стійкіші, ніж ми думаємо.' },
   'es-MX': { ...RESILIENT, translation: 'resiliente', example_translation: 'Los niños son más resilientes de lo que creemos.' },
 };
