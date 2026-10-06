@@ -326,8 +326,34 @@ Discovery додаємо мінус-словом. Якщо кампанія не
   **вже в бінарнику** опублікованої версії (факт Apple: «any app icons you
   wish to use must be part of the app binary for the current App Store
   version»). «Око Лінго» там є, тож тест іконки можна запустити одразу після
-  релізу: без нової збірки, а тест, що міняє лише іконку, не йде й на
-  рецензію. У самому застосунку іконка не перемикається.
+  релізу, без нової збірки. У самому застосунку іконка не перемикається.
+- **Рецензія тесту іконки** (перевірено на developer.apple.com 6.10.2026).
+  Іконку App Review бачить один раз: разом зі збіркою 1.0, бо «Око Лінго»
+  лежить у бінарнику (тож має відповідати правилам так само, як основна).
+  Сам тест, що лише міняє іконку на іншу зі схваленої збірки, окремо не
+  подають. Apple, App Store Connect Help → [Configure test
+  treatments](https://developer.apple.com/help/app-store-connect/create-product-page-optimization-tests/configure-test-treatments):
+  «Before testing, ensure all metadata in your test treatments is approved.
+  You can submit this metadata without submitting a new version of your
+  app. However, any app icons you wish to use must be part of the app binary
+  for the current App Store version» і «If you’re simply changing the order
+  of screenshots or previews that are already on the App Store, or only
+  modifying the app icon, your metadata is already approved and you don’t
+  need to resubmit». Сторінка [Product Page
+  Optimization](https://developer.apple.com/app-store/product-page-optimization/)
+  каже те саме з іншого боку: «Before you can publish your test, any new
+  metadata that you'd like to include in your treatments must be approved by
+  App Review. If you plan to include any alternate app icons, you'll need to
+  include all variants of your icon in the binary of your published app.
+  Product page optimization tests that don't include any alternate app icons
+  can be submitted for review independent of a new app version». Тобто нові
+  скріншоти чи відео в тесті йдуть на рецензію окремо від версії, а іконка
+  вже пройшла її у складі версії. Якщо App Store Connect після **Start
+  Test** усе ж попросить подати тест ([Run a
+  test](https://developer.apple.com/help/app-store-connect/create-product-page-optimization-tests/run-a-test):
+  «If your metadata needs to be reviewed, you’ll be prompted to add the test
+  for review»), не сперечайся: **Add for Review** → нова подача → **Submit
+  for Review**; тест стартує, щойно App Review прийме.
 - **Тест одночасно лише один** (Apple: «You can create one test at a time»),
   до 90 днів, і після старту його не змінити. Тому по черзі:
   1. **Іконка** (власник хоче цей тест; він готовий з першого дня): «Лінго»

@@ -417,8 +417,14 @@ Manager або Marketing.
    Page Optimization → Create Test**: назва «Icon: Lingo vs Eye», 1 варіант,
    трафік 50%, усі локалі.
 2. У варіанті відкрий вкладку **App Icon** → **Change** → обери
-   **AppIcon-Eye** → **Start Test**. Скріншоти не чіпай: тоді тест не йде
-   на рецензію й стартує одразу.
+   **AppIcon-Eye** → **Start Test**. Скріншоти не чіпай. Іконку App Review
+   уже бачив у збірці 1.0, а тест, що лише міняє іконку, Apple окремо не
+   перевіряє: «only modifying the app icon, your metadata is already
+   approved and you don’t need to resubmit» (App Store Connect Help →
+   Configure test treatments). Тож статус має одразу стати **Running**.
+   Якщо замість цього App Store Connect попросить **Add for Review**,
+   натисни, обери нову подачу й **Submit for Review**: тест стартує, щойно
+   App Review прийме; нова версія для цього не потрібна.
 3. Другий тест, коли закінчиться перший, — **скріншоти**: перший кадр «скан
    → наліпка» проти «ціла кімната». Локалізуй варіанти для тих мов, де вони
    є. Нові скріншоти йдуть на рецензію окремо, нова версія не потрібна.

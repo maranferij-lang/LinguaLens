@@ -663,10 +663,18 @@ Premium у Promova для українців).
 Лінго»** (концепт A, набір `AppIcon-Eye`; кладе її `plugins/withAlternateIcons.js`).
 У самому застосунку вона не перемикається, вона потрібна лише для A/B-тесту:
 Apple дає тестувати тільки іконки з бінарника опублікованої версії. Тож тест
-іконки можна запустити одразу після релізу, без нової версії й без рецензії
-(тест, що міняє лише іконку зі збірки, Apple не перевіряє вдруге). Тест на
-сторінці одночасно лише один, до 90 днів; порядок тестів і кроки в App Store
-Connect: `LAUNCH_PLAN.md`, розділ 6.4, і `USER_TODO.md`, крок 17.
+іконки можна запустити одразу після релізу, без нової версії. Рецензію
+«Око Лінго» проходить один раз, разом зі збіркою 1.0: App Review бачить увесь
+бінарник, тож альтернативна іконка має відповідати правилам так само, як
+основна. Окремо тест, що лише міняє іконку, на рецензію не подають: «If
+you’re simply changing the order of screenshots or previews that are already
+on the App Store, or only modifying the app icon, your metadata is already
+approved and you don’t need to resubmit» (App Store Connect Help → Configure
+test treatments). Нові скріншоти чи відео в тесті Apple перевіряє окремо,
+без нової версії; якщо App Store Connect попросить **Add for Review** і для
+тесту іконки, подай. Цитати й посилання: `LAUNCH_PLAN.md`, розділ 6.4. Тест
+на сторінці одночасно лише один, до 90 днів; порядок тестів і кроки в App
+Store Connect: `LAUNCH_PLAN.md`, розділ 6.4, і `USER_TODO.md`, крок 17.
 
 ---
 
