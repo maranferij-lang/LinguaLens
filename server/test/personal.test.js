@@ -139,6 +139,10 @@ test('POST /word-of-day sanitises everything it is given', async () => {
   assert.match(odd.data.words[0].example_translation, /\(en→uk\)/);
   const de = await fresh({ days: 1, lang: 'de', native: 'en' });
   assert.match(de.data.words[0].example_translation, /\(de→en\)/);
+  // правило власника: у тексті слова дня немає довгих тире (і в заглушці теж)
+  for (const w of [...odd.data.words, ...de.data.words]) {
+    for (const k of ['word', 'translation', 'example', 'example_translation']) assert.doesNotMatch(w[k], /[—―]|\s[–-]\s/, k);
+  }
 
   // зіпсований профіль — загальні слова; хибна дата «сьогодні» — серверна
   for (const bad of ['work', 42, [], { goals: ['fly'] }, { goals: 'work', field: 'finance' }]) {

@@ -115,7 +115,7 @@ function exampleSpec(L, level) {
 function levelRules(L, N, level, extras) {
   const lv = levelOf(level);
   if (lv !== null && lv <= SIMPLE_UP_TO_LEVEL) {
-    return '\nThe learner is a beginner: the example must be very short and simple — at most 8 words, present tense, everyday vocabulary.';
+    return '\nThe learner is a beginner: the example must be very short and simple, at most 8 words, present tense, everyday vocabulary.';
   }
   if (lv === null || lv < EXTRAS_FROM_LEVEL) return '';
   return (
@@ -129,6 +129,13 @@ function levelRules(L, N, level, extras) {
 function langName(code, fallback) {
   return LANG_NAMES[code] || fallback;
 }
+
+// Правило власника: у тексті, який бачить людина, немає довгих тире. Слово,
+// переклад, приклад і вирази модель пише без них. Сама підказка теж
+// обходиться без тире: модель охоче повторює стиль запиту. Те, що все ж
+// прослизне, прибирає undash() у cleanWord/cleanExtras.
+const NO_DASHES_RULE =
+  'Never use an em dash or an en dash as punctuation in any text you write (word, translation, example, example_translation, phrases): use a comma, a colon or a full stop instead. Hyphens inside words and number ranges like 1-2 are fine.';
 
 function wordRules(lang) {
   const L = langName(lang, 'English');
@@ -149,16 +156,17 @@ Identify the single most prominent object in the photo.
 Reply with ONLY minified JSON, no markdown, no extra text:
 {"word":"<specific common ${L} name of the object, 1-3 words>","ipa":"<IPA transcription of that ${L} word>","translation":"<translation of the word into ${N}>","example":"<${exampleSpec(L, level)}>","example_translation":"<translation of that sentence into ${N}>",${extrasJson}"box":[<ymin>,<xmin>,<ymax>,<xmax>],"outline":[[<y>,<x>],...]}
 ${wordRules(lang)}${levelRules(L, N, level, extras)}
+${NO_DASHES_RULE}
 Prefer specific but commonly used words (e.g. "mug", not "container").
 "box" is the tight bounding box of that object, four integers 0-1000,
 normalised to the image (y first, like Gemini spatial output). The app crops
 the object out of the photo by this box, so the box must hug the object
-tightly — no extra background, no cropping off parts of it.
+tightly: no extra background, no cropping off parts of it.
 "outline" is the object's silhouette as a closed polygon: 16 to 32 points,
 each [y,x] with integers 0-1000 normalised to the WHOLE image, walking the
 visible edge of the object clockwise. The app cuts the object out along this
 line and draws a white sticker border around it, so follow the real contour
-closely (handles, spouts, legs) — not the bounding box — and stay just outside
+closely (handles, spouts, legs), not the bounding box, and stay just outside
 the object's edge rather than inside it.
 If no clear object is visible, return {"word":"unknown"}.`;
 }
@@ -180,14 +188,15 @@ The photo shows a whole scene (a room, a desk, a shelf, a street). Find up to ${
 Reply with ONLY minified JSON, no markdown, no extra text:
 {"objects":[{"word":"<specific common ${L} name of the object, 1-3 words>","ipa":"<IPA transcription of that ${L} word>","translation":"<translation of the word into ${N}>","example":"<${exampleSpec(L, level)}>","example_translation":"<translation of that sentence into ${N}>","box":[<ymin>,<xmin>,<ymax>,<xmax>],"outline":[[<y>,<x>],...]}]}
 ${wordRules(lang)}${levelRules(L, N, level, false)}
+${NO_DASHES_RULE}
 Which objects to include:
 - Everyday vocabulary that is useful to a learner. Prefer specific but commonly used words (e.g. "mug", not "container").
-- Variety: one entry per kind of object. Three books are one "book" — describe the most visible one.
+- Variety: one entry per kind of object. Three books are one "book": describe the most visible one.
 - Order the list by prominence: the largest, most central, sharpest object first.
 - Never include people, faces, body parts, clothing worn by a person, text, signs, logos or brand names.
 - Skip tiny objects (smaller than about 2% of the image) and objects cut off so much that they are hard to recognise.
 - Skip surfaces and structure (wall, floor, ceiling, ground, sky) unless nothing else is visible.
-"box" is the tight bounding box of the object: four integers 0-1000 normalised to the WHOLE image, y first (like Gemini spatial output). It must hug the object — no extra background, no parts cut off.
+"box" is the tight bounding box of the object: four integers 0-1000 normalised to the WHOLE image, y first (like Gemini spatial output). It must hug the object: no extra background, no parts cut off.
 "outline" is the object's silhouette as a closed polygon of 12 to 24 points, each [y,x] with integers 0-1000 normalised to the WHOLE image (not to the box), walking the visible edge clockwise and staying just outside the object's edge. Follow the real contour (handles, legs, leaves), not the box.
 If no suitable object is visible, return {"objects":[]}.`;
 }
@@ -217,7 +226,7 @@ function buildTranslatePrompt(enWord, lang, nativeLang, { topic, hint } = {}) {
       `Translate the English concept "${enWord}" for a language learner.\n` +
       (meaning ? `Meaning: ${meaning}.\n` : '') +
       `Target language: ${L}. Learner's native language: ${N}.\n` +
-      `${wordRules(lang)}\n` +
+      `${wordRules(lang)}\n${NO_DASHES_RULE}\n` +
       `Reply with ONLY minified JSON, no markdown:\n` +
       `{"word":"<the word in ${L}>","ipa":"<IPA of that ${L} word>",` +
       `"translation":"<the word in ${N}>","example":"<one short natural ${L} sentence using it>",` +
@@ -230,7 +239,7 @@ function buildTranslatePrompt(enWord, lang, nativeLang, { topic, hint } = {}) {
     (meaning ? `Meaning in this context: ${meaning}.\n` : '') +
     `Target language: ${L}. Learner's native language: ${N}.\n` +
     `Give the equivalents that people really use in ${name} in both languages, not word-for-word calques.\n` +
-    `${wordRules(lang)}\n` +
+    `${wordRules(lang)}\n${NO_DASHES_RULE}\n` +
     `Reply with ONLY minified JSON, no markdown:\n` +
     `{"word":"<the term in ${L}>","ipa":"<IPA of that ${L} term>",` +
     `"translation":"<the term in ${N}>","example":"<one natural ${L} sentence using it in a realistic situation from ${name}>",` +
@@ -461,7 +470,7 @@ function mockTranslate(enWord, lang, nativeLang) {
     ipa: '',
     translation: `${enWord} (${nativeLang})`,
     example: `This is a ${enWord}.`,
-    example_translation: `${enWord} — приклад (${lang}→${nativeLang}).`,
+    example_translation: `${enWord}: приклад (${lang}→${nativeLang}).`,
   };
 }
 
@@ -503,7 +512,10 @@ async function callText(prompt) {
 async function translateWord(enWord, lang, nativeLang, { topic, hint } = {}) {
   const key = wordCacheKey(enWord, lang, nativeLang, topic);
   const cached = await store.get('wordCache', key);
-  if (cached && cached.word) return cached;
+  // Запис кешу з часів до правила «без тире» чистимо на льоту, тож
+  // PROMPT_VERSION заради нього не піднімаємо: усе вже перекладене не
+  // перекладається вдруге.
+  if (cached && cached.word) return { ...cached, ...cleanWord(cached) };
 
   const parsed =
     PROVIDER === 'mock'
@@ -521,13 +533,41 @@ function clean(v, max) {
   return String(v == null ? '' : v).trim().slice(0, max);
 }
 
+// Довге тире, яке модель усе ж поставила (правило власника: у тексті його
+// немає ніде), стає комою: «I love it — really.» → «I love it, really.».
+// Діалогове тире на початку й висяче в кінці зникають, зайві коми після
+// заміни теж. Дефіс у слові (T-shirt) і коротке тире діапазону без пробілів
+// (1–2, A1–C2) лишаються. Текст без тире не змінюється ані на символ.
+const DASHY = /[\u2014\u2015]|\s[\u2012\u2013-]\s|^[\u2012\u2013-]\s|\s[\u2012\u2013-]$/;
+
+function undash(s) {
+  if (!DASHY.test(s)) return s;
+  return s
+    .replace(/\s*[\u2014\u2015]\s*/g, ', ')
+    .replace(/\s+[\u2012\u2013-]\s+/g, ', ')
+    .replace(/^[\u2012\u2013-]\s+/, '')
+    .replace(/\s+[\u2012\u2013-]$/, '')
+    .replace(/\s*,(?:\s*,)+/g, ',')
+    .replace(/\s+,/g, ',')
+    .replace(/([(«„])\s*,\s*/g, '$1')
+    .replace(/^\s*,\s*/, '')
+    .replace(/,\s*(?=[.!?…:;)\]»”]|$)/g, '')
+    .replace(/ {2,}/g, ' ')
+    .trim();
+}
+
+// Текст, який людина побачить на картці: обрізаний і без довгих тире.
+function cleanText(v, max) {
+  return undash(clean(v, max));
+}
+
 function cleanWord(o) {
   return {
-    word: clean(o.word, 60),
+    word: cleanText(o.word, 60),
     ipa: clean(o.ipa, 80),
-    translation: clean(o.translation, 80),
-    example: clean(o.example, 240),
-    example_translation: clean(o.example_translation, 240),
+    translation: cleanText(o.translation, 80),
+    example: cleanText(o.example, 240),
+    example_translation: cleanText(o.example_translation, 240),
   };
 }
 
@@ -540,8 +580,8 @@ function cleanExtras(raw, word) {
   const out = [];
   for (const x of raw.slice(0, MAX_EXTRAS * 4)) {
     if (!x || typeof x !== 'object' || typeof x.phrase !== 'string' || typeof x.translation !== 'string') continue;
-    const phrase = clean(x.phrase, 60);
-    const translation = clean(x.translation, 80);
+    const phrase = cleanText(x.phrase, 60);
+    const translation = cleanText(x.translation, 80);
     if (!phrase || !translation || seen.has(phrase.toLowerCase())) continue;
     seen.add(phrase.toLowerCase());
     out.push({ phrase, translation });
@@ -620,6 +660,7 @@ module.exports = {
   wantsExtras,
   clean,
   cleanWord,
+  undash,
   cleanExtras,
   cleanBox,
   cleanOutline,
