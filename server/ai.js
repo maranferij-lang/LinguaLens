@@ -43,6 +43,62 @@ const LANG_NAMES = {
   id: 'Indonesian',
 };
 
+// Варіанти мов (src/langVariants.js у застосунку): яким саме різновидом
+// писати слово, приклад і транскрипцію. name — назва для підказки замість
+// «English»; words — правопис і словник; ipa — вимова, за якою писати IPA.
+// Застосунок шле variant (мова навчання) і nativeVariant (мова перекладу);
+// старі версії не шлють нічого, і підказка тоді та сама, що до варіантів.
+const VARIETIES = {
+  en: {
+    us: {
+      name: 'American English',
+      words: 'US spelling and vocabulary (color, apartment, cell phone, favorite)',
+      ipa: 'General American pronunciation',
+    },
+    gb: {
+      name: 'British English',
+      words: 'UK spelling and vocabulary (colour, flat, mobile phone, favourite)',
+      ipa: 'RP (Received Pronunciation)',
+    },
+  },
+  es: {
+    es: {
+      name: 'Spanish from Spain',
+      words: 'Castilian vocabulary as used in Spain (ordenador, móvil, zumo, coche)',
+      ipa: 'Castilian pronunciation with distinción: "z" and "c" before "e" or "i" are /θ/, e.g. la taza /la ˈtaθa/',
+    },
+    latam: {
+      name: 'Latin American Spanish',
+      words:
+        'Mexican and neutral Latin American vocabulary (computadora, celular, jugo, carro), "ustedes" and never "vosotros"',
+      ipa: 'Latin American pronunciation with seseo: "z" and "c" before "e" or "i" are /s/, e.g. la taza /la ˈtasa/',
+    },
+  },
+};
+
+// Варіант, з яким сервер жив до варіантів (голос es-ES і транскрипція з θ у
+// застосунку, en-US для англійської). Слова, перекладені тоді, лежать у
+// кеші під ключем без варіанта — для цього варіанта вони й лишаються.
+const DEFAULT_VARIETY = { en: 'us', es: 'es' };
+
+// Варіант із запиту, лише якщо він є в цієї мови (Object.hasOwn — щоб
+// «constructor» не знайшовся в прототипі), інакше null.
+function variantOr(lang, v) {
+  return typeof v === 'string' && Object.hasOwn(VARIETIES, lang) && Object.hasOwn(VARIETIES[lang], v) ? v : null;
+}
+
+function variety(lang, v) {
+  const id = variantOr(lang, v);
+  return id ? VARIETIES[lang][id] : null;
+}
+
+// Мова з варіантом для ключа кешу й журналу: 'en-gb'; варіант за
+// замовчуванням і без варіанта — просто 'en'.
+function langTag(lang, v) {
+  const id = variantOr(lang, v);
+  return id && id !== DEFAULT_VARIETY[lang] ? lang + '-' + id : lang;
+}
+
 // Мови, де рід іменника не вгадати зі слова. Слово без артикля для них —
 // напівзнання: «Tasse» без «die» доведеться перевчати.
 const ARTICLE_EXAMPLES = {
@@ -126,8 +182,20 @@ function levelRules(L, N, level, extras) {
   );
 }
 
-function langName(code, fallback) {
-  return LANG_NAMES[code] || fallback;
+function langName(code, fallback, v = null) {
+  return variety(code, v)?.name || LANG_NAMES[code] || fallback;
+}
+
+// Рядки підказки про варіанти: для мови навчання — правопис, словник і
+// вимова транскрипції; для мови перекладу — правопис і словник. Без
+// варіантів — порожньо, і підказка та сама, що до них.
+function varietyRules({ lang, variant, nativeLang, nativeVariant } = {}) {
+  const out = [];
+  const v = variety(lang, variant);
+  if (v) out.push(`The learner's language is ${v.name}: use ${v.words} in the word, the example and any phrases, and write "ipa" in ${v.ipa}.`);
+  const n = variety(nativeLang, nativeVariant);
+  if (n) out.push(`The learner's native language is ${n.name}: use ${n.words} in every translation.`);
+  return out.length ? '\n' + out.join('\n') : '';
 }
 
 // Правило власника: у тексті, який бачить людина, немає довгих тире. Слово,
@@ -137,17 +205,18 @@ function langName(code, fallback) {
 const NO_DASHES_RULE =
   'Never use an em dash or an en dash as punctuation in any text you write (word, translation, example, example_translation, phrases): rewrite the sentence so it needs none. Where Ukrainian or Russian would put a dash between the subject and the predicate, never put a comma there: leave the dash out ("Чашка порожня", "Це моя чашка") or use a verb ("Я люблю каву"). Hyphens inside words and number ranges like 1-2 are fine.';
 
-function wordRules(lang) {
-  const L = langName(lang, 'English');
+function wordRules(lang, variant = null) {
+  const L = langName(lang, 'English', variant);
   const article = ARTICLE_EXAMPLES[lang]
     ? ` Include the definite article, e.g. "${ARTICLE_EXAMPLES[lang]}".`
     : '';
   return `Write "word" in dictionary form: lowercase unless ${L} spelling requires a capital letter (German nouns are always capitalised).${article}`;
 }
 
-function buildScanPrompt(lang, nativeLang, level = null) {
-  const L = langName(lang, 'English');
-  const N = langName(nativeLang, 'Ukrainian');
+// vars — { variant, nativeVariant } з запиту (src/langVariants.js).
+function buildScanPrompt(lang, nativeLang, level = null, { variant = null, nativeVariant = null } = {}) {
+  const L = langName(lang, 'English', variant);
+  const N = langName(nativeLang, 'Ukrainian', nativeVariant);
   const extras = wantsExtras(level);
   const extrasJson = extras ? `"extras":[{"phrase":"<${L} phrase with the word>","translation":"<its translation into ${N}>"}],` : '';
   return `You are the recognition engine inside a language-learning app.
@@ -155,7 +224,7 @@ The user is learning ${L}; their native language is ${N}.
 Identify the single most prominent object in the photo.
 Reply with ONLY minified JSON, no markdown, no extra text:
 {"word":"<specific common ${L} name of the object, 1-3 words>","ipa":"<IPA transcription of that ${L} word>","translation":"<translation of the word into ${N}>","example":"<${exampleSpec(L, level)}>","example_translation":"<translation of that sentence into ${N}>",${extrasJson}"box":[<ymin>,<xmin>,<ymax>,<xmax>],"outline":[[<y>,<x>],...]}
-${wordRules(lang)}${levelRules(L, N, level, extras)}
+${wordRules(lang, variant)}${levelRules(L, N, level, extras)}${varietyRules({ lang, variant, nativeLang, nativeVariant })}
 ${NO_DASHES_RULE}
 Prefer specific but commonly used words (e.g. "mug", not "container").
 "box" is the tight bounding box of that object, four integers 0-1000,
@@ -179,15 +248,15 @@ const MAX_SCENE_OBJECTS = 8;
 
 // Рівень змінює лише приклади: вирази (extras) для восьми предметів
 // роздули б відповідь і час очікування, тож вони тільки в одиночному скані.
-function buildScenePrompt(lang, nativeLang, level = null) {
-  const L = langName(lang, 'English');
-  const N = langName(nativeLang, 'Ukrainian');
+function buildScenePrompt(lang, nativeLang, level = null, { variant = null, nativeVariant = null } = {}) {
+  const L = langName(lang, 'English', variant);
+  const N = langName(nativeLang, 'Ukrainian', nativeVariant);
   return `You are the recognition engine inside a language-learning app.
 The user is learning ${L}; their native language is ${N}.
 The photo shows a whole scene (a room, a desk, a shelf, a street). Find up to ${MAX_SCENE_OBJECTS} distinct, clearly visible physical objects that a learner can name.
 Reply with ONLY minified JSON, no markdown, no extra text:
 {"objects":[{"word":"<specific common ${L} name of the object, 1-3 words>","ipa":"<IPA transcription of that ${L} word>","translation":"<translation of the word into ${N}>","example":"<${exampleSpec(L, level)}>","example_translation":"<translation of that sentence into ${N}>","box":[<ymin>,<xmin>,<ymax>,<xmax>],"outline":[[<y>,<x>],...]}]}
-${wordRules(lang)}${levelRules(L, N, level, false)}
+${wordRules(lang, variant)}${levelRules(L, N, level, false)}${varietyRules({ lang, variant, nativeLang, nativeVariant })}
 ${NO_DASHES_RULE}
 Which objects to include:
 - Everyday vocabulary that is useful to a learner. Prefer specific but commonly used words (e.g. "mug", not "container").
@@ -216,17 +285,18 @@ function hintText(hint) {
 // Загальне слово — та сама підказка, що й до персоналізації (і той самий
 // кеш), лише зі значенням, якщо список його дає. Тематичне — з темою,
 // значенням і прикладом із живої ситуації цієї теми.
-function buildTranslatePrompt(enWord, lang, nativeLang, { topic, hint } = {}) {
-  const L = langName(lang, 'English');
-  const N = langName(nativeLang, 'Ukrainian');
+function buildTranslatePrompt(enWord, lang, nativeLang, { topic, hint, variant = null, nativeVariant = null } = {}) {
+  const L = langName(lang, 'English', variant);
+  const N = langName(nativeLang, 'Ukrainian', nativeVariant);
   const t = topicOf(topic);
   const meaning = hintText(hint);
+  const rules = `${wordRules(lang, variant)}${varietyRules({ lang, variant, nativeLang, nativeVariant })}\n${NO_DASHES_RULE}\n`;
   if (t === 'general') {
     return (
       `Translate the English concept "${enWord}" for a language learner.\n` +
       (meaning ? `Meaning: ${meaning}.\n` : '') +
       `Target language: ${L}. Learner's native language: ${N}.\n` +
-      `${wordRules(lang)}\n${NO_DASHES_RULE}\n` +
+      rules +
       `Reply with ONLY minified JSON, no markdown:\n` +
       `{"word":"<the word in ${L}>","ipa":"<IPA of that ${L} word>",` +
       `"translation":"<the word in ${N}>","example":"<one short natural ${L} sentence using it>",` +
@@ -239,7 +309,7 @@ function buildTranslatePrompt(enWord, lang, nativeLang, { topic, hint } = {}) {
     (meaning ? `Meaning in this context: ${meaning}.\n` : '') +
     `Target language: ${L}. Learner's native language: ${N}.\n` +
     `Give the equivalents that people really use in ${name} in both languages, not word-for-word calques.\n` +
-    `${wordRules(lang)}\n${NO_DASHES_RULE}\n` +
+    rules +
     `Reply with ONLY minified JSON, no markdown:\n` +
     `{"word":"<the term in ${L}>","ipa":"<IPA of that ${L} term>",` +
     `"translation":"<the term in ${N}>","example":"<one natural ${L} sentence using it in a realistic situation from ${name}>",` +
@@ -249,13 +319,18 @@ function buildTranslatePrompt(enWord, lang, nativeLang, { topic, hint } = {}) {
 
 // Ключ кешу перекладу. Загальні слова — формат до персоналізації, тож уже
 // перекладені слова не перекладаються вдруге; тематичні — свій простір.
+// Варіант мови — у коді мови ('en-gb', 'es-latam'); варіант за
+// замовчуванням (DEFAULT_VARIETY) і запит без варіанта — старий ключ, тож
+// уже перекладене лишається в силі.
 // Firestore не приймає «/» в id, тому все, крім букв, цифр, «|» і «-», — «_».
-function wordCacheKey(enWord, lang, nativeLang, topic) {
+function wordCacheKey(enWord, lang, nativeLang, topic, { variant = null, nativeVariant = null } = {}) {
   const t = topicOf(topic);
+  const L = langTag(lang, variant);
+  const N = langTag(nativeLang, nativeVariant);
   const raw =
     t === 'general'
-      ? `v${PROMPT_VERSION}|${enWord}|${lang}|${nativeLang}`
-      : `v${TOPIC_PROMPT_VERSION}|${t}|${enWord}|${lang}|${nativeLang}`;
+      ? `v${PROMPT_VERSION}|${enWord}|${L}|${N}`
+      : `v${TOPIC_PROMPT_VERSION}|${t}|${enWord}|${L}|${N}`;
   return raw.replace(/[^\w|-]/g, '_');
 }
 
@@ -396,10 +471,35 @@ const MOCK_EXTRAS = {
   ],
 };
 
-function mockScan(lang, nativeLang, level) {
+// Варіанти в mock: американська англійська пише «favorite», британська —
+// «favourite» (як і mock без варіанта); латиноамериканська іспанська
+// транскрибує з seseo (/ˈtasa/), іспанська Іспанії — з θ. Так тести бачать,
+// що варіант дійшов до відповіді, без мережі.
+const MOCK_VARIANT_FIX = {
+  'en-us': (s) => s.replace(/favourite/g, 'favorite'),
+  'es-latam': (s) => s.replace(/θ/g, 's'),
+};
+
+function mockFix(fields, lang, v, keys) {
+  const fix = MOCK_VARIANT_FIX[lang + '-' + variantOr(lang, v)];
+  if (!fix) return fields;
+  const out = { ...fields };
+  for (const k of keys) if (typeof out[k] === 'string') out[k] = fix(out[k]);
+  return out;
+}
+
+// Слово мовою навчання й переклад — кожне під свій варіант
+function mockWord(w, n, { lang, nativeLang, variant, nativeVariant } = {}) {
+  return {
+    ...mockFix(w, lang, variant, ['word', 'ipa', 'example']),
+    ...mockFix(n, nativeLang, nativeVariant, ['translation', 'example_translation']),
+  };
+}
+
+function mockScan(lang, nativeLang, level, { variant = null, nativeVariant = null } = {}) {
   const w = MOCK_SCAN[lang] || MOCK_SCAN.en;
   const n = MOCK_NATIVE[nativeLang] || MOCK_NATIVE.en;
-  const out = { ...w, ...n, box: [290, 350, 710, 740], outline: MOCK_OUTLINE };
+  const out = { ...mockWord(w, n, { lang, nativeLang, variant, nativeVariant }), box: [290, 350, 710, 740], outline: MOCK_OUTLINE };
   if (wantsExtras(level)) {
     out.extras = (MOCK_EXTRAS[lang] || MOCK_EXTRAS.en).map((x) => ({
       phrase: x.phrase,
@@ -454,31 +554,38 @@ function ellipseOutline([y1, x1, y2, x2], points = 16) {
   });
 }
 
-function mockScene(lang, nativeLang) {
+function mockScene(lang, nativeLang, vars = {}) {
   return {
     objects: MOCK_SCENE.map((o) => {
       const w = o[lang] || o.en;
       const n = nativeLang === 'uk' ? o.uk : { translation: o.en.word, example_translation: o.en.example };
-      return { ...w, ...n, box: o.box, outline: ellipseOutline(o.box) };
+      return { ...mockWord(w, n, { lang, nativeLang, ...vars }), box: o.box, outline: ellipseOutline(o.box) };
     }),
   };
 }
 
-function mockTranslate(enWord, lang, nativeLang) {
+// Пара мов у mock-перекладі — з варіантами, якщо їх надіслали ('en-gb').
+function mockTag(lang, v) {
+  const id = variantOr(lang, v);
+  return id ? lang + '-' + id : lang;
+}
+
+function mockTranslate(enWord, lang, nativeLang, { variant = null, nativeVariant = null } = {}) {
   return {
     word: enWord,
     ipa: '',
-    translation: `${enWord} (${nativeLang})`,
+    translation: `${enWord} (${mockTag(nativeLang, nativeVariant)})`,
     example: `This is a ${enWord}.`,
-    example_translation: `${enWord}: приклад (${lang}→${nativeLang}).`,
+    example_translation: `${enWord}: приклад (${mockTag(lang, variant)}→${mockTag(nativeLang, nativeVariant)}).`,
   };
 }
 
 // ---------- ПУБЛІЧНЕ ----------
-// level — 1–10 зі слайдера або null (як до персоналізації).
-async function recognize(base64, lang, nativeLang, level = null) {
-  if (PROVIDER === 'mock') return mockScan(lang, nativeLang, level);
-  const prompt = buildScanPrompt(lang, nativeLang, level);
+// level — 1–10 зі слайдера або null (як до персоналізації); vars —
+// { variant, nativeVariant } (без них — як до варіантів мов).
+async function recognize(base64, lang, nativeLang, level = null, vars = {}) {
+  if (PROVIDER === 'mock') return mockScan(lang, nativeLang, level, vars);
+  const prompt = buildScanPrompt(lang, nativeLang, level, vars);
   if (PROVIDER === 'anthropic') {
     return callAnthropic([
       { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: base64 } },
@@ -489,9 +596,9 @@ async function recognize(base64, lang, nativeLang, level = null) {
 }
 
 // Сирий JSON моделі для сцени; розбирає й чистить його cleanScene.
-async function recognizeScene(base64, lang, nativeLang, level = null) {
-  if (PROVIDER === 'mock') return mockScene(lang, nativeLang);
-  const prompt = buildScenePrompt(lang, nativeLang, level);
+async function recognizeScene(base64, lang, nativeLang, level = null, vars = {}) {
+  if (PROVIDER === 'mock') return mockScene(lang, nativeLang, vars);
+  const prompt = buildScenePrompt(lang, nativeLang, level, vars);
   if (PROVIDER === 'anthropic') {
     return callAnthropic([
       { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: base64 } },
@@ -508,9 +615,10 @@ async function callText(prompt) {
 
 // Переклад слова дня з кешем (щоб не витрачати квоту на однакові пари).
 // topic і hint — з тематичного списку (wordplan.js); без них — загальне
-// слово, як у GET /word-of-day.
-async function translateWord(enWord, lang, nativeLang, { topic, hint } = {}) {
-  const key = wordCacheKey(enWord, lang, nativeLang, topic);
+// слово, як у GET /word-of-day. variant / nativeVariant — варіанти мов.
+async function translateWord(enWord, lang, nativeLang, { topic, hint, variant = null, nativeVariant = null } = {}) {
+  const vars = { variant: variantOr(lang, variant), nativeVariant: variantOr(nativeLang, nativeVariant) };
+  const key = wordCacheKey(enWord, lang, nativeLang, topic, vars);
   const cached = await store.get('wordCache', key);
   // Запис кешу з часів до правила «без тире» чистимо на льоту, тож
   // PROMPT_VERSION заради нього не піднімаємо: усе вже перекладене не
@@ -519,8 +627,8 @@ async function translateWord(enWord, lang, nativeLang, { topic, hint } = {}) {
 
   const parsed =
     PROVIDER === 'mock'
-      ? mockTranslate(enWord, lang, nativeLang)
-      : await callText(buildTranslatePrompt(enWord, lang, nativeLang, { topic, hint }));
+      ? mockTranslate(enWord, lang, nativeLang, vars)
+      : await callText(buildTranslatePrompt(enWord, lang, nativeLang, { topic, hint, ...vars }));
   if (!parsed || !parsed.word) throw new Error('bad translation');
   const out = { ...cleanWord(parsed), source: enWord };
   if (PROVIDER !== 'mock') await store.put('wordCache', key, out);
@@ -669,6 +777,10 @@ function cleanScene(parsed) {
 module.exports = {
   PROVIDER,
   LANG_NAMES,
+  VARIETIES,
+  DEFAULT_VARIETY,
+  variantOr,
+  langTag,
   TOPIC_NAMES,
   MAX_SCENE_OBJECTS,
   MAX_EXTRAS,

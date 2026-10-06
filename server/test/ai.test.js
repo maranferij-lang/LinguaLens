@@ -323,3 +323,88 @@ test('a Ukrainian copula dash in an example disappears instead of turning into a
   // без тире текст не змінюється ані на символ
   assert.equal(card('x', 'Чашка порожня, а кава гаряча.').example_translation, 'Чашка порожня, а кава гаряча.');
 });
+
+// ---------- варіанти мов: яким різновидом писати ----------
+test('variants name the exact variety in every prompt; without one the prompt is as before', () => {
+  const cases = [
+    ['en', 'us', ['American English', 'US spelling and vocabulary', 'General American']],
+    ['en', 'gb', ['British English', 'UK spelling and vocabulary', 'RP (Received Pronunciation)']],
+    ['es', 'es', ['Spanish from Spain', 'Castilian vocabulary', 'distinción', '/θ/']],
+    ['es', 'latam', ['Latin American Spanish', 'Mexican and neutral Latin American vocabulary', 'seseo', 'never "vosotros"']],
+  ];
+  for (const [lang, variant, parts] of cases) {
+    const prompts = [
+      ai.buildScanPrompt(lang, 'uk', null, { variant }),
+      ai.buildScanPrompt(lang, 'uk', 9, { variant }),
+      ai.buildScenePrompt(lang, 'uk', null, { variant }),
+      ai.buildTranslatePrompt('mug', lang, 'uk', { variant }),
+      ai.buildTranslatePrompt('ledger', lang, 'uk', { topic: 'finance', variant }),
+    ];
+    for (const p of prompts) {
+      for (const part of parts) assert.ok(p.includes(part), `${lang}-${variant}: ${part}`);
+      assert.ok(p.includes(`The user is learning ${parts[0]}`) || p.includes(`Target language: ${parts[0]}.`), `${lang}-${variant}`);
+    }
+  }
+  // мова перекладу — теж свій різновид, але без транскрипції
+  const native = ai.buildScanPrompt('de', 'es', null, { nativeVariant: 'latam' });
+  assert.ok(native.includes('their native language is Latin American Spanish'));
+  assert.ok(native.includes('"translation":"<translation of the word into Latin American Spanish>"'));
+  assert.ok(native.includes("The learner's native language is Latin American Spanish: use Mexican"));
+  assert.ok(!native.includes('seseo'));
+  const toGb = ai.buildTranslatePrompt('mug', 'de', 'en', { nativeVariant: 'gb' });
+  assert.ok(toGb.includes("Learner's native language: British English.") && toGb.includes('UK spelling and vocabulary'));
+
+  // без варіанта, з чужим чи вигаданим — рівно старі підказки
+  for (const vars of [{}, { variant: 'gb' }, { variant: 'xx', nativeVariant: 'constructor' }, { variant: ['us'] }]) {
+    assert.equal(ai.buildScanPrompt('de', 'uk', null, vars), ai.buildScanPrompt('de', 'uk'));
+    assert.equal(ai.buildScenePrompt('de', 'uk', 2, vars), ai.buildScenePrompt('de', 'uk', 2));
+    assert.equal(ai.buildTranslatePrompt('mug', 'de', 'uk', vars), ai.buildTranslatePrompt('mug', 'de', 'uk'));
+  }
+  assert.equal(ai.buildScanPrompt('en', 'uk', null, { variant: 'latam' }), ai.buildScanPrompt('en', 'uk'));
+  assert.ok(!ai.buildScanPrompt('en', 'uk').includes('American'));
+
+  // правило власника: і в підказках варіантів немає тире
+  for (const [lang, variant] of cases) {
+    for (const p of [
+      ai.buildScanPrompt(lang, 'en', 9, { variant, nativeVariant: 'gb' }),
+      ai.buildTranslatePrompt('mug', lang, 'es', { variant, nativeVariant: 'latam' }),
+    ]) {
+      assert.ok(!/[—―–]/.test(p), `${lang}-${variant}`);
+    }
+  }
+});
+
+test('a scan and a scene send the variant prompt to the model', async () => {
+  reply = '{"word":"flat"}';
+  await ai.recognize('BASE64', 'en', 'uk', null, { variant: 'gb' });
+  assert.equal(requests.at(-1).body.messages[0].content[1].text, ai.buildScanPrompt('en', 'uk', null, { variant: 'gb' }));
+  reply = '{"objects":[]}';
+  await ai.recognizeScene('BASE64', 'es', 'en', 4, { variant: 'latam', nativeVariant: 'us' });
+  assert.equal(
+    requests.at(-1).body.messages[0].content[1].text,
+    ai.buildScenePrompt('es', 'en', 4, { variant: 'latam', nativeVariant: 'us' })
+  );
+});
+
+test('the word of the day for a variant: own cache entry; the default variant reuses words translated before variants', async () => {
+  const term = 'flat-' + crypto.randomUUID().slice(0, 8);
+  reply = JSON.stringify({ word: 'flat', ipa: '/flæt/', translation: 'квартира', example: 'Our flat is small.', example_translation: 'Наша квартира мала.' });
+  const n = requests.length;
+  const gb = await ai.translateWord(term, 'en', 'uk', { variant: 'gb' });
+  assert.equal(requests.length, n + 1);
+  assert.equal(requests.at(-1).body.messages[0].content[0].text, ai.buildTranslatePrompt(term, 'en', 'uk', { variant: 'gb' }));
+  assert.equal((await store.get('wordCache', 'v2|' + term + '|en-gb|uk')).word, 'flat');
+  assert.equal(gb.word, 'flat');
+
+  // слово, перекладене до варіантів (ключ без варіанта), — для американської
+  // англійської з кешу, без моделі
+  const old = 'apartment-' + crypto.randomUUID().slice(0, 8);
+  const before = { word: 'apartment', ipa: '', translation: 'квартира', example: 'x', example_translation: 'y', source: old };
+  await store.put('wordCache', ai.wordCacheKey(old, 'en', 'uk'), before);
+  const m = requests.length;
+  assert.equal((await ai.translateWord(old, 'en', 'uk', { variant: 'us' })).word, 'apartment');
+  assert.equal(requests.length, m);
+  // а британська — свій переклад
+  await ai.translateWord(old, 'en', 'uk', { variant: 'gb' });
+  assert.equal(requests.length, m + 1);
+});
