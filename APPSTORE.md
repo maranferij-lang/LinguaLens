@@ -470,15 +470,18 @@ Política de privacidad: https://<server>/privacy
 | 1 | Tómale foto y aprende inglés | Con pronunciación y un ejemplo de uso |
 | 2 | Tu diccionario de fotos | Palabras de tu vida, en 29 idiomas |
 | 3 | Tarjetas para no olvidar | Repasa cada palabra justo antes de olvidarla |
-| 4 | Nombra todo en una sola foto · **PRO** | Cada objeto, con su nombre en inglés |
+| 4 | Etiqueta todo con una foto · **PRO** | Cada objeto, con su nombre en inglés |
 | 5 | Inglés para tu nivel | De A1 a C2, sin lo básico si ya avanzaste |
-| 6 | Widget de la palabra del día | En tu pantalla de inicio y pantalla bloqueada |
+| 6 | Widget de la palabra del día | En la pantalla de inicio y en la bloqueada |
 | 7 | No rompas tu racha | Niveles y 29 logros por tu constancia |
-| 8 | Comparte tus hallazgos | Stickers y tarjetas para Stories y chats |
+| 8 | Comparte lo que descubres | Stickers y tarjetas para Stories y chats |
 
-«Nombra todo» замість «Tu cuarto entero»: у Мексиці «cuarto» означає
-спальню, а на кадрі кухня. «Pantalla bloqueada» так зве цей екран iOS
-іспанською; «pantalla de bloqueo» каже Android.
+«Etiqueta todo» замість «Tu cuarto entero»: у Мексиці «cuarto» означає
+спальню, а на кадрі кухня; і підписує застосунок, а не людина («Nombra
+todo» звучало як вправа на слова). «Pantalla bloqueada» так зве цей екран
+iOS іспанською; «pantalla de bloqueo» каже Android, тож друге «pantalla»
+просто опущене: «y en la bloqueada». «Comparte lo que descubres» замість
+«hallazgos»: «hallazgo» для мексиканця газетне слово.
 
 Якщо іспанські скріншоти зняти не встигаєш, App Store покаже англійські
 (en-US). Підписи можна додати першим оновленням.

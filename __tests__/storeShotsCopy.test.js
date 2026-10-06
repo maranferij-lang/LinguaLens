@@ -122,22 +122,39 @@ describe('store shots copy', () => {
     expect(COPY['es-MX'][4].head).toContain('\n'); // Inglés para tu nivel
   });
 
+  test('forced breaks keep a phrase together on one line', () => {
+    const lines = (cp) => cp.head.replace(/[[\]]/g, '').split('\n');
+    for (const loc of ['en-US', 'en-GB']) {
+      // «Snap it, learn / it in Spanish» розривав пару «Snap it, learn it»
+      expect(lines(COPY[loc][0])[0]).toBe('Snap it, learn it');
+      // «Word of the / Day widget» розривав назву функції
+      expect(lines(COPY[loc][5])[0]).toBe('Word of the Day');
+    }
+  });
+
   test('frame 6 uses Apple’s own names of the screens', () => {
     // українська локалізація iOS: «Початковий екран» і «Замкнений екран»
     expect(COPY.uk[5].sub).toMatch(/Початков/);
     expect(COPY.uk[5].sub).toMatch(/Замкнен/);
     for (const loc of ['en-US', 'en-GB']) expect(COPY[loc][5].sub).toMatch(/Home Screen.*Lock Screen/);
     // іспанська (Мексика) локалізація iOS: «pantalla de inicio» і «pantalla
-    // bloqueada»; «pantalla de bloqueo» — слово Android
-    expect(COPY['es-MX'][5].sub).toMatch(/pantalla de inicio.*pantalla bloqueada/);
+    // bloqueada» (друге «pantalla» опущене: «y en la bloqueada», без повтору);
+    // «pantalla de bloqueo» — слово Android
+    expect(COPY['es-MX'][5].sub).toMatch(/pantalla de inicio y en la bloqueada/);
     expect(COPY['es-MX'][5].sub).not.toMatch(/bloqueo/);
     // назва функції — як власна назва: «Word of the Day», як «Слово дня» в лапках
     for (const loc of ['en-US', 'en-GB']) expect(plainHead(COPY[loc][5])).toBe('Word of the Day widget');
   });
 
   test('es-MX frame 4 does not promise a bedroom: in Mexico «cuarto» is a bedroom, the photo is a kitchen', () => {
-    expect(plainHead(COPY['es-MX'][3])).toBe('Nombra todo en una sola foto');
-    expect(plainHead(COPY['es-MX'][3])).not.toMatch(/cuarto/);
+    // і підписує застосунок, а не людина: «Nombra todo» звучало як вправа
+    expect(plainHead(COPY['es-MX'][3])).toBe('Etiqueta todo con una foto');
+    expect(plainHead(COPY['es-MX'][3])).not.toMatch(/cuarto|nombra/i);
+  });
+
+  test('es-MX frame 8 speaks everyday Mexican Spanish, not newspaper register', () => {
+    expect(plainHead(COPY['es-MX'][7])).toBe('Comparte lo que descubres');
+    expect(plainHead(COPY['es-MX'][7])).not.toMatch(/hallazgo/);
   });
 
   test('only frame 4 (scene, Pro) carries the PRO chip', () => {
