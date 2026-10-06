@@ -239,13 +239,15 @@ export function topicName(t, key) {
 }
 
 // Підсумок для рядка в Параметрах: «Фінанси · B2+», «Подорожі · A2». Тут —
-// те, що людина обрала: сфера, якщо вона є, хай навіть слів із неї менше.
+// те, що людина обрала: сфера, якщо вона є, хай навіть слів із неї менше,
+// і тією ж назвою, що на кроці «Чим ти займаєшся?» (field_…: «IT», а не
+// назва теми слова дня «Tech»).
 export function profileSummary(profile, t) {
   const p = cleanProfile(profile);
   if (!p) return t('pfNotSet');
   const field = p.field && p.field !== 'other' ? p.field : null;
-  const topic = field || primaryTopic(p);
-  const head = topic ? t('topic_' + topic) : t('goal_' + p.goals[0]);
+  const topic = primaryTopic(p);
+  const head = field ? t('field_' + field) : topic ? t('topic_' + topic) : t('goal_' + p.goals[0]);
   return `${head} · ${cefrFor(p.level)}`;
 }
 
