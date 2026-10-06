@@ -568,6 +568,24 @@ describe('level and plan cards say each thing once', () => {
     expect(hosts(tree, (n) => n.props.children === 'Загальне')).toHaveLength(1);
     expect(has(tree, uk('obPlanSingleSub'))).toBe(true);
   });
+
+  // План стоїть за два екрани до віджетів: він обіцяє лише те, що людина
+  // вже бачила (слово дня, година, хвилина на день), а не «віджет на
+  // головному екрані», про який ще не чула (власник, 6.10.2026)
+  test.each(LOCALES)('%s: no plan line promises the widgets shown only later; “no time” is the word of the day at your hour', async (lang) => {
+    const tl = makeT(lang);
+    const tree = await mount(<PlanBody profile={{ goals: ['travel'], level: 5 }} struggles={['forget', 'time', 'boring', 'start']} t={tl} />);
+    const shown = strings(tree).join('\n');
+    expect(shown).toContain(tl('plan_time'));
+    expect(shown).not.toMatch(/widget|віджет/i);
+    for (const k of ['plan_forget', 'plan_time', 'plan_boring', 'plan_start']) expect([k, tl(k)]).not.toEqual([k, expect.stringMatching(/widget|віджет/i)]);
+    expect(tl('plan_time').toLocaleLowerCase(lang)).toContain(tl('wordOfDay').toLocaleLowerCase(lang));
+  });
+
+  test('uk copy of the “no time” line is exact', () => {
+    expect(uk('plan_time')).toBe('Хвилина на день: одне слово дня в зручну тобі годину');
+    expect(t('plan_time')).toBe('A minute a day: one word of the day at an hour that suits you');
+  });
 });
 
 // ─── onb-17: сповіщення в два рядки, година як на телефоні ─────────────────
