@@ -14,6 +14,7 @@
 // дає лише 8 днів (≤ 42 слова на запит).
 import { Platform } from 'react-native';
 import { apiWordOfDay } from './api';
+import { isVariant, nativeVariantOf, variantOf, variantsOf } from './langVariants';
 import { cleanProfile, topicName } from './profile';
 import { loadWod, persistWod, localDayKey } from './storage';
 import { TRIAL_REMIND_DAYS } from './subscription';
@@ -231,12 +232,26 @@ export function wodSignature(profile, known) {
   return `${head}#${k.length}:${k[k.length - 1] || ''}`;
 }
 
-// Чи треба оновити кеш: немає, інші мови, інший профіль чи «Знаю», інша
-// кількість слів на день, або наперед лишилось менше тижня (половини
-// відповіді — для 5 слів на день це 4 дні з 8).
-export function needsRefresh(cache, { lang, native, sig, perDay = 1 }, now = Date.now()) {
+// Чи кеш узято для цієї пари мов — і тих самих варіантів (англійська США
+// чи Британії…). Без варіанта сервер пише першим варіантом зі списку (США,
+// Іспанія; DEFAULT_VARIETY у server/ai.js) і бере ті самі записи свого
+// кешу, тож «без варіанта» — це він. Так і кеш до варіантів після
+// оновлення застосунку годиться, і слова заново не тягнемо.
+const variantKey = (code, v) => (isVariant(code, v) ? v : variantsOf(code)[0]?.id || null);
+
+export function samePair(cache, { lang, native, variant = null, nativeVariant = null }) {
+  if (!cache || cache.lang !== lang || cache.native !== native) return false;
+  return (
+    variantKey(lang, cache.variant) === variantKey(lang, variant) && variantKey(native, cache.nativeVariant) === variantKey(native, nativeVariant)
+  );
+}
+
+// Чи треба оновити кеш: немає, інші мови (чи їхні варіанти), інший профіль
+// чи «Знаю», інша кількість слів на день, або наперед лишилось менше тижня
+// (половини відповіді — для 5 слів на день це 4 дні з 8).
+export function needsRefresh(cache, { lang, native, variant = null, nativeVariant = null, sig, perDay = 1 }, now = Date.now()) {
   if (!cache || !Array.isArray(cache.words) || !cache.words.length) return true;
-  if (cache.lang !== lang || cache.native !== native) return true;
+  if (!samePair(cache, { lang, native, variant, nativeVariant })) return true;
   if (cache.sig !== sig) return true;
   const have = cache.perDay || 1;
   if (have !== perDay) {
@@ -265,8 +280,8 @@ function cacheWords(words, perDay) {
 
 // Минулі дні (слот 0) зі старого кешу тієї ж пари мов: новий кеш починається
 // з сьогодні, а великий віджет показує ще й слова цього тижня.
-function pastWords(prev, { lang, native }, today) {
-  if (!prev || prev.lang !== lang || prev.native !== native || !Array.isArray(prev.words)) return [];
+function pastWords(prev, pair, today) {
+  if (!samePair(prev, pair) || !Array.isArray(prev.words)) return [];
   const from = localDayKey(new Date(dayStart(today).getTime() - PAST_DAYS * 86400000 + 12 * 3600000));
   return prev.words.filter((w) => w && !slotOf(w) && w.date < today && w.date >= from);
 }
@@ -277,8 +292,8 @@ function pastWords(prev, { lang, native }, today) {
 // відкриті сьогодні слоти (крім slot) беремо зі старого кешу, а решту
 // заповнюємо новими словами без повторів у межах дня: спершу те, що сервер
 // дав на цей слот, далі — інші його сьогоднішні слова.
-export function keepOpenToday(words, prev, { lang, native, hours, slot }, now = new Date()) {
-  if (!prev || prev.lang !== lang || prev.native !== native) return words;
+export function keepOpenToday(words, prev, { lang, native, variant = null, nativeVariant = null, hours, slot }, now = new Date()) {
+  if (!samePair(prev, { lang, native, variant, nativeVariant })) return words;
   const kept = new Map(
     todaySlots(prev, hours, now)
       .open.filter((w) => w.slot !== slot)
@@ -323,9 +338,13 @@ export function syncWordOfDay(opts) {
 // hours — години слотів (slotHours): їх стільки, скільки слів на день;
 // hour — для старих викликів, коли слово одне. knownSlot — «Знаю» на слові
 // дня з цього слоту: інші вже відкриті сьогодні слова лишаються (keepOpenToday).
+// variant / nativeVariant — варіанти мов; без них — обраний людиною і
+// з регіону телефона (src/langVariants.js).
 async function doSync({
   lang,
   native,
+  variant: askedVariant,
+  nativeVariant: askedNative,
   enabled,
   hour = DEFAULT_HOUR,
   hours = null,
@@ -341,23 +360,30 @@ async function doSync({
   const sig = wodSignature(clean, list);
   const slots = Array.isArray(hours) && hours.length ? hours : [hour];
   const perDay = slots.length;
+  const variant = askedVariant === undefined ? variantOf(lang) : askedVariant;
+  const nativeVariant = askedNative === undefined ? nativeVariantOf(native) : askedNative;
+  const pair = {
+    lang,
+    native,
+    variant: isVariant(lang, variant) ? variant : null,
+    nativeVariant: isVariant(native, nativeVariant) ? nativeVariant : null,
+  };
 
-  if (force || needsRefresh(cache, { lang, native, sig, perDay })) {
+  if (force || needsRefresh(cache, { ...pair, sig, perDay })) {
     try {
-      const d = await apiWordOfDay({ days: WOD_DAYS, lang, native, profile: clean, known: list, perDay });
+      const d = await apiWordOfDay({ days: WOD_DAYS, ...pair, profile: clean, known: list, perDay });
       if (d && Array.isArray(d.words) && d.words.length) {
         const got = Math.min(Math.max(Math.floor(Number(d.perDay)) || 1, 1), perDay);
         let words = cacheWords(d.words, got);
-        if (Number.isInteger(knownSlot)) words = keepOpenToday(words, cache, { lang, native, hours: slots, slot: knownSlot });
+        if (Number.isInteger(knownSlot)) words = keepOpenToday(words, cache, { ...pair, hours: slots, slot: knownSlot });
         const today = localDayKey();
         cache = {
-          lang,
-          native,
+          ...pair,
           sig,
           perDay: got,
           asked: perDay,
           days: daysAhead(words, today),
-          words: [...pastWords(cache, { lang, native }, today), ...words],
+          words: [...pastWords(cache, pair, today), ...words],
           fetchedAt: Date.now(),
         };
         await persistWod(cache);

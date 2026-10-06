@@ -6,6 +6,7 @@
 import { AccessibilityInfo } from 'react-native';
 import { act, create } from 'react-test-renderer';
 import * as Speech from 'expo-speech';
+import { setChosenVariants } from '../src/langVariants';
 import Celebrate, { CELEBRATE_NEXT_MS, CONFETTI } from '../src/Celebrate';
 import { makeT } from '../src/i18n';
 
@@ -41,11 +42,17 @@ test('the person’s own sticker, the word with its translation, the title and d
   await act(async () => tree.unmount());
 });
 
-test('a tap on the plate says the word in its language', async () => {
+test('a tap on the plate says the word in its language, in the chosen variant', async () => {
   const tree = await render();
   const plate = tree.root.findAll((n) => n.props.testID === 'celebrate-plate' && typeof n.props.onPress === 'function')[0];
+  // телефон у тестах — регіон США: іспанська за замовчуванням латиноамериканська
   await act(async () => plate.props.onPress());
-  expect(Speech.speak).toHaveBeenCalledWith('la taza', expect.objectContaining({ language: 'es-ES' }));
+  expect(Speech.speak).toHaveBeenLastCalledWith('la taza', expect.objectContaining({ language: 'es-MX' }));
+  // людина обрала іспанську Іспанії — голос es-ES
+  setChosenVariants({ es: 'es' });
+  await act(async () => plate.props.onPress());
+  expect(Speech.speak).toHaveBeenLastCalledWith('la taza', expect.objectContaining({ language: 'es-ES' }));
+  setChosenVariants({});
   await act(async () => tree.unmount());
 });
 

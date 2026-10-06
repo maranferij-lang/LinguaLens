@@ -87,6 +87,8 @@ describe('the request', () => {
       days: 14,
       lang: 'en',
       native: 'uk',
+      // варіант англійської: за замовчуванням США (src/langVariants.js)
+      variant: 'us',
       today: TODAY,
       profile: { goals: ['work', 'self'], field: 'finance', level: 8, since: '2026-09-01' },
       known: ['ledger'],
@@ -96,8 +98,8 @@ describe('the request', () => {
   });
 
   test('without a profile and “I know” the body is the legacy one: general words', async () => {
-    await syncWordOfDay(args({ profile: null }));
-    expect(served[0].body).toEqual({ days: 14, lang: 'en', native: 'uk', today: TODAY });
+    await syncWordOfDay(args({ profile: null, lang: 'de' }));
+    expect(served[0].body).toEqual({ days: 14, lang: 'de', native: 'uk', today: TODAY });
   });
 
   test('a server that does not know POST yet gets the old GET', async () => {
@@ -107,7 +109,7 @@ describe('the request', () => {
       ['POST', '/word-of-day'],
       ['GET', '/word-of-day'],
     ]);
-    expect(served[1].query).toBe(`?days=14&lang=en&native=uk&today=${TODAY}`);
+    expect(served[1].query).toBe(`?days=14&lang=en&native=uk&variant=us&today=${TODAY}`);
   });
 });
 

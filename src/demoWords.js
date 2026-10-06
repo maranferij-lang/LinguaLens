@@ -14,6 +14,12 @@
 // артиклем). Транскрипція — лише там, де вона усталена й перевірена; решта
 // мов без неї (табличка просто не показує рядок). Перед релізом таблицю
 // перевіряють носії (план, ризик R7).
+//
+// Таблиці нижче — для першого варіанта мови (src/langVariants.js):
+// англійська США, іспанська Іспанії. Чим інший варіант відрізняється —
+// у DEMO_VARIANTS.
+import { nativeVariantOf, variantOf } from './langVariants';
+
 export const DEMO_WORDS = {
   en: { word: 'mug', ipa: '/mʌɡ/', example: 'There’s hot coffee in this mug.' },
   uk: { word: 'чашка', example: 'У цій чашці гаряча кава.' },
@@ -83,29 +89,55 @@ export const SCENE_WORDS = {
 // Порядок підписів у сцені — так вони й спливають
 export const SCENE_KEYS = ['mug', 'laptop', 'plant', 'notebook'];
 
+// Що інакше в другому варіанті мови: латиноамериканська іспанська читає
+// «taza» з seseo і каже «la laptop» там, де в Іспанії «el portátil».
+// Англійська США й Британії на цих словах не різниться.
+export const DEMO_VARIANTS = {
+  'es-latam': { ipa: '/la ˈta.sa/', laptop: 'la laptop' },
+};
+
+function variantFix(code, variant) {
+  return DEMO_VARIANTS[code + '-' + variant] || null;
+}
+
+// Слово чашки й рядок сцени мовою code у варіанті variant
+function cupOf(code, variant) {
+  const w = DEMO_WORDS[code];
+  const fix = variantFix(code, variant);
+  return fix && fix.ipa ? { ...w, ipa: fix.ipa } : w;
+}
+
+function sceneOf(code, variant) {
+  const fix = variantFix(code, variant);
+  return fix && fix.laptop ? { ...SCENE_WORDS[code], laptop: fix.laptop } : SCENE_WORDS[code];
+}
+
 // Пара для таблички: слово мовою навчання (з транскрипцією, якщо є) і
 // переклад мовою перекладу. Невідомий код — англійська, як і всюди.
-export function demoPair(target, native) {
-  const w = DEMO_WORDS[target] || DEMO_WORDS.en;
-  const tr = DEMO_WORDS[native] || DEMO_WORDS.en;
-  return { word: w.word, ipa: w.ipa || '', translation: tr.word, lang: DEMO_WORDS[target] ? target : 'en' };
+// Варіанти мов — обраний для мови навчання і з регіону телефона для «моєї».
+export function demoPair(target, native, variant = variantOf(target), nativeVariant = nativeVariantOf(native)) {
+  const lang = DEMO_WORDS[target] ? target : 'en';
+  const w = cupOf(lang, variant);
+  const tr = DEMO_WORDS[native] ? cupOf(native, nativeVariant) : DEMO_WORDS.en;
+  return { word: w.word, ipa: w.ipa || '', translation: tr.word, lang };
 }
 
 // Та сама пара з прикладом і його перекладом — для картки-прикладу слова
 // дня й сповіщення в онбордингу
-export function demoExample(target, native) {
-  const pair = demoPair(target, native);
+export function demoExample(target, native, variant = variantOf(target), nativeVariant = nativeVariantOf(native)) {
+  const pair = demoPair(target, native, variant, nativeVariant);
   const w = DEMO_WORDS[pair.lang];
   const tr = DEMO_WORDS[native] || DEMO_WORDS.en;
   return { ...pair, example: w.example, exampleTranslation: tr.example };
 }
 
 // Підписи сцени: [{ key, word, translation }] у порядку SCENE_KEYS
-export function demoScene(target, native) {
+export function demoScene(target, native, variant = variantOf(target), nativeVariant = nativeVariantOf(native)) {
   const lang = SCENE_WORDS[target] ? target : 'en';
-  const from = SCENE_WORDS[native] || SCENE_WORDS.en;
-  const pair = demoPair(target, native);
+  const words = sceneOf(lang, variant);
+  const from = SCENE_WORDS[native] ? sceneOf(native, nativeVariant) : SCENE_WORDS.en;
+  const pair = demoPair(target, native, variant, nativeVariant);
   return SCENE_KEYS.map((key) =>
-    key === 'mug' ? { key, word: pair.word, translation: pair.translation } : { key, word: SCENE_WORDS[lang][key], translation: from[key] }
+    key === 'mug' ? { key, word: pair.word, translation: pair.translation } : { key, word: words[key], translation: from[key] }
   );
 }

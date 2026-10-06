@@ -206,7 +206,8 @@ describe('WordPlate', () => {
 
   test('language line, word in the accent colour and the translation', async () => {
     const tree = await render(<WordPlate word={MUG} size="md" />);
-    expect(texts(tree)).toEqual(['🇬🇧', 'English', 'mug', 'кружка']);
+    // прапорець — варіанта мови: англійська за замовчуванням — США
+    expect(texts(tree)).toEqual(['🇺🇸', 'English', 'mug', 'кружка']);
     const word = tree.root.findAllByType(Text).find((n) => n.props.children === 'mug');
     expect(StyleSheet.flatten(word.props.style).color).toBe(PLATE.accent);
     // картинка, а не інтерфейс: Dynamic Type не роздуває табличку
