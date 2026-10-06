@@ -9,12 +9,13 @@
 // settings.variants = { en: 'gb' } (базовий код → id). Старі встановлення
 // його не мають — тоді варіант за замовчуванням (defaultVariant). Варіант
 // «моєї мови» (переклади для англомовних чи іспаномовних) вибору в
-// інтерфейсі не має: його мовчки дає регіон телефона тим самим правилом.
+// інтерфейсі не має: його мовчки дає регіон телефона (nativeVariantOf).
 //
 // Додати варіанти мови (скажімо, португальська Португалії й Бразилії) =
 // рядок у VARIANTS, назви регіонів langRegion_<id> у src/strings/onb.js і
 // той самий id у server/ai.js (VARIETIES). Перший у списку — варіант за
-// замовчуванням; regions — регіони телефона, де за замовчуванням цей.
+// замовчуванням; regions — регіони телефона, де за замовчуванням цей;
+// nativeRegions — регіони, де цей варіант лише для «моєї мови».
 import { getLocales } from 'expo-localization';
 
 // Регіони обох Америк (ISO 3166-1): Північна (і США), Центральна, Карибські
@@ -35,7 +36,17 @@ const AMERICAS = [
 export const VARIANTS = {
   en: [
     { id: 'us', name: 'English (US)', flag: '🇺🇸', tts: 'en-US', terms: ['american', 'usa', 'america', 'американский', 'американська'] },
-    { id: 'gb', name: 'English (UK)', flag: '🇬🇧', tts: 'en-GB', terms: ['british', 'britain', 'uk', 'england', 'британия', 'британский', 'британська'] },
+    {
+      id: 'gb',
+      name: 'English (UK)',
+      flag: '🇬🇧',
+      tts: 'en-GB',
+      // англомовний із Британії, Ірландії, Австралії чи Нової Зеландії пише
+      // colour і favourite: переклади для нього британські. Вчити англійську
+      // там, як і всюди, за замовчуванням американську
+      nativeRegions: ['GB', 'IE', 'AU', 'NZ'],
+      terms: ['british', 'britain', 'uk', 'england', 'британия', 'британский', 'британська'],
+    },
   ],
   es: [
     { id: 'es', name: 'Español (España)', flag: '🇪🇸', tts: 'es-ES', terms: ['spain', 'castellano', 'castilian'] },
@@ -130,9 +141,13 @@ export function variantOf(code) {
   return isVariant(code, id) ? id : defaultIn(code, regionOrPhone());
 }
 
-// Варіант «моєї мови»: лише з регіону телефона, без вибору в інтерфейсі
+// Варіант «моєї мови»: лише з регіону телефона, без вибору в інтерфейсі.
+// Спершу nativeRegions (англійська Британії для GB, IE, AU і NZ),
+// далі те саме правило, що й для мови навчання.
 export function nativeVariantOf(code, locales) {
-  return locales ? defaultVariant(code, locales) : defaultIn(code, regionOrPhone());
+  const region = locales ? phoneRegion(locales) : regionOrPhone();
+  const own = region && variantsOf(code).find((v) => Array.isArray(v.nativeRegions) && v.nativeRegions.includes(region));
+  return own ? own.id : defaultIn(code, region);
 }
 
 // Ключ рядка у списку мов: 'en-gb', 'es-latam'; мова без варіантів — код.

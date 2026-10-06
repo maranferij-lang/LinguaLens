@@ -92,6 +92,26 @@ describe('defaults', () => {
     expect(variantOf('es')).toBe('es');
   });
 
+  // Вчити англійську — американську всюди; а переклади для англомовного з
+  // Британії, Ірландії, Австралії чи Нової Зеландії — британські (colour,
+  // flat), не американські
+  test('my language: English from the UK, Ireland, Australia or New Zealand is British; learning English stays American', () => {
+    for (const region of ['GB', 'IE', 'AU', 'NZ']) {
+      expect([region, nativeVariantOf('en', locales('en-' + region))]).toEqual([region, 'gb']);
+      expect([region, defaultVariant('en', locales('en-' + region))]).toEqual([region, 'us']);
+    }
+    for (const region of ['US', 'CA', 'UA', 'DE']) expect([region, nativeVariantOf('en', locales('en-' + region))]).toEqual([region, 'us']);
+    expect(nativeVariantOf('en', [])).toBe('us');
+    // іспанська — як і була
+    expect(nativeVariantOf('es', locales('es-MX'))).toBe('latam');
+    expect(nativeVariantOf('es', locales('es-GB'))).toBe('es');
+    // з регістру: так рахують запити застосунку
+    setChosenVariants({}, locales('en-GB'));
+    expect(nativeVariantOf('en')).toBe('gb');
+    expect(variantOf('en')).toBe('us');
+    expect(variantFields('es', 'en')).toEqual({ variant: 'es', nativeVariant: 'gb' });
+  });
+
   test('list keys: a row per variant, a plain code for the rest', () => {
     expect(expandOptions(['de', 'en', 'es'])).toEqual(['de', 'en-us', 'en-gb', 'es-es', 'es-latam']);
     expect(optionKey('en', 'gb')).toBe('en-gb');
