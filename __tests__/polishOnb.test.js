@@ -297,6 +297,13 @@ describe('paywall footer', () => {
     const tight = ['obPushTitle', 'obPushText', 'obStreakTitle', 'ob3HookTitle', 'planSubWeek', 'planSubMonth', 'privacy', 'pwContinueFreeNoScans', 'startTrial'];
     const wide = tight.filter((k) => textEm(STRINGS.ru[k]) > textEm(STRINGS.uk[k]) * 1.1).map((k) => `${k}: ${STRINGS.ru[k]}`);
     expect(wide).toEqual([]);
+    // підвал пейволу — один рядок, як український: «Восстановить покупки ·
+    // Условия · Приватность»
+    const footer = (l) => ['restore', 'terms', 'privacy'].reduce((sum, k) => sum + textEm(STRINGS[l][k]), 0);
+    expect(footer('ru')).toBeLessThanOrEqual(footer('uk'));
+    // серія у малому віджеті — у два рядки, як українська
+    const week = (l) => textEm(makeT(l)('streakToWeek', { k: 6 }));
+    expect(week('ru')).toBeLessThanOrEqual(week('uk'));
   });
 
   test('a failed purchase: a two-line note above the legal line, which stays', async () => {
