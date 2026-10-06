@@ -1,9 +1,11 @@
-// PNG без залежностей (zlib з Node): читання, запис і зменшення усередненням
-// за площею. Спільне для tools/export-app-icon.mjs, tools/export-brand.mjs і тесту
-// __tests__/sharedParts.test.js.
+// PNG без залежностей (zlib з Node): читання, запис, зменшення усередненням
+// за площею й зведення на непрозоре тло. Єдиний кодек проєкту: його беруть
+// tools/export-app-icon.mjs, tools/export-brand.mjs, tools/store-shots
+// (кадри App Store) і тести __tests__/sharedParts.test.js, mascotEyes,
+// png.test.js.
 // Лише 8 біт на канал без черезрядковості, RGB (тип кольору 2) або RGBA (6) —
-// усе, що дає Chromium і що потрібно іконкам. CommonJS, щоб його брали і
-// скрипти (import codec from './png.js'), і тести jest (require).
+// усе, що дає Chromium і що потрібно іконкам і скріншотам. CommonJS, щоб його
+// брали і скрипти (import codec from './png.js'), і тести jest (require).
 const fs = require('node:fs');
 const zlib = require('node:zlib');
 
@@ -28,39 +30,60 @@ function paeth(a, b, c) {
   return pa <= pb && pa <= pc ? a : pb <= pc ? b : c;
 }
 
-// буфер або шлях → { width, height, channels, data } (8 біт на канал)
-function decode(input) {
-  const buf = Buffer.isBuffer(input) ? input : fs.readFileSync(input);
+// Передбачення фільтра рядка f (0 None, 1 Sub, 2 Up, 3 Average, 4 Paeth)
+// для сусідів a (ліворуч), b (згори) і c (згори ліворуч). Без масиву на
+// кожен піксель: кадр App Store — це 1320 × 2868 × 3 байти й п'ять фільтрів.
+function predict(f, a, b, c) {
+  return f === 0 ? 0 : f === 1 ? a : f === 2 ? b : f === 3 ? (a + b) >> 1 : paeth(a, b, c);
+}
+
+const asBuffer = (input) => (Buffer.isBuffer(input) ? input : fs.readFileSync(input));
+
+// Чанки до IEND: [{ type, body }]
+function chunks(input) {
+  const buf = asBuffer(input);
   if (!buf.subarray(0, 8).equals(SIG)) throw new Error('not a PNG: ' + (Buffer.isBuffer(input) ? 'buffer' : input));
+  const list = [];
   let off = 8;
-  let ihdr;
-  const idat = [];
   while (off < buf.length) {
     const len = buf.readUInt32BE(off);
     const type = buf.toString('latin1', off + 4, off + 8);
-    const body = buf.subarray(off + 8, off + 8 + len);
-    if (type === 'IHDR') ihdr = body;
-    else if (type === 'IDAT') idat.push(body);
-    else if (type === 'IEND') break;
+    list.push({ type, body: buf.subarray(off + 8, off + 8 + len) });
+    if (type === 'IEND') break;
     off += 12 + len;
   }
+  return list;
+}
+
+// Лише заголовок, без розпакування: { width, height, depth, color, interlace }
+// (кадр App Store мусить бути color 2, тобто RGB без альфи; іконка — теж).
+function info(input) {
+  const ihdr = chunks(input).find((c) => c.type === 'IHDR').body;
+  const [depth, color, , , interlace] = ihdr.subarray(8, 13);
+  return { width: ihdr.readUInt32BE(0), height: ihdr.readUInt32BE(4), depth, color, interlace };
+}
+
+// буфер або шлях → { width, height, channels, data } (8 біт на канал)
+function decode(input) {
+  const list = chunks(input);
+  const ihdr = list.find((c) => c.type === 'IHDR').body;
   const width = ihdr.readUInt32BE(0);
   const height = ihdr.readUInt32BE(4);
   const [depth, color, , , interlace] = ihdr.subarray(8, 13);
   const channels = { 2: 3, 6: 4 }[color];
   if (depth !== 8 || !channels || interlace) throw new Error(`unsupported PNG: depth ${depth}, color ${color}, interlace ${interlace}`);
-  const raw = zlib.inflateSync(Buffer.concat(idat));
+  const raw = zlib.inflateSync(Buffer.concat(list.filter((c) => c.type === 'IDAT').map((c) => c.body)));
   const stride = width * channels;
   const data = Buffer.alloc(stride * height);
   for (let y = 0; y < height; y++) {
     const filter = raw[y * (stride + 1)];
     const line = raw.subarray(y * (stride + 1) + 1, (y + 1) * (stride + 1));
+    const row = y * stride;
     for (let i = 0; i < stride; i++) {
-      const a = i >= channels ? data[y * stride + i - channels] : 0;
-      const b = y ? data[(y - 1) * stride + i] : 0;
-      const c = y && i >= channels ? data[(y - 1) * stride + i - channels] : 0;
-      const pred = [0, a, b, (a + b) >> 1, paeth(a, b, c)][filter];
-      data[y * stride + i] = (line[i] + pred) & 0xff;
+      const a = i >= channels ? data[row + i - channels] : 0;
+      const b = y ? data[row - stride + i] : 0;
+      const c = y && i >= channels ? data[row - stride + i - channels] : 0;
+      data[row + i] = (line[i] + predict(filter, a, b, c)) & 0xff;
     }
   }
   return { width, height, channels, data };
@@ -108,6 +131,20 @@ function resize(img, w, h) {
   return { width: w, height: h, channels: ch, data: out };
 }
 
+// RGBA → RGB, зводячи на непрозоре тло bg (типово чорне): так пишуть кадри
+// App Store із знімка Chromium (RGBA, але без прозорих пікселів). RGB
+// повертається як є. Для іконок — dropAlpha нижче: там прозорість помилка.
+function flatten(img, bg = [0, 0, 0]) {
+  if (img.channels === 3) return img;
+  const { width, height, data } = img;
+  const out = Buffer.alloc(width * height * 3);
+  for (let i = 0, j = 0; i < data.length; i += 4, j += 3) {
+    const a = data[i + 3];
+    for (let c = 0; c < 3; c++) out[j + c] = a === 255 ? data[i + c] : Math.round((data[i + c] * a + bg[c] * (255 - a)) / 255);
+  }
+  return { width, height, channels: 3, data: out };
+}
+
 // RGBA → RGB. Іконка App Store не може мати альфа-каналу: якщо хоч один
 // піксель прозорий, це помилка в майстрі, а не те, що можна тихо залити.
 function dropAlpha(img) {
@@ -132,26 +169,31 @@ function chunk(type, body) {
   return Buffer.concat([head, body, crc]);
 }
 
+// sRGB, rendering intent 0 (perceptual): App Store чекає кадри в sRGB.
+const SRGB = Buffer.from([0]);
+
 // Фільтр рядка — той, що дає найменшу суму відхилень (звична евристика).
-function encode({ width, height, channels: ch, data }) {
+// RGB → тип кольору 2, RGBA → 6. srgb: true додає чанк sRGB (кадри App
+// Store); без нього файл байт у байт той самий, що й раніше (іконки).
+function encode({ width, height, channels: ch, data }, { srgb = false } = {}) {
   const stride = width * ch;
   const rows = [];
+  const line = Buffer.alloc(stride + 1);
   for (let y = 0; y < height; y++) {
     let best = null;
+    const row = y * stride;
     for (let f = 0; f < 5; f++) {
-      const line = Buffer.alloc(stride + 1);
       line[0] = f;
       let score = 0;
       for (let i = 0; i < stride; i++) {
-        const a = i >= ch ? data[y * stride + i - ch] : 0;
-        const b = y ? data[(y - 1) * stride + i] : 0;
-        const c = y && i >= ch ? data[(y - 1) * stride + i - ch] : 0;
-        const pred = [0, a, b, (a + b) >> 1, paeth(a, b, c)][f];
-        const v = (data[y * stride + i] - pred) & 0xff;
+        const a = i >= ch ? data[row + i - ch] : 0;
+        const b = y ? data[row - stride + i] : 0;
+        const c = y && i >= ch ? data[row - stride + i - ch] : 0;
+        const v = (data[row + i] - predict(f, a, b, c)) & 0xff;
         line[i + 1] = v;
         score += v < 128 ? v : 256 - v;
       }
-      if (!best || score < best.score) best = { line, score };
+      if (!best || score < best.score) best = { line: Buffer.from(line), score };
     }
     rows.push(best.line);
   }
@@ -162,9 +204,10 @@ function encode({ width, height, channels: ch, data }) {
   return Buffer.concat([
     SIG,
     chunk('IHDR', ihdr),
+    ...(srgb ? [chunk('sRGB', SRGB)] : []),
     chunk('IDAT', zlib.deflateSync(Buffer.concat(rows), { level: 9 })),
     chunk('IEND', Buffer.alloc(0)),
   ]);
 }
 
-module.exports = { SIG, decode, resize, dropAlpha, encode };
+module.exports = { SIG, info, decode, resize, flatten, dropAlpha, encode };
