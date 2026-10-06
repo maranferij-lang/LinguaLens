@@ -108,7 +108,7 @@ export default {
 
     // Пейвол «themes»
     pwThemesTitle: 'Farbthemen mit Pro',
-    pwThemesText: 'Ozean, Beere, Graphit oder Kakao, hell und dunkel. Auch deine Widgets wechseln die Farbe.',
+    pwThemesText: 'Ozean, Beere, Graphit oder Kakao, jeweils hell und dunkel. Auch deine Widgets wechseln die Farbe.',
     pwThemesPreview: 'So sieht die App in {p} aus',
     themeSampleWord: 'boarding pass',
     themeSampleIpa: '/ˈbɔːdɪŋ pɑːs/',

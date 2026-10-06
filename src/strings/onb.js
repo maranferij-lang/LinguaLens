@@ -311,7 +311,7 @@ export default {
     obDemoWords: 'Meine Wörter',
     obDemoReplay: 'Nochmal',
     obDemoTry: 'Ausprobieren',
-    obDemoUsed: 'Der kostenlose Scan auf diesem iPhone ist schon verbraucht. Mit Pro scannst du so viel du willst.',
+    obDemoUsed: 'Der kostenlose Scan auf diesem iPhone ist schon verbraucht. Mit Pro scannst du, so viel du willst.',
     obDemoSkipHint: 'Tippe, um zum Ende zu springen',
     obDemoA11y: 'Demo: Die Kamera sieht eine Tasse auf dem Tisch. LinguaLens schneidet sie als Sticker mit dem Wort {word} ({tr}) aus, und das Wort landet in „Meine Wörter“. Dann die ganze Szene: Über Laptop, Pflanze und Notizbuch erscheinen ihre Wörter.',
     obCelebrateTitle: 'Dein erstes Wort!',
@@ -320,7 +320,7 @@ export default {
     obCommitKeep: 'Weiter halten…',
     obCommitAgain: 'Halte, bis der Ring voll ist',
     obCommitDoneSub: 'Bis morgen, dann mit einem neuen Wort',
-    opwFirstWordText: 'Dein kostenloser Scan ist schon in deiner Wortliste. Mit Pro scannst du so viel du willst.',
+    opwFirstWordText: 'Dein kostenloser Scan ist schon in deiner Wortliste. Mit Pro scannst du, so viel du willst.',
     replayOnb: 'Einführung noch einmal durchgehen',
     // ── Onboarding 4.0 ──
     obLangLearnLabel: 'Die Sprache, die ich lerne',

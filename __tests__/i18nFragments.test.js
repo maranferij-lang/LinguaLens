@@ -103,6 +103,15 @@ describe('shared strings', () => {
     const en = makeT('en');
     expect(en('streakKeep', { n: 1 })).toBe('1 day in a row. Keep it up!');
     expect(en('streakToNext', { k: 7, m: 14 })).toBe('Your flame is burning. 7 more to 14 days');
+    // «Noch 4 bis 14 Tage» читалося як «ще від 4 до 14 днів»
+    const de = makeT('de');
+    expect(de('streakToNext', { k: 4, m: 14 })).toBe('Deine Flamme brennt. Noch 4 bis zum 14. Tag');
+    // дієслово узгоджене з числом: «Falta 1», «Faltan 2»
+    const es = makeT('es');
+    expect(es('streakToWeek', { k: 1 })).toBe('Falta 1 día para la semana, y tu llama se encenderá');
+    expect(es('streakToWeek', { k: 3 })).toBe('Faltan 3 días para la semana, y tu llama se encenderá');
+    expect(es('streakToNext', { k: 1, m: 14 })).toBe('Tu llama arde. Falta 1 para los 14 días');
+    expect(es('streakToNext', { k: 5, m: 30 })).toBe('Tu llama arde. Faltan 5 para los 30 días');
   });
 
   test('the footer slogan no longer repeats the name; the version has a label', () => {

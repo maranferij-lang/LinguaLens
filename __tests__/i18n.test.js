@@ -224,6 +224,15 @@ describe('copy style', () => {
     expect(bad).toEqual([]);
   });
 
+  // «so viel du willst» — підрядне речення, тож перед ним кома, як у
+  // pwScansText: «Mit Pro scannst du, so viel du willst.»
+  test('de: a comma before «so viel/oft du willst»', () => {
+    const bad = Object.entries(STRINGS.de)
+      .filter(([, s]) => /[^,]\s+so (?:viel|oft) du willst/.test(s))
+      .map(([k, s]) => `de.${k}: ${s}`);
+    expect(bad).toEqual([]);
+  });
+
   // Підписи секцій і кепс-лейбли переводить у верхній регістр стиль
   // (CAPS, sectionLabel). Капс у самому рядку VoiceOver читає по літерах.
   test('strings are not written in ALL CAPS', () => {
