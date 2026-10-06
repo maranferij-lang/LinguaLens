@@ -164,6 +164,14 @@
           ]
         }
       ],
+      [
+        "./plugins/withAlternateIcons",
+        {
+          "icons": {
+            "AppIcon-Eye": "./assets/icon-eye.png"
+          }
+        }
+      ],
       "./plugins/withSceneLifecycle"
     ],
     "locales": {
