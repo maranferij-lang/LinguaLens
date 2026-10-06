@@ -263,7 +263,7 @@ describe('App', () => {
 
   test('“I know it” on the word of the day is a learning action too', async () => {
     const today = localDayKey();
-    await AsyncStorage.setItem('ll_wod_v1', JSON.stringify({ lang: 'es', native: 'en', words: [{ date: today, word: 'la manzana', translation: 'apple' }] }));
+    await AsyncStorage.setItem('ll_wod_v1', JSON.stringify({ lang: 'es', native: 'en', variant: 'latam', words: [{ date: today, word: 'la manzana', translation: 'apple' }] }));
     const tree = await app({ activity: { [ago(1)]: 2 } });
     await act(async () => tree.root.findAll((n) => n.props.tb?.key === 'cards')[0].props.onPress());
     await settle();

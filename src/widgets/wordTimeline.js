@@ -16,7 +16,8 @@ import { nameFor } from '../speech';
 import { topicName } from '../profile';
 import { dayFromKey, ipaLabel } from '../share/layout';
 import { WIDGET_MARKDOWN } from '../flags';
-import { DEFAULT_HOUR } from '../wordOfDay';
+import { DEFAULT_HOUR, samePair } from '../wordOfDay';
+import { nativeVariantOf, variantOf } from '../langVariants';
 import { REAL_CLOCK, atHour, midnight } from './clock';
 import { exampleMarkdown, examplePlain, hourLabel, shortDate, timeLabel } from './format';
 import { widgetLink } from './links';
@@ -206,7 +207,9 @@ function slotTime(day, s, hours, now, clock) {
 }
 
 // opts: t — перекладач інтерфейсу; ui — мова інтерфейсу (дати, години);
-// targetLang/nativeLang — пара мов кешу; hours — години слотів (slotHours);
+// targetLang/nativeLang — пара мов налаштувань, variant/nativeVariant — їхні
+// варіанти (без них — обраний і з регіону телефона): кеш іншої пари чи
+// варіанта віджет не показує; hours — години слотів (slotHours);
 // hide — ховати переклад до дотику; pal — widgetPalette; clock — REAL_CLOCK.
 export function buildWordTimeline(
   cache,
@@ -215,6 +218,8 @@ export function buildWordTimeline(
     ui = 'en',
     targetLang,
     nativeLang,
+    variant = variantOf(targetLang),
+    nativeVariant = nativeVariantOf(nativeLang),
     now = new Date(),
     hours = [DEFAULT_HOUR],
     hide = false,
@@ -226,7 +231,7 @@ export function buildWordTimeline(
   const title = t('widgetTitle');
   const langName = nameFor(targetLang);
   const ctx = { t, ui, lang: targetLang, langName, title, hide, pal, markdown };
-  const fits = !!cache && cache.lang === targetLang && cache.native === nativeLang && Array.isArray(cache.words);
+  const fits = samePair(cache, { lang: targetLang, native: nativeLang, variant, nativeVariant }) && Array.isArray(cache.words);
   const perDay = Math.max(1, Array.isArray(hours) && hours.length ? hours.length : 1);
   const days = fits ? byDay(cache.words, perDay) : {};
   const today = localDayKey(now);

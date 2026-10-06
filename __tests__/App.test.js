@@ -180,10 +180,27 @@ test('an achievement unlocked from the scan result waits until the sheet closes'
 });
 
 describe('word of the day', () => {
-  const wodFor = (lang, native, w = 'la manzana') => ({ lang, native, words: [{ date: localDayKey(), word: w, translation: 'apple' }] });
+  // Кеш такий, яким його пише застосунок: з варіантом мови. Телефон у США,
+  // тож іспанська — латиноамериканська (src/langVariants.js).
+  const wodFor = (lang, native, w = 'la manzana', variant = lang === 'es' ? 'latam' : null) => ({
+    lang,
+    native,
+    variant,
+    words: [{ date: localDayKey(), word: w, translation: 'apple' }],
+  });
 
   test('a cached word from another language pair is not shown', async () => {
     await returning({ wod: wodFor('fr', 'en', 'la pomme') });
+    const tree = await renderApp();
+    await openTab(tree, 'cards');
+    expect(one(tree, FlashcardsScreen).props.wordOfDay).toBeNull();
+    await act(async () => tree.unmount());
+  });
+
+  // кеш іспанської Іспанії (так писав і застосунок до варіантів), а телефон у
+  // США: офлайн нового немає, і слово Іспанії не видаємо за мексиканське
+  test('a cached word for another variant of the language is not shown either', async () => {
+    await returning({ wod: wodFor('es', 'en', 'el ordenador', null) });
     const tree = await renderApp();
     await openTab(tree, 'cards');
     expect(one(tree, FlashcardsScreen).props.wordOfDay).toBeNull();

@@ -196,7 +196,7 @@ describe('“Unlocked!” exactly once', () => {
     await AsyncStorage.setItem('ll_onboarded_v1', '1');
     await AsyncStorage.setItem('ll_settings_v1', JSON.stringify({ nativeLang: 'en', targetLang: 'es' }));
     await AsyncStorage.setItem('ll_seen_ach_v1', JSON.stringify(require('../src/achievements').ACHIEVEMENTS.map((a) => a.id)));
-    await AsyncStorage.setItem('ll_wod_v1', JSON.stringify({ lang: 'es', native: 'en', words: [{ date: localDayKey(), word: 'la manzana', translation: 'apple' }] }));
+    await AsyncStorage.setItem('ll_wod_v1', JSON.stringify({ lang: 'es', native: 'en', variant: 'latam', words: [{ date: localDayKey(), word: 'la manzana', translation: 'apple' }] }));
     let tree;
     await act(async () => {
       tree = create(

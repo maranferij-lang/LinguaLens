@@ -294,7 +294,7 @@ describe('anonymous statistics', () => {
   });
 
   test('“I know it” is counted without the word itself', async () => {
-    const wod = { lang: 'es', native: 'en', words: [{ date: localDayKey(), word: 'la manzana', translation: 'apple', source: 'apple' }] };
+    const wod = { lang: 'es', native: 'en', variant: 'latam', words: [{ date: localDayKey(), word: 'la manzana', translation: 'apple', source: 'apple' }] };
     await returning({ wod });
     const tree = await renderApp();
     await openTab(tree, 'cards');

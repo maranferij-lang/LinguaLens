@@ -52,7 +52,7 @@ import {
 import { applyPractice, applyReview, dueWords, newSrs } from './src/srs';
 import { activeDaySet, streakInfo } from './src/streak';
 import { LANGS, initAudio } from './src/speech';
-import { isVariant, nativeVariantOf, pickVariant, setChosenVariants } from './src/langVariants';
+import { isVariant, pickVariant, setChosenVariants } from './src/langVariants';
 import { makeT } from './src/i18n';
 import { useUiLang } from './src/locale';
 import { initAnalytics, analyticsAvailable, resetAnalytics, setAnalyticsEnabled, setProps, track } from './src/analytics';
@@ -79,6 +79,8 @@ import { maybeAskForReview } from './src/review';
 import {
   syncWordOfDay,
   todayFrom,
+  samePair,
+  settingsPair,
   requestPermission,
   cancelAll,
   subscribeToNotificationTaps,
@@ -793,11 +795,8 @@ export default function App() {
   // Pro — з ref: старт і сповіщення кличуть це із замикань першого кадру.
   function wodArgs(st, force = false) {
     return {
-      lang: st.targetLang,
-      native: st.nativeLang,
-      // варіанти мов: обраний для мови навчання, для «моєї» — з регіону
-      variant: pickVariant(st.targetLang, st.variants),
-      nativeVariant: nativeVariantOf(st.nativeLang),
+      // мови з варіантами: обраний для мови навчання, для «моєї» — з регіону
+      ...settingsPair(st),
       enabled: st.wodEnabled,
       hour: st.wodHour,
       hours: slotHours(st, proRef.current),
@@ -849,13 +848,12 @@ export default function App() {
   }
 
   // ---------- СЛОВО ДНЯ ----------
-  // Кеш годиться лише для тієї пари мов, з якою його брали. Після зміни мови
-  // старий кеш живе, доки не прийде новий (а офлайн — і довше), і картка
-  // показувала б слово іншої мови.
-  const todayWord = useMemo(
-    () => (wod && wod.lang === settings.targetLang && wod.native === settings.nativeLang ? todayFrom(wod) : null),
-    [wod, settings.targetLang, settings.nativeLang]
-  );
+  // Кеш годиться лише для тієї пари мов (і тих варіантів), з якою його брали.
+  // Після зміни мови чи варіанта старий кеш живе, доки не прийде новий (а
+  // офлайн — і довше), і картка показувала б слово іншої мови або
+  // американське слово під британським прапорцем.
+  const wodFits = samePair(wod, settingsPair(settings));
+  const todayWord = useMemo(() => (wodFits ? todayFrom(wod) : null), [wod, wodFits]);
   const wodSaved = useMemo(
     () => !!todayWord && words.some((w) => w.word?.toLowerCase() === todayWord.word?.toLowerCase()),
     [todayWord, words]
@@ -1736,7 +1734,7 @@ export default function App() {
   // Картка на «Навчанні» бере їх сама (спільне сховище в WordOfDayCard.js):
   // екран між ними про слоти не знає. Без Pro — null, картка як і була.
   useWodSlots({
-    wod: wod && wod.lang === settings.targetLang && wod.native === settings.nativeLang ? wod : null,
+    wod: wodFits ? wod : null,
     hours: wodHours,
     words,
     ui,
@@ -1781,7 +1779,7 @@ export default function App() {
     commitSettings(next);
     const c = await syncWordOfDay(wodArgs(next, true)).catch(() => null);
     if (c) setWod(c);
-    return c && c.lang === next.targetLang && c.native === next.nativeLang ? todayFrom(c) : null;
+    return samePair(c, settingsPair(next)) ? todayFrom(c) : null;
   }
 
   // Розробка: онбординг як для нового (без стирання) — з кроками сповіщень і

@@ -7,6 +7,7 @@ import { localDayKey } from '../src/storage';
 import { buildWordTimeline, isWidgetLink, subscribeToWidgetTaps } from '../src/widgets';
 import { widgetPalette } from '../src/widgets/palette';
 import { FAST_CLOCK } from '../src/widgets/clock';
+import { setChosenVariants } from '../src/langVariants';
 
 const en = makeT('en');
 const uk = makeT('uk');
@@ -90,6 +91,32 @@ describe('buildWordTimeline', () => {
     for (const c of [cache(words, 'fr', 'uk'), cache(words, 'en', 'de'), null, { lang: 'en', native: 'uk' }]) {
       expect(summary(buildWordTimeline(c, opts()))).toEqual([[NOW.getTime(), 'empty', '']]);
     }
+  });
+
+  // Англійську США змінили на Британії, а нового кешу ще немає (офлайн):
+  // американське слово не видає себе за британське
+  test('a cache for another variant of the language is ignored too; a cache from before variants fits the default one', () => {
+    const empty = [[NOW.getTime(), 'empty', '']];
+    const first = (c, o) => summary(buildWordTimeline(c, opts(o)))[0];
+    const us = { ...cache([day(1, 'apartment')]), variant: 'us' };
+    expect(summary(buildWordTimeline(us, opts({ variant: 'gb' })))).toEqual(empty);
+    expect(first(us, { variant: 'us' })).toEqual([NOW.getTime(), 'word', 'apartment']);
+    const old = cache([day(1, 'apartment')]);
+    expect(first(old, { variant: 'us' })).toEqual([NOW.getTime(), 'word', 'apartment']);
+    expect(summary(buildWordTimeline(old, opts({ variant: 'gb' })))).toEqual(empty);
+    // варіант «моєї мови» теж
+    const es = { lang: 'es', native: 'en', variant: 'latam', nativeVariant: 'us', words: [day(1, 'el departamento')] };
+    const pair = { targetLang: 'es', nativeLang: 'en', variant: 'latam' };
+    expect(first(es, { ...pair, nativeVariant: 'us' })).toEqual([NOW.getTime(), 'word', 'el departamento']);
+    expect(summary(buildWordTimeline(es, opts({ ...pair, nativeVariant: 'gb' })))).toEqual(empty);
+    // без явного варіанта — обраний у застосунку (той, що бачать прапорці)
+    setChosenVariants({ en: 'gb' });
+    try {
+      expect(summary(buildWordTimeline(us, opts()))).toEqual(empty);
+    } finally {
+      setChosenVariants({});
+    }
+    expect(first(us, {})).toEqual([NOW.getTime(), 'word', 'apartment']);
   });
 
   test('a cache that ran out shows only “open the app”', () => {

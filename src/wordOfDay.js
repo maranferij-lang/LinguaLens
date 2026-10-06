@@ -14,7 +14,7 @@
 // дає лише 8 днів (≤ 42 слова на запит).
 import { Platform } from 'react-native';
 import { apiWordOfDay } from './api';
-import { isVariant, nativeVariantOf, variantOf, variantsOf } from './langVariants';
+import { isVariant, nativeVariantOf, pickVariant, variantOf, variantsOf } from './langVariants';
 import { cleanProfile, topicName } from './profile';
 import { loadWod, persistWod, localDayKey } from './storage';
 import { TRIAL_REMIND_DAYS } from './subscription';
@@ -244,6 +244,20 @@ export function samePair(cache, { lang, native, variant = null, nativeVariant = 
   return (
     variantKey(lang, cache.variant) === variantKey(lang, variant) && variantKey(native, cache.nativeVariant) === variantKey(native, nativeVariant)
   );
+}
+
+// Пара мов налаштувань так, як її пише кеш: мова навчання з обраним
+// варіантом, «моя» — з варіантом регіону телефона. З нею App просить слова
+// і з нею ж звіряє кеш (samePair) картка, слоти Pro, план онбордингу й
+// віджет: після зміни англійської США на Британії офлайн старе слово не
+// видає себе за британське.
+export function settingsPair(st) {
+  return {
+    lang: st.targetLang,
+    native: st.nativeLang,
+    variant: pickVariant(st.targetLang, st.variants),
+    nativeVariant: nativeVariantOf(st.nativeLang),
+  };
 }
 
 // Чи треба оновити кеш: немає, інші мови (чи їхні варіанти), інший профіль

@@ -10,6 +10,7 @@ import * as Speech from 'expo-speech';
 import App from '../App';
 import SettingsScreen from '../src/SettingsScreen';
 import LangSheet from '../src/LangSheet';
+import FlashcardsScreen from '../src/FlashcardsScreen';
 import {
   VARIANTS,
   defaultVariant,
@@ -333,6 +334,38 @@ describe('in the app', () => {
     // рядок у списку Параметрів — обраний варіант
     const head = tree.root.findAll((n) => typeof n.type === 'string' && n.props.children === 'English (UK)');
     expect(head.length).toBeGreaterThan(0);
+  });
+
+  // Офлайн новий кеш не приходить, а старий лишається американським: картка
+  // «Навчання», слоти Pro й віджет не мають видавати його за британський
+  test('switched to English (UK) offline: the US word of the day is not shown as the UK one', async () => {
+    const tree = await renderApp({ nativeLang: 'uk', targetLang: 'en' });
+    const cards = () => tree.root.findByType(FlashcardsScreen);
+    const widget = () => require('expo-widgets').__widgets.WordOfDay.updateTimeline.mock.calls.at(-1)[0][0].props;
+    await openTab(tree, 'cards');
+    expect(cards().props.wordOfDay?.word).toBe('flat us');
+    expect(widget().word).toBe('flat us');
+    const online = global.fetch;
+    global.fetch = jest.fn(async (url, init) => {
+      if (new URL(url).pathname === '/word-of-day') throw new TypeError('Network request failed');
+      return online(url, init);
+    });
+    await openTab(tree, 'settings');
+    await act(async () => tree.root.findByType(SettingsScreen).props.onSetLang('en', 'gb'));
+    await settle();
+    expect(tree.root.findByType(SettingsScreen).props.targetVariant).toBe('gb');
+    // кеш той самий, американський: новий не прийшов
+    expect(JSON.parse(await AsyncStorage.getItem('ll_wod_v1')).variant).toBe('us');
+    await openTab(tree, 'cards');
+    expect(cards().props.wordOfDay).toBeNull();
+    expect(widget().state).toBe('empty');
+    // повернулись до США — той самий кеш знову годиться
+    await openTab(tree, 'settings');
+    await act(async () => tree.root.findByType(SettingsScreen).props.onSetLang('en', 'us'));
+    await settle();
+    await openTab(tree, 'cards');
+    expect(cards().props.wordOfDay?.word).toBe('flat us');
+    expect(widget().word).toBe('flat us');
   });
 
   test('the scanner’s sheet: another variant of the same language is not a new language (no paywall)', async () => {

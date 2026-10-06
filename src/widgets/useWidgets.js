@@ -1,8 +1,8 @@
 // Як App годує три віджети (widgets.md §10). Окремий хук, щоб App.js не
 // розростався: App лише передає дані, а коли й що переписати — тут.
 //
-//   «Слово дня» — на кожен новий кеш, мову, години слотів, приховування
-//     перекладу чи тему;
+//   «Слово дня» — на кожен новий кеш, мову (чи її варіант), години слотів,
+//     приховування перекладу чи тему;
 //   «Мої слова» — із затримкою 2 с і лише коли змінився пул (id, переклади,
 //     година повторення): під час карток кожна відповідь міняє srs, і без
 //     підпису й затримки ми переписували б таймлайн на кожен тап;
@@ -16,7 +16,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 import { getCalendars } from 'expo-localization';
 import { activeDaySet } from '../streak';
-import { slotHours } from '../wordOfDay';
+import { settingsPair, slotHours } from '../wordOfDay';
 import { WIDGET_REVEAL } from '../flags';
 import { track } from '../analytics';
 import { collectReveals, updateMyWordsWidget, updateStreakWidget, updateWordWidget } from './index';
@@ -54,6 +54,8 @@ export function useWidgets({ ready, t, ui, settings, wod, words, activity, pro, 
   const hide = WIDGET_REVEAL && settings.widgetHideTranslation !== false;
   const targetLang = settings.targetLang;
   const nativeLang = settings.nativeLang;
+  // варіанти мов: кеш слова дня для англійської США не годиться для Британії
+  const { variant, nativeVariant } = settingsPair(settings);
   const firstWeekday = useMemo(firstWeekdayOfPhone, []);
 
   // Повернення на передній план — свіжі таймлайни (минув час).
@@ -80,9 +82,9 @@ export function useWidgets({ ready, t, ui, settings, wod, words, activity, pro, 
   // ── «Слово дня» ──
   useEffect(() => {
     if (!available || !ready) return;
-    updateWordWidget(wod, { t, ui, targetLang, nativeLang, hours, hide, pal, clock });
+    updateWordWidget(wod, { t, ui, targetLang, nativeLang, variant, nativeVariant, hours, hide, pal, clock });
     // hours і pal — за підписами: новий масив з тими самими годинами не причина
-  }, [available, ready, wod, t, ui, targetLang, nativeLang, hoursSig, hide, palSig, clock, tick]);
+  }, [available, ready, wod, t, ui, targetLang, nativeLang, variant, nativeVariant, hoursSig, hide, palSig, clock, tick]);
 
   // ── «Мої слова» ──
   const wordsRef = useRef(words);

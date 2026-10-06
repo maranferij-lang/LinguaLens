@@ -371,6 +371,7 @@ describe('in the app', () => {
       JSON.stringify({
         lang: 'es',
         native: 'en',
+        variant: 'latam',
         fetchedAt: Date.now(),
         words: [{ date: localDayKey(), word: 'la taza', ipa: '/la ˈtaθa/', translation: 'the cup' }],
       })

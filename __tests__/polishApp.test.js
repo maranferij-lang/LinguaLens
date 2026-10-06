@@ -570,7 +570,7 @@ describe('the level-up offer names a CEFR level, not a slider step', () => {
       await AsyncStorage.clear();
       await returning({
         settings: { nativeLang: 'en', targetLang: 'es', profile: { goals: ['travel'], level: from }, knowStreak: 3 },
-        wod: { lang: 'es', native: 'en', words: [{ date: localDayKey(), word: 'la manzana', translation: 'apple' }] },
+        wod: { lang: 'es', native: 'en', variant: 'latam', words: [{ date: localDayKey(), word: 'la manzana', translation: 'apple' }] },
       });
       const tree = await renderApp();
       await openTab(tree, 'cards');
@@ -734,7 +734,7 @@ describe('Learn hub', () => {
   });
 
   test('App: saving the word of the day from the empty state gives one card due', async () => {
-    await returning({ wod: { lang: 'es', native: 'en', words: [{ date: localDayKey(), word: 'la manzana', translation: 'apple' }] } });
+    await returning({ wod: { lang: 'es', native: 'en', variant: 'latam', words: [{ date: localDayKey(), word: 'la manzana', translation: 'apple' }] } });
     const tree = await renderApp();
     await openTab(tree, 'cards');
     await press(() => byTitle(tree.root, t('learnSaveWod')).props.onPress());
