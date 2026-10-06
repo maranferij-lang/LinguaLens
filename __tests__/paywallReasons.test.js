@@ -167,9 +167,10 @@ describe('the themes paywall', () => {
     expect(price).toBeLessThan(all.indexOf(t('cmp_themes')));
     const rows = all.filter((s) => [t('cmp_scans'), t('cmp_themes'), t('cmp_wodn'), t('cmp_core')].includes(s));
     expect(rows[0]).toBe(t('cmp_themes'));
-    // «—» VoiceOver читає «немає»; у Pro — чотири палітри
-    const dash = tree.root.findAll((n) => n.type === 'Text' && n.props.children === '—')[0];
-    expect(dash.props.accessibilityLabel).toBe(t('cmpNone'));
+    // «немає» — тихий хрестик, а не риска (тире власник заборонив);
+    // VoiceOver читає «немає»; у Pro — чотири палітри
+    const none = tree.root.findAll((n) => n.props.testID === 'cmp-none' && n.props.accessible)[0];
+    expect(none.props.accessibilityLabel).toBe(t('cmpNone'));
     expect(all).toContain('4');
   });
 
