@@ -1,5 +1,5 @@
 // Онбординг 4.0 (onboarding.md §4–§13, правки власника 5.10.2026): три дії —
-// «Ти» (мова, імʼя, цілі, сфера, рівень, що заважає, звідки) → «Як це
+// «Ти» (мова, імʼя, звідки, цілі, сфера, рівень, що заважає) → «Як це
 // працює» (що таке слово дня, коли надсилати, план зі словом на сьогодні,
 // серія, віджети) → «Спробуй» (демо, згода на AI, справжній скан, свято,
 // обіцянка). Короткий варіант — без імені й «що заважає». Повтор із
@@ -173,13 +173,13 @@ async function toWod(tree, { lang = 'en' } = {}) {
   await pickLang(tree, lang);
   await typeName(tree, 'Олена');
   await tap(tree, t('obNext'));
+  await tap(tree, 'TikTok');
+  await advance(AUTO_MS);
   await tap(tree, t('goal_travel'));
   await tap(tree, t('obNext'));
   await tap(tree, t('obNext')); // рівень
   await tap(tree, t('struggle_time'));
   await tap(tree, t('obNext'));
-  await tap(tree, 'TikTok');
-  await advance(AUTO_MS);
   expect(title(tree)).toBe(t('obWodTitle'));
 }
 // …і далі: слово дня → сповіщення (якщо питаємо; «так» чи «ні» — далі) →
@@ -193,15 +193,15 @@ async function toPlan(tree, opts) {
 
 // ─── 1. Порядок кроків ─────────────────────────────────────────────────────
 describe('flow order', () => {
-  test('control: welcome, language, the questions, heard; then the word of the day, push, plan, streak, widgets; then demo, celebration, promise', () => {
+  test('control: welcome, language, name, heard, the other questions; then the word of the day, push, plan, streak, widgets; then demo, celebration, promise', () => {
     expect(onboardingFlow({ goals: [] })).toEqual([
       'welcome',
       'lang',
       'name',
+      'heard',
       'goals',
       'level',
       'struggles',
-      'heard',
       'wod',
       'plan',
       'streak',
@@ -212,11 +212,11 @@ describe('flow order', () => {
       'welcome',
       'lang',
       'name',
+      'heard',
       'goals',
       'field',
       'level',
       'struggles',
-      'heard',
       'wod',
       'push',
       'plan',
@@ -233,23 +233,29 @@ describe('flow order', () => {
     expect(onboardingFlow({ widgets: false })).not.toContain('widgets');
     // свято — лише після збереженого слова
     expect(onboardingFlow({ scanned: false })).not.toContain('celebrate');
-    // «Що таке слово дня» — завжди, і без кроку сповіщень; сповіщення —
-    // одразу після нього, до плану
+    // «Що таке слово дня» — завжди, і без кроку сповіщень, одразу після
+    // «що заважає»; сповіщення — одразу після нього, до плану
     for (const push of [true, false]) {
       const f = onboardingFlow({ push });
-      expect(f.indexOf('wod')).toBe(f.indexOf('heard') + 1);
+      expect(f.indexOf('wod')).toBe(f.indexOf('struggles') + 1);
       expect(f.indexOf('plan')).toBe(f.indexOf('wod') + (push ? 2 : 1));
+    }
+    // «Звідки» — одразу після імені (воронка v5): канал записано ще до
+    // відсіву на питаннях
+    for (const goals of [[], ['work']]) {
+      const f = onboardingFlow({ goals, push: true, widgets: true });
+      expect(f.indexOf('heard')).toBe(f.indexOf('name') + 1);
     }
   });
 
-  test('short: no name and no struggles; the promise stays', () => {
+  test('short: no name and no struggles, heard right after the language; the promise stays', () => {
     expect(onboardingFlow({ variant: 'short', goals: ['study'], push: true })).toEqual([
       'welcome',
       'lang',
+      'heard',
       'goals',
       'field',
       'level',
-      'heard',
       'wod',
       'push',
       'plan',
@@ -288,7 +294,11 @@ describe('flow order', () => {
     // кожен крок потоку належить якійсь дії
     for (const k of f.filter((x) => x !== 'welcome')) expect([k, ACT[k]]).toEqual([k, expect.any(Number)]);
     expect(actProgress(f, 'lang')).toEqual([1 / 6, 0, 0]);
-    expect(actProgress(f, 'heard')).toEqual([1, 0, 0]);
+    expect(actProgress(f, 'name')).toEqual([2 / 6, 0, 0]);
+    expect(actProgress(f, 'heard')).toEqual([3 / 6, 0, 0]);
+    expect(actProgress(f, 'goals')).toEqual([4 / 6, 0, 0]);
+    // перша дія закінчується на «що заважає»
+    expect(actProgress(f, 'struggles')).toEqual([1, 0, 0]);
     expect(actProgress(f, 'wod')).toEqual([1, 1 / 5, 0]);
     expect(actProgress(f, 'pushDenied')).toEqual([1, 2 / 5, 0]);
     expect(actProgress(f, 'plan')).toEqual([1, 3 / 5, 0]);
@@ -299,11 +309,15 @@ describe('flow order', () => {
     const g = onboardingFlow({ goals: [] });
     expect(actProgress(g, 'wod')).toEqual([1, 1 / 3, 0]);
     expect(actProgress(g, 'streak')).toEqual([1, 1, 0]);
+    // короткий: «звідки» — другий із чотирьох кроків першої дії
+    const sh = onboardingFlow({ variant: 'short', goals: ['study'] });
+    expect(actProgress(sh, 'heard')).toEqual([2 / 5, 0, 0]);
+    expect(actProgress(sh, 'level')).toEqual([1, 0, 0]);
   });
 });
 
 // ─── Повний шлях ───────────────────────────────────────────────────────────
-test('the full path: language → name → work in finance → B2+ → struggles → heard → word of the day → push → plan with today’s word → streak → demo → promise', async () => {
+test('the full path: language → name → heard → work in finance → B2+ → struggles → word of the day → push → plan with today’s word → streak → demo → promise', async () => {
   const { tree, onDone, onLanguages, prepareWod } = await render({ widgets: false });
   // вітання: справжня іконка, Lingo й нові тексти; ні «Назад», ні смужки
   expect(has(tree, t('ob3HookTitle'))).toBe(true);
@@ -338,6 +352,15 @@ test('the full path: language → name → work in finance → B2+ → struggles
   await tap(tree, t('obNext'));
   expect(Haptics.impactAsync).toHaveBeenLastCalledWith('light');
 
+  // «Звідки» — одразу після імені, один тап; реакції на мову тут уже немає
+  expect(title(tree)).toBe(t('pfHeardTitle'));
+  expect(subtitle(tree)).toBeFalsy();
+  expect(header(tree).props.accessibilityLabel).toBe('Step 3 of 12. ' + t('pfHeardTitle'));
+  expect(has(tree, 'English? Great choice!')).toBe(false);
+  expect(stepLingo(tree).props.pose).toBe(LINGO_POSE.heard);
+  await tap(tree, 'TikTok');
+  await advance(AUTO_MS);
+
   // Цілі — з імʼям і мовою в заголовку, без підзаголовка, з Лінго поруч
   expect(title(tree)).toBe('Олена, why are you learning English?');
   expect(subtitle(tree)).toBeFalsy();
@@ -362,17 +385,12 @@ test('the full path: language → name → work in finance → B2+ → struggles
   expect(has(tree, t('lvl8'))).toBe(true);
   await tap(tree, t('obNext'));
 
+  // «Що заважає» — останнє питання першої дії: з нього прямо до слова дня
   expect(title(tree)).toBe(t('obStrugglesTitle'));
   expect(subtitle(tree)).toBeFalsy();
   await tap(tree, t('struggle_time'));
   await tap(tree, t('struggle_forget'));
   await tap(tree, t('obNext'));
-
-  // «Звідки» — один тап
-  expect(title(tree)).toBe(t('pfHeardTitle'));
-  expect(subtitle(tree)).toBeFalsy();
-  await tap(tree, 'TikTok');
-  await advance(AUTO_MS);
 
   // Дія 2: що таке слово дня — картка-приклад мовою навчання, без мережі
   expect(title(tree)).toBe(t('obWodTitle'));
@@ -447,16 +465,16 @@ test('the full path: language → name → work in finance → B2+ → struggles
     nativeLang: 'uk',
   });
 
-  // Статистика v3: кожен крок, відповіді — коди, імені ніде немає
+  // Статистика v5: кожен крок, відповіді — коди, імені ніде немає
   expect(events('onboarding_step').map((e) => e.step)).toEqual([
     'welcome',
     'lang',
     'name',
+    'heard',
     'goals',
     'field',
     'level',
     'struggles',
-    'heard',
     'wod',
     'push',
     'plan',
@@ -464,23 +482,25 @@ test('the full path: language → name → work in finance → B2+ → struggles
     'demo',
     'commit',
   ]);
-  expect(events('onboarding_step').every((e) => e.ver === 4 && e.flow === 'control')).toBe(true);
-  // крок «слово дня» — восьмий із тринадцяти (зі сферою)
+  expect(events('onboarding_step').every((e) => e.ver === 5 && e.flow === 'control')).toBe(true);
+  // «звідки» — третій крок (цілей ще немає, тож і сфери в потоці: 12);
+  // «слово дня» — восьмий із тринадцяти (зі сферою)
+  expect(events('onboarding_step').find((e) => e.step === 'heard')).toMatchObject({ index: 3, total: 12 });
   expect(events('onboarding_step').find((e) => e.step === 'wod')).toMatchObject({ index: 8, total: 13 });
   expect(events('onboarding_answer')).toEqual([
-    { step: 'lang', value: 'en', native: 'uk', flow: 'control', ver: 4 },
-    { step: 'name', value: 'given', flow: 'control', ver: 4 },
-    { step: 'goals', value: ['work'], flow: 'control', ver: 4 },
-    { step: 'field', value: 'finance', flow: 'control', ver: 4 },
-    { step: 'level', value: 8, flow: 'control', ver: 4 },
-    { step: 'struggles', value: ['forget', 'time'], flow: 'control', ver: 4 },
-    { step: 'heard', value: 'tiktok', flow: 'control', ver: 4 },
-    { step: 'push_hour', value: 10, flow: 'control', ver: 4 },
+    { step: 'lang', value: 'en', native: 'uk', flow: 'control', ver: 5 },
+    { step: 'name', value: 'given', flow: 'control', ver: 5 },
+    { step: 'heard', value: 'tiktok', flow: 'control', ver: 5 },
+    { step: 'goals', value: ['work'], flow: 'control', ver: 5 },
+    { step: 'field', value: 'finance', flow: 'control', ver: 5 },
+    { step: 'level', value: 8, flow: 'control', ver: 5 },
+    { step: 'struggles', value: ['forget', 'time'], flow: 'control', ver: 5 },
+    { step: 'push_hour', value: 10, flow: 'control', ver: 5 },
   ]);
-  expect(events('onb_streak_play')).toEqual([{ max: 0, touched: false, flow: 'control', ver: 4 }]);
-  expect(events('onb_commit')).toEqual([{ mode: 'tap', releases: 0, flow: 'control', ver: 4 }]);
+  expect(events('onb_streak_play')).toEqual([{ max: 0, touched: false, flow: 'control', ver: 5 }]);
+  expect(events('onb_commit')).toEqual([{ mode: 'tap', releases: 0, flow: 'control', ver: 5 }]);
   expect(events('onboarding_complete')).toEqual([
-    { flow: 'control', ver: 4, seconds: expect.any(Number), scanned: false, push: true, paywall: 'none' },
+    { flow: 'control', ver: 5, seconds: expect.any(Number), scanned: false, push: true, paywall: 'none' },
   ]);
   expect(JSON.stringify(track.mock.calls)).not.toMatch(/Олена/);
 });
@@ -523,7 +543,7 @@ describe('which language you learn', () => {
     const plRows = byId(tree, 'lang-pl');
     await press(plRows.at(-1));
     expect(onLanguages).toHaveBeenLastCalledWith({ targetLang: undefined, nativeLang: 'pl' });
-    expect(events('onboarding_answer')).toContainEqual({ step: 'native_change', value: 'pl', flow: 'control', ver: 4 });
+    expect(events('onboarding_answer')).toContainEqual({ step: 'native_change', value: 'pl', flow: 'control', ver: 5 });
     // українська тепер вибирається; польська — ні
     const uk = tree.root.findAll((n) => n.props.testID === 'lang-uk' && n.props.accessibilityState)[0];
     expect(uk.props.accessibilityState.disabled).toBe(false);
@@ -558,14 +578,24 @@ describe('which language you learn', () => {
 });
 
 // ─── 3. Реакція Lingo ──────────────────────────────────────────────────────
-test('short variant: Lingo cheers on the goals step, which names the language', async () => {
+// Реакція — на першому кроці після мови, хоч би який він був: у короткому
+// варіанті це тепер «звідки», а цілі (вони й далі називають мову) — без неї.
+test('short variant: Lingo cheers on the heard step right after the language; the goals step still names the language', async () => {
   flag.mockImplementation(async () => 'short');
   const { tree } = await render();
   await start(tree);
   await pickLang(tree, 'es');
-  expect(title(tree)).toBe('Why are you learning Spanish?');
+  expect(title(tree)).toBe(t('pfHeardTitle'));
   expect(has(tree, 'Spanish? Great choice!')).toBe(true);
-  expect(events('onboarding_step').every((e) => e.flow === 'short')).toBe(true);
+  expect(stepLingo(tree).props.pose).toBe('celebrate');
+  await tap(tree, 'TikTok');
+  await advance(AUTO_MS);
+  expect(title(tree)).toBe('Why are you learning Spanish?');
+  expect(has(tree, 'Spanish? Great choice!')).toBe(false);
+  expect(stepLingo(tree).props.pose).toBe(LINGO_POSE.goals);
+  expect(events('onboarding_step').map((e) => e.step)).toEqual(['welcome', 'lang', 'heard', 'goals']);
+  expect(events('onboarding_step').every((e) => e.flow === 'short' && e.ver === 5)).toBe(true);
+  expect(events('onboarding_answer')).toContainEqual({ step: 'heard', value: 'tiktok', flow: 'short', ver: 5 });
 });
 
 // ─── 4. Пропустити й назад ─────────────────────────────────────────────────
@@ -573,7 +603,7 @@ test('skipping every question changes nothing: no name, no profile; Back walks b
   const { tree, onDone, prepareWod } = await render();
   await start(tree);
   await pickLang(tree);
-  for (const step of ['obNameTitle', 'goals', 'pfLevelTitle', 'obStrugglesTitle', 'pfHeardTitle']) {
+  for (const step of ['obNameTitle', 'pfHeardTitle', 'goals', 'pfLevelTitle', 'obStrugglesTitle']) {
     void step;
     await tap(tree, t('obSkip'));
   }
@@ -586,9 +616,9 @@ test('skipping every question changes nothing: no name, no profile; Back walks b
   expect(has(tree, t('obBuildTitle'))).toBe(true);
   expect(prepareWod).toHaveBeenCalledWith(null);
   await built();
-  // назад: план → сповіщення → слово дня → звідки → що заважає → рівень →
-  // цілі → імʼя → мова
-  for (const k of ['obPushTitle', 'obWodTitle', 'pfHeardTitle', 'obStrugglesTitle', 'pfLevelTitle', 'pfGoalsTitleLang', 'obNameTitle', 'obLangTitle']) {
+  // назад: план → сповіщення → слово дня → що заважає → рівень → цілі →
+  // звідки → імʼя → мова
+  for (const k of ['obPushTitle', 'obWodTitle', 'obStrugglesTitle', 'pfLevelTitle', 'pfGoalsTitleLang', 'pfHeardTitle', 'obNameTitle', 'obLangTitle']) {
     await tap(tree, t('pfBack'));
     expect(title(tree)).toBe(k === 'pfGoalsTitleLang' ? t(k, { lang: 'English' }) : t(k));
   }
@@ -684,7 +714,7 @@ describe('the streak showcase', () => {
     await act(async () => row.props.onAccessibilityAction({ nativeEvent: { actionName: 'decrement' } }));
     expect(line(tree)).toBe(t('streakHabit', { n: 6 }));
     await tap(tree, t('obNext'));
-    expect(events('onb_streak_play')).toEqual([{ max: 7, touched: true, flow: 'control', ver: 4 }]);
+    expect(events('onb_streak_play')).toEqual([{ max: 7, touched: true, flow: 'control', ver: 5 }]);
   });
 
   test('1.5 s idle on an ember: the hint appears', async () => {
@@ -726,7 +756,7 @@ describe('notifications', () => {
     await tap(tree, t('obNext')); // демо
     await promise(tree);
     expect(onDone.mock.calls[0][0]).toMatchObject({ wodEnabled: false, wodHour: 19 });
-    expect(events('onboarding_answer')).toContainEqual({ step: 'push_hour', value: 19, flow: 'control', ver: 4 });
+    expect(events('onboarding_answer')).toContainEqual({ step: 'push_hour', value: 19, flow: 'control', ver: 5 });
   });
 
   test('turned on in Settings while away: back in the app, the follow-up moves on by itself', async () => {
@@ -839,7 +869,7 @@ describe('demo and the first scan', () => {
     expect(hostId(tree, 'goal-lit')).toHaveLength(1);
     await promise(tree);
     expect(onDone.mock.calls[0][0]).toMatchObject({ scanned: true, firstWord: MUG });
-    expect(events('onb_scan')).toEqual([{ result: 'saved', flow: 'control', ver: 4 }]);
+    expect(events('onb_scan')).toEqual([{ result: 'saved', flow: 'control', ver: 5 }]);
     // Success тут не наш: «Зберегти» вже дав його в сканері; обіцянка — свій
     expect(Haptics.notificationAsync.mock.calls.filter(([x]) => x === 'success')).toHaveLength(1);
   });
@@ -875,7 +905,7 @@ describe('demo and the first scan', () => {
     const { tree } = await toDemo({ aiConsent: true });
     await tap(tree, t('obWowLater'));
     expect(title(tree)).toBe(t('obCommitTitle'));
-    expect(events('onboarding_skip')).toContainEqual({ step: 'demo', flow: 'control', ver: 4 });
+    expect(events('onboarding_skip')).toContainEqual({ step: 'demo', flow: 'control', ver: 5 });
   });
 
   test('the free scan already used on this iPhone: the reason and “Next”', async () => {
@@ -911,10 +941,13 @@ describe('demo and the first scan', () => {
 });
 
 // ─── 10. Чернетка ──────────────────────────────────────────────────────────
+// Формат чернетки — v3 (storage.js), порядок кроків — ver (ONB_VERSION).
+// Чернетки старших порядків — нижче й у onboarding4.test.js.
 describe('draft v3', () => {
   const now = Date.now();
   const DRAFT = {
     v: 3,
+    ver: 5,
     at: now - 60 * 1000,
     phase: 'goals',
     variant: 'control',
@@ -925,12 +958,12 @@ describe('draft v3', () => {
     level: 4,
   };
 
-  test('saved on every step with the languages and the hour', async () => {
+  test('saved on every step with the languages, the hour and the order it was saved in', async () => {
     const onDraft = jest.fn();
     const { tree } = await render({ onDraft });
     await start(tree);
     await pickLang(tree, 'de');
-    expect(onDraft).toHaveBeenLastCalledWith(expect.objectContaining({ phase: 'name', target: 'de', native: 'uk', hour: 10 }));
+    expect(onDraft).toHaveBeenLastCalledWith(expect.objectContaining({ ver: 5, phase: 'name', target: 'de', native: 'uk', hour: 10 }));
   });
 
   test('within 15 minutes the same step with the same answers; the language stays picked', async () => {
@@ -1001,11 +1034,11 @@ test('a first run ignores the profile and name left in settings by an earlier ru
   await pickLang(tree);
   expect(nameInput(tree).props.value).toBe('');
   await tap(tree, t('obSkip'));
+  expect(control(tree, 'YouTube').props.accessibilityState).toEqual({ checked: false });
+  await tap(tree, t('obSkip'));
   expect(control(tree, t('goal_work')).props.accessibilityState).toEqual({ checked: false });
   await tap(tree, t('obSkip'));
   await tap(tree, t('obSkip'));
-  await tap(tree, t('obSkip'));
-  expect(control(tree, 'YouTube').props.accessibilityState).toEqual({ checked: false });
   await tap(tree, t('obSkip'));
   await tap(tree, t('obNext')); // слово дня
   await tap(tree, t('obNext')); // push

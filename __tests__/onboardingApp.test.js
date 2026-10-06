@@ -275,10 +275,14 @@ describe('a cold start in the middle of onboarding', () => {
     expect((await stored('ll_settings_v1')).targetLang).toBe('de');
     await run(() => tree.root.findAll((n) => typeof n.props.onChangeText === 'function')[0].props.onChangeText('Олена'));
     await press(tree, t('obNext'));
+    // «звідки» — одразу після імені; вибір веде далі сам
+    expect(header(tree)).toBe(t('pfHeardTitle'));
+    await press(tree, 'TikTok');
+    await run(() => new Promise((r) => setTimeout(r, 320)));
     await press(tree, t('goal_travel'));
     await press(tree, t('obNext'));
     expect(header(tree)).toBe(t('pfLevelTitle'));
-    expect(await stored('ll_onb_draft_v1')).toMatchObject({ v: 3, phase: 'level', name: 'Олена', goals: ['travel'], target: 'de', native: 'en' });
+    expect(await stored('ll_onb_draft_v1')).toMatchObject({ v: 3, ver: 5, phase: 'level', name: 'Олена', heard: 'tiktok', goals: ['travel'], target: 'de', native: 'en' });
 
     // застосунок вбито — і запущено знову (за хвилину: чернетка ще жива)
     await act(async () => mounted.pop().unmount());

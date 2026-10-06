@@ -110,6 +110,7 @@ async function toGoals(tree) {
   await act(async () => byId(tree, 'lang-en').at(-1).props.onPress());
   await advance(AUTO_MS);
   await tap(tree, t('obSkip')); // імʼя
+  await tap(tree, t('obSkip')); // звідки
 }
 
 // ─── Старі чернетки в новому порядку ───────────────────────────────────────
@@ -136,6 +137,48 @@ describe('drafts saved by onboarding 3.0', () => {
     // кроки після сповіщень у старому порядку — без змін
     expect(restoreDraft({ ...base, phase: 'widgets', push: true }, now)).toMatchObject({ phase: 'widgets' });
     expect(restoreDraft({ ...base, phase: 'wod' }, now)).toMatchObject({ phase: 'wod' });
+  });
+});
+
+// Онбординг 5.0 (6.10.2026): «звідки» — одразу після імені (у короткому
+// варіанті — після мови), а не останнім питанням. Чернетки 3.0 і 4.0 ще
+// мають старий порядок: людина на цілях, сфері, рівні чи «що заважає» без
+// відповіді «звідки» цього питання не бачила, а тепер воно позаду.
+describe('drafts saved before “heard” moved up (3.0 and 4.0)', () => {
+  const now = Date.now();
+  const base = { v: 3, at: now - 60 * 1000, variant: 'control', target: 'de', native: 'uk', name: 'Olena', goals: ['work'], field: 'it', level: 4, struggles: ['time'] };
+  const QUESTIONS_AFTER = ['goals', 'field', 'level', 'struggles'];
+
+  test('on a question that now comes after “heard”, with no answer to it: back to “heard”, every other answer kept', () => {
+    for (const ver of [undefined, 4]) {
+      for (const phase of QUESTIONS_AFTER) {
+        expect([ver, phase, restoreDraft({ ...base, ver, phase }, now)]).toEqual([
+          ver,
+          phase,
+          expect.objectContaining({ phase: 'heard', heard: null, name: 'Olena', goals: ['work'], field: 'it', level: 4, struggles: ['time'] }),
+        ]);
+      }
+      // відповідь «звідки» вже є (поверталась назад) — з того ж кроку
+      expect(restoreDraft({ ...base, ver, phase: 'level', heard: 'youtube' }, now)).toMatchObject({ phase: 'level', heard: 'youtube' });
+      // кроки, що й тоді йшли до «звідки» чи після нього, — без змін
+      for (const phase of ['lang', 'name', 'heard', 'wod']) expect(restoreDraft({ ...base, ver, phase }, now)).toMatchObject({ phase });
+    }
+    // короткий варіант: там «звідки» — одразу після мови
+    expect(restoreDraft({ ...base, ver: 4, variant: 'short', phase: 'goals' }, now)).toMatchObject({ phase: 'heard', variant: 'short' });
+  });
+
+  test('a 5.0 draft is restored where it was: “heard” skipped there is not asked again', () => {
+    for (const phase of QUESTIONS_AFTER) expect(restoreDraft({ ...base, ver: 5, phase }, now)).toMatchObject({ phase, heard: null });
+  });
+
+  test('restored on “heard”, the person goes on through the questions with their answers already picked', async () => {
+    const onDone = jest.fn();
+    const tree = await render({ draft: { ...base, ver: 4, phase: 'struggles' }, onDone });
+    expect(title(tree)).toBe(t('pfHeardTitle'));
+    await tap(tree, 'TikTok');
+    await advance(AUTO_MS);
+    expect(title(tree)).toBe('Olena, why are you learning German?');
+    expect(control(tree, t('goal_work')).props.accessibilityState).toEqual({ checked: true });
   });
 });
 
@@ -173,7 +216,13 @@ describe('drafts saved by onboarding 4.0', () => {
 describe('Lingo on the question steps', () => {
   test('beside the title with a pose for each step, hopping on every choice, never read by VoiceOver', async () => {
     const tree = await render();
-    await toGoals(tree);
+    await tap(tree, t('obStart'));
+    await act(async () => byId(tree, 'lang-en').at(-1).props.onPress());
+    await advance(AUTO_MS);
+    await tap(tree, t('obSkip')); // імʼя
+    expect(title(tree)).toBe(t('pfHeardTitle'));
+    expect(lingo(tree, 'step-lingo').props.pose).toBe(LINGO_POSE.heard);
+    await tap(tree, t('obSkip'));
     expect(lingo(tree, 'step-lingo').props.pose).toBe(LINGO_POSE.goals);
     const host = hostId(tree, 'step-lingo')[0];
     expect(host.props.accessibilityElementsHidden).toBe(true);
@@ -191,8 +240,10 @@ describe('Lingo on the question steps', () => {
     expect(lingo(tree, 'step-lingo').props.pose).toBe(LINGO_POSE.level);
     await tap(tree, t('obNext'));
     expect(lingo(tree, 'step-lingo').props.pose).toBe(LINGO_POSE.struggles);
+    // «що заважає» — останнє питання: далі вже «слово дня»
+    await tap(tree, t('struggle_time'));
     await tap(tree, t('obNext'));
-    expect(lingo(tree, 'step-lingo').props.pose).toBe(LINGO_POSE.heard);
+    expect(title(tree)).toBe(t('obWodTitle'));
     expect(LINGO_POSE).toEqual({ goals: 'encourage', field: 'think', level: 'think', struggles: 'encourage', heard: 'wave' });
   });
 

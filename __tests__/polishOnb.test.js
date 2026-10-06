@@ -103,6 +103,7 @@ describe('the language you learn', () => {
     await act(async () => control(tree, 'Español, Spanish').props.onPress());
     await act(async () => jest.advanceTimersByTime(300));
     await tap(tree, t('obSkip')); // імʼя
+    await tap(tree, t('obSkip')); // звідки
     await tap(tree, t('goal_travel'));
     await tap(tree, t('obNext'));
     jest.useRealTimers();

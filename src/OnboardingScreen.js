@@ -3,9 +3,14 @@
 //
 //   Дія 1 «Ти»: вітання (Лінго махає) → яку мову вчиш (згори — моя рідна,
 //     знизу — та, яку вчу) → імʼя (Лінго визирає з-за кнопки й
-//     знайомиться) → цілі → сфера (лише для роботи чи навчання) → рівень →
-//     що заважає → звідки дізнались. Кроки-питання — без підзаголовків, з
+//     знайомиться) → звідки дізнались → цілі → сфера (лише для роботи чи
+//     навчання) → рівень → що заважає. Кроки-питання — без підзаголовків, з
 //     Лінго поруч із заголовком.
+//     «Звідки» — одразу після імені (воронка v5, рішення 6.10.2026): канал
+//     записано ще до того, як частина людей відпаде на питаннях (за ним
+//     LAUNCH_PLAN судить про авторів TikTok і рекламу), а дія 1 тепер
+//     закінчується на «Що заважає вчити мову?», з якого прямо випливає
+//     «Що таке слово дня?».
 //   Дія 2 «Як це працює»: що таке слово дня (картка-приклад) → коли
 //     надсилати слово дня (лише якщо ще не питали; телефон у рамці зі
 //     сповіщенням) → план (спершу «складаємо…» — справжній запит слова дня
@@ -18,8 +23,9 @@
 //     onboarding_paywall).
 //
 // Короткий варіант ('short', прапорець PostHog onboarding-flow) — без імені
-// й «що заважає». Варіант береться один раз на старті й не міняється до
-// кінця: інакше людина посеред шляху опинилась би в іншому експерименті.
+// й «що заважає»; «звідки» там одразу після мови. Варіант береться один раз
+// на старті й не міняється до кінця: інакше людина посеред шляху опинилась
+// би в іншому експерименті.
 //
 // Повтор із Параметрів («Пройти знайомство ще раз»): мова (лише без слів) →
 // імʼя → цілі → сфера → рівень → що заважає → слово дня → сповіщення (лише
@@ -122,9 +128,10 @@ import { SafeAreaInsetsContext } from 'react-native-safe-area-context';
 import { EASE, useReducedMotion, useScreenReader } from './motion';
 import { F, R, type, useTheme } from './theme';
 
-// Версія воронки в статистиці: події v4 (новий крок «слово дня», сповіщення
-// перед планом) не змішуються з v3 — порядок кроків у воронці інший
-export const ONB_VERSION = 4;
+// Версія воронки в статистиці: події різних версій не змішуються, бо порядок
+// кроків у воронці інший. v4 — новий крок «слово дня», сповіщення перед
+// планом; v5 — «звідки» одразу після імені (у короткому — після мови).
+export const ONB_VERSION = 5;
 // Скільки чекати на прапорець варіанта (див. analytics.flag): довше —
 // людина вже тисне «Почати», і ми не тримаємо її.
 export const FLAG_WAIT_MS = 1500;
@@ -142,11 +149,11 @@ export const BUILD_MAX_MS = 2500;
 export const ACT = {
   lang: 0,
   name: 0,
+  heard: 0,
   goals: 0,
   field: 0,
   level: 0,
   struggles: 0,
-  heard: 0,
   wod: 1,
   push: 1,
   plan: 1,
@@ -180,11 +187,11 @@ export function onboardingFlow({
     'welcome',
     'lang',
     ...(full ? ['name'] : []),
+    'heard',
     'goals',
     ...field,
     'level',
     ...(full ? ['struggles'] : []),
-    'heard',
     ...tail2,
     'demo',
     ...(scanned ? ['celebrate'] : []),
@@ -224,7 +231,15 @@ const okLang = (c) => (LANG_CODES.includes(c) ? c : null);
 // ver — порядок у ній уже новий: план без відповіді про сповіщення там
 // означає, що кроку години не було (систему вже питали), і «слово дня»
 // людина бачила — тоді з того ж кроку.
+//
+// У чернетках 3.0 і 4.0 (ver немає чи 4) «звідки» ще було останнім
+// питанням, а з 5.0 воно одразу після імені. Людина з такою чернеткою на
+// цілях, сфері, рівні чи «що заважає» без відповіді «звідки» цього питання
+// ще не бачила, а в новому порядку воно вже позаду: вона продовжує зі
+// «звідки» (далі ті самі питання з уже обраними відповідями), інакше канал
+// загубився б. Відповідь «звідки» вже є (поверталась назад) — з того ж кроку.
 const BEFORE_PUSH_V3 = ['plan', 'streak'];
+const BEFORE_HEARD_V4 = ['goals', 'field', 'level', 'struggles'];
 export function restoreDraft(d, now = Date.now()) {
   if (!draftFresh(d, now) || typeof d.phase !== 'string') return null;
   const variant = d.variant === 'short' ? 'short' : 'control';
@@ -233,10 +248,12 @@ export function restoreDraft(d, now = Date.now()) {
   const step = d.phase === 'pushDenied' ? 'push' : d.phase;
   if (step === 'welcome' || !all.includes(step)) return null;
   const hour = PUSH_HOURS.some((h) => h.hour === d.hour) ? d.hour : null;
-  const oldOrder = !(Number(d.ver) >= 4);
-  const rewind = oldOrder && BEFORE_PUSH_V3.includes(d.phase) && typeof d.push !== 'boolean';
+  const heard = HEARD.includes(d.heard) ? d.heard : null;
+  const ver = Number(d.ver);
+  const rewind = !(ver >= 4) && BEFORE_PUSH_V3.includes(d.phase) && typeof d.push !== 'boolean';
+  const toHeard = !(ver >= 5) && BEFORE_HEARD_V4.includes(d.phase) && !heard;
   return {
-    phase: d.phase === 'celebrate' ? 'commit' : rewind ? 'wod' : d.phase,
+    phase: d.phase === 'celebrate' ? 'commit' : rewind ? 'wod' : toHeard ? 'heard' : d.phase,
     variant,
     target: okLang(d.target),
     native: okLang(d.native),
@@ -245,7 +262,7 @@ export function restoreDraft(d, now = Date.now()) {
     field: FIELDS.includes(d.field) ? d.field : null,
     level: typeof d.level === 'number' && Number.isFinite(d.level) ? clampLevel(d.level) : null,
     struggles: cleanStruggles(d.struggles),
-    heard: HEARD.includes(d.heard) ? d.heard : null,
+    heard,
     push: typeof d.push === 'boolean' ? d.push : undefined,
     hour,
     scanned: !!d.scanned,
@@ -530,7 +547,7 @@ export default function OnboardingScreen({
   // Чернетка на кожному кроці (див. restoreDraft): iOS може вбити
   // застосунок посеред знайомства — зокрема коли в Параметрах міняють
   // доступ до камери, — і людина не має відповідати на все вдруге. ver —
-  // порядок кроків, у якому її записано (restoreDraft відрізняє 3.0 від 4.0).
+  // порядок кроків, у якому її записано (restoreDraft відрізняє 3.0, 4.0 і 5.0).
   useEffect(() => {
     if (replay || !onDraft || !variant || phase === 'welcome') return;
     onDraft({
@@ -941,12 +958,13 @@ export default function OnboardingScreen({
   };
   const shownName = cleanName(nameDraft);
   const langAcc = t('langAcc_' + curTarget);
-  // Реакція Lingo на мову — на першому кроці після неї. На кроці імені її
-  // каже сам Лінго знизу; на цілях (короткий варіант) — бульбашка без
-  // мініатюри над заголовком, а Лінго поруч із заголовком радіє.
+  // Реакція Lingo на мову — на першому кроці після неї, хоч би який він був.
+  // На кроці імені її каже сам Лінго знизу; на будь-якому іншому (у
+  // короткому варіанті це «звідки») — бульбашка без мініатюри над
+  // заголовком, а Лінго поруч із заголовком радіє.
   const afterLang = flow[flow.indexOf('lang') + 1];
   const cheerText = target && flow.includes('lang') && phase === afterLang ? t('obLangCheer', { lang: langLabel(curTarget, t, ui, { capital: true }) }) : '';
-  const cheer = cheerText ? <LingoBubble pose={null} text={cheerText} /> : null;
+  if (cheerText && phase !== 'name') frame.header = <LingoBubble pose={null} text={cheerText} />;
   // Лінго поруч із заголовком: невеликий, підскакує на кожен вибір
   const lingoSize = win.height < 720 ? 64 : 76;
   const hopKey = { goals: goals.join(), field, level, struggles: pains.join(), heard }[phase];
@@ -1000,7 +1018,6 @@ export default function OnboardingScreen({
     );
     footer = <GradBtn title={nextTitle} onPress={() => next('given')} disabled={!shownName} />;
   } else if (phase === 'goals') {
-    frame.header = cheer;
     title = shownName ? t('pfGoalsTitleLangName', { name: shownName, lang: langAcc }) : t('pfGoalsTitleLang', { lang: langAcc });
     body = <GoalOptions value={goals} onChange={setGoals} t={t} />;
     footer = <GradBtn title={nextTitle} onPress={() => next(goals)} disabled={!goals.length} />;
