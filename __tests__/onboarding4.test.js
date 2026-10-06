@@ -6,7 +6,7 @@
 // onboarding.test.js; тут — кожна нова поведінка окремо.
 import { AccessibilityInfo, Animated, ScrollView, StyleSheet } from 'react-native';
 import { act, create } from 'react-test-renderer';
-import OnboardingScreen, { AUTO_MS, LINGO_POSE, restoreDraft } from '../src/OnboardingScreen';
+import OnboardingScreen, { AUTO_MS, LINGO_POSE, restoreDraft, topicsLine } from '../src/OnboardingScreen';
 import ProfileEditor from '../src/ProfileEditor';
 import { LevelBody, StepFrame } from '../src/ProfileSteps';
 import {
@@ -754,4 +754,16 @@ describe('MascotLive', () => {
       AccessibilityInfo.isReduceMotionEnabled.mockImplementation(() => Promise.resolve(false));
     }
   });
+});
+
+// Рядок тем на екрані «Збираємо план»: абревіатури не стають «іт»
+test('plan topics line keeps acronyms upper-case and lower-cases ordinary topics', () => {
+  const p = { goals: ['work'], field: 'it', level: 6 };
+  const ukLine = topicsLine(p, uk, 'uk');
+  expect(ukLine).toContain(uk('topic_it'));
+  expect(ukLine).not.toContain(uk('topic_it').toLocaleLowerCase('uk'));
+  const travel = topicsLine({ goals: ['travel'], level: 6 }, uk, 'uk');
+  expect(travel).toContain(uk('topic_travel').toLocaleLowerCase('uk'));
+  const enLine = topicsLine(p, t, 'en');
+  expect(enLine).toContain(t('topic_it').toLocaleLowerCase('en'));
 });

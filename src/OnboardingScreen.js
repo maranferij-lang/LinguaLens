@@ -273,11 +273,14 @@ export function restoreDraft(d, now = Date.now()) {
 // малої (крім німецької, де іменники завжди з великої).
 // «Теми: фінанси, подорожі» — без «загальне», коли є названі теми: людина
 // вибирала саме їх, загальні слова — лише тло плану.
-function topicsLine(p, t, ui) {
+// Назви тем у рядку «Теми: …» — з малої (крім німецької), але абревіатури
+// на кшталт «ІТ» лишаються великими: «іт» читається як помилка.
+export function topicsLine(p, t, ui) {
   const all = planTopics(p).map((x) => x.topic);
   const named = all.filter((k) => k !== 'general');
   const names = (named.length ? named : all).map((k) => t('topic_' + k));
-  const low = ui === 'de' ? names : names.map((n) => n.toLocaleLowerCase(ui));
+  const acronym = (n) => n.length > 1 && n === n.toLocaleUpperCase(ui);
+  const low = ui === 'de' ? names : names.map((n) => (acronym(n) ? n : n.toLocaleLowerCase(ui)));
   return low.join(', ');
 }
 
