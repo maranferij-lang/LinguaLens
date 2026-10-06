@@ -9,7 +9,19 @@ import { act, create } from 'react-test-renderer';
 import OnboardingScreen, { AUTO_MS, LINGO_POSE, restoreDraft } from '../src/OnboardingScreen';
 import ProfileEditor from '../src/ProfileEditor';
 import { LevelBody, StepFrame } from '../src/ProfileSteps';
-import { NAME_PAUSE_MS, NameLingo, PushPreview, lockClock, nameLingoSize, phoneVisible } from '../src/OnboardingParts';
+import {
+  NAME_PAUSE_MS,
+  NameLingo,
+  PushPreview,
+  WELCOME_PAD,
+  balancedWidth,
+  lockClock,
+  nameLingoSize,
+  phoneVisible,
+  welcomeSizes,
+  wrapLines,
+} from '../src/OnboardingParts';
+import { textEm } from '../src/share/layout';
 import ScanDemo from '../src/ScanDemo';
 import { MascotLive } from '../src/Mascot';
 import { DEMO_WORDS, SCENE_KEYS, SCENE_WORDS, demoExample, demoScene } from '../src/demoWords';
@@ -348,15 +360,116 @@ describe('the language step', () => {
 });
 
 // ─── Вітання ───────────────────────────────────────────────────────────────
-test('welcome: big waving Lingo that hops in, and the new copy', async () => {
-  const tree = await render({ t: uk, uiLang: 'uk' });
-  const hero = lingo(tree, 'welcome-lingo');
-  expect(hero.props).toMatchObject({ pose: 'wave', enter: 'hop', waves: 3 });
-  expect(hero.props.size).toBeGreaterThanOrEqual(160);
-  expect(has(tree, 'Привіт! Я Лінго.')).toBe(true);
-  expect(has(tree, 'Я стану твоїм провідником у світ мов')).toBe(true);
-  expect(has(tree, 'Вчитимемо слова з речей навколо тебе — по одному щодня.')).toBe(true);
-  expect(STRINGS.en.ob3Hello).toBe('Hi! I’m Lingo.');
+// Правка власника 6.10.2026: підзаголовка немає, «Привіт! Я Лінго.» —
+// найбільший текст екрана, у бульбашці Лінго; заголовок під ним менший.
+describe('welcome', () => {
+  const hostText = (tree, s) => tree.root.findAll((n) => typeof n.type === 'string' && n.props.children === s)[0];
+  const fontSize = (n) => StyleSheet.flatten(n.props.style).fontSize;
+  const withDims = async (dims, fn) => {
+    const spy = jest.spyOn(require('react-native'), 'useWindowDimensions');
+    spy.mockReturnValue({ scale: 2, fontScale: 1, ...dims });
+    try {
+      await fn();
+    } finally {
+      spy.mockRestore();
+    }
+  };
+
+  test('big waving Lingo that hops in, the hello and the title; no subtitle', async () => {
+    const tree = await render({ t: uk, uiLang: 'uk' });
+    const hero = lingo(tree, 'welcome-lingo');
+    expect(hero.props).toMatchObject({ pose: 'wave', enter: 'hop', waves: 3 });
+    expect(hero.props.size).toBeGreaterThanOrEqual(160);
+    expect(has(tree, 'Привіт! Я Лінго.')).toBe(true);
+    expect(has(tree, 'Я стану твоїм провідником у світ мов')).toBe(true);
+    expect(has(tree, 'Вчитимемо слова з речей навколо тебе — по одному щодня.')).toBe(false);
+    // на екрані — лише назва, привітання, заголовок, кнопка й таблички наліпок
+    const shown = new Set(tree.root.findAll((n) => n.type === 'Text' && typeof n.props.children === 'string').map((n) => n.props.children));
+    expect([...shown].sort()).toEqual(
+      ['LinguaLens', 'Привіт! Я Лінго.', 'Я стану твоїм провідником у світ мов', 'Почати', 'mug', 'planta', 'Schlüssel', '🇬🇧', '🇪🇸', '🇩🇪'].sort()
+    );
+    for (const l of LOCALES) expect(STRINGS[l]).not.toHaveProperty('ob3HookText');
+    expect(STRINGS.en.ob3Hello).toBe('Hi! I’m Lingo.');
+  });
+
+  test('the hello is the biggest text on the screen, in Lingo’s bubble with a tail up to him; the title is smaller', async () => {
+    for (const [dims, min, max] of [
+      [{ width: 375, height: 667 }, 24, 28],
+      [{ width: 440, height: 956 }, 28, 32],
+    ]) {
+      await withDims(dims, async () => {
+        const tree = await render();
+        const hello = hostText(tree, t('ob3Hello'));
+        const title = hostText(tree, t('ob3HookTitle'));
+        expect(fontSize(hello)).toBeGreaterThanOrEqual(min);
+        expect(fontSize(hello)).toBeLessThanOrEqual(max);
+        expect(StyleSheet.flatten(hello.props.style).fontFamily).toBe('Nunito_800ExtraBold');
+        expect(fontSize(title)).toBeLessThan(fontSize(hello));
+        const others = tree.root.findAll((n) => n.type === 'Text' && n !== hello).map(fontSize);
+        expect(Math.max(...others)).toBeLessThan(fontSize(hello));
+        const bubble = hostId(tree, 'hello-bubble')[0];
+        expect(bubble.findAll((n) => n === hello)).toHaveLength(1);
+        expect(hostId(tree, 'hello-tail')).toHaveLength(1);
+        // старої бульбашки з мініатюрою Лінго на вітанні вже немає
+        expect(hostId(tree, 'lingo-bubble')).toHaveLength(0);
+      });
+    }
+  });
+
+  test('VoiceOver: the hello, then the title, both read as headers; Lingo and the stickers are hidden', async () => {
+    const tree = await render({ t: uk, uiLang: 'uk' });
+    const headers = tree.root.findAll((n) => typeof n.type === 'string' && n.props.accessibilityRole === 'header').map((n) => n.props.children);
+    expect(headers).toEqual(['Привіт! Я Лінго.', 'Я стану твоїм провідником у світ мов']);
+    expect(hostId(tree, 'welcome-hero')[0].props.accessibilityElementsHidden).toBe(true);
+  });
+
+  test('with reduced motion the hello and the title only fade in, they do not travel', async () => {
+    const shift = (tree) => ['hello-bubble', 'welcome-title'].map((id) => StyleSheet.flatten(hostId(tree, id)[0].props.style).transform ?? []);
+    try {
+      expect(shift(await render())).toEqual([[{ translateY: 12 }], [{ translateY: 12 }]]);
+      AccessibilityInfo.isReduceMotionEnabled.mockImplementation(() => Promise.resolve(true));
+      await render(); // перший рендер лише дізнається про «Менше руху»
+      expect(shift(await render())).toEqual([[], []]);
+    } finally {
+      AccessibilityInfo.isReduceMotionEnabled.mockImplementation(() => Promise.resolve(false));
+      await render();
+    }
+  });
+
+  test('sizes: the hello fits one line in every language, from SE to Pro Max; the title breaks into even lines', () => {
+    const screens = [
+      { width: 320, height: 548 },
+      { width: 375, height: 647 },
+      { width: 375, height: 728 },
+      { width: 393, height: 759 },
+      { width: 440, height: 860 },
+    ];
+    const copy = (l) => ({ hello: STRINGS[l].ob3Hello, title: STRINGS[l].ob3HookTitle });
+    expect(welcomeSizes(screens[1], copy('uk'))).toMatchObject({ hero: 246, hello: 28, title: 22 });
+    expect(welcomeSizes(screens[4], copy('uk'))).toMatchObject({ hero: 327, hello: 32, title: 24 });
+    for (const scr of screens) {
+      for (const l of LOCALES) {
+        const size = welcomeSizes(scr, copy(l));
+        const at = [l, scr.width + 'x' + scr.height];
+        expect([...at, size.hello >= 24, size.title < size.hello]).toEqual([...at, true, true]);
+        // привітання (з полями екрана й бульбашки) — один рядок, не ширший за екран
+        const line = textEm(copy(l).hello, -0.014) * size.hello + 2 * (WELCOME_PAD + 20);
+        expect([...at, line <= scr.width]).toEqual([...at, true]);
+        // Lingo з наліпками (size + 96) не ширший за екран
+        expect([...at, size.hero + 96 <= scr.width - 16]).toEqual([...at, true]);
+        // заголовок — два рядки, як і на всю ширину, але рівні: другий не
+        // коротший за половину першого (ніякого «світ мов» самотою)
+        const full = wrapLines(copy(l).title, size.title, scr.width - 2 * WELCOME_PAD);
+        const even = wrapLines(copy(l).title, size.title, size.titleWidth);
+        expect([...at, even.length]).toEqual([...at, full.length]);
+        expect([...at, even.at(-1).length >= even[0].length / 2]).toEqual([...at, true]);
+      }
+    }
+    expect(wrapLines(uk('ob3HookTitle'), 22, welcomeSizes(screens[1], copy('uk')).titleWidth)).toEqual(['Я стану твоїм', 'провідником у світ мов']);
+    expect(wrapLines(uk('ob3HookTitle'), 22, 327)).toEqual(['Я стану твоїм провідником у', 'світ мов']);
+    // коротке влазить в один рядок — ширина вся
+    expect(balancedWidth('Hi', 22, 300)).toBe(300);
+  });
 });
 
 // ─── Рівень ────────────────────────────────────────────────────────────────

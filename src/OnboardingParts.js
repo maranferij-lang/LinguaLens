@@ -18,8 +18,9 @@ import { Mascot, MascotBob, MascotLive } from './Mascot';
 import { MiniKey, MiniMug, MiniPlant, TagLabel } from './DemoDesk';
 import { IcBell, IcCards, IcChart, IcCheck, IcCompass, IcScan, IcSpeaker } from './icons';
 import { FadeIn } from './ui';
+import { fontSizeForWord, textEm } from './share/layout';
 import { EASE, spring, stagger, useReducedMotion } from './motion';
-import { CAPS, F, R, type, useTheme } from './theme';
+import { CAPS, F, R, track, type, useTheme } from './theme';
 
 // Якщо людина нічого не обрала на кроці «що заважає» (чи у варіанті без
 // нього) — три головні речі, заради яких застосунок існує.
@@ -638,9 +639,82 @@ export function WelcomeHero({ size = 230 }) {
   );
 }
 
-// Бульбашка Lingo над заголовком: «Привіт! Я Лінго.», «Англійська —
-// чудовий вибір!». pose={null} — без мініатюри: Lingo вже стоїть поруч із
-// заголовком (кроки-питання), другий був би зайвий.
+// Розміри вітання від екрана (width — ширина, height — висота без вирізу
+// й смужки): Lingo, «Привіт! Я Лінго.» і заголовок під ним. Привітання —
+// найбільший текст екрана: 32 на високих iPhone, 28 на SE; заголовок — на
+// щабель менший (24 / 22), тож видно, що головне. Кегль привітання ще й не
+// ширший за рядок: довше «Hallo! Ich bin Lingo.» на вузькому телефоні
+// зменшується (не менше 24), а не переноситься. Lingo більший, ніж був із
+// підзаголовком: місце, що лишилось, — йому (з табличками — не ширше за
+// екран). titleWidth — ширина заголовка з рівними рядками (balancedWidth).
+export const WELCOME_PAD = 24;
+const HELLO_PAD = 20;
+const TITLE_MAX = 360;
+
+export function welcomeSizes({ width, height }, { hello, title }) {
+  const tall = height >= 740;
+  const max = tall ? 32 : 28;
+  const titleSize = tall ? 24 : 22;
+  return {
+    hero: Math.round(Math.max(170, Math.min(330, height * 0.38, width - 112))),
+    hello: fontSizeForWord(hello, { max, min: 24, width: width - 2 * (WELCOME_PAD + HELLO_PAD), tracking: track(max) / max }),
+    title: titleSize,
+    titleWidth: balancedWidth(title, titleSize, Math.min(TITLE_MAX, width - 2 * WELCOME_PAD)),
+  };
+}
+
+// Рядки заголовка за оцінкою ширини (textEm — трохи більша за справжню):
+// слова по черзі, доки рядок не ширший за width.
+export function wrapLines(text, size, width) {
+  const em = (s) => textEm(s, track(size) / size) * size;
+  const lines = [];
+  for (const word of String(text || '').split(/\s+/).filter(Boolean)) {
+    const last = lines[lines.length - 1];
+    if (last && em(last + ' ' + word) <= width) lines[lines.length - 1] = last + ' ' + word;
+    else lines.push(word);
+  }
+  return lines;
+}
+
+// Найвужча ширина, за якої рядків стільки ж, скільки й на всю ширину, —
+// тоді вони рівні: «Я стану твоїм / провідником у світ мов», а не «Я стану
+// твоїм провідником у / світ мов». Влазить в один рядок — уся ширина.
+// 6 % запасу: кирилицю (м, т, г) textEm трохи недооцінює, і без нього
+// «мов» падало б у третій рядок.
+export function balancedWidth(text, size, width) {
+  const n = wrapLines(text, size, width).length;
+  if (n <= 1) return width;
+  let lo = 0;
+  let hi = width;
+  while (hi - lo > 1) {
+    const mid = (lo + hi) / 2;
+    if (wrapLines(text, size, mid).length > n) lo = mid;
+    else hi = mid;
+  }
+  return Math.min(width, Math.ceil(hi * 1.06));
+}
+
+// «Привіт! Я Лінго.» під великим Lingo: бульбашка з хвостиком угору, до
+// нього, — це каже він. Для VoiceOver — заголовок, перший на екрані (сам
+// Lingo — ілюстрація, його не читають). Кегль і так заголовковий, тож
+// великий системний шрифт збільшує його не більш як на 30 %: тоді рядок
+// переноситься, але екран не розлазиться.
+export function HelloBubble({ text, size }) {
+  const { C, SHADOW_SM } = useTheme();
+  const s = useMemo(() => makeStyles(C), [C]);
+  return (
+    <FadeIn delay={160} style={[s.hello, SHADOW_SM]} testID="hello-bubble">
+      <View style={s.helloTail} testID="hello-tail" />
+      <Text style={[s.helloText, type(size, F.extra)]} maxFontSizeMultiplier={1.3} accessibilityRole="header">
+        {text}
+      </Text>
+    </FadeIn>
+  );
+}
+
+// Бульбашка Lingo над заголовком: «Англійська — чудовий вибір!».
+// pose={null} — без мініатюри: Lingo вже стоїть поруч із заголовком
+// (кроки-питання), другий був би зайвий.
 export function LingoBubble({ text, pose = 'wave', style }) {
   const { C, SHADOW_SM } = useTheme();
   const s = useMemo(() => makeStyles(C), [C]);
@@ -822,6 +896,29 @@ const makeStyles = (C) =>
       maxWidth: '100%',
     },
     bubbleText: { flexShrink: 1, color: C.text, ...type(14, F.extra) },
+
+    hello: {
+      alignSelf: 'center',
+      maxWidth: '100%',
+      backgroundColor: C.card,
+      borderRadius: R.lg,
+      paddingHorizontal: HELLO_PAD,
+      paddingTop: 12,
+      paddingBottom: 13,
+    },
+    helloText: { color: C.text, textAlign: 'center' },
+    // хвостик — угору, до Lingo
+    helloTail: {
+      position: 'absolute',
+      top: -7,
+      left: '50%',
+      marginLeft: -9,
+      width: 18,
+      height: 18,
+      borderRadius: 3,
+      backgroundColor: C.card,
+      transform: [{ rotate: '45deg' }],
+    },
 
     pledge: { backgroundColor: C.card, borderRadius: R.lg, paddingHorizontal: 20, paddingTop: 18, paddingBottom: 14 },
     pledgeText: { color: C.text, ...type(22, F.extra), textAlign: 'center' },
