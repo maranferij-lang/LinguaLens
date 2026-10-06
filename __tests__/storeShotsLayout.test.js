@@ -5,7 +5,7 @@
 // кадру 6 (тест іконки, PPO).
 import path from 'path';
 
-import { BOTTOM, cardBelow, cardScene, faceCrop, flashcardsTrio, HIDDEN_ON_CARD, insetLeft, lockScreenDate, resolveIcon, rotatedBox, stackTwo, TRIO } from '../tools/store-shots/layout';
+import { BOTTOM, backCrop, cardBelow, cardScene, faceCrop, flashcardsTrio, HIDDEN_ON_CARD, insetLeft, lockScreenDate, resolveIcon, rotatedBox, stackTwo, TRIO } from '../tools/store-shots/layout';
 
 const H = 2868;
 
@@ -40,6 +40,31 @@ describe('store shots layout', () => {
     const l = trio();
     expect(l.front.top).toBeGreaterThanOrEqual(700 + 266 * l.back.k - TRIO.overlap);
     expect(l.front.top + 203 * l.front.k + TRIO.gap).toBeLessThanOrEqual(l.quiz.top + 1e-6);
+  });
+
+  test('frame 3: the tilted front covers empty back-card space, not the translation', () => {
+    // справжні виміри звороту (pt): uk «кружка», en-US «mug»; лице й квіз — як вище
+    const rot = ([x, y], [cx, cy], deg) => {
+      const a = (deg * Math.PI) / 180;
+      return [cx + (x - cx) * Math.cos(a) - (y - cy) * Math.sin(a), cy + (x - cx) * Math.sin(a) + (y - cy) * Math.cos(a)];
+    };
+    const front = { x: 105, y: 352, w: 230, h: 203 };
+    for (const translation of [{ x: 169.7, y: 480, w: 100.7, h: 34 }, { x: 191.6, y: 480, w: 56.8, h: 34 }]) {
+      const b = { card: { x: 20, y: 134, w: 400, h: 639 }, sticker_mug: { y: 291.7 }, translation };
+      const back = backCrop(b);
+      expect(back.y + back.h).toBeCloseTo(translation.y + translation.h + TRIO.backPad, 6);
+      const l = flashcardsTrio({ top: 700, back, front, quiz: { w: 440, h: 281 }, W: 1320 });
+      // верхній край лиця після повороту на −6° навколо його центру
+      const fc = [l.front.left + (front.w * l.front.k) / 2, l.front.top + (front.h * l.front.k) / 2];
+      const [p, q] = [[l.front.left, l.front.top], [l.front.left + front.w * l.front.k, l.front.top]].map((pt) => rot(pt, fc, -6));
+      const edgeY = (x) => p[1] + ((q[1] - p[1]) * (x - p[0])) / (q[0] - p[0]);
+      // низ рядка перекладу (з хвостиками літер) після повороту звороту на +8°
+      const bc = [l.back.left + (back.w * l.back.k) / 2, l.back.top + (back.h * l.back.k) / 2];
+      for (const x of [translation.x, translation.x + translation.w]) {
+        const [px, py] = rot([l.back.left + (x - back.x) * l.back.k, l.back.top + (translation.y + translation.h - back.y) * l.back.k], bc, 8);
+        expect(edgeY(px) - py).toBeGreaterThanOrEqual(16);
+      }
+    }
   });
 
   test('a rotated box: bounds grow with the angle and stay centred', () => {

@@ -9,7 +9,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { COPY, countAchievements, countLangs, fill, ukGenitivePlural } from './copy.js';
-import { BOTTOM, cardBelow, faceCrop, flashcardsTrio, insetLeft, lockScreenDate, resolveIcon, stackTwo } from './layout.js';
+import { BOTTOM, backCrop, cardBelow, faceCrop, flashcardsTrio, insetLeft, lockScreenDate, resolveIcon, stackTwo } from './layout.js';
 import { shapeInCropOf, stickerCropOf } from './art/backing.js';
 import { LOCALES, WIDGET_WOD, vocab as vocabFor } from './data.mjs';
 import codec from '../png.js';
@@ -404,17 +404,16 @@ const FRAMES = {
     const f = rects(loc, 'cards-front');
     const b = rects(loc, 'cards-back');
     const q = rects(loc, 'quiz');
-    const st = b.sticker_mug;
-    const backCrop = { x: b.card.x, y: st.y - 24, w: b.card.w, h: b.translation.y + b.translation.h + 22 - (st.y - 24) };
+    const back = backCrop(b);
     // лице: середина картки довкола слова, IPA й «Слухати», великим планом
     // (слово ~140 px, як фішка кадру 1)
     const { y0: fy0, y1: fy1 } = faceCrop(f, 30);
     const frontCrop = { x: f.card.x + f.card.w / 2 - 115, y: fy0, w: 230, h: fy1 - fy0 };
     // квіз: від рядка «× ━━━ 7 / 10» до зеленої відповіді включно
     const quizCrop = { x: 0, y: q.meta.y - 22, w: PT.w, h: q.right.y + q.right.h + 8 - (q.meta.y - 22) };
-    const l = flashcardsTrio({ top: CT, back: backCrop, front: frontCrop, quiz: quizCrop, W });
+    const l = flashcardsTrio({ top: CT, back, front: frontCrop, quiz: quizCrop, W });
     return `${bgA(2)}${captionA(cp, counts)}
-      ${screen({ loc, shot: 'cards-back', k: l.back.k, left: l.back.left, top: l.back.top, crop: backCrop, radius: 56, rot: 8, z: 2 })}
+      ${screen({ loc, shot: 'cards-back', k: l.back.k, left: l.back.left, top: l.back.top, crop: back, radius: 56, rot: 8, z: 2 })}
       ${screen({ loc, shot: 'cards-front', k: l.front.k, left: l.front.left, top: l.front.top, crop: frontCrop, radius: 64, rot: -6, z: 3 })}
       ${screen({ loc, shot: 'quiz', k: l.quiz.k, left: l.quiz.left, top: l.quiz.top, crop: quizCrop, radius: 56, rot: 0, z: 2 })}`;
   },

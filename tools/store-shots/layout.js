@@ -23,7 +23,15 @@ export function faceCrop({ word, ipa, speak }, pad) {
 // IPA, «Слухати») — найбільше, ліворуч під ним, а внизу на всю ширину —
 // квіз. Прямокутники обрізки — у pt; лице й зворот лише трохи заходять одне
 // на одне (переклад на звороті видно), квіз закінчується на BOTTOM.
-export const TRIO = { kBack: 2.0, kFront: 4.0, overlap: 10, gap: 60, side: 80, maxQuizW: 1120 };
+// backPad — поле звороту під перекладом (pt): лице, нахилене на −6°, лягає
+// на порожній низ звороту (+8°), а не на хвостики «р», «у», «g» перекладу.
+export const TRIO = { kBack: 2.0, kFront: 4.0, overlap: 10, gap: 60, side: 80, maxQuizW: 1120, backPad: 44 };
+
+// Кадр 3: шматок звороту (pt) від наліпки до перекладу з полем backPad.
+export function backCrop({ card, sticker_mug: st, translation: t }) {
+  const y = st.y - 24;
+  return { x: card.x, y, w: card.w, h: t.y + t.h + TRIO.backPad - y };
+}
 export function flashcardsTrio({ top, back, front, quiz, W, bottom = BOTTOM }) {
   const bh = back.h * TRIO.kBack;
   const fTop = top + bh - TRIO.overlap;
