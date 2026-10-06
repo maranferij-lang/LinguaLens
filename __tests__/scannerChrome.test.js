@@ -8,9 +8,10 @@ import ScannerScreen from '../src/ScannerScreen';
 import ConsentSheet from '../src/ConsentSheet';
 import SceneView from '../src/scene/SceneView';
 import { recognizeImage } from '../src/api';
-import { makeT } from '../src/i18n';
+import { STRINGS, makeT } from '../src/i18n';
 import { CameraView } from 'expo-camera';
-import { scannerLayout } from '../src/scanner/layout';
+import { SIDE, scannerLayout } from '../src/scanner/layout';
+import { textEm } from '../src/share/layout';
 import Viewfinder, { cornersPath, spotlightPath } from '../src/scanner/Viewfinder';
 import TopBar from '../src/scanner/TopBar';
 import { CAM } from '../src/scanner/CamGlass';
@@ -125,6 +126,18 @@ describe('status over the camera', () => {
     expect(shutter(tree).props.accessibilityLabel).toBe(t('scanShutterPro'));
     expect(tree.root.findAll((n) => n.props.testID === 'shutter-pro').length).toBeGreaterThan(0);
     await act(async () => tree.unmount());
+  });
+
+  // Ряд SE (375): поля SIDE, чип «🇺🇸 EN ⌄» ~84, ліхтарик 44 і відступи
+  // статусу 8 + 8; у самій пігулці поля 13 + 13, корона 15 і проміжок 6.
+  // adjustsFontSizeToFit стискає кегль 14 щонайбільше до 0.85: довший підпис
+  // iOS обрізав би трикрапкою, а на вебі він насувався на сусідів.
+  test('none left on an SE: the Pro chip fits between the language and the flashlight in every language', () => {
+    const room = 375 - 2 * SIDE - 84 - 44 - 2 * 8 - (2 * 13 + 15 + 6);
+    const wide = Object.keys(STRINGS)
+      .filter((l) => textEm(STRINGS[l].scanProChip) * 14 * 0.85 > room)
+      .map((l) => `${l}: ${STRINGS[l].scanProChip}`);
+    expect(wide).toEqual([]);
   });
 
   test('first scan: no status at all', async () => {
