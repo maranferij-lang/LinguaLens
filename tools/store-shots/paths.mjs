@@ -13,6 +13,10 @@
 //                 поставив `npx playwright install chromium`)
 //   PHOTOS      — тека зі справжніми фото власника замість намальованих
 //                 (README.md, розділ «Справжні фото»)
+//   ICON        — інша іконка на головному екрані кадру 6 (тест іконки в
+//                 App Store, PPO): ім'я з assets/ знятої версії
+//                 (icon-eye.png) або шлях до PNG; те саме, що --icon=…
+//   PORT        — порт статичного сервера (типово перший вільний з 9100–9119)
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';

@@ -256,11 +256,15 @@ function lingo(pose, { left, top, size, rot = 0, z = 8, extra = '' }) {
 // ─── кадр 6: віджети ───────────────────────────────────────────────────────
 // Головний екран зібрано зі справжніх віджетів застосунку (WidgetPreview —
 // його RN-репліка SwiftUI-віджетів, знята поодинці), іконка — assets/icon.png
-// знятої версії. Екран блокування — HTML-копія accessoryRectangular з
+// знятої версії (або ICON=…, appIcon нижче). Екран блокування — HTML-копія accessoryRectangular з
 // src/widgets/WordOfDayWidget.js (слово, переклад, IPA; білий «vibrant»
 // текст): RN-репліки екрана блокування в застосунку немає. Шпалери —
 // власний градієнт, без шпалер Apple (BRIEF кадр 6).
 const WALL = `background:radial-gradient(90% 45% at 22% 8%, rgba(126,120,236,0.75) 0%, rgba(126,120,236,0) 70%), radial-gradient(80% 45% at 92% 92%, rgba(83,128,255,0.55) 0%, rgba(83,128,255,0) 70%), linear-gradient(180deg, #121236 0%, #1B1D52 50%, #262A6E 100%)`;
+// Іконка: assets/icon.png знятої версії або ICON=… (варіант для тесту
+// іконки в App Store, PPO; layout.js → resolveIcon).
+export const appIcon = () =>
+  resolveIcon(process.env.ICON, { staticDir: STATIC_DIR, root: ROOT, cwd: process.cwd(), exists: fs.existsSync, join: path.join, isAbsolute: path.isAbsolute });
 const WIDGET_K = 404 / 335; // масштаб WidgetPreview при ширині 404 pt (k у makeStyles)
 function widgetImg(loc, part, { left, top, width, z = 2 }) {
   const name = `widget-${part}`;
@@ -294,7 +298,7 @@ function widgetScreen(loc, kind, { top, y1, rot = 0, z = 1 }) {
       ${widgetImg(loc, 'preview-wod', { left: 38, top: 76, width: 364 })}
       ${widgetImg(loc, 'preview-streak', { left: 38, top: 274, width: 170 })}
       <div class="abs" style="left:250px;top:280px;width:68px;text-align:center">
-        <img src="${STATIC('icon.png')}" style="width:64px;height:64px;border-radius:15px;display:block;margin:0 auto;box-shadow:0 4px 12px rgba(0,0,0,0.25)">
+        <img src="${fileUrl(appIcon())}" style="width:64px;height:64px;border-radius:15px;display:block;margin:0 auto;box-shadow:0 4px 12px rgba(0,0,0,0.25)">
         <div style="font-weight:600;font-size:12px;color:#fff;margin-top:5px;white-space:nowrap;text-shadow:0 1px 3px rgba(0,0,0,0.3)">LinguaLens</div>
       </div>`;
   }

@@ -8,7 +8,8 @@
 //   lib/*.mjs      — чисті модулі тієї ж версії (рядки, досягнення, геометрія
 //                    наліпок) з розширенням .mjs, щоб Node імпортував їх сам;
 //   lib/speech.src.js — список мов (LANGS) як текст: модуль тягне expo-speech;
-//   static/        — assets/icon.png і assets/lingo-*.png цієї версії.
+//   static/        — assets/icon*.png (головна іконка й альтернативні для
+//                    тесту іконки, PPO) і assets/lingo-*.png цієї версії.
 //
 //   node tools/store-shots/export.mjs            REF=… для іншої версії
 import { execFileSync } from 'node:child_process';
@@ -74,6 +75,10 @@ export function exportWeb({ ref = process.env.REF || 'HEAD', keep = false } = {}
     fs.copyFileSync(path.join(src, 'speech.js'), path.join(LIB, 'speech.src.js'));
     fs.mkdirSync(STATIC, { recursive: true });
     for (const f of STATIC_FILES) fs.copyFileSync(path.join(tmp, 'assets', f), path.join(STATIC, f));
+    // альтернативні іконки (icon-eye.png…): кадр 6 з ICON=… бере їх з тієї ж версії
+    for (const f of fs.readdirSync(path.join(tmp, 'assets')).filter((x) => /^icon-.+\.png$/.test(x))) {
+      fs.copyFileSync(path.join(tmp, 'assets', f), path.join(STATIC, f));
+    }
     console.log(`web export of ${ref} (${rev}) → ${WEB}`);
   } finally {
     fs.rmSync(tar, { force: true });

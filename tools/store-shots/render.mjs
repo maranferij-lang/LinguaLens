@@ -14,7 +14,14 @@
 //   --only=1,5        лише ці кадри (аркуші — з тим, що вже є)
 //   --locales=uk,es-MX лише ці локалі
 //   --no-sheets       без аркушів
-// Змінні середовища: REF, OUT, WORK, PLAYWRIGHT, CHROMIUM, PHOTOS (paths.mjs).
+//   --icon=icon-eye.png  інша іконка на кадрі 6 (тест іконки, PPO), те саме,
+//                     що ICON=…; аркуш тоді один: contact-icon.png
+// Змінні середовища: REF, OUT, WORK, PLAYWRIGHT, CHROMIUM, PHOTOS, ICON, PORT
+// (paths.mjs).
+//
+// Варіант кадру 6 для тесту іконки (екрани вже зняті основним рендером):
+//   OUT=…/ppo-icon-eye WORK=…/.work REF=… node tools/store-shots/render.mjs \
+//     --frames-only --only=6 --icon=icon-eye.png
 
 // copy.js — ESM без "type": "module" (його читає й jest). Node 22 визначає
 // це сам і лише попереджає; попередження прибираємо до першого імпорту.
@@ -39,6 +46,9 @@ const { STORE_LOCALES } = await import('./data.mjs');
 const LOCS = list('locales').length ? list('locales') : STORE_LOCALES;
 for (const l of LOCS) if (!STORE_LOCALES.includes(l)) throw new Error(`невідома локаль ${l}; є ${STORE_LOCALES.join(', ')}`);
 const ONLY = list('only').map(Number);
+// --icon=… — те саме, що ICON=… (compose.mjs читає змінну, коли малює кадр 6)
+if (list('icon').length) process.env.ICON = list('icon')[0];
+const ICON = process.env.ICON || null;
 
 // ─── 1. веб-збірка, арт, знімки екранів ───────────────────────────────────
 const ref = process.env.REF || 'HEAD';
@@ -134,7 +144,10 @@ async function sheet(sections, dest, { bg = '#F2F0EC' } = {}) {
   console.log('sheet', path.relative(OUT, dest));
 }
 const files = (loc, ns) => ns.map((n) => frameFile(loc, n)).filter((f) => fs.existsSync(f));
-if (!flag('--no-sheets')) {
+if (ICON && !flag('--no-sheets')) {
+  // варіант для тесту іконки: кадр 6 усіх локалей поруч
+  await sheet([{ title: `LinguaLens · кадр 6 з іконкою ${path.basename(ICON)} · ${rev}`, rows: LOCS.map((l) => [l, files(l, [6])]), w: 440, gap: 24 }], path.join(OUT, 'contact-icon.png'));
+} else if (!flag('--no-sheets')) {
   for (const loc of LOCS) {
     await sheet([{ title: `LinguaLens · App Store · ${loc} · ${rev}`, rows: [[loc, files(loc, FRAME_NUMBERS)]], w: 440, gap: 24 }], path.join(OUT, `contact-${loc}.png`));
   }
