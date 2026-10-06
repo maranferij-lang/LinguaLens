@@ -875,6 +875,7 @@ export default function OnboardingScreen({
   const slackPx = slack.key === phase ? slack.px : 0;
 
   // ═══ Рендер ═════════════════════════════════════════════════════════════
+  // Вітання: підзаголовка немає (правка власника 6.10.2026)
   if (phase === 'welcome') {
     const heroSize = Math.round(Math.max(170, Math.min(270, win.height * 0.3)));
     return (
@@ -890,7 +891,6 @@ export default function OnboardingScreen({
             <Text style={s.heroTitle} accessibilityRole="header">
               {t('ob3HookTitle')}
             </Text>
-            <Text style={s.heroText}>{t('ob3HookText')}</Text>
           </FadeIn>
         </View>
         <View style={s.heroFooter}>
@@ -1320,7 +1320,6 @@ const makeStyles = (C) =>
     brandName: { color: C.text, ...type(17, F.extra, { noLead: true }) },
     hero: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28 },
     heroTitle: { color: C.text, ...type(28, F.extra), textAlign: 'center', maxWidth: 340, marginTop: 6 },
-    heroText: { color: C.dim, ...type(16, F.reg), textAlign: 'center', marginTop: 10, maxWidth: 330 },
     heroFooter: { paddingHorizontal: 24, paddingTop: 8, paddingBottom: 24 },
     later: { alignItems: 'center', justifyContent: 'center', minHeight: 48 },
     laterText: { color: C.dim, ...type(16, F.bold, { noLead: true }) },

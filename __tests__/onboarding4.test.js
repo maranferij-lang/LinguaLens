@@ -348,14 +348,16 @@ describe('the language step', () => {
 });
 
 // ─── Вітання ───────────────────────────────────────────────────────────────
-test('welcome: big waving Lingo that hops in, and the new copy', async () => {
+// Правка власника 6.10.2026: підзаголовка немає — ні на екрані, ні в рядках
+test('welcome: big waving Lingo that hops in, the hello and the title; no subtitle', async () => {
   const tree = await render({ t: uk, uiLang: 'uk' });
   const hero = lingo(tree, 'welcome-lingo');
   expect(hero.props).toMatchObject({ pose: 'wave', enter: 'hop', waves: 3 });
   expect(hero.props.size).toBeGreaterThanOrEqual(160);
   expect(has(tree, 'Привіт! Я Лінго.')).toBe(true);
   expect(has(tree, 'Я стану твоїм провідником у світ мов')).toBe(true);
-  expect(has(tree, 'Вчитимемо слова з речей навколо тебе — по одному щодня.')).toBe(true);
+  expect(has(tree, 'Вчитимемо слова з речей навколо тебе — по одному щодня.')).toBe(false);
+  for (const l of LOCALES) expect(STRINGS[l]).not.toHaveProperty('ob3HookText');
   expect(STRINGS.en.ob3Hello).toBe('Hi! I’m Lingo.');
 });
 

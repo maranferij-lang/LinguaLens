@@ -23,7 +23,6 @@ export default {
     // вітання
     ob3Hello: 'Hi! I’m Lingo.',
     ob3HookTitle: 'I’ll be your guide to the world of languages',
-    ob3HookText: 'We’ll learn words from the things around you — one a day.',
     // яку мову вчиш
     obLangTitle: 'Which language are you learning?',
     obLangSearch: 'Search languages',
@@ -137,7 +136,6 @@ export default {
     // ── W3 ──
     ob3Hello: 'Привіт! Я Лінго.',
     ob3HookTitle: 'Я стану твоїм провідником у світ мов',
-    ob3HookText: 'Вчитимемо слова з речей навколо тебе — по одному щодня.',
     obLangTitle: 'Яку мову вчиш?',
     obLangSearch: 'Пошук мови',
     obLangSearchClear: 'Очистити пошук',
@@ -240,7 +238,6 @@ export default {
     // ── W3 ──
     ob3Hello: 'Hallo! Ich bin Lingo.',
     ob3HookTitle: 'Ich begleite dich in die Welt der Sprachen',
-    ob3HookText: 'Wir lernen Wörter von den Dingen um dich herum — eins pro Tag.',
     obLangTitle: 'Welche Sprache lernst du?',
     obLangSearch: 'Sprache suchen',
     obLangSearchClear: 'Suche löschen',
@@ -343,7 +340,6 @@ export default {
     // ── W3 ──
     ob3Hello: '¡Hola! Soy Lingo.',
     ob3HookTitle: 'Seré tu guía en el mundo de los idiomas',
-    ob3HookText: 'Aprenderemos palabras de las cosas que te rodean, una al día.',
     obLangTitle: '¿Qué idioma estás aprendiendo?',
     obLangSearch: 'Buscar idioma',
     obLangSearchClear: 'Borrar búsqueda',
