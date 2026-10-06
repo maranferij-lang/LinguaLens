@@ -10,7 +10,8 @@
 import http from 'http';
 import fs from 'fs';
 import path from 'path';
-import { LOCALES, STORE_LOCALES, WIDGET_WOD, WOD, collectionFor, firstWeekdayFor, olderWords, vocab } from './data.mjs';
+import { COLLECTION } from './art/objects.mjs';
+import { LOCALES, STORE_LOCALES, WIDGET_WOD, WOD, firstWeekdayFor, olderWords, variantsFor, vocab } from './data.mjs';
 import { ART, IPA_FONTS, LIB, UI, WEB, WORK, fileUrl, isMain, launch } from './paths.mjs';
 
 // layout.js — ESM без "type": "module" (його читає й jest): запущений сам,
@@ -96,7 +97,7 @@ const ACH_IDS = () => {
 //           Старіші — найдавніші, тож у колекції вони нижче за край кадру.
 // at      — [ключ, місце]: слово на цьому місці у сховищі (квіз іде в
 //           порядку сховища, коли Math.random пришпилено: сьоме питання)
-export function seedFor(loc, { theme = 'light', withScene = false, words: wordKeys = collectionFor(loc), origin, shapes, mugSaved = true, first = null, at = null, exclude = [], older = true, avatar = 'wave' }) {
+export function seedFor(loc, { theme = 'light', withScene = false, words: wordKeys = COLLECTION, origin, shapes, mugSaved = true, first = null, at = null, exclude = [], older = true, avatar = 'wave' }) {
   const L = LOCALES[loc];
   const now = Date.now();
   let keys = wordKeys.filter((k) => (mugSaved || k !== 'mug') && !exclude.includes(k));
@@ -140,8 +141,11 @@ export function seedFor(loc, { theme = 'light', withScene = false, words: wordKe
   const activity = {};
   for (let i = 0; i < 12; i++) activity[localKey(new Date(now - i * DAY))] = [6, 4, 9, 3, 7, 5, 8, 4, 6, 3, 5, 4][i];
   const wodDays = Array.from({ length: 14 }, (_, i) => ({ date: localKey(new Date(now + (i - 1) * DAY)), ...WOD[loc] }));
+  // Варіант мови навчання — обраний явно, як його зберігає список мов
+  // (data.mjs): від нього прапорець, голос і кеш слова дня (samePair).
   const settings = {
     targetLang: L.learn,
+    variants: variantsFor(loc),
     nativeLang: L.native,
     theme,
     wodEnabled: true,
@@ -163,7 +167,7 @@ export function seedFor(loc, { theme = 'light', withScene = false, words: wordKe
     ll_stats_v1: JSON.stringify({ quizzes: 14, perfectQuiz: 3, wordOfDaySeen: 9, scenes: 2, morningScan: 1 }),
     // усі досягнення «вже показані», тож тост «Відкрито!» не закриє екран
     ll_seen_ach_v1: JSON.stringify(ACH_IDS()),
-    ll_wod_v1: JSON.stringify({ lang: L.learn, native: L.native, sig: null, words: wodDays, fetchedAt: now }),
+    ll_wod_v1: JSON.stringify({ lang: L.learn, native: L.native, variant: L.variant, nativeVariant: L.nativeVariant, sig: null, words: wodDays, fetchedAt: now }),
     ll_sync_nudge_v1: '1',
     ll_review_asked_v1: String(now),
     ll_usage_v1: JSON.stringify({ scans: 18, limit: null, scenes: 2, sceneLimit: null }),
@@ -511,7 +515,7 @@ export async function captureAll({ locales = STORE_LOCALES, only = null } = {}) 
       await a.click(t('viewCollection'));
       await a.wait(1600);
       await a.shot('dict-grid');
-      const grid = collectionFor(loc).slice(0, 12);
+      const grid = COLLECTION.slice(0, 12);
       await a.measure('dict-grid', { ...Object.fromEntries(grid.map((k) => [k, { text: vocab(loc, k).word }])), seg: { text: t('viewList'), mode: 'card' } });
       await a.measureStickers('dict-grid', grid);
       await a.measureTabBar('dict-grid', t('tabProfile'));
@@ -605,9 +609,12 @@ export async function captureAll({ locales = STORE_LOCALES, only = null } = {}) 
       await a.click(t('obNext'));
       await a.wait(1100);
       await a.shot('pf-level');
+      // прапорець на чипі — варіанта мови (🇬🇧 для en-GB, 🇲🇽 для en-US):
+      // якщо застосунок узяв не той, у журналі буде «pf-level.flag: not found»
       await a.measure('pf-level', {
         title: { text: t('pfLevelTitle') },
         chip: { text: langName },
+        flag: { text: L.flag },
         value: { text: '8' },
         a1: { text: 'A1' },
         c2: { text: 'C2' },

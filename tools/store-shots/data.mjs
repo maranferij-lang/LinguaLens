@@ -1,37 +1,45 @@
 // Демо-дані для кожної локалі App Store (BRIEF §2.10): мова інтерфейсу —
 // мова телефона (застосунок іде за нею), слова на наліпках — мовою, яку
 // вчать, переклади — «моєю мовою» з налаштувань:
-//   uk     інтерфейс uk, вчить англійську, переклади uk
-//   en-US  інтерфейс en, вчить іспанську (з артиклями: la taza), переклади en
-//   en-GB  інтерфейс en, вчить англійську, переклади uk — так застосунок бачить
-//          українець з англійським телефоном
-//   es-MX  інтерфейс es, вчить англійську, переклади es (мексиканські:
-//          audífonos, tenis, lentes)
+//   uk     інтерфейс uk, вчить англійську США, переклади uk
+//   en-US  інтерфейс en, вчить іспанську Латинської Америки (з артиклями:
+//          la taza), переклади американською англійською
+//   en-GB  інтерфейс en, вчить англійську Британії, переклади uk — так
+//          застосунок бачить українець з англійським телефоном
+//   es-MX  інтерфейс es, вчить англійську США, переклади мексиканською
+//          іспанською (audífonos, tenis, lentes)
 // Слова, IPA й переклади — такі, які повертає сервер для цих предметів.
 // Перед поданням їх можна замінити справжніми сканами власника (BRIEF §9).
 //
-// Варіант мови — той, який людина чує в застосунку. Сервер (server/ai.js)
-// просить у моделі просто «English» чи «Spanish», а озвучка (LANGS у
-// src/speech.js) — en-US і es-ES. Тож англійська тут американська (sneaker,
-// /ˈhaʊsplænt/, /ˈɡlæsɪz/) у всіх трьох локалях, зокрема en-GB: британський
-// телефон не робить британськими ні слова моделі, ні голос. Іспанська, якої
-// вчать в en-US, — іспанська Іспанії, як голос es-ES і прапорець 🇪🇸: θ
-// у /la ˈtaθa/ (так пише й зразок сервера), auriculares, zapatilla, gafas.
-// IPA іспанських слів — з артиклем, як у сервера: «/la ˈtaθa/».
-import { COLLECTION } from './art/objects.mjs';
-
+// Варіант мови (src/langVariants.js) — той, який застосунок дав би людині
+// на цій сторінці: від нього прапорець, голос і те, як сервер пише слово
+// (VARIETIES у server/ai.js: правопис, словник, IPA). Англійська й в
+// Україні, і в Мексиці — американська за замовчуванням (🇺🇸, General
+// American: sneaker, /ˈhaʊsplænt/). Іспанська в США — латиноамериканська
+// за замовчуванням (🇲🇽, голос es-MX, сесео: /la ˈtasa/, audífonos, tenis,
+// lentes). Британську англійську (🇬🇧, RP: /ˈhaʊsplɑːnt/, trainer,
+// chopping board) людина в Британії обирає сама: за замовчуванням і там
+// американська, тож засів кладе вибір у settings.variants, як зробив би
+// список мов. IPA іспанських слів — з артиклем, як у сервера: «/la ˈtasa/».
 export const STORE_LOCALES = ['uk', 'en-US', 'en-GB', 'es-MX'];
 
-// ui — мова інтерфейсу (phone language), learn — мова навчання,
-// native — мова перекладів; browser — мова, яку бачить веб-збірка;
+// ui — мова інтерфейсу (phone language), learn — мова навчання й variant —
+// її варіант, flag — його прапорець у застосунку (VARIANTS у
+// src/langVariants.js); native — мова перекладів, nativeVariant — її
+// варіант з регіону телефона (nativeVariantOf; немає — у мови варіантів
+// немає); browser — мова, яку бачить веб-збірка (і регіон телефона);
 // date — локаль дат, які малює компонувальник (екран блокування).
 // Перший день тижня — не тут, а з регіону локалі (firstWeekdayFor нижче).
 export const LOCALES = {
-  uk: { ui: 'uk', learn: 'en', native: 'uk', name: 'Марко', browser: 'uk-UA', date: 'uk-UA' },
-  'en-US': { ui: 'en', learn: 'es', native: 'en', name: 'Mark', browser: 'en-US', date: 'en-US' },
-  'en-GB': { ui: 'en', learn: 'en', native: 'uk', name: 'Marko', browser: 'en-GB', date: 'en-GB' },
-  'es-MX': { ui: 'es', learn: 'en', native: 'es', name: 'Marco', browser: 'es-MX', date: 'es-MX' },
+  uk: { ui: 'uk', learn: 'en', variant: 'us', flag: '🇺🇸', native: 'uk', nativeVariant: null, name: 'Марко', browser: 'uk-UA', date: 'uk-UA' },
+  'en-US': { ui: 'en', learn: 'es', variant: 'latam', flag: '🇲🇽', native: 'en', nativeVariant: 'us', name: 'Mark', browser: 'en-US', date: 'en-US' },
+  'en-GB': { ui: 'en', learn: 'en', variant: 'gb', flag: '🇬🇧', native: 'uk', nativeVariant: null, name: 'Marko', browser: 'en-GB', date: 'en-GB' },
+  'es-MX': { ui: 'es', learn: 'en', variant: 'us', flag: '🇺🇸', native: 'es', nativeVariant: 'latam', name: 'Marco', browser: 'es-MX', date: 'es-MX' },
 };
+
+// settings.variants засіву: варіант мови навчання, обраний явно (так його
+// зберігає список мов, навіть коли він за замовчуванням).
+export const variantsFor = (loc) => ({ [LOCALES[loc].learn]: LOCALES[loc].variant });
 
 // Перший день тижня, як його віддає календар iPhone цього регіону
 // (expo-localization getCalendars()[0].firstWeekday: 1 неділя, 2 понеділок).
@@ -44,23 +52,11 @@ export function firstWeekdayFor(loc) {
   return (info.firstDay % 7) + 1; // ISO (1 пн … 7 нд) → iOS (1 нд, 2 пн …)
 }
 
-// Порядок наліпок у колекції (словник, засів). en-GB: американського
-// «sneaker» (британською trainer) немає серед перших дванадцяти, які видно
-// на кадрі 2; на його місці окуляри. Слово лишається в колекції нижче.
-export function collectionFor(loc) {
-  if (loc !== 'en-GB') return COLLECTION;
-  const out = COLLECTION.filter((k) => k !== 'glasses' && k !== 'sneaker');
-  out.splice(COLLECTION.indexOf('sneaker'), 0, 'glasses');
-  out.splice(COLLECTION.indexOf('glasses'), 0, 'sneaker');
-  return out;
-}
+// Набір слів: «мова навчання-варіант > мова перекладу».
+const SET = { uk: 'en-us>uk', 'en-US': 'es-latam>en', 'en-GB': 'en-gb>uk', 'es-MX': 'en-us>es' };
 
-// Набір слів: пара «мова навчання > мова перекладу». en-GB бачить ті самі
-// англійські слова, що й uk (див. вище).
-const SET = { uk: 'en>uk', 'en-US': 'es>en', 'en-GB': 'en>uk', 'es-MX': 'en>es' };
-
-// Англійська, американська вимова (голос en-US): key → [word, ipa]
-const EN = {
+// Англійська США (General American, голос en-US): key → [word, ipa]
+const EN_US = {
   mug: ['mug', '/mʌɡ/'],
   plant: ['houseplant', '/ˈhaʊsplænt/'],
   apple: ['apple', '/ˈæpəl/'],
@@ -84,29 +80,60 @@ const EN = {
   board: ['cutting board', '/ˈkʌtɪŋ bɔːrd/'],
   towel: ['dish towel', '/ˈdɪʃ taʊəl/'],
 };
-const withTranslations = (tr) => Object.fromEntries(Object.entries(EN).map(([k, [w, ipa]]) => [k, [w, ipa, tr[k]]]));
+// Англійська Британії (RP, голос en-GB): британські слова там, де вони
+// інші (trainer, rucksack, chopping board, tea towel), без «r» після
+// голосної, əʊ у window, ɒ у clock, ɑː у plant, glasses, banana.
+const EN_GB = {
+  mug: ['mug', '/mʌɡ/'],
+  plant: ['houseplant', '/ˈhaʊsplɑːnt/'],
+  apple: ['apple', '/ˈæpl/'],
+  headphones: ['headphones', '/ˈhedfəʊnz/'],
+  sneaker: ['trainer', '/ˈtreɪnə/'],
+  lemon: ['lemon', '/ˈlemən/'],
+  camera: ['camera', '/ˈkæmərə/'],
+  backpack: ['rucksack', '/ˈrʌksæk/'],
+  umbrella: ['umbrella', '/ʌmˈbrelə/'],
+  clock: ['alarm clock', '/əˈlɑːm klɒk/'],
+  book: ['book', '/bʊk/'],
+  cactus: ['cactus', '/ˈkæktəs/'],
+  glasses: ['glasses', '/ˈɡlɑːsɪz/'],
+  kettle: ['kettle', '/ˈketl/'],
+  banana: ['banana', '/bəˈnɑːnə/'],
+  scissors: ['scissors', '/ˈsɪzəz/'],
+  window: ['window', '/ˈwɪndəʊ/'],
+  pan: ['frying pan', '/ˈfraɪɪŋ pæn/'],
+  jar: ['jar', '/dʒɑː/'],
+  board: ['chopping board', '/ˈtʃɒpɪŋ bɔːd/'],
+  towel: ['tea towel', '/ˈtiː taʊəl/'],
+};
+const withTranslations = (en, tr) => Object.fromEntries(Object.entries(en).map(([k, [w, ipa]]) => [k, [w, ipa, tr[k]]]));
+const EN_UK = {
+  mug: 'кружка', plant: 'кімнатна рослина', apple: 'яблуко', headphones: 'навушники', sneaker: 'кросівок', lemon: 'лимон',
+  camera: 'фотоапарат', backpack: 'рюкзак', umbrella: 'парасолька', clock: 'будильник', book: 'книжка', cactus: 'кактус',
+  glasses: 'окуляри', kettle: 'чайник', banana: 'банан', scissors: 'ножиці',
+  window: 'вікно', pan: 'сковорідка', jar: 'банка', board: 'обробна дошка', towel: 'кухонний рушник',
+};
 
 // key → [word, ipa, translation]
 const VOCAB = {
-  'en>uk': withTranslations({
-    mug: 'кружка', plant: 'кімнатна рослина', apple: 'яблуко', headphones: 'навушники', sneaker: 'кросівок', lemon: 'лимон',
-    camera: 'фотоапарат', backpack: 'рюкзак', umbrella: 'парасолька', clock: 'будильник', book: 'книжка', cactus: 'кактус',
-    glasses: 'окуляри', kettle: 'чайник', banana: 'банан', scissors: 'ножиці',
-    window: 'вікно', pan: 'сковорідка', jar: 'банка', board: 'обробна дошка', towel: 'кухонний рушник',
-  }),
-  'en>es': withTranslations({
+  'en-us>uk': withTranslations(EN_US, EN_UK),
+  'en-gb>uk': withTranslations(EN_GB, EN_UK),
+  // переклади мексиканською іспанською (nativeVariant 'latam' телефона в Мексиці)
+  'en-us>es': withTranslations(EN_US, {
     mug: 'taza', plant: 'planta de interior', apple: 'manzana', headphones: 'audífonos', sneaker: 'tenis', lemon: 'limón',
     camera: 'cámara', backpack: 'mochila', umbrella: 'paraguas', clock: 'despertador', book: 'libro', cactus: 'cactus',
     glasses: 'lentes', kettle: 'tetera', banana: 'plátano', scissors: 'tijeras',
     window: 'ventana', pan: 'sartén', jar: 'frasco', board: 'tabla de picar', towel: 'trapo de cocina',
   }),
-  // іспанська Іспанії (голос es-ES), переклади англійською
-  'es>en': {
-    mug: ['la taza', '/la ˈtaθa/', 'mug'],
+  // іспанська Латинської Америки (голос es-MX): сесео (z і c перед e/i —
+  // /s/), мексиканські й нейтральні слова: los audífonos, los tenis, los
+  // lentes, la tabla de picar. Переклади американською англійською.
+  'es-latam>en': {
+    mug: ['la taza', '/la ˈtasa/', 'mug'],
     plant: ['la planta', '/la ˈplanta/', 'houseplant'],
-    apple: ['la manzana', '/la manˈθana/', 'apple'],
-    headphones: ['los auriculares', '/los awɾikuˈlaɾes/', 'headphones'],
-    sneaker: ['la zapatilla', '/la θapaˈtiʝa/', 'sneaker'],
+    apple: ['la manzana', '/la manˈsana/', 'apple'],
+    headphones: ['los audífonos', '/los awˈðifonos/', 'headphones'],
+    sneaker: ['los tenis', '/los ˈtenis/', 'sneakers'],
     lemon: ['el limón', '/el liˈmon/', 'lemon'],
     camera: ['la cámara', '/la ˈkamaɾa/', 'camera'],
     backpack: ['la mochila', '/la moˈtʃila/', 'backpack'],
@@ -114,32 +141,34 @@ const VOCAB = {
     clock: ['el despertador', '/el despeɾtaˈðoɾ/', 'alarm clock'],
     book: ['el libro', '/el ˈliβɾo/', 'book'],
     cactus: ['el cactus', '/el ˈkaktus/', 'cactus'],
-    glasses: ['las gafas', '/las ˈɡafas/', 'glasses'],
+    glasses: ['los lentes', '/los ˈlentes/', 'glasses'],
     kettle: ['la tetera', '/la teˈteɾa/', 'kettle'],
     banana: ['el plátano', '/el ˈplatano/', 'banana'],
     scissors: ['las tijeras', '/las tiˈxeɾas/', 'scissors'],
     window: ['la ventana', '/la benˈtana/', 'window'],
     pan: ['la sartén', '/la saɾˈten/', 'frying pan'],
     jar: ['el frasco', '/el ˈfɾasko/', 'jar'],
-    board: ['la tabla de cortar', '/la ˈtaβla ðe koɾˈtaɾ/', 'cutting board'],
-    towel: ['el trapo de cocina', '/el ˈtɾapo ðe koˈθina/', 'dish towel'],
+    board: ['la tabla de picar', '/la ˈtaβla ðe piˈkaɾ/', 'cutting board'],
+    towel: ['el trapo de cocina', '/el ˈtɾapo ðe koˈsina/', 'dish towel'],
   },
 };
 
-// Приклади (аркуш результату, звороти карток) для головних слів.
+// Приклади (аркуш результату, звороти карток) для головних слів. Англійські
+// речення однакові для США й Британії.
 const EN_UK_EXAMPLES = {
   mug: ['I drink my morning coffee from this red mug.', 'Я пʼю ранкову каву з цієї червоної кружки.'],
   plant: ['Water the houseplant once a week.', 'Поливай кімнатну рослину раз на тиждень.'],
   umbrella: ['Take an umbrella, it’s going to rain.', 'Візьми парасольку, буде дощ.'],
 };
 const EXAMPLES = {
-  'en>uk': EN_UK_EXAMPLES,
-  'es>en': {
+  'en-us>uk': EN_UK_EXAMPLES,
+  'en-gb>uk': EN_UK_EXAMPLES,
+  'es-latam>en': {
     mug: ['Tomo café en mi taza roja cada mañana.', 'I drink coffee from my red mug every morning.'],
     plant: ['Riego la planta una vez a la semana.', 'I water the plant once a week.'],
     umbrella: ['Llévate el paraguas, va a llover.', 'Take the umbrella, it’s going to rain.'],
   },
-  'en>es': {
+  'en-us>es': {
     mug: ['I drink my morning coffee from this red mug.', 'Tomo mi café de la mañana en esta taza roja.'],
     plant: ['Water the houseplant once a week.', 'Riega la planta una vez por semana.'],
     umbrella: ['Take an umbrella, it’s going to rain.', 'Llévate un paraguas, va a llover.'],
@@ -165,8 +194,8 @@ export const WOD = {
 // Кадр 6 (віджет) показує слово ІНШОГО дня — загальне слово рівня B2 з
 // server/topics/general.js, щоб кадри 5 і 6 не повторювались і набір не
 // виглядав лише для айтішників. topic 'general' → кепс «English · слово дня».
-// en-US: blizzard → «la ventisca», слово без θ: іспанська тут та, яку чути
-// в застосунку (es-ES), але кадр не мусить підкреслювати саме Іспанію.
+// en-US: blizzard → «la ventisca». deployment і resilient у RP звучать так
+// само, як у США, тож en-GB бере ту саму IPA.
 const RESILIENT = { word: 'resilient', ipa: '/rɪˈzɪliənt/', example: 'Kids are more resilient than we think.', topic: 'general' };
 export const WIDGET_WOD = {
   uk: { ...RESILIENT, translation: 'стійкий', example_translation: 'Діти стійкіші, ніж ми думаємо.' },
@@ -177,11 +206,12 @@ export const WIDGET_WOD = {
 
 // Старіші слова без наліпки — лише для профілю: разом 30 слів («етап 4 ·
 // 30 із 48»), і 30 — число, з яким узгоджується фіксований uk-підпис
-// «слів усього».
+// «слів усього». Іспанська Латинської Америки: «la cobija», не «la manta».
 const OLDER_EN_UK = [['chair', 'стілець'], ['lamp', 'лампа'], ['pillow', 'подушка'], ['fork', 'виделка'], ['spoon', 'ложка'], ['plate', 'тарілка'], ['key', 'ключ'], ['wallet', 'гаманець'], ['candle', 'свічка'], ['towel', 'рушник'], ['mirror', 'дзеркало'], ['blanket', 'ковдра'], ['bottle', 'пляшка'], ['notebook', 'блокнот']];
 const OLDER = {
-  'en>uk': OLDER_EN_UK,
-  'es>en': [['la silla', 'chair'], ['la lámpara', 'lamp'], ['la almohada', 'pillow'], ['el tenedor', 'fork'], ['la cuchara', 'spoon'], ['el plato', 'plate'], ['la llave', 'key'], ['la cartera', 'wallet'], ['la vela', 'candle'], ['la toalla', 'towel'], ['el espejo', 'mirror'], ['la manta', 'blanket'], ['la botella', 'bottle'], ['el cuaderno', 'notebook']],
-  'en>es': [['chair', 'silla'], ['lamp', 'lámpara'], ['pillow', 'almohada'], ['fork', 'tenedor'], ['spoon', 'cuchara'], ['plate', 'plato'], ['key', 'llave'], ['wallet', 'cartera'], ['candle', 'vela'], ['towel', 'toalla'], ['mirror', 'espejo'], ['blanket', 'cobija'], ['bottle', 'botella'], ['notebook', 'cuaderno']],
+  'en-us>uk': OLDER_EN_UK,
+  'en-gb>uk': OLDER_EN_UK,
+  'es-latam>en': [['la silla', 'chair'], ['la lámpara', 'lamp'], ['la almohada', 'pillow'], ['el tenedor', 'fork'], ['la cuchara', 'spoon'], ['el plato', 'plate'], ['la llave', 'key'], ['la cartera', 'wallet'], ['la vela', 'candle'], ['la toalla', 'towel'], ['el espejo', 'mirror'], ['la cobija', 'blanket'], ['la botella', 'bottle'], ['el cuaderno', 'notebook']],
+  'en-us>es': [['chair', 'silla'], ['lamp', 'lámpara'], ['pillow', 'almohada'], ['fork', 'tenedor'], ['spoon', 'cuchara'], ['plate', 'plato'], ['key', 'llave'], ['wallet', 'cartera'], ['candle', 'vela'], ['towel', 'toalla'], ['mirror', 'espejo'], ['blanket', 'cobija'], ['bottle', 'botella'], ['notebook', 'cuaderno']],
 };
 export const olderWords = (loc) => OLDER[SET[loc]].map(([word, translation]) => ({ word, translation }));
