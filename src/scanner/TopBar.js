@@ -1,6 +1,8 @@
-// Верхній ряд сканера (core.md A6, A10): ліворуч мова скану «EN ⌄», по
+// Верхній ряд сканера (core.md A6, A10): ліворуч мова скану «🇺🇸 EN ⌄», по
 // центру статус, праворуч ліхтарик. Ліхтарик завжди в одному місці. У
 // першому скані онбордингу ліворуч хрестик, а мови й статусу немає.
+// Прапорець у чипі — варіанта мови (src/langVariants.js): «EN» сам не
+// каже, американська це англійська чи британська.
 //
 // Статус — одне постійне місце для «скільки в мене лишилось»:
 //   pro  — значок PRO;
@@ -11,7 +13,8 @@ import { Pressable, Text, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import { IcBolt, IcChevron, IcClose } from '../icons';
 import { PCrown } from '../ProIcons';
-import { nameFor } from '../speech';
+import { flagFor, nameFor } from '../speech';
+import { variantOf } from '../langVariants';
 import { F, R } from '../theme';
 import { CAM, CAM_FONT, CamGlass } from './CamGlass';
 import { BAR_H, SIDE, TOP } from './layout';
@@ -19,8 +22,12 @@ import { BAR_H, SIDE, TOP } from './layout';
 const CHIP_H = 36;
 
 export function LangChip({ lang, onPress, disabled, t }) {
+  const variant = variantOf(lang);
   const body = (
-    <CamGlass style={{ height: CHIP_H, flexDirection: 'row', alignItems: 'center', gap: 4, paddingLeft: 13, paddingRight: 9 }}>
+    <CamGlass style={{ height: CHIP_H, flexDirection: 'row', alignItems: 'center', gap: 4, paddingLeft: 10, paddingRight: 8 }}>
+      <Text style={{ fontSize: 15, lineHeight: 19 }} maxFontSizeMultiplier={CAM_FONT} accessible={false}>
+        {flagFor(lang, variant)}
+      </Text>
       <Text style={{ color: CAM.text, fontSize: 15, fontFamily: F.extra, letterSpacing: 0.6 }} maxFontSizeMultiplier={CAM_FONT}>
         {String(lang || '').toUpperCase()}
       </Text>
@@ -36,7 +43,7 @@ export function LangChip({ lang, onPress, disabled, t }) {
       hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
       style={disabled ? { opacity: 0.45 } : null}
       accessibilityRole="button"
-      accessibilityLabel={t('scanLangA11y', { l: nameFor(lang) })}
+      accessibilityLabel={t('scanLangA11y', { l: nameFor(lang, variant) })}
       accessibilityState={{ disabled: !!disabled }}
     >
       {body}
@@ -159,7 +166,8 @@ export function CloseButton({ onPress, t }) {
 // центру. На SE слоти вужчі, щоб довгий чип Pro вліз у ряд.
 // offset — на скільки сканер зайшов під статус-бар: ряд лишається під ним.
 export default function TopBar({ firstScan, lang, onLang, langDisabled, status, onPro, torch, onTorch, onClose, wide, offset = 0, t }) {
-  const slot = wide ? { width: 76 } : null;
+  // 84: чип «🇺🇸 EN ⌄» з прапорцем варіанта
+  const slot = wide ? { width: 84 } : null;
   return (
     <View
       pointerEvents="box-none"

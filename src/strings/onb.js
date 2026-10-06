@@ -68,6 +68,11 @@ export default {
     langName_th: 'Thai',
     langName_vi: 'Vietnamese',
     langName_id: 'Indonesian',
+    // варіанти мов (src/langVariants.js): регіон у дужках після назви мови
+    langRegion_us: 'US',
+    langRegion_gb: 'UK',
+    langRegion_es: 'Spain',
+    langRegion_latam: 'Latin America',
     // цілі з мовою
     pfGoalsTitleLang: 'Why are you learning {lang}?',
     pfGoalsTitleLangName: '{name}, why are you learning {lang}?',
@@ -180,6 +185,11 @@ export default {
     langName_th: 'Тайська',
     langName_vi: 'Вʼєтнамська',
     langName_id: 'Індонезійська',
+    // варіанти мов (src/langVariants.js): регіон у дужках після назви мови
+    langRegion_us: 'США',
+    langRegion_gb: 'Британія',
+    langRegion_es: 'Іспанія',
+    langRegion_latam: 'Латинська Америка',
     pfGoalsTitleLang: 'Для чого ти вчиш {lang}?',
     pfGoalsTitleLangName: '{name}, для чого ти вчиш {lang}?',
     obBuildTitle: 'Складаємо твій план…',
@@ -282,6 +292,11 @@ export default {
     langName_th: 'Thailändisch',
     langName_vi: 'Vietnamesisch',
     langName_id: 'Indonesisch',
+    // варіанти мов (src/langVariants.js): регіон у дужках після назви мови
+    langRegion_us: 'USA',
+    langRegion_gb: 'Großbritannien',
+    langRegion_es: 'Spanien',
+    langRegion_latam: 'Lateinamerika',
     pfGoalsTitleLang: 'Warum lernst du {lang}?',
     pfGoalsTitleLangName: '{name}, warum lernst du {lang}?',
     obBuildTitle: 'Wir stellen deinen Plan zusammen…',
@@ -384,6 +399,11 @@ export default {
     langName_th: 'Tailandés',
     langName_vi: 'Vietnamita',
     langName_id: 'Indonesio',
+    // варіанти мов (src/langVariants.js): регіон у дужках після назви мови
+    langRegion_us: 'EE. UU.',
+    langRegion_gb: 'Reino Unido',
+    langRegion_es: 'España',
+    langRegion_latam: 'Latinoamérica',
     pfGoalsTitleLang: '¿Para qué aprendes {lang}?',
     pfGoalsTitleLangName: '{name}, ¿para qué aprendes {lang}?',
     obBuildTitle: 'Preparando tu plan…',

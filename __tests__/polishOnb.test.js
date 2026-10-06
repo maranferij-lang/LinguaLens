@@ -100,7 +100,7 @@ describe('the language you learn', () => {
       <OnboardingScreen t={t} uiLang="en" onDone={onDone} targetLang="es" nativeLang="en" phoneNative="en" onLanguages={onLanguages} {...props} />
     );
     await tap(tree, t('obStart'));
-    await act(async () => control(tree, 'Español, Spanish').props.onPress());
+    await act(async () => control(tree, 'Español (España), Spanish (Spain)').props.onPress());
     await act(async () => jest.advanceTimersByTime(300));
     await tap(tree, t('obSkip')); // імʼя
     await tap(tree, t('obSkip')); // звідки
@@ -113,7 +113,7 @@ describe('the language you learn', () => {
 
   test('picked on its own step and saved through onLanguages; on the level step it is a plain label', async () => {
     const { tree, onLanguages } = await toLevel();
-    expect(onLanguages).toHaveBeenCalledWith({ targetLang: 'es', nativeLang: 'en' });
+    expect(onLanguages).toHaveBeenCalledWith({ targetLang: 'es', nativeLang: 'en', targetVariant: 'es' });
     expect(has(tree, t('pfLevelTitle'))).toBe(true);
     expect(pill(tree)).toBeUndefined();
     expect(has(tree, 'Español')).toBe(true);
@@ -501,7 +501,7 @@ test('declined notifications: the big button moves on, Settings is a quiet secon
   const spy = jest.spyOn(Linking, 'openSettings').mockImplementation(async () => {});
   const tree = await mount(<OnboardingScreen t={t} uiLang="en" onDone={() => {}} nativeLang="uk" phoneNative="uk" />);
   await tap(tree, t('obStart'));
-  await act(async () => control(tree, 'English').props.onPress());
+  await act(async () => control(tree, 'English (US)').props.onPress());
   await act(async () => jest.advanceTimersByTime(300));
   for (let i = 0; i < 5; i++) await tap(tree, t('obSkip'));
   await tap(tree, t('obNext')); // що таке слово дня

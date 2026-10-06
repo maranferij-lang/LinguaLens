@@ -227,6 +227,8 @@ describe('anonymous statistics', () => {
       // мова інтерфейсу — мова телефону (у тестах англійська), а не «моя мова»
       ui_lang: 'en',
       target_lang: 'en',
+      // варіант мови навчання: англійська за замовчуванням — США
+      target_variant: 'us',
       native_lang: 'uk',
       level: 8,
       goals: ['work'],

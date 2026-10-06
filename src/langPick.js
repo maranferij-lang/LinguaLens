@@ -8,8 +8,15 @@
 // «inglés») — так і в списку; з великої лише на початку речення
 // (реакція Lingo: «Англійська — чудовий вибір!»). Англійською й
 // німецькою назви мов завжди з великої.
+//
+// Варіанти мов (src/langVariants.js): у списку мови навчання англійська
+// й іспанська — по рядку на варіант («англійська (США)», «англійська
+// (Британія)»). Рядок списку — ключ 'en-gb' (optionKey); мова без
+// варіантів — просто код. Розділи, пошук і порядок рахуються за мовами, а
+// на рядки їх розгортає expandOptions.
 import { LANGS } from './speech';
 import { STRINGS } from './i18n';
+import { expandOptions, parseOption, variantInfo } from './langVariants';
 
 export const CODES = LANGS.map((l) => l.code);
 
@@ -43,6 +50,20 @@ export function langLabel(code, t, ui, { capital = false } = {}) {
   return LOWER_UI.includes(ui) ? name.toLocaleLowerCase(ui) : name;
 }
 
+// Назва варіанта мовою інтерфейсу: «англійська (США)», «Englisch
+// (Großbritannien)». Регіон у дужках — з великої, як і пишеться; мала чи
+// велика — лише сама назва мови (як у langLabel). Без варіанта — langLabel.
+export function variantLabel(code, variant, t, ui, opts = {}) {
+  const name = langLabel(code, t, ui, opts);
+  return variantInfo(code, variant) ? `${name} (${t('langRegion_' + variant)})` : name;
+}
+
+// Те саме для ключа рядка списку ('en-gb' чи 'de')
+export function optionLabel(key, t, ui, opts = {}) {
+  const { code, variant } = parseOption(key);
+  return variantLabel(code, variant, t, ui, opts);
+}
+
 // Для пошуку: нижній регістр, без діакритики («Español» → «espanol»,
 // «Čeština» → «cestina», «й» → «и»), ʼ і дефіси — як пробіли.
 export function fold(s) {
@@ -68,7 +89,23 @@ export function matches(code, q, t) {
   const needle = fold(q);
   if (!needle) return true;
   if (code.startsWith(needle)) return true;
-  return haystack(code, t).some((h) => h.startsWith(needle) || h.split(' ').some((w) => w.startsWith(needle)));
+  return hit(haystack(code, t), needle);
+}
+
+function hit(list, needle) {
+  return list.some((h) => h.startsWith(needle) || h.split(' ').some((w) => w.startsWith(needle)));
+}
+
+// Рядок варіанта знаходить і сама мова («англ», «español» — обидва
+// варіанти), і те, що є лише в нього: регіон мовою інтерфейсу й
+// англійською, ендонім варіанта і слова з terms («brit», «mexic», «latam»).
+export function optionMatches(key, q, t) {
+  const { code, variant } = parseOption(key);
+  if (matches(code, q, t)) return true;
+  const v = variantInfo(code, variant);
+  if (!v) return false;
+  const needle = fold(q);
+  return hit([v.name, t('langRegion_' + variant), STRINGS.en['langRegion_' + variant], ...(v.terms || [])].map(fold), needle);
 }
 
 // Усі мови за абеткою назви мовою інтерфейсу.
@@ -92,8 +129,14 @@ export function searchLangs(q, t, ui = 'en') {
 // Розділи списку для мови навчання. Без запиту — «Популярні» й «Усі мови»
 // (решта за абеткою); із запитом — лише збіги одним списком. native — мова
 // перекладу: вона в списку лишається (вимкнена, з підписом), але в
-// «Популярні» не потрапляє.
-export function langSections({ native, query = '', t, ui = 'en', popular = true }) {
+// «Популярні» не потрапляє. variants — рядки замість кодів: мови з
+// варіантами розгорнуті (expandOptions), «Популярні» — ті самі мови.
+export function langSections({ native, query = '', t, ui = 'en', popular = true, variants = false }) {
+  if (variants) {
+    if (fold(query)) return { results: expandOptions(sortLangs(ui, t)).filter((k) => optionMatches(k, query, t)) };
+    const top = popular ? popularTargets(native) : [];
+    return { popular: expandOptions(top), all: expandOptions(sortLangs(ui, t).filter((c) => !top.includes(c))) };
+  }
   if (fold(query)) return { results: searchLangs(query, t, ui) };
   const top = popular ? popularTargets(native) : [];
   return { popular: top, all: sortLangs(ui, t).filter((c) => !top.includes(c)) };

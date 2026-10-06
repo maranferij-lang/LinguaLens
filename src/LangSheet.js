@@ -15,12 +15,21 @@
 // вибору не дає. Нові — необов’язкові: mode 'native' — вибір мови перекладу
 // («Моя рідна мова»): current тоді — мова перекладу, other — мова навчання
 // (її не обрати); phone — мова телефона (підпис «з телефона»); title /
-// text — свій заголовок; ui — мова інтерфейсу (сортування й назви).
+// text — свій заголовок; ui — мова інтерфейсу (сортування й назви);
+// variant — варіант мови навчання (без нього — той, що обраний зараз).
+//
+// Варіанти мов (src/langVariants.js): у списку мови навчання англійська й
+// іспанська — по рядку на варіант: прапорець і ендонім варіанта («English
+// (UK)»), під ним назва мовою інтерфейсу («англійська (Британія)»), якщо
+// вона інша. onPick(code, variant) — для мови з варіантами другим
+// аргументом іде id варіанта, для решти onPick(code), як і раніше. Мову
+// перекладу вибирають без варіантів: її варіант дає регіон телефона.
 import { useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { LANGS } from './speech';
-import { langLabel, langSections, sortLangs } from './langPick';
+import { LANGS, flagFor, nameFor } from './speech';
+import { langSections, optionLabel, sortLangs } from './langPick';
+import { expandOptions, optionKey, parseOption, variantOf } from './langVariants';
 import { phoneUiLang } from './locale';
 import { IcCheck, IcClose, IcSearch } from './icons';
 import { CAPS, F, R, type, useTheme } from './theme';
@@ -33,32 +42,49 @@ export function langOptions(current, native) {
   return top ? [top, ...rest] : rest;
 }
 
-const byCode = Object.fromEntries(LANGS.map((l) => [l.code, l]));
-
-// Один рядок мови. note — підпис праворуч замість назви мовою інтерфейсу
-// («з телефона», «твоя мова перекладу»).
-function LangRow({ code, ui, t, on, disabled, note, onPress, first, s, C }) {
-  const l = byCode[code];
-  const local = langLabel(code, t, ui);
-  const right = note || (local.toLocaleLowerCase(ui) === l.name.toLocaleLowerCase(ui) ? '' : local);
+// Один рядок мови (code — ключ рядка: код чи 'en-gb'). note — підпис
+// праворуч замість назви мовою інтерфейсу («з телефона», «твоя мова
+// перекладу»). У варіанта назва мовою інтерфейсу довша («іспанська
+// (Латинська Америка)») — вона йде другим рядком під ендонімом, щоб на
+// iPhone SE не обрізалась.
+function LangRow({ code: key, ui, t, on, disabled, note, onPress, first, s, C }) {
+  const { code, variant } = parseOption(key);
+  const name = nameFor(code, variant);
+  const local = optionLabel(key, t, ui);
+  const same = local.toLocaleLowerCase(ui) === name.toLocaleLowerCase(ui);
+  const right = note || (variant || same ? '' : local);
+  const under = variant && !same ? local : '';
   return (
     <Pressable
-      testID={'lang-' + code}
+      testID={'lang-' + key}
       style={({ pressed }) => [s.row, !first && s.rowSep, on && s.rowOn, pressed && !disabled && !on && { backgroundColor: C.card2 }, disabled && s.rowOff]}
-      onPress={disabled ? undefined : () => onPress(code)}
+      onPress={disabled ? undefined : () => onPress(key)}
       disabled={disabled}
       accessibilityRole="radio"
       accessibilityState={{ checked: on, disabled: !!disabled }}
-      accessibilityLabel={[l.name, local !== l.name ? local : null, note].filter(Boolean).join(', ')}
+      accessibilityLabel={[name, same ? null : local, note].filter(Boolean).join(', ')}
     >
-      <Text style={s.flag}>{l.flag}</Text>
-      <Text style={[s.name, on && { color: C.accent }]} numberOfLines={1}>
-        {l.name}
-      </Text>
+      <Text style={s.flag}>{flagFor(code, variant || undefined)}</Text>
+      {under ? (
+        <View style={s.twoLines}>
+          <Text style={[s.name, on && { color: C.accent }]} numberOfLines={1}>
+            {name}
+          </Text>
+          <Text style={[s.under, on && { color: C.accent }]} numberOfLines={1}>
+            {under}
+          </Text>
+        </View>
+      ) : (
+        <Text style={[s.name, on && { color: C.accent }]} numberOfLines={1}>
+          {name}
+        </Text>
+      )}
       {right ? (
         <Text style={[s.local, on && { color: C.accent }]} numberOfLines={1}>
           {right}
         </Text>
+      ) : under ? (
+        <View style={{ flex: 1 }} />
       ) : null}
       {on ? (
         <View style={s.check}>
@@ -74,36 +100,57 @@ function Group({ codes, render, s }) {
   return <View style={s.group}>{codes.map((c, i) => render(c, i === 0))}</View>;
 }
 
-// value — обрана мова (null — ще нічого); off — мова, якої тут обрати не
-// можна, offNote — чому; phone — мова телефона (підпис «з телефона»);
-// mode 'target' — з «Популярними» під мову перекладу (popularFor), 'native'
-// — просто абетка з поточною згори.
-export function LangList({ value = null, off = null, offNote = '', phone = null, popularFor = null, mode = 'target', onPick, t, ui, search = true }) {
+// value — обрана мова (null — ще нічого); variant — її варіант (без нього
+// — обраний зараз чи за замовчуванням); off — мова, якої тут обрати не
+// можна (з усіма варіантами), offNote — чому; phone — мова телефона
+// (підпис «з телефона»); mode 'target' — з «Популярними» під мову
+// перекладу (popularFor) і варіантами окремими рядками, 'native' — просто
+// абетка мов з поточною згори.
+export function LangList({
+  value = null,
+  variant = null,
+  off = null,
+  offNote = '',
+  phone = null,
+  popularFor = null,
+  mode = 'target',
+  onPick,
+  t,
+  ui,
+  search = true,
+}) {
   const { C } = useTheme();
   const s = useMemo(() => makeStyles(C), [C]);
   const lang = ui || phoneUiLang();
   const [q, setQ] = useState('');
+  const withVariants = mode === 'target';
+  const current = value && withVariants ? optionKey(value, variant || variantOf(value)) : value;
 
-  function pick(code) {
+  function pick(key) {
     Haptics.selectionAsync();
-    onPick(code);
+    const { code, variant: v } = parseOption(key);
+    if (v) onPick(code, v);
+    else onPick(code);
   }
 
-  const row = (code, first) => (
-    <LangRow
-      key={code}
-      code={code}
-      ui={lang}
-      t={t}
-      first={first}
-      on={code === value}
-      disabled={code === off}
-      note={code === off ? offNote : code === phone ? t('obNativePhone') : ''}
-      onPress={pick}
-      s={s}
-      C={C}
-    />
-  );
+  const row = (key, first) => {
+    const code = parseOption(key).code;
+    return (
+      <LangRow
+        key={key}
+        code={key}
+        ui={lang}
+        t={t}
+        first={first}
+        on={key === current}
+        disabled={code === off}
+        note={code === off ? offNote : code === phone ? t('obNativePhone') : ''}
+        onPress={pick}
+        s={s}
+        C={C}
+      />
+    );
+  };
 
   let body;
   if (mode === 'native' && !q.trim()) {
@@ -112,8 +159,9 @@ export function LangList({ value = null, off = null, offNote = '', phone = null,
     const all = sortLangs(lang, t).filter((c) => c !== head);
     body = <Group codes={head ? [head, ...all] : all} render={row} s={s} />;
   } else {
-    const sec = langSections({ native: popularFor, query: q, t, ui: lang, popular: mode === 'target' });
+    const sec = langSections({ native: popularFor, query: q, t, ui: lang, popular: mode === 'target', variants: withVariants });
     if (sec.results) {
+      const everything = sortLangs(lang, t);
       body = sec.results.length ? (
         <Group codes={sec.results} render={row} s={s} />
       ) : (
@@ -121,7 +169,7 @@ export function LangList({ value = null, off = null, offNote = '', phone = null,
           <Text style={s.none} accessibilityLiveRegion="polite">
             {t('obLangNone')}
           </Text>
-          <Group codes={sortLangs(lang, t)} render={row} s={s} />
+          <Group codes={withVariants ? expandOptions(everything) : everything} render={row} s={s} />
         </>
       );
     } else {
@@ -167,7 +215,7 @@ export function LangList({ value = null, off = null, offNote = '', phone = null,
   );
 }
 
-export default function LangSheet({ visible, current, native, other, onPick, onClose, t, mode = 'target', phone = null, title, text, ui }) {
+export default function LangSheet({ visible, current, variant = null, native, other, onPick, onClose, t, mode = 'target', phone = null, title, text, ui }) {
   const { C } = useTheme();
   const s = useMemo(() => makeStyles(C), [C]);
   const nativeMode = mode === 'native';
@@ -198,6 +246,7 @@ export default function LangSheet({ visible, current, native, other, onPick, onC
             <LangList
               mode={mode}
               value={current}
+              variant={variant}
               off={off}
               offNote={t(nativeMode ? 'obLangIsTarget' : 'obLangIsNative')}
               phone={phone}
@@ -277,6 +326,8 @@ const makeStyles = (C) =>
     rowOff: { opacity: 0.45 },
     flag: { fontSize: 22 },
     name: { flexShrink: 1, color: C.text, ...type(17, F.semi, { noLead: true }) },
+    twoLines: { flexShrink: 1, paddingVertical: 7 },
+    under: { color: C.dim, ...type(13, F.semi, { noLead: true }), marginTop: 1 },
     local: { flex: 1, textAlign: 'right', color: C.dim, ...type(13, F.semi, { noLead: true }) },
     check: { width: 22, height: 22, borderRadius: 11, backgroundColor: C.accent, alignItems: 'center', justifyContent: 'center' },
   });
