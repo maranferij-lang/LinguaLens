@@ -779,7 +779,7 @@ function Checker({ w, h, a, b }) {
   );
 }
 
-// Плитка «Stories»: градієнт іконки застосунку, як і тло, яке отримає Instagram
+// Плитка «Stories»: фірмовий градієнт (STORIES_GRADIENT), як і тло, яке отримає Instagram
 function StoriesGradient() {
   return (
     <Svg width="100%" height="100%" style={StyleSheet.absoluteFill} pointerEvents="none">
