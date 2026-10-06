@@ -54,9 +54,6 @@ export function applyPhotos(dir) {
     fs.copyFileSync(src, path.join(ART, f));
     const name = f.replace(/\.jpg$/, '');
     if (SCENE_PHOTOS.includes(name)) {
-      // прозорий шар намальованої чашки (hero-mug.png) до фото не пасує:
-      // кадр 1 ріже наліпку з самого фото, як застосунок
-      for (const layer of fs.readdirSync(ART).filter((x) => x.startsWith(name + '-') && x.endsWith('.png'))) fs.rmSync(path.join(ART, layer));
       const { width, height } = jpegSize(src);
       if (Math.abs(width / height - 9 / 16) > 0.02) warn.push(`${f}: ${width}×${height}, а треба портрет 9:16 (1080×1920)`);
       const sc = given?.[name];

@@ -1,10 +1,11 @@
 // Геометрія кадрів App Store (tools/store-shots/layout.js): спільний нижній
-// край кадрів 3, 5 і 7 (без порожньої смуги внизу), симетричне лице картки
-// на кадрі 3, предмети, вимкнені на картці сцени кадру 8, і вибір іконки
-// для варіанта кадру 6 (тест іконки, PPO).
+// край кадрів 3, 5 і 7 (без порожньої смуги внизу), лице картки й квіз на
+// кадрі 3, нахилена картка тижня цілком у кадрі 8, предмети, вимкнені на
+// картці сцени кадру 8, дата екрана блокування й вибір іконки для варіанта
+// кадру 6 (тест іконки, PPO).
 import path from 'path';
 
-import { BOTTOM, cardBelow, cardScene, faceCrop, flashcardsLayout, HIDDEN_ON_CARD, resolveIcon, stackTwo } from '../tools/store-shots/layout';
+import { BOTTOM, cardBelow, cardScene, faceCrop, flashcardsTrio, HIDDEN_ON_CARD, insetLeft, lockScreenDate, resolveIcon, rotatedBox, stackTwo, TRIO } from '../tools/store-shots/layout';
 
 const H = 2868;
 
@@ -22,13 +23,50 @@ describe('store shots layout', () => {
     expect(y1 - (f.speak.y + f.speak.h)).toBe(64);
   });
 
-  test('frame 3: cards and buttons end on the shared bottom', () => {
-    const l = flashcardsLayout({ top: 710, backH: 730, frontH: 780, btnH: 183 });
-    expect(l.end).toBeCloseTo(BOTTOM, 5);
-    expect(l.fTop).toBeGreaterThanOrEqual(710 + 730 + 100); // проміжок не менший за 100
-    // забагато місця: проміжки впираються в межі, низ не їде за BOTTOM
-    const loose = flashcardsLayout({ top: 710, backH: 300, frontH: 300, btnH: 150 });
-    expect(loose.end).toBeLessThanOrEqual(BOTTOM);
+  // справжні виміри uk (pt): зворот — наліпка й переклад, лице — середина
+  // картки довкола слова, квіз — від «7 / 10» до зеленої відповіді
+  const trio = () => flashcardsTrio({ top: 700, back: { w: 400, h: 266 }, front: { w: 230, h: 203 }, quiz: { w: 440, h: 281 }, W: 1320 });
+
+  test('frame 3: the word side is the biggest thing on the frame, the quiz ends on the shared bottom', () => {
+    const l = trio();
+    // слово на лиці ~34 pt × k: не менше ~130 px, як фішка кадру 1 (BRIEF: «mug» читається в пошуку)
+    expect(34 * l.front.k).toBeGreaterThanOrEqual(130);
+    expect(l.front.k).toBeGreaterThan(l.back.k);
+    expect(l.quiz.top + 281 * l.quiz.k).toBeCloseTo(BOTTOM, 5);
+    expect(440 * l.quiz.k).toBeLessThanOrEqual(TRIO.maxQuizW + 1e-6);
+  });
+
+  test('frame 3: the front only touches the back (its translation stays visible) and clears the quiz', () => {
+    const l = trio();
+    expect(l.front.top).toBeGreaterThanOrEqual(700 + 266 * l.back.k - TRIO.overlap);
+    expect(l.front.top + 203 * l.front.k + TRIO.gap).toBeLessThanOrEqual(l.quiz.top + 1e-6);
+  });
+
+  test('a rotated box: bounds grow with the angle and stay centred', () => {
+    const b = rotatedBox({ left: 100, top: 200, w: 600, h: 1000, deg: 6 });
+    expect((b.x1 + b.x2) / 2).toBeCloseTo(400, 6);
+    expect((b.y1 + b.y2) / 2).toBeCloseTo(700, 6);
+    expect(b.x2 - b.x1).toBeGreaterThan(600);
+    expect(rotatedBox({ left: 0, top: 0, w: 10, h: 20, deg: 0 })).toEqual({ x1: 0, y1: 0, x2: 10, y2: 20 });
+  });
+
+  test('frame 8: the tilted week card keeps all four corners inside the frame', () => {
+    const w = 600, h = Math.round((600 * 1920) / 1080);
+    const left = insetLeft({ w, h, rot: 6, W: 1320, margin: 60 });
+    const b = rotatedBox({ left, top: 1470, w, h, deg: 6 });
+    expect(b.x2).toBeCloseTo(1320 - 60, 6);
+    expect(b.x1).toBeGreaterThanOrEqual(40);
+    expect(b.y2).toBeLessThanOrEqual(2868 - 40);
+    // раніше картка стояла на W − 40 − 600 і різала правий край
+    expect(rotatedBox({ left: 1320 - 40 - w, top: 1470, w, h, deg: 6 }).x2).toBeGreaterThan(1320);
+  });
+
+  test('frame 6: the Lock Screen date is written the way iOS writes it in each language', () => {
+    const d = new Date(2026, 9, 6);
+    expect(lockScreenDate('uk-UA', d)).toBe('вівторок, 6 жовтня');
+    expect(lockScreenDate('es-MX', d)).toBe('martes, 6 de octubre');
+    expect(lockScreenDate('en-US', d)).toBe('Tuesday, October 6');
+    expect(lockScreenDate('en-GB', d)).toBe('Tuesday 6 October');
   });
 
   test('frame 5: the word-of-the-day card grows down to the shared bottom', () => {

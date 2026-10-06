@@ -1,10 +1,8 @@
 // Раструє намальований арт і обводить силует кожного предмета так, як його
 // віддала б застосунку модель розпізнавання (16–32 точки):
 //   WORK/art/obj-<name>.jpg    «фото» предмета, 800×800 (з нього ріжеться наліпка)
-//   WORK/art/hero.jpg          чашка на столі, 1080×1920
-//   WORK/art/hero-mug.png      та сама чашка без тла (прозорий PNG 1080×1920):
-//                              з неї кадр 1 ріже наліпку, щоб у вирізку не
-//                              потрапили ні стільниця, ні стіна в ручці
+//   WORK/art/hero.jpg          чашка на столі, 1080×1920 (з нього ж кадр 1
+//                              ріже наліпку по контуру, як застосунок)
 //   WORK/art/kitchen.jpg       кухня, 1080×1920
 //   WORK/art/shapes.json       { objects: {name: {shape}}, hero: {...}, kitchen: {...} }
 // shape   = [[x, y], …] 0–1 у квадратному фото (по ньому обрізає наліпка);
@@ -87,6 +85,9 @@ window.trace = async (svg, W, H, k, N, dil) => {
 
 export async function buildArt() {
   fs.mkdirSync(OUT, { recursive: true });
+  // прозорий шар чашки зі старих версій рендера: наліпку кадру 1 тепер
+  // ріжемо з самого фото, як застосунок
+  for (const f of fs.readdirSync(OUT)) if (/^hero-.+\.png$/.test(f)) fs.rmSync(path.join(OUT, f));
   const browser = await launch();
   const page = await browser.newPage();
   await page.setContent('<html><body></body></html>');
@@ -107,15 +108,6 @@ export async function buildArt() {
   for (const [key, sc] of [['hero', heroScene()], ['kitchen', kitchenScene()]]) {
     const jpg = await page.evaluate(([svg, w, h]) => raster(svg, w, h), [sceneSvg(sc), sc.width, sc.height]);
     fs.writeFileSync(path.join(OUT, `${key}.jpg`), Buffer.from(jpg, 'base64'));
-    // Кадр 1: предмет окремим прозорим шаром. Наліпку кадру ріже той самий
-    // контур, але фото під ним — лише сама чашка: як у вдалого скану, де
-    // контур щільно обходить предмет, без смуги столу й стіни в ручці.
-    if (key === 'hero') {
-      for (const o of sc.objects) {
-        const png = await page.evaluate(([svg, w, h]) => raster(svg, w, h, 'image/png'), [sceneSvg(sc, o.key), sc.width, sc.height]);
-        fs.writeFileSync(path.join(OUT, `${key}-${o.key}.png`), Buffer.from(png, 'base64'));
-      }
-    }
     const objs = {};
     for (const o of sc.objects) {
       // hero — щільний контур (розширення 1 px), бо кадр 1 показує його

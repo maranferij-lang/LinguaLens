@@ -155,7 +155,7 @@ if (ICON && !flag('--no-sheets')) {
   // ~10% ширини (132 px). Тут вони мусять розповісти історію без підрядків.
   await sheet(
     [
-      { title: 'Рядок пошуку App Store: кадри 1–3 при ~10% (132×287 px)', note: 'заголовок має читатися, історія — без підрядків', rows: LOCS.map((l) => [l, files(l, [1, 2, 3])]), w: 132, gap: 10 },
+      { title: 'Рядок пошуку App Store: кадри 1, 2 і 3 при ~10% (132×287 px)', note: 'заголовок має читатися, а історію видно без підрядків', rows: LOCS.map((l) => [l, files(l, [1, 2, 3])]), w: 132, gap: 10 },
       { title: 'Усі кадри при 10%', rows: LOCS.map((l) => [l, files(l, FRAME_NUMBERS)]), w: 132, gap: 10 },
     ],
     path.join(OUT, 'search-row.png'),

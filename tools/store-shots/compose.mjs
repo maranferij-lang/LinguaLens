@@ -9,10 +9,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { COPY, countAchievements, countLangs, fill, ukGenitivePlural } from './copy.js';
-import { cardBelow, faceCrop, flashcardsLayout, resolveIcon, stackTwo } from './layout.js';
+import { BOTTOM, cardBelow, faceCrop, flashcardsTrio, insetLeft, lockScreenDate, resolveIcon, stackTwo } from './layout.js';
 import { LOCALES, WIDGET_WOD, vocab as vocabFor } from './data.mjs';
 import codec from '../png.js';
-import { ART as ART_DIR, FONTS, LIB, ROOT, STATIC as STATIC_DIR, UI as UI_DIR, fileUrl, readJson } from './paths.mjs';
+import { ART as ART_DIR, FONTS, IPA_FONTS, LIB, ROOT, STATIC as STATIC_DIR, UI as UI_DIR, fileUrl, readJson } from './paths.mjs';
 
 // PNG — спільним кодеком проєкту (tools/png.js, CommonJS: default-імпорт)
 const { info } = codec;
@@ -23,13 +23,15 @@ const UI = (loc, name) => fileUrl(path.join(UI_DIR, loc, name + '.png'));
 const ART = (name) => fileUrl(path.join(ART_DIR, name));
 const STATIC = (name) => fileUrl(path.join(STATIC_DIR, name));
 const FONT = (w) => fileUrl(path.join(FONTS, w, `Nunito_${w}.ttf`));
-// IPA: у Nunito немає θ, ʌ, ɡ, ʊ, ː…, і браузер добирав би їх з іншого
-// шрифту посеред слова. Транскрипцію на фішці кадру 1 пишемо одним шрифтом
-// з повним IPA: Inter, що лежить у залежностях проєкту (expo-dev-client →
-// expo-dev-menu), або системний.
-const IPA_FONT = path.join(ROOT, 'node_modules/expo-dev-menu/android/src/debug/res/font/inter_semibold.ttf');
-const IPA_FACE = fs.existsSync(IPA_FONT) ? `@font-face { font-family: LLIPA; font-weight: 600; src: url(${fileUrl(IPA_FONT)}); }` : '';
-const IPA_STACK = `LLIPA, 'SF Pro Rounded', 'SF Pro Text', 'Helvetica Neue', 'DejaVu Sans', sans-serif`;
+// IPA: застосунок пише транскрипцію системним заокругленим шрифтом (F.ipa у
+// src/theme.js, SF Pro Rounded на iPhone): у Nunito немає θ, ʌ, ʊ…. Те, що
+// малює сам рендер (фішка кадру 1, екран блокування кадру 6), — тим самим
+// замінником SF, що й знімки екранів (IPA_FONTS у paths.mjs: Inter).
+const IPA_FACE = IPA_FONTS.faces
+  .filter(([, f]) => fs.existsSync(path.join(IPA_FONTS.dir, f)))
+  .map(([w, f]) => `@font-face { font-family: 'SF Pro Rounded'; font-weight: ${w}; src: url(${fileUrl(path.join(IPA_FONTS.dir, f))}); }`)
+  .join('\n');
+const IPA_STACK = `'SF Pro Rounded', ui-rounded, system-ui, sans-serif`;
 export const W = 1320;
 export const H = 2868;
 const PT = { w: 440, h: 956 }; // логічний екран iPhone 17 Pro Max
@@ -60,6 +62,10 @@ const CL = 100, CT = 700, CW = 1120;
 // Нижній край вмісту кадрів 3, 5 і 7 — спільний BOTTOM (layout.js).
 const K = CW / 440; // px на pt для картки на всю ширину екрана
 const SB = 62; // висота статус-бару iPhone 17 Pro Max (pt)
+// Кадр 1: сканер від прицілу до кнопки знімка (px на pt і лівий край).
+const CAM_K = 2.1, CAM_LEFT = 40;
+// Кадр 2: сітка наліпок на ~10% більша, ніж на всю ширину картки.
+const DICT_K = 2.8;
 
 // ─── палітра ───────────────────────────────────────────────────────────────
 const C = {
@@ -132,11 +138,9 @@ function objSticker(name, { size, left, top, rot = 0, z = 5, glow = true }) {
   const sh = shapes().objects[name].shape;
   return `<div class="abs" style="left:${left}px;top:${top}px;width:${size}px;height:${size}px;transform:rotate(${rot}deg);z-index:${z};${glow ? 'filter:drop-shadow(0 26px 34px rgba(20,10,60,0.33))' : ''}">${stickerSvg({ uri: ART(`obj-${name}.jpg`), shape: sh, size, maxBorder: MAX_BORDER })}</div>`;
 }
-// Наліпка, вирізана з фото сцени рівно як cutout.js (stickerCrop/shapeInCrop).
-// Якщо поруч є прозорий шар самого предмета (art/<сцена>-<key>.png, лише
-// намальований замінник), фото під контуром — він: у вирізку не потрапляє
-// ні стільниця, ні стіна в ручці. Зі справжнім фото шару немає, і наліпка
-// така, як її виріже застосунок.
+// Наліпка, вирізана з фото сцени рівно як cutout.js (stickerCrop/shapeInCrop):
+// що всередині контуру (стіл біля дна, стіна в ручці), те й на наліпці, як
+// у застосунку.
 function sceneSticker(scene, key, { size, left, top, rot = 0, z = 5 }) {
   const sc = shapes()[scene];
   const o = sc.objects[key];
@@ -149,8 +153,7 @@ function sceneSticker(scene, key, { size, left, top, rot = 0, z = 5 }) {
   const T = Math.max(0, Math.min(Hp - S, t + h / 2 - S / 2));
   const shape = o.outline.map(([y, x]) => [((x / 1000) * Wp - L) / S, ((y / 1000) * Hp - T) / S]);
   const k = size / S;
-  const layer = `${scene}-${key}.png`;
-  const uri = fs.existsSync(path.join(ART_DIR, layer)) ? ART(layer) : ART(scene + '.jpg');
+  const uri = ART(scene + '.jpg');
   return `<div class="abs" style="left:${left}px;top:${top}px;width:${size}px;height:${size}px;transform:rotate(${rot}deg);z-index:${z};filter:drop-shadow(0 26px 34px rgba(20,10,60,0.33))">${stickerSvg({ uri, shape, size, img: { x: -L * k, y: -T * k, w: Wp * k, h: Hp * k }, maxBorder: MAX_BORDER })}</div>`;
 }
 
@@ -275,13 +278,15 @@ function widgetImg(loc, part, { left, top, width, z = 2 }) {
     <img src="${UI(loc, name)}" style="display:block;width:calc(100% + 2px);height:calc(100% + 2px);margin:-1px">
   </div>`;
 }
-function widgetScreen(loc, kind, { top, y1, rot = 0, z = 1 }) {
+// Головний екран кадру 6 (pt): ряд малих віджетів і ряд іконок під ним.
+const HOME = { row2: 274, row3: 454, end: 545 };
+function widgetScreen(loc, kind, { top, y1, rot = 0, z = 1, k: kk = null }) {
   const L = LOCALES[loc];
   const w = WIDGET_WOD[loc];
   let inner;
   if (kind === 'lock') {
-    const date = new Intl.DateTimeFormat(L.date, { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date(2026, 9, 6));
-    const cap = date.charAt(0).toUpperCase() + date.slice(1);
+    // дата як на екрані блокування iOS цієї мови: uk і es — з малої
+    const cap = lockScreenDate(L.date, new Date(2026, 9, 6));
     // accessoryRectangular: без підкладки, білий «vibrant» текст
     inner = `
       <div class="abs" style="left:0;right:0;top:84px;text-align:center;color:rgba(255,255,255,0.9);font-weight:700;font-size:21px">${cap}</div>
@@ -290,21 +295,25 @@ function widgetScreen(loc, kind, { top, y1, rot = 0, z = 1 }) {
         <div style="width:200px;color:#fff;text-align:left">
           <div style="font-weight:800;font-size:21px;line-height:1.2;white-space:nowrap">${w.word}</div>
           <div style="font-weight:600;font-size:16px;line-height:1.25;color:rgba(255,255,255,0.72)">${w.translation}</div>
-          <div style="font-weight:500;font-size:14px;line-height:1.25;color:rgba(255,255,255,0.72)">${w.ipa}</div>
+          <div style="font-family:${IPA_STACK};font-weight:500;font-size:14px;line-height:1.25;color:rgba(255,255,255,0.72)">${w.ipa}</div>
         </div>
       </div>`;
   } else {
+    // сітка головного екрана: середній віджет (4 колонки), під ним два малі
+    // (по 2), під ними — іконка в першій колонці, як її поставить iOS
     inner = `
       ${widgetImg(loc, 'preview-wod', { left: 38, top: 76, width: 364 })}
-      ${widgetImg(loc, 'preview-streak', { left: 38, top: 274, width: 170 })}
-      <div class="abs" style="left:250px;top:280px;width:68px;text-align:center">
+      ${widgetImg(loc, 'preview-streak', { left: 38, top: HOME.row2, width: 170 })}
+      ${widgetImg(loc, 'preview-words', { left: 232, top: HOME.row2, width: 170 })}
+      <div class="abs" style="left:${38 + (91 - 68) / 2}px;top:${HOME.row3}px;width:68px;text-align:center">
         <img src="${fileUrl(appIcon())}" style="width:64px;height:64px;border-radius:15px;display:block;margin:0 auto;box-shadow:0 4px 12px rgba(0,0,0,0.25)">
         <div style="font-weight:600;font-size:12px;color:#fff;margin-top:5px;white-space:nowrap;text-shadow:0 1px 3px rgba(0,0,0,0.3)">LinguaLens</div>
       </div>`;
   }
   // лише смуга віджетів екрана (x 26…414 pt), під статус-баром
-  const x0 = 26, x1 = 414, k = CW / (x1 - x0);
-  return `<div class="card shadowA" style="left:${CL}px;top:${top}px;width:${CW}px;height:${(y1 - SB) * k}px;border-radius:64px;transform:rotate(${rot}deg);z-index:${z}">
+  const x0 = 26, x1 = 414, k = kk || CW / (x1 - x0);
+  const cw = (x1 - x0) * k;
+  return `<div class="card shadowA" style="left:${Math.round((W - cw) / 2)}px;top:${top}px;width:${cw}px;height:${(y1 - SB) * k}px;border-radius:64px;transform:rotate(${rot}deg);z-index:${z}">
     <div class="abs" style="left:${-x0 * k}px;top:${-SB * k}px;width:${PT.w}px;height:${PT.h}px;transform:scale(${k});transform-origin:0 0;${WALL}">${inner}</div>
   </div>`;
 }
@@ -313,19 +322,20 @@ function widgetScreen(loc, kind, { top, y1, rot = 0, z = 1 }) {
 // Кожен повертає вміст одного кадру 1320×2868.
 const FRAMES = {
   // 1 — диво: чашка в справжній камері відклеюється наліпкою й несе своє
-  // слово. Картка — сканер застосунку; «привид» — контур чашки (дані
-  // контуру скану); наліпку вирізано з того самого фото, як це робить
-  // cutout.js. Лінго визирає з правого нижнього кута (голова й лапа).
+  // слово. Картка — сканер застосунку від рамки прицілу до кнопки знімка
+  // (без неї в пошуку це не читається як камера); «привид» — контур чашки
+  // (дані контуру скану); наліпку вирізано з того самого фото по тому самому
+  // контуру, як це робить cutout.js. Лінго визирає з правого нижнього кута.
   1(loc, cp, counts) {
     const cam = rects(loc, 'camera');
     const v = cam.video;
     const mug = shapes().hero.objects.mug;
     const s = Math.max(v.w / v.vw, v.h / v.vh); // objectFit: cover
     const ox = v.x + (v.w - v.vw * s) / 2, oy = v.y + (v.h - v.vh * s) / 2;
-    // від рамки прицілу до підказки під нею («Наведи на предмет…»)
-    const y0 = (cam.corners ? cam.corners.y : 247) - 40;
-    const y1 = (cam.hint ? cam.hint.y + cam.hint.h : 553) + 24;
-    const toCanvas = ([y, x]) => [CL + (ox + (x / 1000) * v.vw * s) * K, CT + (oy + (y / 1000) * v.vh * s - y0) * K];
+    const y0 = (cam.corners ? cam.corners.y : 247) - 26;
+    const y1 = (cam.shutter ? cam.shutter.y + cam.shutter.h : 828) + 18;
+    const k = CAM_K, left = CAM_LEFT;
+    const toCanvas = ([y, x]) => [left + (ox + (x / 1000) * v.vw * s) * k, CT + (oy + (y / 1000) * v.vh * s - y0) * k];
     const g = outlinePath(mug.outline.map(toCanvas));
     // Лише пунктир скану й м'яке сяйво: сама чашка в прицілі лишається
     // червоною, у повному кольорі, тож «ця річ стає цією наліпкою» видно й
@@ -333,31 +343,36 @@ const FRAMES = {
     const ghost = `<svg class="abs" style="left:${g.sx}px;top:${g.sy}px;z-index:3;overflow:visible;filter:drop-shadow(0 0 14px rgba(255,255,255,0.75)) drop-shadow(0 4px 10px rgba(20,10,60,0.35))" width="${g.side}" height="${g.side}">
       <path d="${g.d}" fill="none" stroke="#fff" stroke-width="10" stroke-dasharray="24 17" stroke-linecap="round" stroke-linejoin="round"/>
     </svg>`;
-    // наліпка відходить від свого «отвору»: більша за привид, зсунута
-    // вниз-праворуч, лягає на нижній край картки під підказкою
-    const S = 1000;
-    const cardBottom = CT + (y1 - y0) * K;
-    const cx = (g.box.x1 + g.box.x2) / 2 + 120, cy = cardBottom - 120 + S / 2;
+    // наліпка відходить праворуч униз від картки, повз кнопку знімка;
+    // фішка слова — під нею ліворуч
+    const S = 740;
+    const cardBottom = CT + (y1 - y0) * k;
+    const cx = W - 370, cy = cardBottom + 160;
     const v1 = vocabFor(loc, 'mug');
-    const a = [g.box.x2 + 30, g.box.y1 + (g.box.y2 - g.box.y1) * 0.18];
-    const b = [cx + S * 0.33, cy - S * 0.36];
+    const a = [g.box.x2 + 26, g.box.y1 + (g.box.y2 - g.box.y1) * 0.2];
+    const b = [cx + S * 0.12, cy - S * 0.4];
     return `${bgA(0)}${captionA(cp, counts)}
-      ${uiCard(loc, 'camera', { y0, y1, z: 2 })}
+      ${uiCard(loc, 'camera', { y0, y1, k, left, z: 2 })}
       ${ghost}
-      ${trail(a, b, [a[0] + 200, a[1] + 10], [b[0] + 170, b[1] - 170])}
-      ${sparkle(a[0] + 120, a[1] - 70, 0.9, C.mint, 12)}
+      ${trail(a, b, [a[0] + 230, a[1] + 40], [b[0] + 150, b[1] - 260])}
+      ${sparkle(a[0] + 110, a[1] - 60, 0.9, C.mint, 12)}
       ${sceneSticker('hero', 'mug', { size: S, left: cx - S / 2, top: cy - S / 2, rot: -6, z: 6 })}
-      ${wordChip(v1.word, v1.translation, { cx: cx - 60, top: cy + S * 0.27, rot: -3, ipa: v1.ipa })}
+      ${wordChip(v1.word, v1.translation, { cx: cx - 400, top: cy + S * 0.24, rot: -3, ipa: v1.ipa })}
       ${lingo('wave', { left: W - 360, top: H - 290, size: 470, rot: -14, z: 4 })}`;
   },
 
   // 2 — фотословник: дві наліпки виходять зі своїх місць (місце лишається
   // порожнім, пунктиром) і з картки; лимон перетинає правий край у бік
-  // кадру 3.
+  // кадру 3. Картку обрізано від перемикача «Список / Колекція»: заголовок
+  // екрана з'їдав чверть картки, а сітка наліпок — і є історія.
   2(loc, cp, counts) {
     const g = rects(loc, 'dict-grid');
+    const y0 = g.seg ? g.seg.y - 14 : SB;
     const y1 = g.tabbar.y - 6; // над таб-баром
-    const at = (r) => ({ x: CL + r.x * K, y: CT + (r.y - SB) * K, w: r.w * K, h: r.h * K });
+    const x0 = 12, x1 = 428;
+    const k = Math.min(DICT_K, (BOTTOM - CT) / (y1 - y0));
+    const left = Math.round((W - (x1 - x0) * k) / 2);
+    const at = (r) => ({ x: left + (r.x - x0) * k, y: CT + (r.y - y0) * k, w: r.w * k, h: r.h * k });
     const MARGIN = 0.05 + 0.03 * 2 + 0.025;
     const slot = (key) => {
       const r = g['sticker_' + key];
@@ -374,42 +389,50 @@ const FRAMES = {
       return objSticker(key, { size, left: p.x + p.w / 2 + dx - size / 2, top: p.y + p.h / 2 + dy - size / 2, rot, z: 6 });
     };
     return `${bgA(1)}${captionA(cp, counts)}
-      ${uiCard(loc, 'dict-grid', { y1, z: 2 })}
+      ${uiCard(loc, 'dict-grid', { y0, y1, x0, x1, k, left, z: 2 })}
       ${slot('lemon')}${slot('camera')}
-      ${pop('lemon', 150, -80, 450, 12)}
-      ${pop('camera', -165, -20, 380, -10)}`;
+      ${pop('lemon', 150, -80, 470, 12)}
+      ${pop('camera', -95, -20, 400, -10)}`;
   },
 
-  // 3 — картки: картка посеред перегортання. Лице (слово, IPA, «Слухати»)
-  // велике спереду, зворот (наліпка й переклад) за ним, нахилений; під ними —
-  // справжні кнопки «Ще вчу / Знаю».
+  // 3 — картки, що не дають забути. Та сама чашка, що на кадрі 1: велике
+  // лице картки (слово, IPA, «Слухати») нахилене −6°, з-за нього визирає
+  // зворот (наліпка й переклад) під +8°, ніби картку перегортають. Під ними
+  // — квіз того ж словника: «7 / 10», сім поспіль і щойно зелена правильна
+  // відповідь. Усе — шматки справжніх екранів.
   3(loc, cp, counts) {
     const f = rects(loc, 'cards-front');
     const b = rects(loc, 'cards-back');
-    const st = b.sticker_plant;
-    const by0 = st.y - 30, by1 = b.translation.y + b.translation.h + 22;
-    // лице: слово, IPA й «Слухати» рівно посередині, поля згори й знизу
-    // однакові (без порожньої нижньої третини)
-    const { y0: fy0, y1: fy1 } = faceCrop(f, 64);
-    const kb = 2.55, kf = 2.85;
-    const backCrop = { x: b.card.x, y: by0, w: b.card.w, h: by1 - by0 };
-    const frontCrop = { x: f.card.x, y: fy0, w: f.card.w, h: fy1 - fy0 };
-    const btn = { x: 0, y: b.still.y - 12, w: PT.w, h: b.still.h + 24 };
-    // лице картки — під зворотом, щоб переклад на звороті було видно цілим;
-    // вільне місце до спільного низу — між картками й кнопками
-    const { fTop, bTop } = flashcardsLayout({ top: CT + 10, backH: backCrop.h * kb, frontH: frontCrop.h * kf, btnH: btn.h * K });
+    const q = rects(loc, 'quiz');
+    const st = b.sticker_mug;
+    const backCrop = { x: b.card.x, y: st.y - 24, w: b.card.w, h: b.translation.y + b.translation.h + 22 - (st.y - 24) };
+    // лице: середина картки довкола слова, IPA й «Слухати», великим планом
+    // (слово ~140 px, як фішка кадру 1)
+    const { y0: fy0, y1: fy1 } = faceCrop(f, 30);
+    const frontCrop = { x: f.card.x + f.card.w / 2 - 115, y: fy0, w: 230, h: fy1 - fy0 };
+    // квіз: від рядка «× ━━━ 7 / 10» до зеленої відповіді включно
+    const quizCrop = { x: 0, y: q.meta.y - 22, w: PT.w, h: q.right.y + q.right.h + 8 - (q.meta.y - 22) };
+    const l = flashcardsTrio({ top: CT, back: backCrop, front: frontCrop, quiz: quizCrop, W });
     return `${bgA(2)}${captionA(cp, counts)}
-      ${screen({ loc, shot: 'cards-back', k: kb, left: Math.round((W - backCrop.w * kb) / 2) + 60, top: CT + 10, crop: backCrop, radius: 60, rot: 6, z: 2 })}
-      ${screen({ loc, shot: 'cards-front', k: kf, left: Math.round((W - frontCrop.w * kf) / 2) - 10, top: fTop, crop: frontCrop, radius: 64, rot: -3, z: 3 })}
-      ${screen({ loc, shot: 'cards-back', k: K, left: CL, top: bTop, crop: btn, radius: 56, z: 4 })}`;
+      ${screen({ loc, shot: 'cards-back', k: l.back.k, left: l.back.left, top: l.back.top, crop: backCrop, radius: 56, rot: 8, z: 2 })}
+      ${screen({ loc, shot: 'cards-front', k: l.front.k, left: l.front.left, top: l.front.top, crop: frontCrop, radius: 64, rot: -6, z: 3 })}
+      ${screen({ loc, shot: 'quiz', k: l.quiz.k, left: l.quiz.left, top: l.quiz.top, crop: quizCrop, radius: 56, rot: 0, z: 2 })}`;
   },
 
   // 4 — ціла кімната одним кадром (PRO). Екран сцени v1.3 сам показує
   // кожен предмет наліпкою з підписом, тож «відклеєних» наліпок поверх
   // нього немає: вони подвоїли б чайник і чашку.
+  // Екран обрізано під кнопкою «Закрити»: фото 9:16 стоїть посередині
+  // екрана, і над ним лишається чорна смуга, яку кнопка й заголовок
+  // перетинали навпіл. Тепер картка починається просто з фото.
   4(loc, cp, counts) {
+    const sc = rects(loc, 'scene');
+    const y0 = sc.close ? sc.close.y + sc.close.h + 8 : SB;
+    const y1 = 845; // над кнопкою «Зберегти всі»
+    // без смуги згори картка коротша: трохи більший масштаб, до спільного низу
+    const x0 = 6, x1 = 434, k = Math.min((BOTTOM - CT) / (y1 - y0), 1200 / (x1 - x0));
     return `${bgA(3)}${captionA(cp, counts)}
-      ${uiCard(loc, 'scene', { y1: 845, z: 2 })}`;
+      ${uiCard(loc, 'scene', { y0, y1, x0, x1, k, z: 2 })}`;
   },
 
   // 5 — твій рівень і слово дня з твоєї сфери: крок рівня (повзунок, CEFR,
@@ -430,9 +453,13 @@ const FRAMES = {
   // 6 — віджет «Слово дня»: екран блокування й головний екран, трохи
   // перекриваються; екран блокування більший, позаду
   6(loc, cp, counts) {
+    // головний екран на всю ширину й до спільного низу; екран блокування —
+    // менший над ним
+    const kh = CW / 388, homeH = (HOME.end - SB) * kh;
+    const lockY1 = 322, lockK = Math.min(kh, (BOTTOM - homeH - CT - 30) / (lockY1 - SB));
     return `${bgA(5)}${captionA(cp, counts)}
-      ${widgetScreen(loc, 'lock', { top: CT, y1: 332, rot: -2, z: 2 })}
-      ${widgetScreen(loc, 'home', { top: 1510, y1: 455, rot: 2, z: 3 })}`;
+      ${widgetScreen(loc, 'lock', { top: CT, y1: lockY1, rot: -2, z: 2, k: lockK })}
+      ${widgetScreen(loc, 'home', { top: BOTTOM - homeH, y1: HOME.end, rot: 2, z: 3 })}`;
   },
 
   // 7 — щоденна звичка, темна тема. Лінго — аватар самого профілю, що
@@ -463,8 +490,11 @@ const FRAMES = {
 
   // 8 — поділитися: картка сцени позаду, спереду — наліпка чашки без тла
   // (так її віддає «Поділитися», головне, чим діляться з v1.3) і картка
-  // тижня. Чашка затуляє лише куток фото сцени, текст карток видно. Лінго
-  // махає в нижньому куті: «до зустрічі».
+  // тижня. Чашка затуляє лише куток фото сцени. Картка тижня нахилена, але
+  // всі чотири кути — у кадрі з полем 60 px (insetLeft), і вона ж затуляє
+  // низ картки сцени з рядком «ENGLISH · 7 …»: дошку й рушник на картці
+  // вимкнено, і 7 сперечалось би з «9 слів у кадрі» кадру 4. Лінго махає в
+  // нижньому куті: «до зустрічі».
   8(loc, cp, counts) {
     const card = (name, x, y, rot, z, w) => `<div class="abs shadowA" style="left:${x}px;top:${y}px;width:${w}px;height:${Math.round((w * 1920) / 1080)}px;border-radius:40px;overflow:hidden;transform:rotate(${rot}deg);z-index:${z}"><img src="${UI(loc, name)}" style="width:100%;height:100%;display:block"></div>`;
     const st = pngSize(loc, 'sticker-object');
@@ -472,7 +502,7 @@ const FRAMES = {
     return `${bgA(7)}${captionA(cp, counts)}
       ${card('card-scene', (W - 660) / 2, CT, 0, 2, 660)}
       <img class="abs" src="${UI(loc, 'sticker-object')}" style="left:-30px;top:1420px;width:${sw}px;height:${sh}px;transform:rotate(-6deg);z-index:4;filter:drop-shadow(0 30px 40px rgba(20,10,60,0.35))">
-      ${card('card-week-graphite', W - 40 - 600, 1470, 6, 3, 600)}
+      ${card('card-week-graphite', insetLeft({ w: 600, h: Math.round((600 * 1920) / 1080), rot: 6, W, margin: 60 }), 1470, 6, 3, 600)}
       ${lingo('wave', { left: W - 300, top: H - 300, size: 230, rot: -8, z: 5 })}`;
   },
 };
