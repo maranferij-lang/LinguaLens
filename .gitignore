@@ -50,3 +50,6 @@ credentials.json
 
 # EAS
 .easignore
+
+# Скріншоти App Store (tools/store-shots): кадри й кеш рендера
+store-shots-out/
