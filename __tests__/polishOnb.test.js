@@ -18,6 +18,7 @@ import { LANGS } from '../src/speech';
 import { PLANS, SIMULATED_PLANS } from '../src/subscription';
 import { THEMES, ThemeProvider } from '../src/theme';
 import { STRINGS, makeT } from '../src/i18n';
+import { textEm } from '../src/share/layout';
 
 jest.mock('../src/wordOfDay', () => ({
   ...jest.requireActual('../src/wordOfDay'),
@@ -286,6 +287,16 @@ describe('paywall footer', () => {
     expect(STRINGS.de.pwContinueFreeNoScans).toBe('Kostenlos weiter');
     expect(STRINGS.es.pwContinueFreeNoScans).toBe('Seguir gratis');
     expect(STRINGS.ru.pwContinueFreeNoScans).toBe('Продолжить бесплатно');
+  });
+
+  // Російська довша за українську, а вузькі місця на SE перевірені саме
+  // українською: заголовок кроку сповіщень (у три рядки сповзав телефон),
+  // підрядок тарифу (у два рядки «Навсегда» ховалося під кнопку) й підвал
+  // пейволу. Тут ширина в em — не більша за українську з запасом 10 %.
+  test('ru: the tight SE lines are no wider than the Ukrainian ones', () => {
+    const tight = ['obPushTitle', 'obPushText', 'obStreakTitle', 'ob3HookTitle', 'planSubWeek', 'planSubMonth', 'privacy', 'pwContinueFreeNoScans', 'startTrial'];
+    const wide = tight.filter((k) => textEm(STRINGS.ru[k]) > textEm(STRINGS.uk[k]) * 1.1).map((k) => `${k}: ${STRINGS.ru[k]}`);
+    expect(wide).toEqual([]);
   });
 
   test('a failed purchase: a two-line note above the legal line, which stays', async () => {
