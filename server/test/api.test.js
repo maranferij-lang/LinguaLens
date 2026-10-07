@@ -75,7 +75,10 @@ test('health reports production config as booleans, never as values', async () =
   assert.equal(r.data.config.authSecret, false); // 'test-secret' коротший за 32 символи
   assert.equal(r.data.config.webhookAuth, true);
   assert.equal(r.data.config.revenuecat, false);
-  assert.equal(r.data.config.firestore, false);
+  // Залежить від режиму сховища: у CI цей самий файл ганяють і з емулятором
+  // Firestore (FIRESTORE_PROJECT задано), тоді прапорець має бути true.
+  assert.equal(r.data.config.firestore, r.data.store === 'firestore');
+  assert.equal(r.data.config.firestore, Boolean(process.env.FIRESTORE_PROJECT));
   const text = JSON.stringify(r.data);
   assert.equal(text.includes('test-secret') || text.includes('hook-secret'), false);
 });
