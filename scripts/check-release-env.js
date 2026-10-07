@@ -13,7 +13,7 @@
 // зупиняємо одразу, на старті.
 //
 // У production перевіряємо ще й адресу сервера: без EXPO_PUBLIC_SERVER_URL
-// (або з http://, слешем у кінці, localhost) застосунок збирається, але не
+// (або з http://, шляхом, localhost) застосунок збирається, але не
 // сканує, не синхронізується, а посилання на політику конфіденційності
 // зникає з пейвола й Параметрів (src/config.js, App Store 3.1.2 і 5.1.1).
 // Ключ RevenueCat — за білим списком appl_…, бо секретний sk_ у публічній
@@ -28,8 +28,9 @@ const TEST_KEY = /^(test_|rcb_)/;
 // entitlement усім покупцям.
 const APP_STORE_KEY = /^appl_\S+$/;
 // Адреса сервера: лише https і лише походження (хост[:порт]) — без шляху, без
-// слеша в кінці (інакше SERVER_URL + '/privacy' стає '//privacy' і дає 404),
-// без логіна й параметрів. Release-збірка з http:// впирається в ATS.
+// логіна й параметрів. Слеші в кінці не заважають: src/config.js їх відкидає
+// (ENV.SERVER_URL), тож '/privacy' не стає '//privacy', і перед перевіркою їх
+// знімаємо так само. Release-збірка з http:// впирається в ATS.
 const HTTPS_ORIGIN = /^https:\/\/[^\s/?#@]+$/i;
 // Хости, яких у production бути не може: заглушка src/config.js (.invalid),
 // локальний сервер розробки, адреси LAN і loopback.
@@ -47,12 +48,14 @@ function serverUrlProblem(url) {
   if (!url) return 'не задано';
   // логін:пароль у адресі в лог не друкуємо
   const shown = url.replace(/\/\/[^/]*@/, '//…@');
-  if (!HTTPS_ORIGIN.test(url)) {
-    return 'має бути https://хост без шляху й без слеша в кінці (зараз: «' + shown + '»)';
+  // як у src/config.js: слеші в кінці застосунок усе одно відкине
+  const origin = url.replace(/\/+$/, '');
+  if (!HTTPS_ORIGIN.test(origin)) {
+    return 'має бути https://хост[:порт] без шляху, логіна й параметрів (зараз: «' + shown + '»)';
   }
   let host = '';
   try {
-    host = new URL(url).hostname;
+    host = new URL(origin).hostname;
   } catch (e) {
     return 'не схожа на адресу (зараз: «' + shown + '»)';
   }

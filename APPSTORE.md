@@ -23,7 +23,7 @@ PostHog, сервер, змінні EAS) розписані по кроках у
 
 **Перед вставкою тексту в App Store Connect.** У текстах для вставки лишено
 підстановки: `<server>` / `<сервер>` (адреса сервера: те саме, що
-`EXPO_PUBLIC_SERVER_URL`, `https://…` без слеша в кінці), `<ПІБ…>`,
+`EXPO_PUBLIC_SERVER_URL`, `https://…`), `<ПІБ…>`,
 `<телефон>`, `<пошта>`. Опис і ключові слова змінюються лише з новою версією,
 тож адресу вписуй остаточну (Cloud Run чи свій домен, `USER_TODO.md`, крок 5)
 ще до першої подачі. Вставив: пошукай у полі символ `<`, жодного лишитись не
@@ -1156,7 +1156,7 @@ Name і опис. Опис (поле Description) кожної підписки 
 - [ ] Бюджетний алерт у Google Cloud
 
 **Збірка**
-- [ ] `eas env:list production`: `EXPO_PUBLIC_SERVER_URL` (лише `https://хост`, без слеша в кінці), `EXPO_PUBLIC_REVENUECAT_IOS_KEY` (**`appl_…`, не `test_…`** — інакше збірка зупиниться сама), `EXPO_PUBLIC_POSTHOG_KEY`, `EXPO_PUBLIC_SUPPORT_EMAIL` (без нього лише попередження, але в Параметрах не буде «Contact support»), а також `EXPO_PUBLIC_APP_TOKEN`, якщо на сервері задано `APP_TOKEN`
+- [ ] `eas env:list production`: `EXPO_PUBLIC_SERVER_URL` (лише `https://хост`, без шляху), `EXPO_PUBLIC_REVENUECAT_IOS_KEY` (**`appl_…`, не `test_…`** — інакше збірка зупиниться сама), `EXPO_PUBLIC_POSTHOG_KEY`, `EXPO_PUBLIC_SUPPORT_EMAIL` (без нього лише попередження, але в Параметрах не буде «Contact support»), а також `EXPO_PUBLIC_APP_TOKEN`, якщо на сервері задано `APP_TOKEN`
 - [ ] `eas.json` → `submit.production.ios`: справжні `ascAppId` і `appleTeamId`
 - [ ] Після першого завантаження білда в TestFlight перевір пошту: листа про Privacy Manifest (`ITMS-91053`) бути не має. Маніфести (застосунок і віджет) уже в збірці (`app.json` → `ios.privacyManifests`, `plugins/withWidgetPrivacyManifest.js`); якщо лист усе ж прийшов, напиши мені
 

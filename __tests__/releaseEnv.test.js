@@ -71,20 +71,60 @@ describe('server address in production', () => {
   });
 
   test('only a real https origin passes', () => {
-    for (const v of ['https://api.lingualens.example', 'https://api.lingualens.example:8443', ' https://api.lingualens.example ', 'https://lingualens-prod.fly.dev']) {
+    for (const v of [
+      'https://api.lingualens.example',
+      'https://api.lingualens.example:8443',
+      ' https://api.lingualens.example ',
+      'https://lingualens-prod.fly.dev',
+      // слеші в кінці src/config.js відкидає сам, тож збірку вони не ламають
+      'https://api.lingualens.example/',
+      'https://api.lingualens.example//',
+      'https://api.lingualens.example:8443/',
+    ]) {
       expect([v, url(v)]).toEqual([v, { ok: true }]);
     }
     for (const v of [
       'http://api.lingualens.example', // ATS у релізі заблокує
+      'http://api.lingualens.example/',
       'api.lingualens.example', // без схеми
-      'https://api.lingualens.example/', // SERVER_URL + '/privacy' стало б '//privacy'
       'https://api.lingualens.example/v1', // сервер віддає маршрути від кореня
+      'https://api.lingualens.example/v1/',
       'https://api.lingualens.example?x=1',
+      'https://api.lingualens.example/?x=1',
       'https://',
+      'https:///',
+      '/',
       'https://api.lingualens example',
     ]) {
       expect([v, url(v).reason]).toEqual([v, 'server-url']);
     }
+  });
+
+  // Запобіжник не має відхиляти те, що застосунок і так виправляє, і не має
+  // пропускати те, чого застосунок не виправить: обидва читають одну адресу.
+  test('a trailing slash is accepted because src/config.js drops it', () => {
+    const saved = process.env.EXPO_PUBLIC_SERVER_URL;
+    try {
+      for (const v of ['https://api.lingualens.example/', 'https://api.lingualens.example//']) {
+        expect([v, url(v)]).toEqual([v, { ok: true }]);
+        process.env.EXPO_PUBLIC_SERVER_URL = v;
+        jest.isolateModules(() => {
+          const config = require('../src/config');
+          expect(config.SERVER_URL).toBe('https://api.lingualens.example');
+          expect(config.PRIVACY_URL).toBe('https://api.lingualens.example/privacy');
+        });
+      }
+    } finally {
+      if (saved === undefined) delete process.env.EXPO_PUBLIC_SERVER_URL;
+      else process.env.EXPO_PUBLIC_SERVER_URL = saved;
+    }
+  });
+
+  test('the explanation names what is wrong with the address, not the trailing slash', () => {
+    const msg = url('https://api.lingualens.example/v1').message;
+    expect(msg).toContain('без шляху');
+    expect(msg).not.toContain('слеша');
+    expect(msg).toContain('https://api.lingualens.example/v1');
   });
 
   test('the placeholder and local addresses never ship', () => {
@@ -211,6 +251,8 @@ test('EAS runs it before installing dependencies, and it fails the build', () =>
   expect(run({ ...GOOD, EXPO_PUBLIC_SERVER_URL: '' }).code).toBe(1);
   expect(run({ ...GOOD, EXPO_PUBLIC_SERVER_URL: 'http://api.lingualens.example' }).code).toBe(1);
   expect(run({ ...GOOD }).code).toBe(0);
+  // слеш у кінці адреси збірку не зупиняє (src/config.js його відкидає)
+  expect(run({ ...GOOD, EXPO_PUBLIC_SERVER_URL: 'https://api.lingualens.example/' }).code).toBe(0);
   expect(run({ EAS_BUILD_PROFILE: 'preview', EXPO_PUBLIC_REVENUECAT_IOS_KEY: 'test_x' }).code).toBe(0);
   expect(run({ EAS_BUILD_PROFILE: 'preview', LL_SIMULATOR: '1' }).code).toBe(1);
   // немає пошти підтримки: збірка йде, а попередження видно в логу EAS
