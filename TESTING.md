@@ -25,6 +25,11 @@
 Найшвидше так: увесь UI проганяєш у симуляторі, а камеру й наліпки на iPhone.
 Перед релізом ще раз усе в TestFlight (див. [`APPSTORE.md`](APPSTORE.md)).
 
+Застосунок лише для iPhone. На Mac з Apple Silicon і на Apple Vision Pro його
+не перевіряли (камера, віджети, покупки, вхід через Apple), тому доступність
+там у App Store Connect вимкнена (`USER_TODO.md`, крок 9). Захочеш увімкнути:
+спершу додай сюди перевірку для цієї платформи.
+
 > Expo Go з App Store підтримує лише найновіший SDK (у нас 57). Якщо Expo Go
 > пише «Project is incompatible», онови Expo Go або збери development build.
 
@@ -55,6 +60,7 @@ npm run dev
 | `FREE_SCANS=1000` | сканувати без обмежень на dev-сервері (типово **1 скан на все життя** запису; імітована покупка серверний ліміт не знімає, див. нижче). Лише для розробки, не на продакшн |
 | `FREE_SCENES=0` | одразу побачити замок «Сцена — Pro» (типово 1 безкоштовна сцена на весь час) |
 | `FREE_SCENES=100` разом із `FREE_SCANS=1000` | пробувати скан кімнати без обмежень. Сцена забирає й скан, тож без `FREE_SCANS` друга сцена впреться в ліміт сканів |
+| `DEVICE_LIMIT_PER_HOUR=2` | побачити відмову `429 TOO_MANY_ATTEMPTS` для нових установок з однієї IP (типово 20 на годину; лічильник у пам'яті, перезапуск сервера його скидає). Не ціле число більше 0: сервер пише попередження й бере 20 |
 
 Стара `FREE_SCANS_PER_DAY` більше нічого не робить: якщо вона лишилась у
 `server/.env`, сервер при старті пише попередження в лог і однаково рахує за
@@ -67,6 +73,23 @@ dev-сервер, видали `server/data.json` (там лише дані dev-
 знову — застосунок при наступному відкритті тихо отримає новий запис із
 нулем сканів (сервер його забув). На симуляторі ще можна Device → Erase All
 Content and Settings: Keychain теж стирається.
+
+**Налаштування продакшну без ключів.** Із `PROVIDER=gemini` (або `anthropic`) і
+порожнім оточенням сервер при старті пише по рядку `config: …` на кожну
+відсутню настройку (ключ AI, `AUTH_SECRET`, `FIRESTORE_PROJECT`, ключ і
+вебхук RevenueCat, `SUPPORT_EMAIL`, ключ Sign in with Apple) і **не
+зупиняється**; `GET /health` показує ті самі настройки булевими прапорцями в
+`config`. Перевірка на чистому оточенні (поза `server/.env`):
+
+```bash
+cd ~/Documents/LinguaLens/server
+PROVIDER=gemini PORT=3001 DATA_FILE=/tmp/ll-check.json node server.js
+# → сім рядків `config: …`; з іншого вікна: curl -s localhost:3001/health
+#   {"ok":true,"provider":"gemini","store":"file","config":{"ai":false,…}}
+```
+
+З `PROVIDER=mock` (`npm run dev`) рядків немає й `config.ai` це `true`: так і
+задумано для локальної розробки. Автотести цього: `server/test/config.test.js`.
 
 У застосунку **Параметри → внизу** видно адресу сервера й позначку `auto`
 (знайшовся сам) або `env` (взято з `.env`). Кнопка «Перевірити з'єднання»
@@ -165,8 +188,11 @@ Content and Settings: Keychain теж стирається.
 - [ ] Імітована покупка: Pro вмикається, зникають ліміт мов (1 мова) і позначка PRO на «Сцені». Словник без стелі й без Pro
 - [ ] Наступний скан однаково дасть пейвол: сервер про імітовану покупку не знає, і **так і задумано**. Справжнє зняття ліміту сервером перевіряється тільки зі sandbox-покупкою в dev build або TestFlight
 - [ ] Параметри → «Відновити покупки» → «відновлено» або «нічого не знайдено»
+- [ ] **Pro переживає «Стерти всі мої дані»** (лише справжня sandbox-покупка в dev build чи TestFlight, не імітація). Купи підписку → Параметри → Дані → «Стерти всі мої дані» → у застосунку новий анонімний id і Pro зник → «Відновити покупки» → Pro повернувся, а наступний скан проходить (сервер бачить Pro через `GET /me?refresh=1`). Якщо відновлення каже «нічого не знайдено», в RevenueCat не стоїть Restore behavior = «Transfer to new App User ID» (`USER_TODO.md`, крок 4Б, пункт 9): користувач, який заплатив, застряг би на безкоштовному рівні
 - [ ] Pro: тап по картці Pro в Параметрах відкриває Customer Center RevenueCat (dev build), а без нього — системний аркуш підписок Apple. «Відновити покупки» в Параметрах бачать лише ті, хто без Pro
 - [ ] Dev build з тестовим ключем `test_…`: покупка показує аркуш Test Store RevenueCat з кнопками «успіх / помилка / скасувати» — перевір усі три
+- [ ] **Нагадування про кінець пробного: на пристрої не перевірити.** У Sandbox і TestFlight тиждень пробного триває кілька хвилин, тож кінець пробного ближчий за 2 дні, і застосунок нагадування навіть не планує. Заплановане нагадування, його зняття при скасуванні пробного (`willRenew` false), при зникненні Pro чи переході на платний план, і повторне планування після «Відновити покупки» на новому телефоні перевіряє `__tests__/proStateSync.test.js` разом із `__tests__/wordOfDay.test.js`. На пристрої перевір лише, що після покупки застосунок питає дозвіл на сповіщення (лише `proActivated` його просить, відновлення дозволу не питає) і що в Параметрах видно дату кінця пробного
+- [ ] Проблема з оплатою (billing grace): Pro лишається, а рядка «Pro до <дата в минулому>» у Параметрах немає. Дату в минулому застосунок не показує (`__tests__/settings.test.js`); сервер у пільговому періоді теж визнає Pro (`server/test/grace.test.js`)
 
 ### Дані
 - [ ] Параметри → Дані → «Стерти всі мої дані» → підтвердити: словник порожній, наліпок немає, профіль з нуля
@@ -183,6 +209,8 @@ Content and Settings: Keychain теж стирається.
 - [ ] Видали слово на B → після синхронізації воно зникає на A і **не повертається**
 - [ ] Відповідай на картки на A в авіарежимі → у картці акаунта «Не синхронізовано: немає інтернету». Вимкни авіарежим, згорни й відкрий застосунок → «Синхронізовано щойно», прогрес повторень є на B
 - [ ] Pro: оформи sandbox-підписку на B **до** входу → увійди (B переходить в акаунт A) → Pro лишився на B і з'явився на A
+- [ ] Pro на другому телефоні: sandbox-підписку куплено на A, на B її немає. На B увійди через Apple в той самий акаунт (і за потреби натисни «Відновити покупки») → на B є Pro, скан проходить. Та сама умова Restore behavior, що й у «Ліміти й Pro»
+- [ ] **Відкликання входу через Apple** (справжній iPhone, сервер з ключем `.p8`: `/health` показує `config.appleRevoke: true`): увійди через Apple → Параметри → Дані → «Стерти всі мої дані». У лозі сервера (`gcloud run services logs read lingualens-server --region europe-central2 --limit 50`) є `apple: вхід відкликано`, а LinguaLens зникає зі списку «Вхід через Apple» в налаштуваннях Apple ID на iPhone. Лог `немає refresh-токена`: цей вхід зроблено до того, як на сервері з'явився ключ (токен приходить лише в момент входу), тож повтори з новим входом. Перевіряти до подачі, а не після
 - [ ] «Вийти» на A → підтвердження (у Pro текст згадує, що Pro лишається в акаунті) → словник, прогрес і досягнення зникли, мова й тема на місці. Увійди знову → усе повернулося
 - [ ] Без Pro: в акаунті використай безкоштовний скан сценою (так піде і скан, і проба кімнати) → «Вийти» → і скан, і кімната вже просять Pro (вихід не дає нової спроби); увійди знову → так само
 - [ ] Те саме, але «Вийти» в авіарежимі → закрий застосунок, вимкни авіарежим, відкрий → скан однаково просить Pro (старий токен чекав у Keychain і переніс лічильники). Далі «Стерти всі мої дані» гостем → скан і далі просить Pro; увійди знову → словник повернувся, а скан так само просить Pro
@@ -230,6 +258,41 @@ v1.3: віджетів три («Слово дня», «Мої слова», «�
 
 ---
 
+## Перша збірка: що перевірити в IPA
+
+Усе це неможливо перевірити без Xcode чи справжньої збірки: нативну частину
+(Xcode-проєкт, розширення віджетів, життєвий цикл сцен, альтернативна іконка,
+наш Swift-модуль) ще ніхто не компілював. Порядок і причини:
+[`USER_TODO.md`](USER_TODO.md), крок 8.
+
+**1. Збірка для симулятора в EAS (цього тижня, без акаунта Apple).**
+`eas build --platform ios --profile simulator`, потім `eas build:run --platform
+ios` на Mac.
+- [ ] Збірка зелена на expo.dev (компілюються застосунок, `ExpoWidgetsTarget`, `SceneDelegate.swift`, `modules/instagram-stories`). Падає: кінець логу збірки мені
+- [ ] Застосунок стартує без вильоту й без червоного екрана (зокрема на iOS 27: помилка `UIApplicationEvaluateRuntimeIssueForNoSceneLifecycleAdoption` означає, що плагін `withSceneLifecycle` не відпрацював)
+- [ ] У галереї віджетів LinguaLens є три віджети; після першого відкриття застосунку вони наповнені
+- [ ] Це перевірка компіляції, а не заміна TestFlight: збірка бере змінні EAS `preview` (ключ RevenueCat `test_…`), камери й справжніх покупок у симуляторі немає
+
+**2. Чотири речі в `.ipa` першої production-збірки.** Після `npm run build:ios`
+скачай `.ipa` (`eas build:download` або кнопка на сторінці збірки в expo.dev) і на
+Mac:
+```bash
+mkdir ~/ipa-check && cd ~/ipa-check && cp <шлях до>/LinguaLens.ipa . && unzip -q LinguaLens.ipa
+ls Payload                                  # назва .app; нижче це APP=Payload/LinguaLens.app
+APP=Payload/LinguaLens.app
+plutil -p $APP/Info.plist | grep -A8 CFBundleAlternateIcons                     # 1
+plutil -p $APP/Info.plist | grep -E "CFBundleVersion|CFBundleShortVersionString"      # 2: застосунок
+plutil -p $APP/PlugIns/ExpoWidgetsTarget.appex/Info.plist | grep -E "CFBundleVersion|CFBundleShortVersionString"  # 2: віджети
+plutil -p $APP/Info.plist | grep NSMicrophoneUsageDescription                   # 3: має бути порожньо
+ls $APP/PrivacyInfo.xcprivacy $APP/PlugIns/ExpoWidgetsTarget.appex/PrivacyInfo.xcprivacy   # 4
+```
+- [ ] **1. Альтернативна іконка.** Є `CFBundleAlternateIcons` з набором `AppIcon-Eye`. Немає: тест іконки (Product Page Optimization) буде недоступний. Причина зазвичай у `ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS` (див. розділ «Іконка «Лінго»» вище); скажи мені
+- [ ] **2. Версія розширення віджетів.** `CFBundleVersion` розширення збігається з застосунком. Перевір це **ще раз після другої збірки** (EAS сам піднімає номер збірки): розбіжність дає помилку «version mismatch» в App Store Connect при завантаженні збірки №2. У вихідному Info.plist віджета стоять `1` і `1.0.0`: на першій збірці номери збігаються, а чи піднімає EAS номер розширення разом із застосунком, видно лише з другої
+- [ ] **3. Мікрофон.** `NSMicrophoneUsageDescription` немає (ми вимкнули рядок для expo-audio, expo-camera, expo-image-picker), а `expo-audio` у коді має посилання на запит запису. Apple може написати про відсутній рядок (ITMS-90683). Якщо напише: у `app.json` задай `microphonePermission` для `expo-audio` короткою чесною фразою й перезбери. Я не зміг перевірити без Apple, чи її сканер на це реагує
+- [ ] **4. Маніфести приватності.** Файл `PrivacyInfo.xcprivacy` є і в `.app` (маніфест застосунку), і в `$APP/PlugIns/ExpoWidgetsTarget.appex` (маніфест розширення віджетів: воно читає спільні налаштування, `UserDefaults`, а Apple вимагає назвати причину). Відкрий обидва через `plutil -p` і переконайся, що причини задекларовано, а трекінгу немає. Без маніфесту розширення Apple надсилає лист ITMS-91053 («Missing API declaration»). До збірки те саме видно після `CI=1 npx expo prebuild --platform ios --no-install --clean`: файли `ios/ExpoWidgetsTarget/PrivacyInfo.xcprivacy` (маніфест віджета, його пише `plugins/withWidgetPrivacyManifest.js`) і `ios/LinguaLens/PrivacyInfo.xcprivacy` (маніфест застосунку з `ios.privacyManifests` в `app.json`; решту причин від RevenueCat і PostHog CocoaPods додасть при зборі). Немає файлу чи прийшов такий лист: скажи мені
+
+---
+
 ## Якщо щось пішло не так
 
 | Симптом | Причина | Що робити |
@@ -273,6 +336,19 @@ v1.3: віджетів три («Слово дня», «Мої слова», «�
 npm test              # логіка застосунку (jest-expo)
 npm run test:server   # API сервера (node:test, mock-провайдер, тимчасовий DATA_FILE)
 npm run doctor        # сумісність версій пакетів з SDK 57
+```
+
+Запобіжник релізної збірки (`scripts/check-release-env.js`, тест
+`__tests__/releaseEnv.test.js`) можна перевірити й руками, без EAS. Зупиняє
+(код виходу 1, усі проблеми разом):
+```bash
+EAS_BUILD_PROFILE=production EXPO_PUBLIC_REVENUECAT_IOS_KEY=test_x \
+  EXPO_PUBLIC_SERVER_URL=http://localhost:3000 node scripts/check-release-env.js; echo $?
+```
+Пропускає, лише з попередженнями про відсутні пошту, PostHog і Facebook App ID:
+```bash
+EAS_BUILD_PROFILE=production EXPO_PUBLIC_REVENUECAT_IOS_KEY=appl_x \
+  EXPO_PUBLIC_SERVER_URL=https://lingualens-server-x.a.run.app node scripts/check-release-env.js; echo $?
 ```
 
 Те саме ганяє CI на кожен push у `main` і PR, плюс перевіряє, що iOS-бандл
