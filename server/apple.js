@@ -44,8 +44,9 @@ const MAX_TOKEN_LENGTH = 8192;
 // (так його можна вписати одним рядком у server/.env) — повертаємо їх.
 // Ключ розбираємо одразу: зіпсоване значення має бути видно в лозі при
 // старті, а не через місяць, коли хтось видалить акаунт.
+const PRIVATE_KEY_PEM = (process.env.APPLE_PRIVATE_KEY || '').replace(/\\n/g, '\n').trim();
 const SIGNING_KEY = (() => {
-  const pem = (process.env.APPLE_PRIVATE_KEY || '').replace(/\\n/g, '\n').trim();
+  const pem = PRIVATE_KEY_PEM;
   if (!TEAM_ID && !KEY_ID && !pem) return null;
   if (!TEAM_ID || !KEY_ID || !pem) {
     console.error('apple: задано не всі APPLE_TEAM_ID, APPLE_KEY_ID, APPLE_PRIVATE_KEY — відкликання вимкнене');
@@ -170,6 +171,25 @@ function configured() {
   return !!SIGNING_KEY;
 }
 
+// Яких із трьох змінних ключа Sign in with Apple не задано (для попередження
+// при старті). Порожній масив і не configured() — ключ є, але не розібрався.
+function missingSettings() {
+  return [
+    ['APPLE_TEAM_ID', TEAM_ID],
+    ['APPLE_KEY_ID', KEY_ID],
+    ['APPLE_PRIVATE_KEY', PRIVATE_KEY_PEM],
+  ]
+    .filter(([, v]) => !v)
+    .map(([k]) => k);
+}
+
+// Тимчасова відмова Apple, яку варто повторити один раз: мережа, таймаут,
+// 5xx, 429. Відповідь 4xx на кшталт invalid_grant повтор не вилікує.
+function isTransient(e) {
+  const status = e && e.status;
+  return !status || status >= 500 || status === 429;
+}
+
 // client_secret для REST Apple — JWT, підписаний нашим ключем .p8 (ES256).
 // Apple дозволяє до шести місяців, але нам він потрібен на один запит.
 // JWS для ES256 хоче підпис r||s (64 байти), а не DER — звідси ieee-p1363.
@@ -192,7 +212,10 @@ async function postForm(url, params) {
   // У тілі помилки Apple — код на кшталт invalid_grant; більше в лог не несемо.
   const err = await res.json().catch(() => null);
   const code = typeof err?.error === 'string' ? ' ' + err.error.replace(/[^a-z_]/g, '').slice(0, 40) : '';
-  throw new Error(new URL(url).pathname + ' ' + res.status + code);
+  // status — щоб викликач відрізнив тимчасову відмову (5xx, 429) від
+  // остаточної (400 invalid_grant): другу повторювати марно. Мережева помилка
+  // й таймаут статусу не мають.
+  throw Object.assign(new Error(new URL(url).pathname + ' ' + res.status + code), { status: res.status });
 }
 
 // authorizationCode → refresh-токен. sub у відповіді Apple має збігтися з
@@ -229,4 +252,4 @@ async function revoke(refreshToken, clientId) {
   return true;
 }
 
-module.exports = { AUDIENCES, verifyIdentityToken, configured, exchangeCode, revoke };
+module.exports = { AUDIENCES, verifyIdentityToken, configured, missingSettings, isTransient, exchangeCode, revoke };

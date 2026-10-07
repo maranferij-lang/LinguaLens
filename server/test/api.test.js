@@ -64,6 +64,22 @@ test('health answers with security headers', async () => {
   assert.equal(r.headers.get('x-content-type-options'), 'nosniff');
 });
 
+test('health reports production config as booleans, never as values', async () => {
+  const r = await call('GET', '/health');
+  assert.deepEqual(Object.keys(r.data), ['ok', 'provider', 'store', 'config']);
+  assert.deepEqual(Object.keys(r.data.config), [
+    'ai', 'authSecret', 'firestore', 'revenuecat', 'webhookAuth', 'supportEmail', 'appleRevoke',
+  ]);
+  for (const v of Object.values(r.data.config)) assert.equal(typeof v, 'boolean');
+  assert.equal(r.data.config.ai, true); // mock не потребує ключа
+  assert.equal(r.data.config.authSecret, false); // 'test-secret' коротший за 32 символи
+  assert.equal(r.data.config.webhookAuth, true);
+  assert.equal(r.data.config.revenuecat, false);
+  assert.equal(r.data.config.firestore, false);
+  const text = JSON.stringify(r.data);
+  assert.equal(text.includes('test-secret') || text.includes('hook-secret'), false);
+});
+
 test('scan requires a device token', async () => {
   const r = await call('POST', '/scan', { body: IMAGE });
   assert.equal(r.status, 401);

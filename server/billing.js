@@ -13,7 +13,8 @@
 // Джерела правди про Pro (обидва необов'язкові, працюють разом):
 //   1) вебхук RevenueCat → user.proUntil (миттєво після покупки/продовження);
 //   2) REST-запит до RevenueCat, коли безкоштовний ліміт вичерпано, — на
-//      випадок, якщо вебхук ще не налаштований або загубився. Кеш 10 хв.
+//      випадок, якщо вебхук ще не налаштований або загубився. Кеш 10 хв. Дійсний
+//      Pro звіряємо так само раз на добу (PRO_RECHECK_MS).
 const crypto = require('crypto');
 const store = require('./store');
 
@@ -49,9 +50,17 @@ const RC_WEBHOOK_AUTH = process.env.REVENUECAT_WEBHOOK_AUTH || '';
 const ENTITLEMENT = process.env.REVENUECAT_ENTITLEMENT || 'lingualens_pro';
 const RC_CACHE_MS = 10 * 60 * 1000;
 const REFRESH_MIN_MS = 30 * 1000;
-// Якщо RevenueCat недоступний, людина, в якої Pro щойно закінчився, ще три
-// дні не впирається в ліміт: краще подарувати кілька сканів, ніж заблокувати
-// того, хто заплатив і просто чекає продовження.
+// Pro, який кеш бачить дійсним (proUntil у майбутньому), раз на добу все одно
+// звіряємо з RevenueCat: якщо вебхук про повернення коштів чи закінчення не
+// дійшов (неправильний секрет, збій, RevenueCat здався після повторів),
+// довічна покупка інакше жила б на сервері до 2100 року. Збій перевірки
+// повторюємо не частіше ніж раз на RC_CACHE_MS.
+const PRO_RECHECK_MS = 24 * 3600 * 1000;
+// Це НЕ платіжний пільговий період Apple (Billing Grace Period, його читає
+// fetchRevenueCatUntil). Це запас на випадок, коли RevenueCat недоступний:
+// людина, в якої Pro щойно закінчився, ще три дні не впирається в ліміт.
+// Краще подарувати кілька сканів, ніж заблокувати того, хто заплатив і просто
+// чекає продовження.
 const GRACE_MS = 3 * 86400000;
 const FOREVER = 4102444800000; // 2100-01-01 — довічна покупка
 
@@ -86,6 +95,27 @@ function localDay(value) {
 }
 
 // ---------- Pro ----------
+// Дата («2026-10-20T10:00:00Z» або мс) → мс, або null, якщо не дата.
+function parseDate(v) {
+  if (v == null) return null;
+  const t = typeof v === 'number' ? v : Date.parse(v);
+  return Number.isFinite(t) ? t : null;
+}
+
+// До якого моменту entitlement з відповіді RevenueCat REST дає Pro.
+// expires_date: null — довічна покупка. Під час платіжного пільгового
+// періоду (Apple Billing Grace Period, у нас 16 днів) RevenueCat тримає
+// entitlement активним, хоча expires_date уже минув: кінець пільгового
+// періоду лежить окремо, у grace_period_expires_date. Беремо пізніший із двох,
+// інакше платник, у якого не пройшла картка, мав би Pro в застосунку, а сервер
+// віддавав би йому 402 SCAN_LIMIT.
+function entitlementUntil(ent) {
+  if (!ent) return null;
+  if (ent.expires_date == null) return FOREVER;
+  const dates = [parseDate(ent.expires_date), parseDate(ent.grace_period_expires_date)].filter((t) => t !== null);
+  return dates.length ? Math.max(...dates) : null;
+}
+
 async function fetchRevenueCatUntil(userId) {
   const res = await fetch('https://api.revenuecat.com/v1/subscribers/' + encodeURIComponent(userId), {
     headers: { authorization: 'Bearer ' + RC_SECRET, 'content-type': 'application/json' },
@@ -94,12 +124,7 @@ async function fetchRevenueCatUntil(userId) {
   if (res.status === 404) return null;
   if (!res.ok) throw new Error('revenuecat ' + res.status);
   const data = await res.json();
-  const ent = data?.subscriber?.entitlements?.[ENTITLEMENT];
-  if (!ent) return null;
-  // expires_date: null — довічна покупка
-  if (ent.expires_date == null) return FOREVER;
-  const t = Date.parse(ent.expires_date);
-  return Number.isFinite(t) ? t : null;
+  return entitlementUntil(data?.subscriber?.entitlements?.[ENTITLEMENT]);
 }
 
 // Повертає { active, until }. Може оновити й зберегти user (кеш перевірки).
@@ -108,9 +133,16 @@ async function fetchRevenueCatUntil(userId) {
 async function proStatus(user, { refresh = false } = {}) {
   const now = Date.now();
   let until = user.proUntil || null;
-  if (until && until > now && !refresh) return { active: true, until };
+  let recheck = false;
+  if (until && until > now && !refresh) {
+    // Дійсний Pro віддаємо з кешу, але раз на добу звіряємо з RevenueCat
+    // (див. PRO_RECHECK_MS); без секретного ключа звіряти нічим.
+    const due = !user.proCheckedAt || now - user.proCheckedAt > PRO_RECHECK_MS;
+    if (!(RC_SECRET && due)) return { active: true, until };
+    recheck = true;
+  }
 
-  const stale = !user.proCheckedAt || now - user.proCheckedAt > RC_CACHE_MS;
+  const stale = recheck || !user.proCheckedAt || now - user.proCheckedAt > RC_CACHE_MS;
   // refresh не частіше ніж раз на 30 с: інакше будь-хто з токеном пристрою
   // міг би в циклі вичерпати квоту RevenueCat API для всіх. Окрема позначка,
   // а не proCheckedAt: звичайна перевірка при запуску за мить до покупки не
@@ -126,6 +158,15 @@ async function proStatus(user, { refresh = false } = {}) {
       await store.update('users', user.id, fields);
     } catch (e) {
       console.error('revenuecat check failed:', e.message);
+      if (recheck) {
+        // RevenueCat не відповів, а Pro за кешем ще дійсний: лишаємо його і
+        // відкладаємо наступну спробу на RC_CACHE_MS, а не пробуємо на кожен
+        // скан (кожна спроба — до 8 с очікування).
+        const retryAt = now - PRO_RECHECK_MS + RC_CACHE_MS;
+        user.proCheckedAt = retryAt;
+        await store.update('users', user.id, { proCheckedAt: retryAt }).catch(() => {});
+        return { active: true, until: user.proUntil };
+      }
       if (user.proUntil && now - user.proUntil < GRACE_MS) return { active: true, until: user.proUntil };
     }
   }
@@ -272,6 +313,15 @@ function webhookAuthorized(req) {
   return got.length === want.length && crypto.timingSafeEqual(got, want);
 }
 
+// Момент закінчення з події: пізніший із expiration_at_ms і
+// grace_period_expiration_at_ms (його шле BILLING_ISSUE, коли Apple дає
+// платіжний пільговий період: Pro триває, хоча оплата не пройшла). null, якщо
+// в події немає жодної дати.
+function eventUntil(ev) {
+  const dates = [parseDate(ev.expiration_at_ms), parseDate(ev.grace_period_expiration_at_ms)].filter((t) => t !== null);
+  return dates.length ? Math.max(...dates) : null;
+}
+
 // Що подія означає для конкретного користувача, якщо RevenueCat REST
 // недоступний (немає секретного ключа). Повертає новий proUntil або undefined.
 function untilFromEvent(ev, id, current) {
@@ -280,7 +330,16 @@ function untilFromEvent(ev, id, current) {
     // старий власник її втрачає, новий отримає при наступній перевірці
     return (ev.transferred_from || []).includes(id) ? null : undefined;
   }
-  if (EXTENDS.has(ev.type)) return ev.expiration_at_ms || FOREVER;
+  if (EXTENDS.has(ev.type)) return eventUntil(ev) || FOREVER;
+  // Не пройшла оплата продовження. З пільговим періодом Pro триває до його
+  // кінця; без нього (немає grace_period_expiration_at_ms) нічого не міняємо:
+  // доступ закінчить сама дата підписки або подія EXPIRATION.
+  if (ev.type === 'BILLING_ISSUE') {
+    const grace = parseDate(ev.grace_period_expiration_at_ms);
+    return grace === null ? undefined : Math.max(current || 0, grace);
+  }
+  // EXPIRATION приходить уже ПІСЛЯ пільгового періоду, тож його дати не
+  // розширюємо пільговою: підписка скінчилась.
   if (ev.type === 'EXPIRATION') return Math.min(current || Infinity, ev.expiration_at_ms || Date.now());
   // Повернення коштів через підтримку Apple — доступ припиняється одразу.
   if (ev.type === 'CANCELLATION' && ev.cancel_reason === 'CUSTOMER_SUPPORT') return Date.now();
@@ -323,6 +382,14 @@ async function handleWebhook(body) {
   return { handled: true, touched };
 }
 
+// Чи задані секрети RevenueCat (для /health і попереджень при старті).
+function configured() {
+  return !!RC_SECRET;
+}
+function webhookConfigured() {
+  return !!RC_WEBHOOK_AUTH;
+}
+
 module.exports = {
   FREE_SCANS,
   FREE_SCENES,
@@ -337,4 +404,8 @@ module.exports = {
   reserveScan,
   webhookAuthorized,
   handleWebhook,
+  entitlementUntil,
+  untilFromEvent,
+  configured,
+  webhookConfigured,
 };

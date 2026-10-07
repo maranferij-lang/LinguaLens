@@ -100,8 +100,20 @@ const profileUserLimited = limiter(10, 60000);
 const meLimited = limiter(RATE_PER_MIN, 60000);
 // Нові пристрої: справжня людина створює один за все життя установки.
 // Двадцять на годину з IP — запас для гуртожитку чи офісу за одним NAT,
-// але не для скрипта, що фармить безкоштовні скани.
-const deviceLimited = limiter(20, 60 * 60 * 1000);
+// але не для скрипта, що фармить безкоштовні скани. У день запуску за одним
+// NAT (кампус, офіс, оператор) нових установок може бути більше: ліміт
+// піднімають змінною DEVICE_LIMIT_PER_HOUR без нової збірки (gcloud run
+// services update --update-env-vars). Лічильник свій у кожного інстансу.
+function envPositiveInt(name, fallback) {
+  const raw = process.env[name];
+  if (raw === undefined || String(raw).trim() === '') return fallback;
+  const n = Number(raw);
+  if (Number.isInteger(n) && n > 0) return n;
+  console.warn(`server: ${name}=${raw} не ціле число > 0, беру ${fallback}`);
+  return fallback;
+}
+const DEVICE_LIMIT_PER_HOUR = envPositiveInt('DEVICE_LIMIT_PER_HOUR', 20);
+const deviceLimited = limiter(DEVICE_LIMIT_PER_HOUR, 60 * 60 * 1000);
 // Вхід через Apple: nonce + сам вхід — два запити, людина робить це раз на
 // телефон. Тридцять за 10 хвилин з IP (nonce і вхід рахуються разом)
 // вистачає на кілька спроб для цілого офісу, але не на перебір.
@@ -145,6 +157,72 @@ function variantsOf(src, lang, nativeLang) {
 // «en-gb→es-latam» для журналу
 function pairTag(lang, nativeLang, vars) {
   return ai.langTag(lang, vars.variant) + '→' + ai.langTag(nativeLang, vars.nativeVariant);
+}
+
+// ---------- налаштування продакшну ----------
+// Усе нижче в продакшні обов'язкове, але сервер без нього не падає: кожна
+// відсутня змінна мовчки вмикає запасний варіант (див. DEPLOY.md), а
+// `gcloud run deploy --set-env-vars` замінює ВСІ змінні, тож звичайний
+// передеплой міг би тихо зняти їх. Тому: попередження в лог при старті й
+// булеві прапорці в /health (самих значень там немає й не буде).
+// Ключ AI — для обраного PROVIDER (будь-що, крім anthropic, іде в Gemini,
+// як у ai.js); mock ключа не потребує.
+function aiKeyConfigured() {
+  if (ai.PROVIDER === 'mock') return true;
+  const name = ai.PROVIDER === 'anthropic' ? 'ANTHROPIC_API_KEY' : 'GEMINI_API_KEY';
+  return !!String(process.env[name] || '').trim();
+}
+
+function configFlags() {
+  return {
+    ai: aiKeyConfigured(),
+    authSecret: auth.secretStatus() === 'ok',
+    firestore: store.MODE === 'firestore',
+    revenuecat: billing.configured(),
+    webhookAuth: billing.webhookConfigured(),
+    supportEmail: !!SUPPORT_EMAIL,
+    appleRevoke: apple.configured(),
+  };
+}
+
+// Рядки попереджень, по одному на кожну відсутню настройку. Для mock
+// (локальна розробка й тести) їх немає.
+function configWarnings() {
+  if (ai.PROVIDER === 'mock') return [];
+  const flags = configFlags();
+  const out = [];
+  if (!flags.ai) {
+    const name = ai.PROVIDER === 'anthropic' ? 'ANTHROPIC_API_KEY' : 'GEMINI_API_KEY';
+    out.push(`${name} не заданий (PROVIDER=${ai.PROVIDER}): скани й слово дня віддаватимуть 502`);
+  }
+  if (!flags.authSecret) {
+    out.push(
+      auth.secretStatus() === 'short'
+        ? `AUTH_SECRET коротший за ${auth.MIN_SECRET_LENGTH} символів: візьми openssl rand -hex 32`
+        : 'AUTH_SECRET не заданий: підпис токенів тимчасовий, пристрої губитимуть вхід при рестарті й на інших інстансах'
+    );
+  }
+  if (!flags.firestore) {
+    out.push('FIRESTORE_PROJECT не заданий: дані лежать у файлі всередині контейнера й зникнуть при рестарті');
+  }
+  if (!flags.revenuecat) {
+    out.push('REVENUECAT_SECRET_KEY не заданий: Pro визнається лише за вебхуком, без перевірки в RevenueCat');
+  }
+  if (!flags.webhookAuth) {
+    out.push('REVENUECAT_WEBHOOK_AUTH не заданий: вебхук RevenueCat відповідатиме 401, покупки не дійдуть до сервера');
+  }
+  if (!flags.supportEmail) {
+    out.push('SUPPORT_EMAIL не заданий: сторінки /privacy і /support лишаться із заглушкою замість пошти');
+  }
+  if (!flags.appleRevoke) {
+    const missing = apple.missingSettings();
+    out.push(
+      missing.length
+        ? `${missing.join(', ')} не задано: при видаленні акаунта вхід через Apple не відкликатиметься`
+        : 'ключ Sign in with Apple (APPLE_PRIVATE_KEY) не розібрався: вхід через Apple не відкликатиметься'
+    );
+  }
+  return out;
 }
 
 // ---------- HTTP-утиліти ----------
@@ -534,6 +612,38 @@ async function handleProfile(req, res, user) {
   return json(res, 200, { ok: true });
 }
 
+// Apple вимагає відкликати вхід, коли людина видаляє акаунт. Одна повторна
+// спроба — лише після тимчасової відмови (мережа, таймаут, 5xx, 429): поганий
+// токен чи ключ (400 invalid_grant) повтором не вилікуєш. Найгірший випадок —
+// два таймаути по 5 с, а застосунок чекає на DELETE /me 20 с. Нічого не кидає:
+// невдача лише в лог, дані стирає викликач у будь-якому разі.
+const REVOKE_RETRY_MS = 500;
+async function revokeAppleLogin(user) {
+  const stamp = () => new Date().toISOString();
+  if (!user.appleRefresh) {
+    // Запис прив'язаний до Apple ID, а токена немає: вхід був до того, як
+    // ключ налаштували, або обмін коду не вдався. Відкликати нічого.
+    if (user.appleKey) console.warn(stamp(), 'apple: в акаунта, що видаляється, немає refresh-токена, вхід не відкликано');
+    return false;
+  }
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      if (await apple.revoke(user.appleRefresh, user.appleClient || apple.AUDIENCES[0])) {
+        console.log(stamp(), 'apple: вхід відкликано');
+        return true;
+      }
+      console.warn(stamp(), 'apple: відкликання не налаштоване (APPLE_TEAM_ID, APPLE_KEY_ID, APPLE_PRIVATE_KEY), вхід не відкликано');
+      return false;
+    } catch (e) {
+      const retry = attempt === 1 && apple.isTransient(e);
+      console.error(stamp(), 'apple: відкликання не вдалося' + (retry ? ', повторюю' : '') + ':', e.message);
+      if (!retry) return false;
+      await new Promise((r) => setTimeout(r, REVOKE_RETRY_MS));
+    }
+  }
+  return false;
+}
+
 async function handle(req, res) {
   const route = req.url.split('?')[0];
 
@@ -549,7 +659,7 @@ async function handle(req, res) {
     return res.end();
   }
   if (req.method === 'GET' && route === '/health') {
-    return json(res, 200, { ok: true, provider: ai.PROVIDER, store: store.MODE });
+    return json(res, 200, { ok: true, provider: ai.PROVIDER, store: store.MODE, config: configFlags() });
   }
   if (req.method === 'GET' && Object.hasOwn(PAGES, route) && PAGES[route]) {
     res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', ...SECURITY_HEADERS, 'Cache-Control': 'public, max-age=3600' });
@@ -621,18 +731,11 @@ async function handle(req, res) {
   // застосунок несе в нову ідентичність, тож стирання нового скану не дає.
   if (route === '/me' && req.method === 'DELETE') {
     const carry = auth.carryToken(user);
+    // Відкликання Apple — ДО видалення запису: refresh-токен лежить лише в
+    // ньому, і стерши запис першим, ми б назавжди втратили змогу відкликати
+    // вхід, якщо Apple саме недоступний. Сама відмова видалення не скасовує.
+    await revokeAppleLogin(user);
     await auth.deleteUser(user);
-    // Apple вимагає відкликати вхід, коли людина видаляє акаунт. Невдача тут
-    // не скасовує видалення — дані вже стерто; лишається запис у лозі.
-    if (user.appleRefresh) {
-      try {
-        if (await apple.revoke(user.appleRefresh, user.appleClient || apple.AUDIENCES[0])) {
-          console.log(new Date().toISOString(), 'apple: вхід відкликано');
-        }
-      } catch (e) {
-        console.error(new Date().toISOString(), 'apple: відкликання не вдалося:', e.message);
-      }
-    }
     console.log(new Date().toISOString(), 'DELETE /me → ok');
     return json(res, 200, { ok: true, carry });
   }
@@ -666,6 +769,10 @@ function createServer() {
 if (require.main === module) {
   createServer().listen(PORT, '0.0.0.0', () => {
     console.log('LinguaLens server запущено. Провайдер: ' + ai.PROVIDER);
+    // Не зупиняємо старт: поганий старт у Cloud Run — це недоступний сервіс
+    // за кілька днів до релізу, а прапорці в /health і рядки в лозі дають
+    // змогу побачити пропуск одним запитом.
+    for (const line of configWarnings()) console.warn('config: ' + line);
     const nets = os.networkInterfaces();
     for (const name of Object.keys(nets)) {
       for (const net of nets[name] || []) {
@@ -678,4 +785,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { createServer };
+module.exports = { createServer, configFlags, configWarnings };

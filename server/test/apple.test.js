@@ -373,20 +373,149 @@ test('DELETE /me removes the dictionary and the Apple link and revokes the Apple
   assert.equal(again.data.user.id, next.user.id);
 });
 
-test('DELETE /me still succeeds when Apple revocation fails', async () => {
+test('DELETE /me still succeeds when Apple revocation fails (one retry on a transient failure)', async () => {
   const device = await newDevice();
   const s = sub();
   await signIn(device.token, s, { code: apple.authorizationCode(s) });
-  apple.revokeFails = true;
+  apple.revokeFails = true; // Apple відповідає 500: тимчасова відмова
   const before = apple.revokeCalls.length;
   try {
     assert.equal((await call('DELETE', '/me', { token: device.token })).status, 200);
   } finally {
     apple.revokeFails = false;
   }
-  assert.equal(apple.revokeCalls.length, before + 1);
+  assert.equal(apple.revokeCalls.length, before + 2);
   assert.equal(await store.get('users', device.user.id), null);
   assert.equal(await store.get('appleAccounts', auth.appleKey(s)), null);
+});
+
+// Підміна лише /auth/revoke поверх підробленого Apple: handler бачить запит і
+// може відповісти сам або віддати його далі (inner).
+async function withRevoke(handler, fn) {
+  const inner = global.fetch;
+  global.fetch = (url, opts) => (String(url).endsWith('/auth/revoke') ? handler(url, opts, inner) : inner(url, opts));
+  try {
+    return await fn();
+  } finally {
+    global.fetch = inner;
+  }
+}
+
+async function signedInDevice() {
+  const device = await newDevice();
+  const s = sub();
+  await signIn(device.token, s, { code: apple.authorizationCode(s) });
+  return { device, s };
+}
+
+test('DELETE /me revokes the Apple token BEFORE the user record is deleted', async () => {
+  const { device } = await signedInDevice();
+  const seen = [];
+  await withRevoke(
+    async (url, opts, inner) => {
+      seen.push(!!(await store.get('users', device.user.id)));
+      return inner(url, opts);
+    },
+    async () => assert.equal((await call('DELETE', '/me', { token: device.token })).status, 200)
+  );
+  assert.deepEqual(seen, [true]); // у момент відкликання запис ще є
+  assert.equal(await store.get('users', device.user.id), null);
+});
+
+test('a transient Apple failure is retried once and the revocation then succeeds', async () => {
+  const { device } = await signedInDevice();
+  let n = 0;
+  await withRevoke(
+    async (url, opts, inner) => (++n === 1 ? new Response('{}', { status: 503 }) : inner(url, opts)),
+    async () => assert.equal((await call('DELETE', '/me', { token: device.token })).status, 200)
+  );
+  assert.equal(n, 2);
+  assert.equal(await store.get('users', device.user.id), null);
+});
+
+test('a network error or timeout on revoke is retried once too', async () => {
+  const { device } = await signedInDevice();
+  let n = 0;
+  await withRevoke(
+    async (url, opts, inner) => {
+      if (++n === 1) throw new TypeError('fetch failed');
+      return inner(url, opts);
+    },
+    async () => assert.equal((await call('DELETE', '/me', { token: device.token })).status, 200)
+  );
+  assert.equal(n, 2);
+});
+
+test('a permanent Apple refusal (400 invalid_grant) is not retried, and the record is still deleted', async () => {
+  const { device, s } = await signedInDevice();
+  let n = 0;
+  await withRevoke(
+    async () => (++n, new Response(JSON.stringify({ error: 'invalid_grant' }), { status: 400 })),
+    async () => assert.equal((await call('DELETE', '/me', { token: device.token })).status, 200)
+  );
+  assert.equal(n, 1);
+  assert.equal(await store.get('users', device.user.id), null);
+  assert.equal(await store.get('appleAccounts', auth.appleKey(s)), null);
+});
+
+test('revocation failures are logged (no token, no sub) and never block the deletion', async () => {
+  const { device } = await signedInDevice();
+  const refresh = (await store.get('users', device.user.id)).appleRefresh;
+  const errors = [];
+  const origError = console.error;
+  console.error = (...a) => errors.push(a.join(' '));
+  try {
+    await withRevoke(
+      async () => new Response('{}', { status: 500 }),
+      async () => assert.equal((await call('DELETE', '/me', { token: device.token })).status, 200)
+    );
+  } finally {
+    console.error = origError;
+  }
+  const lines = errors.filter((l) => l.includes('відкликання не вдалося'));
+  assert.equal(lines.length, 2); // спроба і повтор
+  assert.match(lines[0], /повторюю/);
+  assert.ok(lines.every((l) => !l.includes(refresh)));
+  assert.equal(await store.get('users', device.user.id), null);
+});
+
+test('a record linked to Apple but without a refresh token logs a warning and is deleted without calling Apple', async () => {
+  const device = await newDevice();
+  await signIn(device.token, sub()); // без authorizationCode: refresh-токена немає
+  assert.equal((await store.get('users', device.user.id)).appleRefresh, undefined);
+  const warns = [];
+  const origWarn = console.warn;
+  console.warn = (...a) => warns.push(a.join(' '));
+  const before = apple.revokeCalls.length;
+  try {
+    assert.equal((await call('DELETE', '/me', { token: device.token })).status, 200);
+  } finally {
+    console.warn = origWarn;
+  }
+  assert.equal(apple.revokeCalls.length, before);
+  assert.ok(warns.some((l) => l.includes('немає refresh-токена')));
+  assert.equal(await store.get('users', device.user.id), null);
+});
+
+test('a plain device without Apple ID deletes silently: no warning, no Apple call', async () => {
+  const device = await newDevice();
+  const warns = [];
+  const origWarn = console.warn;
+  console.warn = (...a) => warns.push(a.join(' '));
+  const before = apple.revokeCalls.length;
+  try {
+    assert.equal((await call('DELETE', '/me', { token: device.token })).status, 200);
+  } finally {
+    console.warn = origWarn;
+  }
+  assert.equal(apple.revokeCalls.length, before);
+  assert.deepEqual(warns, []);
+});
+
+test('/health reports appleRevoke: true when the Sign in with Apple key is configured', async () => {
+  const r = await call('GET', '/health');
+  assert.equal(r.status, 200);
+  assert.equal(r.data.config.appleRevoke, true);
 });
 
 test('DELETE /me never removes an Apple link that already points to another account', async () => {

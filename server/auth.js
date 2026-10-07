@@ -15,9 +15,13 @@ const store = require('./store');
 const sync = require('./sync');
 const billing = require('./billing');
 
-// Секрет для підпису токенів. У проді ОБОВ'ЯЗКОВО задати AUTH_SECRET.
+// Секрет для підпису токенів. У проді ОБОВ'ЯЗКОВО задати AUTH_SECRET
+// (openssl rand -hex 32). Коротший за MIN_SECRET_LENGTH підписувати вміє, але
+// його легше підібрати, тож /health і лог при старті бачать його «слабким».
+const MIN_SECRET_LENGTH = 32;
+const SECRET_ENV = process.env.AUTH_SECRET || '';
 const SECRET =
-  process.env.AUTH_SECRET ||
+  SECRET_ENV ||
   (() => {
     console.warn('auth: AUTH_SECRET не заданий — використовую тимчасовий (сесії злетять при рестарті)');
     return crypto.randomBytes(32).toString('hex');
@@ -32,6 +36,12 @@ const NONCE_MS = 10 * 60 * 1000;
 const USERS = 'users';
 // appleAccounts/<HMAC(sub)> = { userId } — єдине місце, яке каже, чий це Apple ID.
 const APPLE = 'appleAccounts';
+
+// 'ok' | 'short' | 'missing' — для /health і попереджень при старті.
+function secretStatus() {
+  if (!SECRET_ENV) return 'missing';
+  return SECRET_ENV.length < MIN_SECRET_LENGTH ? 'short' : 'ok';
+}
 
 function sign(payload) {
   const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
@@ -264,6 +274,8 @@ async function deleteUser(user) {
 }
 
 module.exports = {
+  MIN_SECRET_LENGTH,
+  secretStatus,
   createDevice,
   userFromRequest,
   deleteUser,

@@ -317,7 +317,8 @@ test('a legacy record that did not scan gets its one scan; the new counter is wr
 
   // Pro з великим старим лічильником: рахунок іде далі від нього, usage не чіпаємо
   const pro = await newDevice();
-  await store.update('users', pro.user.id, { usage: { day: today, scans: 5 }, proUntil: Date.now() + DAY });
+  // proCheckedAt: вебхук уже звірив Pro з RevenueCat (без нього сервер звіряв би знову)
+  await store.update('users', pro.user.id, { usage: { day: today, scans: 5 }, proUntil: Date.now() + DAY, proCheckedAt: Date.now() });
   const p = await scan(pro.token, today);
   assert.equal(p.status, 200);
   assert.equal(p.data.usage.scans, 6);
@@ -329,7 +330,7 @@ test('a legacy record that did not scan gets its one scan; the new counter is wr
 
 test('releasing a legacy record’s scan counts from the larger counter and does not go below it', async () => {
   const id = 'u-legacy-release-' + Date.now();
-  await newUser(id, { usage: { day: billing.utcDay(), scans: 2 }, proUntil: Date.now() + DAY });
+  await newUser(id, { usage: { day: billing.utcDay(), scans: 2 }, proUntil: Date.now() + DAY, proCheckedAt: Date.now() });
   const slot = await billing.reserveScan(await store.get('users', id));
   assert.equal(slot.ok, true);
   assert.equal((await store.get('users', id)).scans, 3);
