@@ -207,6 +207,52 @@ test('the offering renders what it has: monthly, yearly and a one-time lifetime'
   await act(async () => tree.unmount());
 });
 
+// Пропозиція прийшла, але жодного пакета ми не впізнали: це «ціни не
+// завантажились» з повідомленням і «Спробувати ще раз», а не пейвол з
+// індикатором, що крутиться без кінця (plansStatus 'ready' при нуль планів).
+describe('an offering with no recognised packages', () => {
+  const unknown = (packages) => ({ current: { identifier: 'default', metadata: {}, availablePackages: packages } });
+  const pkg = (packageType, identifier) => ({ packageType, product: { identifier, price: 1, priceString: '$1', introPrice: null } });
+
+  test('ends in the failed state with no plans, and a retry can recover', async () => {
+    sdk.getOfferings.mockImplementation(async () => unknown([pkg('CUSTOM', 'monthly'), pkg('SIX_MONTH', 'half')]));
+    const tree = await mount();
+    expect(hook.plansStatus).toBe('failed');
+    expect(hook.plans).toEqual([]);
+    expect(hook.ready).toBe(false);
+
+    // у дашборді виправили пакети — «Спробувати ще раз» їх підхоплює
+    sdk.getOfferings.mockImplementation(async () => OFFERING);
+    await act(async () => {
+      await hook.reloadPlans();
+    });
+    expect(hook.plansStatus).toBe('ready');
+    expect(hook.plans.map((p) => p.id)).toEqual(['month', 'year', 'lifetime']);
+    expect(hook.ready).toBe(true);
+    await act(async () => tree.unmount());
+  });
+
+  test('an empty offering is the same failure', async () => {
+    sdk.getOfferings.mockImplementation(async () => unknown([]));
+    const tree = await mount();
+    expect(hook).toMatchObject({ plansStatus: 'failed', plans: [], ready: false });
+    await act(async () => tree.unmount());
+  });
+
+  test('custom packages are recognised by product id, so they are not a failure', async () => {
+    sdk.getOfferings.mockImplementation(async () =>
+      unknown([pkg('CUSTOM', 'com.marik.lingualens.pro.month'), pkg('CUSTOM', 'com.marik.lingualens.pro.year')])
+    );
+    const tree = await mount();
+    expect(hook.plansStatus).toBe('ready');
+    expect(hook.plans.map((p) => p.id)).toEqual(['month', 'year']);
+    // і покупку з пейволу RevenueCat звіряємо з планом так само
+    expect(planOfProduct('com.marik.lingualens.pro.year')).toBe('year');
+    expect(planOfProduct('monthly')).toBeNull();
+    await act(async () => tree.unmount());
+  });
+});
+
 test('an active lingualens_pro without an expiry is lifetime Pro', async () => {
   sdk.getCustomerInfo.mockImplementation(async () => LIFETIME_INFO);
   sdk.logIn.mockImplementation(async () => ({ customerInfo: LIFETIME_INFO }));

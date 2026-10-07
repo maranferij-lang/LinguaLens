@@ -85,6 +85,7 @@ import {
   cancelAll,
   subscribeToNotificationTaps,
   scheduleTrialReminder,
+  cancelTrialReminder,
   canRemind,
   hasPermission,
   DEFAULT_HOUR,
@@ -167,6 +168,11 @@ const TABS = [
 // людина бачила б два завантажувальні екрани поспіль.
 SplashScreen.preventAutoHideAsync().catch(() => {});
 SplashScreen.setOptions({ duration: 250, fade: true });
+
+// Скільки після онбордингу чекаємо тарифи, що ще вантажаться, щоб показати
+// пейвол онбордингу (див. openOnboardingPaywall): довше — людина вже гортає
+// застосунок, і пейвол, що вискочив зненацька, дратував би.
+const ONB_PAYWALL_WAIT_MS = 8000;
 
 // Старі й альтернативні коди мов, які віддають iOS/Android.
 const LANG_ALIAS = { nb: 'no', nn: 'no', iw: 'he', in: 'id' };
@@ -979,6 +985,8 @@ export default function App() {
   // Apple (див. коментар у subscription.js). Таймлайн у пейволі це пообіцяв —
   // тож якщо про сповіщення ще не питали, питаємо зараз.
   function proActivated(state) {
+    // ефект нижче не повторює те, що тут уже зроблено
+    proHandled.current = true;
     paywallRef.current = null;
     setPaywall(null);
     refreshMe(true);
@@ -988,6 +996,44 @@ export default function App() {
       askPush('trial').then(() => scheduleTrialReminder(until, t('trialEndTitle'), t('trialEndBody')));
     }
   }
+
+  // Стан підписки змінюється й не через наш пейвол: «Попросити купити»
+  // схвалили батьки, Customer Center відновив покупку, Pro приїхав на новий
+  // телефон після logIn, пробний скасували в налаштуваннях Apple ID.
+  //  - Pro щойно з'явився, а proActivated про це не знає: закриваємо
+  //    пейвол, що міг лишитись відкритим, і просимо сервер перепитати
+  //    RevenueCat (інакше ліміт сканів знімуть лише за наступним сканом);
+  //  - нагадування про кінець пробного: пробний скасовано (willRenew false),
+  //    він уже став платною підпискою чи Pro зник — прибираємо, бо «підписка
+  //    почнеться за 2 дні» було б неправдою про списання; пробний триває й
+  //    поновиться — ставимо (замінює таке саме), але без запиту дозволу: про
+  //    нього питає лише proActivated одразу після покупки.
+  // Поки магазин не відповів (subKnown), нічого не чіпаємо: стартовий
+  // { pro: false } — не відповідь, і нагадування діючого пробного не мусить
+  // гинути, доки RevenueCat не прокинувся.
+  const proPrev = useRef(null);
+  const proHandled = useRef(false);
+  useEffect(() => {
+    if (!subKnown) return;
+    const was = proPrev.current;
+    proPrev.current = sub.pro;
+    if (!sub.pro) {
+      proHandled.current = false;
+      cancelTrialReminder();
+      return;
+    }
+    const served = proHandled.current;
+    proHandled.current = true;
+    // перший відомий стан — це не «з'явився»: так Pro-користувач не отримував
+    // би запит до сервера на кожному запуску
+    if (was === false && !served) {
+      paywallRef.current = null;
+      setPaywall(null);
+      refreshMe(true);
+    }
+    if (!sub.trial || sub.willRenew === false) cancelTrialReminder();
+    else if (sub.until) scheduleTrialReminder(sub.until, t('trialEndTitle'), t('trialEndBody'));
+  }, [subKnown, sub.pro, sub.trial, sub.willRenew, sub.until]);
 
   async function purchasePlan(planId) {
     const source = paywallRef.current;
@@ -1012,6 +1058,7 @@ export default function App() {
       // Pro повернувся — пейвол більше не потрібен. Закриваємо його самі,
       // до того як PaywallScreen покличе onClose: інакше статистика
       // порахувала б відновлення як «закрили без покупки».
+      proHandled.current = true;
       paywallRef.current = null;
       setPaywall(null);
       refreshMe(true);
@@ -1137,8 +1184,18 @@ export default function App() {
   // екрані пейвола замість Lingo — наліпка людини (onboarding.md §5.13).
   // onboarding_paywall: "skip" — одразу застосунок, а пейвол людина побачить
   // на наступній спробі скану (стіна scans).
+  //
+  // Тарифи ще вантажаться, коли онбординг скінчився (повільна мережа на
+  // першому запуску): пейвол не губимо, а чекаємо їх до ONB_PAYWALL_WAIT_MS.
+  // Магазин відмовив (plansStatus 'failed', зазвичай офлайн) — не чекаємо:
+  // людина побачить пейвол на стіні скану, де він сам перепитає тарифи.
+  const onbPaywallWait = useRef(null);
   function openOnboardingPaywall({ firstWord = null } = {}) {
-    if (sub.pro || pro.mode === 'unavailable' || !pro.plans.length || pro.config.onboardingPaywall === 'skip') return;
+    if (sub.pro || pro.mode === 'unavailable' || pro.config.onboardingPaywall === 'skip') return;
+    if (!pro.plans.length) {
+      if (pro.plansStatus === 'loading') onbPaywallWait.current = { firstWord, until: Date.now() + ONB_PAYWALL_WAIT_MS };
+      return;
+    }
     setOnbFirstWord(firstWord || null);
     commitSettings({ ...settingsRef.current, onbPaywallShown: true });
     onbPaywallStep.current = 0;
@@ -1148,6 +1205,14 @@ export default function App() {
     paywallRef.current = 'onboarding';
     setPaywall('onboarding');
   }
+
+  useEffect(() => {
+    const wait = onbPaywallWait.current;
+    if (!wait || (pro.plansStatus === 'loading' && !pro.plans.length)) return;
+    onbPaywallWait.current = null;
+    // не перебиваємо пейвол, що вже відкритий, і повторний онбординг
+    if (Date.now() <= wait.until && onboarded && !paywallRef.current) openOnboardingPaywall(wait);
+  }, [pro.plans.length, pro.plansStatus]);
 
   // Третій екран пейволу онбордингу — пейвол RevenueCat (paywall_ui:
   // "revenuecat"). Показали — наш шар більше не потрібен; ні — лишаємо свій.

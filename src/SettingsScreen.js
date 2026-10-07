@@ -490,8 +490,11 @@ export default function SettingsScreen(props) {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={s.proTitle}>{sub.lifetime ? t('proLifetime') : sub.trial ? t('proTrial') : t('proActive')}</Text>
+              {/* Дата вже минула, а Pro діє — пільговий період Apple (картка не
+                  пройшла, магазин ще пробує списати): «до {минулої дати}» —
+                  неправда, тож рядок без дати. */}
               <Text style={s.proHint}>
-                {!sub.lifetime && sub.until
+                {!sub.lifetime && sub.until > Date.now()
                   ? t('proUntil', { d: formatDate(sub.until, uiLang, { day: 'numeric', month: 'long', year: 'numeric' }) }) + ' · '
                   : ''}
                 {sub.lifetime ? t('managePurchases') : t('managePro')}

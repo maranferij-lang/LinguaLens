@@ -94,6 +94,35 @@ test('missing offering gives no plans instead of fake prices', () => {
   expect(plansFromOffering(null)).toEqual([]);
 });
 
+// Пакети з власними id з дашборду (CUSTOM, SIX_MONTH…): без типу $rc_*, тож
+// упізнаємо їх за id продукту з PLANS
+describe('custom packages are matched by product id', () => {
+  const MONTH_ID = PLANS.find((p) => p.id === 'month').productId;
+  const YEAR_ID = PLANS.find((p) => p.id === 'year').productId;
+  const LIFE_ID = PLANS.find((p) => p.id === 'lifetime').productId;
+  const custom = (identifier, price, str, packageType = 'CUSTOM') => ({ packageType, identifier: '$custom', product: product(price, str, { identifier }) });
+
+  test('a CUSTOM-only offering still gives the plans', () => {
+    const plans = plansFromOffering({
+      availablePackages: [custom(MONTH_ID, 9.99, '9,99 €'), custom(YEAR_ID, 59.99, '59,99 €'), custom(LIFE_ID, 129.99, '129,99 €', 'UNKNOWN')],
+    });
+    expect(plans.map((p) => p.id)).toEqual(['month', 'year', 'lifetime']);
+    expect(plans.find((p) => p.id === 'year')).toMatchObject({ price: '59,99 €', save: 50 });
+    expect(plans.find((p) => p.id === 'lifetime')).toMatchObject({ lifetime: true, trialDays: 0 });
+  });
+
+  test('a standard $rc_* package wins over a custom one for the same plan', () => {
+    const std = { packageType: 'MONTHLY', product: product(9.99, 'standard', { identifier: 'whatever' }) };
+    const plans = plansFromOffering({ availablePackages: [custom(MONTH_ID, 7.99, 'custom'), std] });
+    expect(plans.map((p) => [p.id, p.price])).toEqual([['month', 'standard']]);
+  });
+
+  test('a custom package with a foreign product id is ignored', () => {
+    expect(plansFromOffering({ availablePackages: [custom('com.other.app.pro', 1, '1 €'), custom(undefined, 1, '1 €')] })).toEqual([]);
+    expect(plansFromOffering({ availablePackages: [] })).toEqual([]);
+  });
+});
+
 test('free trial is only promised to users Apple will actually give it to', () => {
   // у фікстурі identifier не заданий — додаємо, щоб перевірити саме мапу статусів
   const withIds = {

@@ -73,7 +73,8 @@ describe('languages', () => {
   });
 
   test('the Pro renewal date is in the interface language, not in “my language”', async () => {
-    const until = new Date(2026, 9, 8).getTime();
+    // дата в майбутньому: минулу рядок не показує (див. тест нижче)
+    const until = Date.now() + 40 * 86400000;
     const opts = { day: 'numeric', month: 'long', year: 'numeric' };
     const tree = await render({ nativeLang: 'de', uiLang: 'uk', sub: { pro: true, until } });
     const hint = tree.root.findAll((n) => Array.isArray(n.props.children) && n.props.children.includes(uk('managePro')))[0];
@@ -136,6 +137,20 @@ describe('anonymous statistics switch', () => {
     expect(statSwitch(tree)).toBeUndefined();
     await act(async () => tree.unmount());
   });
+});
+
+// Пільговий період Apple (картка не пройшла): Pro ще діє, а дата закінчення
+// вже минула — «до {минулої дати}» було б неправдою, тож рядок без дати
+test('Pro whose end date has already passed (billing grace) shows no “until” date', async () => {
+  const t = makeT('en');
+  const past = Date.now() - 2 * 86400000;
+  const tree = await render({ uiLang: 'en', sub: { pro: true, until: past, willRenew: true } });
+  const hint = tree.root.findAll((n) => Array.isArray(n.props.children) && n.props.children.includes(t('managePro')))[0];
+  expect(hint.props.children[0]).toBe('');
+  const strings = tree.root.findAll((n) => typeof n.props.children === 'string').map((n) => n.props.children);
+  expect(strings.some((x) => x.startsWith(t('proUntil', { d: '' })))).toBe(false);
+  expect(strings).toContain(t('proActive'));
+  await act(async () => tree.unmount());
 });
 
 // Pro «назавжди»: без дати продовження й без «керувати підпискою»

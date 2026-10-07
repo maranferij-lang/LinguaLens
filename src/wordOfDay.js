@@ -536,6 +536,16 @@ export async function scheduleTrialReminder(untilMs, title, body) {
   }
 }
 
+// Прибрати нагадування про кінець пробного періоду: пробний скасували
+// (willRenew false) чи Pro зник — «підписка почнеться за 2 дні» стало б
+// неправдою про списання. Нагадування не було — нічого не робить.
+export async function cancelTrialReminder() {
+  if (!Notifications) return;
+  try {
+    await Notifications.cancelScheduledNotificationAsync('trial-end');
+  } catch (_) {}
+}
+
 export async function cancelAll() {
   if (!Notifications) return;
   try {

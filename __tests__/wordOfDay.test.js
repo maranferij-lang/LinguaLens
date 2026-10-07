@@ -6,6 +6,7 @@ import {
   needsRefresh,
   notificationTitle,
   permissionStatus,
+  cancelTrialReminder,
   scheduleTrialReminder,
   syncWordOfDay,
   trialReminderAt,
@@ -245,6 +246,27 @@ describe('trial-end reminder', () => {
     Notifications.getPermissionsAsync.mockImplementationOnce(async () => ({ status: 'denied', canAskAgain: false }));
     expect(await scheduleTrialReminder(Date.now() + 7 * DAY, 'T', 'B')).toBe(false);
     expect(Notifications.scheduleNotificationAsync).not.toHaveBeenCalled();
+  });
+});
+
+// Пробний скасували чи Pro зник — «підписка почнеться за 2 дні» стало б
+// неправдою, тож нагадування прибираємо за тим самим id, під яким ставили
+describe('cancelling the trial-end reminder', () => {
+  test('removes exactly the trial-end notification', async () => {
+    Notifications.cancelScheduledNotificationAsync.mockClear();
+    Notifications.cancelAllScheduledNotificationsAsync.mockClear();
+    await cancelTrialReminder();
+    expect(Notifications.cancelScheduledNotificationAsync).toHaveBeenCalledTimes(1);
+    expect(Notifications.cancelScheduledNotificationAsync).toHaveBeenCalledWith('trial-end');
+    // слова дня й нагадування про серію лишаються
+    expect(Notifications.cancelAllScheduledNotificationsAsync).not.toHaveBeenCalled();
+  });
+
+  test('is a no-op, not an error, when the module refuses', async () => {
+    Notifications.cancelScheduledNotificationAsync.mockImplementationOnce(async () => {
+      throw new Error('nope');
+    });
+    await expect(cancelTrialReminder()).resolves.toBeUndefined();
   });
 });
 

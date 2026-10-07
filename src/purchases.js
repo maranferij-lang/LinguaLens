@@ -177,7 +177,12 @@ export function trackPaywallImpression(paywallId) {
 export function planOfProduct(productId) {
   if (!productId) return null;
   const pkg = (currentOffering?.availablePackages || []).find((p) => p.product?.identifier === productId);
-  return (pkg && PACKAGE_TO_PLAN[pkg.packageType]) || null;
+  return (pkg && (PACKAGE_TO_PLAN[pkg.packageType] || planIdByProduct(productId))) || null;
+}
+
+// Наш план за id продукту з PLANS ('com.marik.lingualens.pro.year' → 'year').
+function planIdByProduct(productId) {
+  return PLANS.find((p) => p.productId && p.productId === productId)?.id || null;
 }
 
 // ── Пакети з магазину → плани для пейволу ────────────────────────────────────
@@ -192,6 +197,14 @@ export function plansFromOffering(offering, eligibility = null) {
   for (const p of pkgs) {
     const id = PACKAGE_TO_PLAN[p.packageType];
     if (id) byPlan[id] = p;
+  }
+  // Запас: пакет із власним id в дашборді (CUSTOM: «monthly», SIX_MONTH…)
+  // не має типу $rc_*, тож упізнаємо його за id продукту з PLANS. Лише
+  // там, де пакета за типом немає: стандартний $rc_* завжди головніший.
+  for (const p of pkgs) {
+    if (PACKAGE_TO_PLAN[p.packageType]) continue;
+    const id = planIdByProduct(p.product?.identifier);
+    if (id && !byPlan[id]) byPlan[id] = p;
   }
   const monthly = byPlan.month?.product;
   return PLANS.filter((plan) => byPlan[plan.id]).map((plan) => {
@@ -337,7 +350,18 @@ export function usePro(appUserID) {
           eligibility = {};
         }
       }
-      setPlans(plansFromOffering(o.current, eligibility));
+      const list = plansFromOffering(o.current, eligibility);
+      // Пропозиція прийшла, але жодного пакета ми не впізнали (одрук в id
+      // пакета, нестандартні періоди, магазин віддав чужі продукти): без
+      // цього пейвол крутив би індикатор без кінця. Це та сама відмова, що
+      // й «магазин не відповів»: повідомлення й «Спробувати ще раз».
+      if (!list.length) {
+        setPlans([]);
+        setReady(false);
+        setPlansStatus('failed');
+        return;
+      }
+      setPlans(list);
       setReady(true);
       setPlansStatus('ready');
     } catch (_) {
