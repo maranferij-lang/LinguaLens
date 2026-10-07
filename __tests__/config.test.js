@@ -35,3 +35,13 @@ test('config reads the server URL from EXPO_PUBLIC_SERVER_URL', () => {
   });
   delete process.env.EXPO_PUBLIC_SERVER_URL;
 });
+
+test('config drops a trailing slash from the server URL, so the privacy link has no double slash', () => {
+  process.env.EXPO_PUBLIC_SERVER_URL = 'https://api.example.test//';
+  jest.isolateModules(() => {
+    const config = require('../src/config');
+    expect(config.SERVER_URL).toBe('https://api.example.test');
+    expect(config.PRIVACY_URL).toBe('https://api.example.test/privacy');
+  });
+  delete process.env.EXPO_PUBLIC_SERVER_URL;
+});

@@ -10,7 +10,8 @@ import Constants from 'expo-constants';
 // працює в розробці, а в TestFlight тихо дає порожнечу (тест config.test.js).
 const clean = (v) => (v || '').trim();
 const ENV = {
-  SERVER_URL: clean(process.env.EXPO_PUBLIC_SERVER_URL),
+  // слеш у кінці зайвий: SERVER_URL + '/privacy' інакше дав би '//privacy' (404)
+  SERVER_URL: clean(process.env.EXPO_PUBLIC_SERVER_URL).replace(/\/+$/, ''),
   APP_TOKEN: clean(process.env.EXPO_PUBLIC_APP_TOKEN),
   REVENUECAT_IOS_KEY: clean(process.env.EXPO_PUBLIC_REVENUECAT_IOS_KEY),
   TERMS_URL: clean(process.env.EXPO_PUBLIC_TERMS_URL),

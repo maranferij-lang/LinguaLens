@@ -4,6 +4,7 @@
 // віджетів, камера без NSCameraUsageDescription падає) або на перевірці
 // App Store (ITMS-90683 без рядка про бібліотеку фото).
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import { execFileSync } from 'child_process';
 
@@ -15,6 +16,43 @@ const plugin = (name) => {
   const p = app.plugins.find((x) => (Array.isArray(x) ? x[0] : x) === name);
   return Array.isArray(p) ? p[1] : p;
 };
+
+// Інтроспекція (scripts/introspect-ios.js) читає права й Info.plist із теки
+// ios/, якщо вона вже є: після `npm run sim` чи `expo prebuild` результат
+// конфіг-плагінів підмінюється вмістом старих файлів, і тест червоніє без
+// жодної регресії (то «Apple» лишається в симуляторі, то її немає в звичайній
+// збірці). Тож інтроспектуємо не сам проєкт, а тимчасовий корінь, де кожен
+// елемент верхнього рівня — посилання на справжній, окрім згенерованих ios/ й
+// android/. Нічого не копіюється, а EAS і prebuild --clean бачать те саме:
+// чисте дерево.
+const GENERATED = new Set(['ios', 'android']);
+let CLEAN_ROOT;
+beforeAll(() => {
+  CLEAN_ROOT = fs.mkdtempSync(path.join(os.tmpdir(), 'lingualens-introspect-'));
+  for (const name of fs.readdirSync(ROOT)) {
+    if (!GENERATED.has(name)) fs.symlinkSync(path.join(ROOT, name), path.join(CLEAN_ROOT, name));
+  }
+});
+afterAll(() => {
+  // rmSync не заходить у посилання, тож справжній проєкт не зачіпає
+  if (CLEAN_ROOT) fs.rmSync(CLEAN_ROOT, { recursive: true, force: true });
+});
+const introspectIos = (env) =>
+  JSON.parse(
+    execFileSync(process.execPath, [path.join(ROOT, 'scripts/introspect-ios.js'), CLEAN_ROOT], {
+      encoding: 'utf8',
+      timeout: 60000,
+      env: { ...process.env, LL_SIMULATOR: '', ...env },
+    })
+  );
+
+test('the introspected tree has no generated native folders, so a leftover ios/ cannot skew the checks', () => {
+  expect(fs.existsSync(path.join(CLEAN_ROOT, 'ios'))).toBe(false);
+  expect(fs.existsSync(path.join(CLEAN_ROOT, 'android'))).toBe(false);
+  for (const f of ['app.json', 'app.config.js', 'package.json', 'node_modules', 'plugins']) {
+    expect([f, fs.existsSync(path.join(CLEAN_ROOT, f))]).toEqual([f, true]);
+  }
+});
 
 describe('widgets', () => {
   const cfg = plugin('expo-widgets');
@@ -92,8 +130,7 @@ describe('photos', () => {
 // --type introspect`): рядок камери на місці, обидва рядки «Фото» є, а
 // мікрофона немає — ми його ніколи не просимо.
 test('the Info.plist that prebuild will write keeps the camera and has both photo keys', () => {
-  const out = execFileSync(process.execPath, [path.join(ROOT, 'scripts/introspect-ios.js'), ROOT], { encoding: 'utf8', timeout: 60000 });
-  const plist = JSON.parse(out).infoPlist;
+  const plist = introspectIos({}).infoPlist;
   expect(plist.NSCameraUsageDescription).toBe(plugin('expo-camera').cameraPermission);
   expect(plist.NSPhotoLibraryUsageDescription).toBe(plugin('expo-image-picker').photosPermission);
   expect(plist.NSPhotoLibraryAddUsageDescription).toBe(app.ios.infoPlist.NSPhotoLibraryAddUsageDescription);
@@ -110,14 +147,7 @@ test('the Info.plist that prebuild will write keeps the camera and has both phot
 // Store) його зберігає, а решта прав і Info.plist однакові в обох.
 describe('simulator build without a signing certificate', () => {
   const APPLE = 'com.apple.developer.applesignin';
-  const introspect = (env) =>
-    JSON.parse(
-      execFileSync(process.execPath, [path.join(ROOT, 'scripts/introspect-ios.js'), ROOT], {
-        encoding: 'utf8',
-        timeout: 60000,
-        env: { ...process.env, LL_SIMULATOR: '', ...env },
-      })
-    );
+  const introspect = introspectIos;
 
   test('app.config.js returns app.json untouched without the flag', () => {
     const dynamic = require('../app.config.js');
