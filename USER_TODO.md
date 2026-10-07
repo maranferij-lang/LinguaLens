@@ -427,7 +427,7 @@ EAS і нової збірки, тому знайди їх тепер, а не 1
 лише акаунт Expo (крок 7: `eas login`, `eas init`).
 ```bash
 eas build --platform ios --profile simulator
-eas build:run --platform ios     # поставить останню збірку в симулятор на твоєму Mac
+eas build:run --platform ios --latest   # поставить останню збірку в симулятор на твоєму Mac
 ```
 - Профіль `simulator` уже є в `eas.json` (`"environment": "preview"`,
   `"ios": { "simulator": true }`): нічого додавати не треба.

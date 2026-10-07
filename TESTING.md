@@ -267,7 +267,7 @@ v1.3: віджетів три («Слово дня», «Мої слова», «�
 
 **1. Збірка для симулятора в EAS (цього тижня, без акаунта Apple).**
 `eas build --platform ios --profile simulator`, потім `eas build:run --platform
-ios` на Mac.
+ios --latest` на Mac.
 - [ ] Збірка зелена на expo.dev (компілюються застосунок, `ExpoWidgetsTarget`, `SceneDelegate.swift`, `modules/instagram-stories`). Падає: кінець логу збірки мені
 - [ ] Застосунок стартує без вильоту й без червоного екрана (зокрема на iOS 27: помилка `UIApplicationEvaluateRuntimeIssueForNoSceneLifecycleAdoption` означає, що плагін `withSceneLifecycle` не відпрацював)
 - [ ] У галереї віджетів LinguaLens є три віджети; після першого відкриття застосунку вони наповнені

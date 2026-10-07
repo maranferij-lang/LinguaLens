@@ -35,7 +35,6 @@
 // від Apple, а не помилку на нашому боці.
 const fs = require('fs');
 const path = require('path');
-const plist = require('@expo/plist').default;
 const { withBaseMod } = require('expo/config-plugins');
 
 const TARGET = 'ExpoWidgetsTarget';
@@ -50,9 +49,34 @@ const MANIFEST = {
   NSPrivacyAccessedAPITypes: [api('UserDefaults', ['CA92.1', '1C8F.1']), api('FileTimestamp', ['C617.1']), api('SystemBootTime', ['35F9.1'])],
 };
 
-// Вміст PrivacyInfo.xcprivacy (XML plist).
+// Вміст PrivacyInfo.xcprivacy (XML plist). Пишемо руками: @expo/plist не
+// оголошений у package.json і доступний лише завдяки hoisting, а маніфест
+// складається тільки з bool, рядків, масивів і словників.
+const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+function plistValue(v, pad) {
+  if (typeof v === 'boolean') return `${pad}<${v}/>`;
+  if (typeof v === 'string') return `${pad}<string>${esc(v)}</string>`;
+  if (Array.isArray(v)) {
+    if (!v.length) return `${pad}<array/>`;
+    return [`${pad}<array>`, ...v.map((x) => plistValue(x, pad + '\t')), `${pad}</array>`].join('\n');
+  }
+  if (v && typeof v === 'object') {
+    const keys = Object.keys(v);
+    if (!keys.length) return `${pad}<dict/>`;
+    const body = keys.map((k) => `${pad}\t<key>${esc(k)}</key>\n${plistValue(v[k], pad + '\t')}`);
+    return [`${pad}<dict>`, ...body, `${pad}</dict>`].join('\n');
+  }
+  throw new Error(`withWidgetPrivacyManifest: непідтримуваний тип у маніфесті: ${typeof v}`);
+}
 function manifestXml(manifest = MANIFEST) {
-  return plist.build(manifest);
+  return [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">',
+    '<plist version="1.0">',
+    plistValue(manifest, ''),
+    '</plist>',
+    '',
+  ].join('\n');
 }
 
 const unquote = (s) => String(s == null ? '' : s).replace(/^"(.*)"$/, '$1');
