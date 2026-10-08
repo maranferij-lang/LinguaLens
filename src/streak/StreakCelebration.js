@@ -47,6 +47,16 @@ export function streakAchievement(n) {
   return ACHIEVEMENTS.find((a) => a.id === 'streak_' + n) || null;
 }
 
+// Два рядки свята: фраза дня (заголовок) і «до віхи» (підпис). Від восьмого
+// дня (крім 30-го) фразою дня в streakMessage і є рядок «до віхи», тож
+// підпис повторював би заголовок слово в слово: тоді його немає. Те саме
+// читає VoiceOver.
+export function celebrationLines(n, t) {
+  const headline = streakMessage({ n, doneToday: true }, t);
+  const next = streakMessage({ n }, t, { line: 'next' });
+  return { headline, sub: next === headline ? '' : next };
+}
+
 function Rays({ a, C }) {
   const lines = [];
   for (let i = 0; i < 12; i++) {
@@ -183,7 +193,8 @@ export default function StreakCelebration({ data, activeDays, onDone, onShare, t
     counted.current = data;
     // Слово дня щойно дало власний «успіх»: другий поспіль не вібруємо
     if (!recentSuccess()) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    AccessibilityInfo.announceForAccessibility?.(`${streakMessage({ n: to, doneToday: true }, t)}. ${streakMessage({ n: to }, t, { line: 'next' })}`);
+    const lines = celebrationLines(to, t);
+    AccessibilityInfo.announceForAccessibility?.(lines.sub ? `${lines.headline}. ${lines.sub}` : lines.headline);
     if (reduced) {
       [grow, flash, roll, burst].forEach((v) => v.setValue(1));
       flash.setValue(0);
@@ -226,8 +237,7 @@ export default function StreakCelebration({ data, activeDays, onDone, onShare, t
   const milestone = isMilestone(to);
   const lit = milestone && to >= 7;
   const ach = milestone ? streakAchievement(to) : null;
-  const headline = streakMessage({ n: to, doneToday: true }, t);
-  const sub = streakMessage({ n: to }, t, { line: 'next' });
+  const { headline, sub } = celebrationLines(to, t);
   const waits = milestone || reader;
 
   const oldStyle = reduced

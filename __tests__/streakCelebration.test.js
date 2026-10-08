@@ -159,6 +159,29 @@ describe('the celebration layer', () => {
     await act(async () => tree.unmount());
   });
 
+  // Від восьмого дня фраза дня і є рядком «до віхи» (streakMessage): на
+  // екрані вона була двічі поспіль, заголовком і підписом
+  test('from the eighth day the headline is not repeated as the subtitle', async () => {
+    const announce = jest.spyOn(AccessibilityInfo, 'announceForAccessibility').mockImplementation(() => {});
+    const line = t('streakToNext', { m: 14, k: 4 });
+    const tree = await show({ from: 9, to: 10 });
+    // лише хостові вузли: композитний Text і його хост несуть той самий рядок
+    const shown = tree.root.findAll((n) => typeof n.type === 'string' && n.props.children === line).length;
+    const said = announce.mock.calls.at(-1)?.[0];
+    // розмонтовуємо до перевірок: інакше невдала перевірка лишає пружини
+    await act(async () => tree.unmount());
+    expect(shown).toBe(1);
+    expect(said).toBe(line);
+    // а коли фрази різні, обидві лишаються: і на екрані, і для VoiceOver
+    const week = await show({ from: 6, to: 7 });
+    const next = t('streakToNext', { m: 14, k: 7 });
+    const weekTexts = texts(week.root);
+    const weekSaid = announce.mock.calls.at(-1)?.[0];
+    await act(async () => week.unmount());
+    expect(weekTexts).toEqual(expect.arrayContaining([t('streakWeek'), next]));
+    expect(weekSaid).toBe(`${t('streakWeek')}. ${next}`);
+  });
+
   test('a milestone without a medal (60 days) still waits, with no share button', async () => {
     const tree = await show({ from: 59, to: 60 });
     expect(button(tree, t('streakContinue'))).toBeTruthy();
