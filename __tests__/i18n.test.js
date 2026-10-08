@@ -220,6 +220,30 @@ describe('makeT', () => {
   test('a plural block whose variable is not passed is left as is', () => {
     expect(makeT('en')('dueToday', { x: 1 })).toBe(STRINGS.en.dueToday);
   });
+
+  // Підстановка однопрохідна, а не replaceAll по ключах: «$»-послідовності у
+  // значенні (ціна магазину, ім'я чи слово від AI) лишаються буквами, а
+  // значення з «{n}» усередині не підставляється вдруге
+  test('values are inserted literally: $$, $&, $` and $\' stay as typed', () => {
+    const en = makeT('en');
+    expect(en('perMonth', { p: 'US$$5' })).toBe('US$$5 per month');
+    expect(en('delWordMsg', { w: '$&x' })).toBe('“$&x” will be removed from your words.');
+    expect(en('delWordMsg', { w: "a$`b$'c" })).toBe("“a$`b$'c” will be removed from your words.");
+    expect(en('perMonth', { p: '$9.99' })).toBe('$9.99 per month');
+    expect(makeT('uk')('perMonth', { p: 'R$ 9,99' })).toContain('R$ 9,99');
+  });
+
+  test('a value that looks like a placeholder is not substituted again', () => {
+    expect(makeT('en')('resultOf', { c: '{n}', n: 5 })).toBe('Correct: {n} of 5');
+    expect(makeT('en')('resultOf', { n: 5, c: '{n}' })).toBe('Correct: {n} of 5');
+  });
+
+  test('a placeholder with no value stays visible; extra values are ignored; 0 and empty strings count', () => {
+    const en = makeT('en');
+    expect(en('resultOf', { c: 3 })).toBe('Correct: 3 of {n}');
+    expect(en('resultOf', { c: 0, n: 0, extra: 'x' })).toBe('Correct: 0 of 0');
+    expect(en('perMonth', { p: '' })).toBe(' per month');
+  });
 });
 
 describe('copy style', () => {

@@ -2400,7 +2400,9 @@ export function makeT(lang) {
       const list = forms.split('|');
       return list[Math.min(pluralIndex(rule, vars[k]), list.length - 1)];
     });
-    for (const k of Object.keys(vars)) s = s.replaceAll('{' + k + '}', String(vars[k]));
-    return s;
+    // Один прохід, а не replaceAll по ключах: у рядку-заміннику «$&», «$$»
+    // (ціна «US$$5», ім'я чи слово від AI) не мають спрацьовувати, а значення
+    // з «{b}» усередині не підставляється вдруге наступним ключем.
+    return s.replace(/\{(\w+)\}/g, (m, k) => (Object.prototype.hasOwnProperty.call(vars, k) ? String(vars[k]) : m));
   };
 }

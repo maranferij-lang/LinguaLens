@@ -108,6 +108,8 @@ export function mix(a, b, k) {
 // Зелений (успіх), бурштин (час, «нове») і червоний (помилка) — спільні для
 // всіх палітр: людина вчиться читати їх раз і назавжди. Вогник серії — ні:
 // він у кольорах палітри (flame* нижче).
+// green і red — заливки й іконки. Текст успіху й помилки — greenInk і redInk:
+// у світлих темах заливки на своїх м'яких тлах дають лише 3,6–4,4:1.
 const SHARED = {
   light: {
     green: '#0E8C82',
@@ -116,6 +118,8 @@ const SHARED = {
     greenInk: '#0B6A62',
     red: '#D2483F',
     redSoft: '#FBEAE8',
+    // текст помилки: чистий red на redSoft лише 3,8:1, на тлі 4,0–4,2:1
+    redInk: '#AE3029',
     warm: '#E0A02E',
     warmSoft: '#FBF1DF',
   },
@@ -125,6 +129,7 @@ const SHARED = {
     greenInk: '#3ED8CB',
     red: '#FF7A6E',
     redSoft: '#3A211E',
+    redInk: '#FF7A6E',
     warm: '#F0B84A',
     warmSoft: '#372C15',
   },
@@ -134,7 +139,7 @@ const SHARED = {
 // E.7). Контраст перевіряє __tests__/themes.test.js: text, dim і accent на
 // тлі й картці, accent на accentSoft, onAccent на акценті — усе ≥ 4.5:1;
 // faint — лише декор (шеврони, доріжки, вимкнене), ≥ 3:1 і на тлі, і на
-// картці. Текст, який щось означає, — dim.
+// картці. Текст, який щось означає (підписи, кепси, плейсхолдери), — dim.
 // shadow — колір тіні у світлому вигляді: теплий для теплих палітр,
 // холодний для Океану, нейтральний для Графіту (у темному — завжди чорний).
 // pro — палітра лише з Pro; «Крейда» безкоштовна.
@@ -372,16 +377,6 @@ export function themeKeyOf(palette, dark) {
   return palette === FREE_PALETTE || !PALETTE_KEYS.includes(palette) ? mode : `${palette}-${mode}`;
 }
 
-// «Крейда» світла й темна — як до v1.3 (тоді це були плитки режиму в
-// Параметрах). Лишається для наявних імпортів; нове бере PALETTES.
-export const THEME_DEFS = [
-  { key: 'light', name: 'Світла', dark: false, ...pick(PALETTES[0].light), swatch: PALETTES[0].light.bg },
-  { key: 'dark', name: 'Темна', dark: true, ...pick(PALETTES[0].dark), swatch: PALETTES[0].dark.bg },
-];
-function pick(p) {
-  return { bg: p.bg, card: p.card, accent: p.accent };
-}
-
 function buildTheme(palette, dark) {
   const p = { ...palette[dark ? 'dark' : 'light'], ...SHARED[dark ? 'dark' : 'light'] };
   const c = {
@@ -416,7 +411,7 @@ function buildTheme(palette, dark) {
       body: { color: p.text, ...type(16, F.reg) },
       callout: { color: p.dim, ...type(15, F.reg) },
       footnote: { color: p.dim, ...type(13, F.reg) },
-      caps: { color: p.faint, ...CAPS },
+      caps: { color: p.dim, ...CAPS },
       word: { color: p.text, ...type(40, F.extra) },
       number: { color: p.text, ...type(28, F.extra) },
     },

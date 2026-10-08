@@ -25,7 +25,7 @@ import { CAMERA_CHROME, Material } from '../src/Chrome';
 import { AppIcon } from '../src/Logo';
 
 // Токени, які мусить мати кожна тема (план §5.9)
-const TOKENS = ['bg', 'card', 'card2', 'card3', 'text', 'dim', 'faint', 'sep', 'accent', 'accentSoft', 'onAccent', 'warm', 'warmSoft', 'green', 'red'];
+const TOKENS = ['bg', 'card', 'card2', 'card3', 'text', 'dim', 'faint', 'sep', 'accent', 'accentSoft', 'onAccent', 'warm', 'warmSoft', 'green', 'red', 'greenInk', 'redInk'];
 const FLAME = ['flame', 'flameSoft', 'flameTip', 'flameCore', 'onFlame'];
 const KEYS = ['light', 'dark', ...['ocean', 'berry', 'graphite', 'cocoa'].flatMap((p) => [`${p}-light`, `${p}-dark`])];
 
@@ -108,6 +108,15 @@ describe('palettes', () => {
     ['greenInk', 'greenSoft'],
     ['text', 'redSoft'],
     ['dim', 'sheet'],
+    // текст успіху й помилки (вікторина, «збережено», статуси): fill-токени
+    // green і red на своїх м'яких тлах давали лише 3,6–4,4:1
+    ['greenInk', 'bg'],
+    ['greenInk', 'card'],
+    ['redInk', 'bg'],
+    ['redInk', 'card'],
+    ['redInk', 'redSoft'],
+    // плейсхолдери полів і кепси: поверхня поля — card2
+    ['dim', 'card2'],
     // вогник серії: банер «серія під загрозою», пігулки, «7 днів» на вогнику
     ['text', 'flameSoft'],
     ['dim', 'flameSoft'],
@@ -139,7 +148,7 @@ describe('palettes', () => {
       const base = THEMES[mode].C;
       for (const p of PRO_PALETTES) {
         const { C } = THEMES[`${p}-${mode}`];
-        for (const tk of ['green', 'greenSoft', 'red', 'redSoft', 'warm', 'warmSoft']) expect(C[tk]).toBe(base[tk]);
+        for (const tk of ['green', 'greenSoft', 'greenInk', 'red', 'redSoft', 'redInk', 'warm', 'warmSoft']) expect(C[tk]).toBe(base[tk]);
       }
     }
   });
@@ -224,7 +233,8 @@ describe('palettes', () => {
     const th = THEMES['berry-dark'];
     expect(th.T.largeTitle.color).toBe(th.C.text);
     expect(th.T.callout.color).toBe(th.C.dim);
-    expect(th.T.caps.color).toBe(th.C.faint);
+    // кепси — це текст, а faint лише декор
+    expect(th.T.caps.color).toBe(th.C.dim);
   });
 
   test('the palette data has light and dark with the same tokens', () => {
