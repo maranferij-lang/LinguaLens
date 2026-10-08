@@ -3,7 +3,10 @@
 //   • бюджет вібрацій: «успіх» від haptic('success') гасить другий поспіль «успіх»
 //     свята серії;
 //   • аркуші беруть затемнення з теми (C.scrim), а не власний rgba;
-//   • App дає Параметрам isLangLocked, тож мови за Pro отримують позначку;
+//   • App дає Параметрам isLangLocked, тож мови за Pro отримують позначку, і
+//     той самий предикат — аркушу мови в сканері (LangSheet);
+//   • тост досягнення теж у бюджеті: після збереженого слова другого «успіху»
+//     не додає;
 //   • стеля системного шрифту на основній кнопці пейволу.
 import fs from 'fs';
 import path from 'path';
@@ -13,8 +16,11 @@ import { act, create } from 'react-test-renderer';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import App from '../App';
+import AchievementToast from '../src/AchievementToast';
 import ConsentSheet from '../src/ConsentSheet';
+import LangSheet from '../src/LangSheet';
 import PaywallScreen from '../src/PaywallScreen';
+import ScannerScreen from '../src/ScannerScreen';
 import SettingsScreen from '../src/SettingsScreen';
 import StreakCelebration from '../src/streak/StreakCelebration';
 import { GradBtn, SecBtn } from '../src/ui';
@@ -145,7 +151,7 @@ describe('App feeds Settings the locked-language predicate', () => {
     });
   });
 
-  async function renderWith(words) {
+  async function renderWith(words, { tab = 'settings' } = {}) {
     await AsyncStorage.setItem('ll_onboarded_v1', '1');
     await AsyncStorage.setItem('ll_settings_v1', JSON.stringify({ nativeLang: 'en', targetLang: 'es' }));
     await AsyncStorage.setItem('ll_words_v1', JSON.stringify(words));
@@ -163,17 +169,20 @@ describe('App feeds Settings the locked-language predicate', () => {
         await new Promise((r) => setTimeout(r, 20));
       });
     }
-    await act(async () => {
-      tree.root.findAll((n) => n.props.tb?.key === 'settings')[0].props.onPress();
-    });
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 20));
-    });
+    if (tab) {
+      await act(async () => {
+        tree.root.findAll((n) => n.props.tb?.key === tab)[0].props.onPress();
+      });
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 20));
+      });
+    }
     return tree;
   }
+  const SPANISH_WORD = { id: 'a', word: 'la taza', translation: 'mug', lang: 'es', addedAt: Date.now(), srs: { box: 0, due: 0 } };
 
   test('free with words in Spanish: other languages are locked, Spanish is not', async () => {
-    const tree = await renderWith([{ id: 'a', word: 'la taza', translation: 'mug', lang: 'es', addedAt: Date.now(), srs: { box: 0, due: 0 } }]);
+    const tree = await renderWith([SPANISH_WORD]);
     const { isLangLocked } = tree.root.findAllByType(SettingsScreen)[0].props;
     expect(typeof isLangLocked).toBe('function');
     expect(isLangLocked('de')).toBe(true);
@@ -185,6 +194,44 @@ describe('App feeds Settings the locked-language predicate', () => {
     const tree = await renderWith([]);
     const { isLangLocked } = tree.root.findAllByType(SettingsScreen)[0].props;
     expect(isLangLocked('de')).toBe(false);
+    await act(async () => tree.unmount());
+  });
+
+  // Чип мови в сканері відкриває LangSheet: той самий предикат, тож мови за
+  // Pro позначені пілюлею й там, а не лише в Параметрах
+  test('the scanner language sheet gets the same predicate', async () => {
+    const tree = await renderWith([SPANISH_WORD], { tab: null });
+    const { isLocked } = tree.root.findAllByType(LangSheet)[0].props;
+    expect(typeof isLocked).toBe('function');
+    expect(isLocked('de')).toBe(true);
+    expect(isLocked('es')).toBe(false);
+    await act(async () => tree.unmount());
+  });
+
+  // Тост досягнення приходить тієї ж миті, що й збережене слово (перше слово
+  // = first_word): слово вже дало свій «успіх», тост другого не додає
+  test('the achievement toast right after a saved word adds no second Success', async () => {
+    const tree = await renderWith([], { tab: null });
+    const successes = () => Haptics.notificationAsync.mock.calls.filter(([k]) => k === 'success').length;
+    const scanner = () => tree.root.findAllByType(ScannerScreen)[0];
+    const run = async (fn) => {
+      await act(async () => fn());
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 20));
+      });
+    };
+    expect(successes()).toBe(0);
+    // як ScannerScreen.save(): слово в App, одразу за ним «успіх» кнопки «Зберегти»
+    await run(() => {
+      scanner().props.onSaveWord({ word: 'la taza', translation: 'mug', lang: 'es' });
+      haptic('success');
+    });
+    expect(successes()).toBe(1);
+    // перша дія дня: свято серії, за ним тост; жоден не вібрує вдруге
+    const celebration = tree.root.findAllByType(StreakCelebration)[0];
+    if (celebration.props.data) await run(() => celebration.props.onDone());
+    expect(tree.root.findAllByType(AchievementToast)[0].props.achievement).toMatchObject({ id: 'first_word' });
+    expect(successes()).toBe(1);
     await act(async () => tree.unmount());
   });
 });

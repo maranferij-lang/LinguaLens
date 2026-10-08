@@ -16,7 +16,10 @@
 // («Моя рідна мова»): current тоді — мова перекладу, other — мова навчання
 // (її не обрати); phone — мова телефона (підпис «з телефона»); title /
 // text — свій заголовок; ui — мова інтерфейсу (сортування й назви);
-// variant — варіант мови навчання (без нього — той, що обраний зараз).
+// variant — варіант мови навчання (без нього — той, що обраний зараз);
+// isLocked(code) — мова, за яку тап поведе в пейвол (безкоштовно — одна мова
+// навчання): її рядок лишається натискним, але з пілюлею «Pro», як у
+// Налаштуваннях, і VoiceOver чує «доступна з Pro».
 //
 // Варіанти мов (src/langVariants.js): у списку мови навчання англійська й
 // іспанська — по рядку на варіант: прапорець і ендонім варіанта («English
@@ -47,14 +50,22 @@ export function langOptions(current, native) {
 // праворуч замість назви мовою інтерфейсу («з телефона», «твоя мова
 // перекладу»). У варіанта назва мовою інтерфейсу довша («іспанська
 // (Латинська Америка)») — вона йде другим рядком під ендонімом, щоб на
-// iPhone SE не обрізалась.
-function LangRow({ code: key, ui, t, on, disabled, note, onPress, first, s, C }) {
+// iPhone SE не обрізалась. locked — тап поведе в пейвол: пілюля «Pro» після
+// назви (та сама, що в Налаштуваннях), рядок натискний.
+function LangRow({ code: key, ui, t, on, disabled, locked, note, onPress, first, s, C }) {
   const { code, variant } = parseOption(key);
   const name = nameFor(code, variant);
   const local = optionLabel(key, t, ui);
   const same = local.toLocaleLowerCase(ui) === name.toLocaleLowerCase(ui);
   const right = note || (variant || same ? '' : local);
   const under = variant && !same ? local : '';
+  const pill = locked ? (
+    <View style={s.proPill} testID={'lang-pro-' + key}>
+      <Text style={s.proPillText} maxFontSizeMultiplier={1.2}>
+        Pro
+      </Text>
+    </View>
+  ) : null;
   return (
     <Pressable
       testID={'lang-' + key}
@@ -63,7 +74,7 @@ function LangRow({ code: key, ui, t, on, disabled, note, onPress, first, s, C })
       disabled={disabled}
       accessibilityRole="radio"
       accessibilityState={{ checked: on, disabled: !!disabled }}
-      accessibilityLabel={[name, same ? null : local, note].filter(Boolean).join(', ')}
+      accessibilityLabel={locked ? t('langA11yPro', { l: name }) : [name, same ? null : local, note].filter(Boolean).join(', ')}
     >
       <Text style={s.flag}>{flagFor(code, variant || undefined)}</Text>
       {under ? (
@@ -80,6 +91,7 @@ function LangRow({ code: key, ui, t, on, disabled, note, onPress, first, s, C })
           {name}
         </Text>
       )}
+      {pill}
       {right ? (
         <Text style={[s.local, on && { color: C.accent }]} numberOfLines={1}>
           {right}
@@ -106,7 +118,8 @@ function Group({ codes, render, s }) {
 // можна (з усіма варіантами), offNote — чому; phone — мова телефона
 // (підпис «з телефона»); mode 'target' — з «Популярними» під мову
 // перекладу (popularFor) і варіантами окремими рядками, 'native' — просто
-// абетка мов з поточною згори.
+// абетка мов з поточною згори; isLocked(code) — мова з пілюлею «Pro» (тап
+// веде в пейвол), обрана й недоступна мови пілюлі не мають.
 export function LangList({
   value = null,
   variant = null,
@@ -115,6 +128,7 @@ export function LangList({
   phone = null,
   popularFor = null,
   mode = 'target',
+  isLocked = null,
   onPick,
   t,
   ui,
@@ -145,6 +159,8 @@ export function LangList({
         first={first}
         on={key === current}
         disabled={code === off}
+        // обрана мова не заблокована: вона вже в роботі; недоступна — не натискається
+        locked={key !== current && code !== off && !!isLocked?.(code)}
         note={code === off ? offNote : code === phone ? t('obNativePhone') : ''}
         onPress={pick}
         s={s}
@@ -216,7 +232,7 @@ export function LangList({
   );
 }
 
-export default function LangSheet({ visible, current, variant = null, native, other, onPick, onClose, t, mode = 'target', phone = null, title, text, ui }) {
+export default function LangSheet({ visible, current, variant = null, native, other, onPick, onClose, t, mode = 'target', phone = null, title, text, ui, isLocked = null }) {
   const { C } = useTheme();
   const s = useMemo(() => makeStyles(C), [C]);
   const nativeMode = mode === 'native';
@@ -252,6 +268,7 @@ export default function LangSheet({ visible, current, variant = null, native, ot
               offNote={t(nativeMode ? 'obLangIsTarget' : 'obLangIsNative')}
               phone={phone}
               popularFor={native}
+              isLocked={isLocked}
               onPick={onPick}
               t={t}
               ui={ui}
@@ -331,5 +348,8 @@ const makeStyles = (C) =>
     twoLines: { flexShrink: 1, paddingVertical: 7 },
     under: { color: C.dim, ...type(13, F.semi, { noLead: true }), marginTop: 1 },
     local: { flex: 1, textAlign: 'right', color: C.dim, ...type(13, F.semi, { noLead: true }) },
+    // пілюля «Pro» — та сама, що в Налаштуваннях (SettingsScreen proPill)
+    proPill: { backgroundColor: C.accentSoft, borderRadius: R.pill, paddingHorizontal: 6, paddingVertical: 1 },
+    proPillText: { color: C.accent, ...type(11, F.extra, { noLead: true }) },
     check: { width: 22, height: 22, borderRadius: 11, backgroundColor: C.accent, alignItems: 'center', justifyContent: 'center' },
   });

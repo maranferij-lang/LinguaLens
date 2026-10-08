@@ -61,6 +61,32 @@ test('hidden when not visible', async () => {
   await act(async () => tree.unmount());
 });
 
+// Чип мови в сканері: мови за Pro позначені так само, як у Налаштуваннях
+// (пілюля «Pro», VoiceOver чує «доступна з Pro»), тап усе одно веде в пейвол
+test('isLocked: a Pro pill and VoiceOver label on locked rows; the chosen and the unpickable stay plain; the tap still works', async () => {
+  const onPick = jest.fn();
+  const isLocked = jest.fn((code) => code !== 'es');
+  const tree = await render(<LangSheet visible current="es" native="en" isLocked={isLocked} onPick={onPick} onClose={() => {}} t={t} />);
+  const pill = (code) => tree.root.findAll((n) => typeof n.type === 'string' && n.props.testID === 'lang-pro-' + code);
+  expect(pill('de')).toHaveLength(1);
+  expect(pill('de')[0].findAll((n) => typeof n.type === 'string' && n.props.children === 'Pro' && n.props.maxFontSizeMultiplier === 1.2)).toHaveLength(1);
+  expect(row(tree, 'de').props.accessibilityLabel).toBe(t('langA11yPro', { l: 'Deutsch' }));
+  expect(pill('en-gb')).toHaveLength(0); // мова перекладу: не натискається, пілюля зайва
+  expect(pill('es-latam')).toHaveLength(0); // обрана: вже в роботі
+  expect(pill('es-es')).toHaveLength(0); // інший варіант тієї самої мови
+  expect(row(tree, 'de').props.accessibilityState).toEqual({ checked: false, disabled: false });
+  await act(async () => row(tree, 'de').props.onPress());
+  expect(onPick).toHaveBeenCalledWith('de');
+  await act(async () => tree.unmount());
+});
+
+test('without isLocked nothing is marked', async () => {
+  const tree = await render(<LangSheet visible current="es" native="en" onPick={() => {}} onClose={() => {}} t={t} />);
+  expect(tree.root.findAll((n) => /^lang-pro-/.test(n.props.testID || ''))).toHaveLength(0);
+  expect(row(tree, 'de').props.accessibilityLabel).toBe('Deutsch, German');
+  await act(async () => tree.unmount());
+});
+
 test('search narrows the list; a miss says so and keeps everything below', async () => {
   const tree = await render(<LangSheet visible current="es" native="en" onPick={() => {}} onClose={() => {}} t={t} ui="en" />);
   const input = tree.root.find((n) => n.props.testID === 'lang-search' && typeof n.props.onChangeText === 'function');

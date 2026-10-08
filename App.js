@@ -100,7 +100,7 @@ import { planOfProduct, trackPaywallImpression, usePro } from './src/purchases';
 
 import { FadeIn } from './src/ui';
 import { F, THEMES, ThemeProvider, type } from './src/theme';
-import { DUR, EASE, SPRING, haptic, travel, safeSpring, useReducedMotion } from './src/motion';
+import { DUR, EASE, SPRING, haptic, recentSuccess, travel, safeSpring, useReducedMotion } from './src/motion';
 import { askNotifications } from './src/notifPermission';
 import {
   canScan,
@@ -1108,7 +1108,8 @@ export default function App() {
     paywallRef.current = null;
     setPaywall(null);
     refreshMe(true);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    // через haptic(): лишає позначку в бюджеті вібрацій (motion.recentSuccess)
+    haptic('success');
     const trial = !!state?.trial;
     if (trial && state.until) {
       const until = state.until;
@@ -1841,12 +1842,15 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [proToast, proToastFree]);
   // Вібрація раз на досягнення: тост може зникнути й повернутись (черга
-  // оверлеїв блимнула), а вібрувати вдруге за те саме не треба
+  // оверлеїв блимнула), а вібрувати вдруге за те саме не треба. Досягнення
+  // здебільшого приходить тієї ж миті, що й збережене слово (перше слово,
+  // десяте, слово дня), яке вже дало свій «успіх», — тоді другого не додаємо
+  // (бюджет вібрацій, motion.recentSuccess)
   const achBuzzed = useRef(null);
   useEffect(() => {
     if (!shownAch || achBuzzed.current === shownAch) return;
     achBuzzed.current = shownAch;
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    if (!recentSuccess()) haptic('success');
   }, [shownAch]);
   // Оцінка (askReviewLater): коли черга оверлеїв вільна, ні свята, ні тоста, і
   // так REVIEW_DELAY_MS. Не дочекались за REVIEW_TTL_MS (людина пішла, повернулась
@@ -2549,12 +2553,14 @@ export default function App() {
           t={t}
         />
 
-        {/* Чип мови скану: вибір мови навчання (безкоштовно — одна мова) */}
+        {/* Чип мови скану: вибір мови навчання (безкоштовно — одна мова; решта
+            з пілюлею Pro, як у Налаштуваннях: тап веде в пейвол) */}
         <LangSheet
           visible={langSheet}
           current={settings.targetLang}
           variant={targetVariant}
           native={settings.nativeLang}
+          isLocked={(code) => !!canUseLanguage({ pro: sub.pro, words, nextLang: code })}
           onPick={(code, variant) => {
             setLangSheet(false);
             // обраний рядок варіанта зберігаємо, навіть коли він збігається з
