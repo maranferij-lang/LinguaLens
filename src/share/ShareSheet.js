@@ -400,7 +400,11 @@ function Sheet({ payload, onClose, t }) {
     busyRef.current = true;
     setBusy(target);
     say(null);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    // «Копіювати» і «Зберегти» завершуються власним «успіхом» (нижче), тож
+    // легкий поштовх на старті дав би дві вібрації поспіль на одну дію. Решта
+    // цілей відкривають інший застосунок і підтвердження в аркуші не мають:
+    // їм вистачає поштовху на дотик.
+    if (target !== 'copy' && target !== 'save') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     try {
       const result = await ACTIONS[target]();
       if (result === CANCELLED || closing.current) return;
