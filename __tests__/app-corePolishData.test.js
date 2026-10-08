@@ -490,7 +490,15 @@ describe('a notification switch explains a refusal iOS will not repeat', () => {
   test('the new strings exist in all five languages without long dashes', () => {
     const fragment = require('../src/strings/polish-app-core').default;
     for (const lang of ['en', 'uk', 'de', 'es', 'ru']) {
-      expect(Object.keys(fragment[lang]).sort()).toEqual(['notifOffText', 'notifOffTitle']);
+      // сповіщення в Параметрах + підтвердження покупки Pro (ProToast)
+      expect(Object.keys(fragment[lang]).sort()).toEqual([
+        'notifOffText',
+        'notifOffTitle',
+        'proToastText',
+        'proToastTitle',
+        'proToastTrial',
+        'proToastTrialRemind',
+      ]);
       for (const v of Object.values(fragment[lang])) {
         expect(v).not.toMatch(new RegExp('\\u2014|\\s\\u2013\\s|\\s-\\s'));
         expect(v.length).toBeGreaterThan(8);

@@ -24,6 +24,7 @@ import ProfileScreen from './src/ProfileScreen';
 import SettingsScreen from './src/SettingsScreen';
 import OnboardingScreen from './src/OnboardingScreen';
 import AchievementToast from './src/AchievementToast';
+import ProToast from './src/ProToast';
 import PaywallScreen from './src/PaywallScreen';
 import OnboardingPaywall from './src/OnboardingPaywall';
 import ProfileEditor from './src/ProfileEditor';
@@ -60,7 +61,7 @@ import { ensureSession, eraseServerData, forgetIdentityForDev, renewSession } fr
 import { clearPersonalData, signInWithApple, signOut as leaveAccount, useAccount } from './src/account';
 import { useSync, useWordStore } from './src/useSync';
 import { touch } from './src/sync';
-import { deletePhoto, persistPhoto } from './src/photos';
+import { deleteAllPhotos, deletePhoto, persistPhoto } from './src/photos';
 import { addScene, clearScenes, hasWord, loadScenes, persistScenes, removeScene, updateScene } from './src/scene/scenes';
 import { apiMe, apiProfile, deviceForgotten } from './src/api';
 import {
@@ -192,6 +193,10 @@ const PRO_WAIT_MS = 1500;
 // стільки мс, і забуваємо, якщо вона не звільнилась за REVIEW_TTL_MS.
 const REVIEW_DELAY_MS = 800;
 const REVIEW_TTL_MS = 2 * 60 * 1000;
+
+// Підтвердження покупки Pro (src/ProToast.js) чекає, поки черга оверлеїв вільна,
+// не довше за стільки: потім воно вже не про цю мить, і його забуваємо.
+const PRO_TOAST_WAIT_MS = 20000;
 
 // Найдовше, що вкладки тримаються замкненими на розпізнаванні (SCAN_TIMEOUT у
 // api.js — 25 с): якщо сканер колись не скаже, що закінчив, не застрягаємо.
@@ -999,7 +1004,9 @@ export default function App() {
       'wod'
     );
     bumpStat('wordOfDaySeen');
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    // через haptic(): свято серії, що може спалахнути одразу, бачить цей «успіх»
+    // і своєї вібрації не додає (motion.recentSuccess)
+    haptic('success');
     // Збережене слово — не «легке»: серія «Знаю» поспіль переривається
     if (settingsRef.current.knowStreak) commitSettings({ ...settingsRef.current, knowStreak: 0 });
   }
@@ -1082,21 +1089,35 @@ export default function App() {
   }, [ready, deviceId, report, settings.profileSyncedFor]);
 
   // ---------- ПІДПИСКА ----------
+  // Підтвердження покупки (src/ProToast.js): { trial, reminded } | null.
+  // Показ і черга — біля overlayFree.
+  const [proToast, setProToast] = useState(null);
   // Pro щойно з'явився (наша покупка чи пейвол RevenueCat): пейвол геть,
   // сервер перепитує RevenueCat (знімає ліміт сканів), відгук. Пробний
   // період: нагадаємо за 2 дні до списання самі, а не покладаємось лише на
   // Apple (див. коментар у subscription.js). Таймлайн у пейволі це пообіцяв —
   // тож якщо про сповіщення ще не питали, питаємо зараз.
-  function proActivated(state) {
+  //
+  // toast: false — відновлення (restored в пейволі RevenueCat): людина нічого
+  // не купувала, а Pro тихо повернувся, привітання «тепер ти з Pro» там зайве.
+  // Купівля ж лишає екран, який просто зник, — тоді підтверджуємо (ProToast).
+  // «Нагадаємо за 2 дні» кажемо лише тоді, коли нагадування справді стоїть.
+  function proActivated(state, { toast = true } = {}) {
     // ефект нижче не повторює те, що тут уже зроблено
     proHandled.current = true;
     paywallRef.current = null;
     setPaywall(null);
     refreshMe(true);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    if (state?.trial && state.until) {
+    const trial = !!state?.trial;
+    if (trial && state.until) {
       const until = state.until;
-      askPush('trial').then(() => scheduleTrialReminder(until, t('trialEndTitle'), t('trialEndBody')));
+      askPush('trial')
+        .then(() => scheduleTrialReminder(until, t('trialEndTitle'), t('trialEndBody')))
+        .catch(() => false)
+        .then((reminded) => toast && setProToast({ trial, reminded: !!reminded }));
+    } else if (toast) {
+      setProToast({ trial, reminded: false });
     }
   }
 
@@ -1199,7 +1220,7 @@ export default function App() {
       const plan = planOfProduct(res.state?.productId);
       if (res.purchased) track('purchase_success', { plan, trial: !!res.state?.trial, source, ui: 'revenuecat' });
       else track('restore', { ok: true, pro: !!res.state?.pro, error: null });
-      if (res.state?.pro) proActivated(res.state);
+      if (res.state?.pro) proActivated(res.state, { toast: !!res.purchased });
     } else {
       track('paywall_close', { source, step, ui: 'revenuecat' });
     }
@@ -1350,7 +1371,9 @@ export default function App() {
   async function eraseEverything() {
     const session = await eraseServerData();
     sync.stop();
-    wordsRef.current.forEach((w) => deletePhoto(w.photo));
+    // Уся тека наліпок однією дією: по файлу на слово — це два синхронні
+    // виклики на слово між підтвердженням і оновленням екрана
+    deleteAllPhotos();
     await clearLocalData();
     await clearPersonalData();
     // Не cancelAll: він знімав би й нагадування про кінець пробного періоду
@@ -1435,7 +1458,7 @@ export default function App() {
       if (!ok || sync.pending()) throw Object.assign(new Error('UNSYNCED'), { code: 'UNSYNCED', reason: sync.lastError() });
     }
     sync.stop();
-    wordsRef.current.forEach((w) => deletePhoto(w.photo));
+    deleteAllPhotos();
     setWords([], { persist: false }); // сховище чистить leaveAccount нижче
     // сцени не синхронізуються, але це теж особисте: телефон стає чистим
     setScenes([]);
@@ -1806,21 +1829,36 @@ export default function App() {
   useEffect(() => {
     if (celebration && toastAch?.id === 'streak_' + celebration.to) setToastAch(null);
   }, [celebration, toastAch]);
-  const shownAch = overlayFree && !celebration ? toastAch : null;
+  // Підтвердження Pro — важливіше за досягнення: воно про гроші, і тост
+  // досягнення чекає, поки воно зникне (місце зверху одне). Свято серії — першим.
+  const proToastFree = overlayFree && !celebration;
+  const shownPro = proToastFree ? proToast : null;
+  const shownAch = proToastFree && !proToast ? toastAch : null;
+  // Не дочекалось черги за PRO_TOAST_WAIT_MS — забуваємо
   useEffect(() => {
-    if (shownAch) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    if (!proToast || proToastFree) return;
+    const timer = setTimeout(() => setProToast(null), PRO_TOAST_WAIT_MS);
+    return () => clearTimeout(timer);
+  }, [proToast, proToastFree]);
+  // Вібрація раз на досягнення: тост може зникнути й повернутись (черга
+  // оверлеїв блимнула), а вібрувати вдруге за те саме не треба
+  const achBuzzed = useRef(null);
+  useEffect(() => {
+    if (!shownAch || achBuzzed.current === shownAch) return;
+    achBuzzed.current = shownAch;
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }, [shownAch]);
   // Оцінка (askReviewLater): коли черга оверлеїв вільна, ні свята, ні тоста, і
   // так REVIEW_DELAY_MS. Не дочекались за REVIEW_TTL_MS (людина пішла, повернулась
   // наступного дня) — забуваємо: вікно «оціни» при відкритті застосунку не вчасне.
   useEffect(() => {
-    if (!reviewSince || !overlayFree || celebration || toastAch) return;
+    if (!reviewSince || !overlayFree || celebration || toastAch || proToast) return;
     const timer = setTimeout(() => {
       setReviewSince(0);
       if (Date.now() - reviewSince < REVIEW_TTL_MS) maybeAskForReview();
     }, REVIEW_DELAY_MS);
     return () => clearTimeout(timer);
-  }, [reviewSince, overlayFree, celebration, toastAch]);
+  }, [reviewSince, overlayFree, celebration, toastAch, proToast]);
 
   // ---------- «НАВЧАННЯ» ДО ПЕРШОГО СЛОВА ----------
   // «Відкрито!» — один раз на картки й один на квіз (settings.unlockSeen).
@@ -1965,7 +2003,7 @@ export default function App() {
       'wod'
     );
     bumpStat('wordOfDaySeen');
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    haptic('success');
   }
   async function knowWodSlot(w) {
     if (!w || !w.slot) return knowWordOfDay();
@@ -2347,6 +2385,7 @@ export default function App() {
                   targetLang={settings.targetLang}
                   targetVariant={targetVariant}
                   onSetLang={setTargetLang}
+                  isLangLocked={(code) => !!canUseLanguage({ pro: sub.pro, words, nextLang: code })}
                   nativeLang={settings.nativeLang}
                   onSetNative={(code) => saveSetting({ nativeLang: code })}
                   uiLang={ui}
@@ -2499,6 +2538,7 @@ export default function App() {
             onPress={(a) => shareAchievement(a, true)}
             t={t}
           />
+          <ProToast toast={shownPro} onHide={() => setProToast(null)} t={t} />
         </View>
         {/* Свято першої дії дня — над усім, коли черга вільна */}
         <StreakCelebration
