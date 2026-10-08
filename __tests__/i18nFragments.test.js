@@ -12,10 +12,10 @@ import { BASE_STRINGS, FRAGMENTS, STRINGS, makeT } from '../src/i18n';
 
 const ROOT = path.join(__dirname, '..');
 const LANGS = ['en', 'uk', 'de', 'es', 'ru'];
-const NAMES = ['shared', 'core', 'widgets', 'onb', 'share', 'pro', 'polish-app-core', 'polish-learn', 'polish-pro', 'polish-scanner'];
+const NAMES = ['shared', 'core', 'widgets', 'onb', 'share', 'pro', 'polish-app-core', 'polish-learn', 'polish-pro', 'polish-scanner', 'polish-primitives'];
 const keysOf = (name) => Object.keys(FRAGMENTS[name].default.en);
 
-test('ten fragments, merged in a fixed order', () => {
+test('eleven fragments, merged in a fixed order', () => {
   expect(Object.keys(FRAGMENTS)).toEqual(NAMES);
   for (const f of NAMES) expect(fs.existsSync(path.join(ROOT, 'src/strings', `${f}.js`))).toBe(true);
 });
