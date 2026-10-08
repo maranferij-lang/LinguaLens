@@ -95,7 +95,10 @@ export default function ProToast({ toast, onHide, t }) {
           </View>
           <View style={{ flex: 1 }}>
             <Text style={[CAPS, { color: C.accent }]}>{t('proToastTitle')}</Text>
-            <Text style={[styles.text, { color: C.text }]} numberOfLines={3}>
+            {/* Без стелі рядків: тост лежить поверх екрана і просто росте,
+                а обіцянка «за 2 дні до кінця» не обрізається. Стеля
+                масштабу шрифту — та сама, що в посиланнях пейволу. */}
+            <Text style={[styles.text, { color: C.text }]} maxFontSizeMultiplier={1.3}>
               {text}
             </Text>
           </View>

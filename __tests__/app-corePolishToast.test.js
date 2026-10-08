@@ -71,6 +71,17 @@ describe('what it says', () => {
     expect(card(tree).props.accessibilityLabel).toBe(`${t('proToastTitle')}. ${t(key)}`);
   });
 
+  // Рядки про нагадування довгі (від 68 до 72 знаків на ~205 pt), і зі збільшеним
+  // шрифтом стеля в три рядки обрізала б саме «до кінця»: тост росте, а
+  // шрифт має стелю 1.3, як посилання пейволу
+  test('the body is not capped in lines and has a font-scale ceiling of 1.3', async () => {
+    const { tree } = await render({ toast: { trial: true, reminded: true } });
+    const body = tree.root.findAll((n) => n.type === 'Text' && [].concat(n.props.children).join('') === t('proToastTrialRemind'))[0];
+    expect(body).toBeDefined();
+    expect(body.props.numberOfLines).toBeUndefined();
+    expect(body.props.maxFontSizeMultiplier).toBe(1.3);
+  });
+
   test('a trial without a reminder never promises one', () => {
     for (const lang of ['en', 'uk', 'de', 'es', 'ru']) {
       const s = STRINGS[lang];

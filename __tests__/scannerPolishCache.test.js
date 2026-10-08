@@ -1,9 +1,10 @@
 // Полірування сканера (жовтень 2026): тимчасові файли кешу, які ніхто не
 // зберіг, не лишаються на тижні (scanner-cache-leaks). Наліпка закритого
-// результату стирається, лише коли слово не зберігали й ним не ділились, та
-// лише коли аркуш уже поїхав вниз; кадр сцени — коли в сцени є копія в
-// Documents. Файл, на який посилається збережене слово чи сцена, не чіпаємо
-// ніколи. Камера, ImageManipulator, файлова система й розпізнавання підставні.
+// результату стирається, коли слово не зберігали й ним не ділились, або коли
+// App зберіг його з копією в Documents, та лише коли аркуш уже поїхав вниз;
+// кадр сцени — коли в сцени є копія в Documents. Файл, на який посилається
+// збережене слово чи сцена, не чіпаємо ніколи. Камера, ImageManipulator,
+// файлова система й розпізнавання підставні.
 import { AccessibilityInfo, Modal } from 'react-native';
 import { act, create } from 'react-test-renderer';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -170,15 +171,43 @@ describe('the sticker file of a result', () => {
     await act(async () => tree.unmount());
   });
 
-  test('a saved word keeps its file: the word may point at it when the copy to Documents failed', async () => {
+  test('a saved word keeps its file when the copy to Documents failed: the word still points at it', async () => {
     const tree = await render();
     await press(() => shutter(tree).props.onPress());
     await press(() => byTitle(tree, t('save')).props.onPress());
+    // App сказав: слово збережене, а photo лишився кеш-шляхом
+    await act(async () => tree.update(element({ savedWords: [{ id: 'w1', word: 'la taza', lang: 'es', photo: CUT }] })));
     await press(() => byTitle(tree, t('scanAgain')).props.onPress());
     await act(async () => resultSheet(tree).props.onDismiss());
     expect(deleted).not.toContain(CUT);
     await act(async () => tree.unmount());
     expect(deleted).not.toContain(CUT);
+  });
+
+  test('a saved word whose copy worked: the word has its own file in Documents, the cache original goes when the sheet is dismissed', async () => {
+    const tree = await render();
+    await press(() => shutter(tree).props.onPress());
+    await press(() => byTitle(tree, t('save')).props.onPress());
+    await act(async () => tree.update(element({ savedWords: [{ id: 'w1', word: 'la taza', lang: 'es', photo: 'stickers/x.jpg' }] })));
+    await press(() => byTitle(tree, t('scanAgain')).props.onPress());
+    // аркуш ще їде вниз зі знімком наліпки
+    expect(deleted).not.toContain(CUT);
+    await act(async () => resultSheet(tree).props.onDismiss());
+    expect(deleted).toContain(CUT);
+    expect(deleted.filter((u) => u === CUT)).toHaveLength(1);
+    await act(async () => tree.unmount());
+    expect(deleted.filter((u) => u === CUT)).toHaveLength(1);
+  });
+
+  test('…and where the dismiss event never comes (Android), leaving the scanner clears it', async () => {
+    const tree = await render();
+    await press(() => shutter(tree).props.onPress());
+    await press(() => byTitle(tree, t('save')).props.onPress());
+    await act(async () => tree.update(element({ savedWords: [{ id: 'w1', word: 'la taza', lang: 'es', photo: 'stickers/x.jpg' }] })));
+    await press(() => byTitle(tree, t('scanAgain')).props.onPress());
+    expect(deleted).not.toContain(CUT);
+    await act(async () => tree.unmount());
+    expect(deleted).toContain(CUT);
   });
 
   test('a refused save (App said no) keeps the file too: App may save the word later', async () => {

@@ -207,13 +207,17 @@ export default function ScannerScreen({
   // лишаємо на тижні:
   //   frozenFile — кадр 9:16 сцени, поки він під сценою; null, якщо на нього
   //     посилається сама збережена сцена (копія в Documents не вдалась);
-  //   resultUsed — слово з результату зберігали чи ним ділились: тоді файл
-  //     наліпки не чіпаємо (App міг не скопіювати його в Documents, і слово
-  //     тримає саме цей шлях);
-  //   strays — наліпки закритих результатів, якими ніхто не скористався;
+  //   resultUsed — слово з результату зберігали чи ним ділились;
+  //   saveOk — App справді зберіг слово (insertWords копіює наліпку в
+  //     Documents синхронно): кеш-оригінал іде в strays, а flushStrays
+  //     лишає його, лише якщо збережене слово досі тримає саме цей шлях
+  //     (копія не вдалась). Відмова App (пейвол: слово збереже пізніше) і
+  //     «поділитись» без збереження файл не чіпають;
+  //   strays — наліпки закритих результатів, які ще треба перевірити й стерти;
   //   cutterRef — різальник сцени, чиї наліпки предметів лежать у кеші.
   const frozenFile = useRef(null);
   const resultUsed = useRef(false);
+  const saveOk = useRef(false);
   const strays = useRef([]);
   const cutterRef = useRef(null);
   // Свіжий словник для таймерів і демонтажу, що створені один раз
@@ -525,6 +529,7 @@ export default function ScannerScreen({
         dropFile(backdropRef.current);
         backdropRef.current = backdrop;
         resultUsed.current = false;
+        saveOk.current = false;
         setResult({ ...res, photo: cut.uri, shape: cut.shape, backdrop });
         setJustSaved(false);
       }
@@ -707,10 +712,11 @@ export default function ScannerScreen({
   function save() {
     if (!result || alreadySaved) return;
     resultUsed.current = true;
+    saveOk.current = !!onSaveWord(resultWord());
     // App відмовив (стеля безкоштовного словника) і відкрив пейвол. Під цим
     // Modal його не видно — закриваємо аркуш; слово App збереже сам, якщо
     // людина оформить Pro.
-    if (!onSaveWord(resultWord())) {
+    if (!saveOk.current) {
       closeResult();
       return;
     }
@@ -738,10 +744,12 @@ export default function ScannerScreen({
   }
 
   function closeResult() {
-    // Слово не зберігали й ним не ділились: файл наліпки нікому не потрібен.
-    // Стираємо його, коли аркуш уже поїхав (onDismiss), а не зараз: Modal ще
-    // ~300 мс малює знімок з наліпкою.
-    if (result?.photo && !resultUsed.current && !strays.current.includes(result.photo)) strays.current.push(result.photo);
+    // Слово не зберігали й ним не ділились, або App зберіг його (копія в
+    // Documents): файл наліпки в кеші нікому не потрібен. Стираємо його,
+    // коли аркуш уже поїхав (onDismiss), а не зараз: Modal ще ~300 мс малює
+    // знімок з наліпкою. Чи не тримає його збережене слово, перевіряє
+    // flushStrays.
+    if (result?.photo && (!resultUsed.current || saveOk.current) && !strays.current.includes(result.photo)) strays.current.push(result.photo);
     dropFile(backdropRef.current);
     backdropRef.current = null;
     setSharing(null);
@@ -755,8 +763,13 @@ export default function ScannerScreen({
     flushStrays();
   }
 
+  // Файл, на який досі посилається збережене слово (копія в Documents не
+  // вдалась, і photo лишився кеш-шляхом), не чіпаємо — як і dropSceneCuts.
+  // Словник свіжий: insertWords синхронний, а сюди приходять після onDismiss,
+  // з наступним сканом чи при демонтажі.
   function flushStrays() {
-    strays.current.splice(0).forEach(dropFile);
+    const used = new Set((savedRef.current || []).map((w) => w && w.photo));
+    strays.current.splice(0).forEach((u) => used.has(u) || dropFile(u));
   }
 
   // «Назад» на Android і жест виходу VoiceOver: спершу закривається картка

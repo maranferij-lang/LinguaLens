@@ -70,7 +70,8 @@ test('isLocked: a Pro pill and VoiceOver label on locked rows; the chosen and th
   const pill = (code) => tree.root.findAll((n) => typeof n.type === 'string' && n.props.testID === 'lang-pro-' + code);
   expect(pill('de')).toHaveLength(1);
   expect(pill('de')[0].findAll((n) => typeof n.type === 'string' && n.props.children === 'Pro' && n.props.maxFontSizeMultiplier === 1.2)).toHaveLength(1);
-  expect(row(tree, 'de').props.accessibilityLabel).toBe(t('langA11yPro', { l: 'Deutsch' }));
+  // ті самі частини, що й у звичайного рядка, плюс «доступна з Pro»
+  expect(row(tree, 'de').props.accessibilityLabel).toBe(t('langA11yPro', { l: 'Deutsch, German' }));
   expect(pill('en-gb')).toHaveLength(0); // мова перекладу: не натискається, пілюля зайва
   expect(pill('es-latam')).toHaveLength(0); // обрана: вже в роботі
   expect(pill('es-es')).toHaveLength(0); // інший варіант тієї самої мови
@@ -78,6 +79,22 @@ test('isLocked: a Pro pill and VoiceOver label on locked rows; the chosen and th
   await act(async () => row(tree, 'de').props.onPress());
   expect(onPick).toHaveBeenCalledWith('de');
   await act(async () => tree.unmount());
+});
+
+// Нелатинський ендонім (日本語) сам по собі VoiceOver українською не прочитає:
+// замкнений рядок має назву мовою інтерфейсу й підпис «з телефона», як і
+// звичайний
+test('a locked row with a non-Latin endonym keeps the localized name and the phone note', async () => {
+  const plain = await render(<LangSheet visible current="es" native="en" phone="ja" onPick={() => {}} onClose={() => {}} t={uk} ui="uk" />);
+  const spoken = row(plain, 'ja').props.accessibilityLabel;
+  expect(spoken).toMatch(/^日本語, /);
+  expect(spoken).toContain(uk('obNativePhone'));
+  expect(spoken).not.toBe('日本語');
+  await act(async () => plain.unmount());
+
+  const locked = await render(<LangSheet visible current="es" native="en" phone="ja" isLocked={() => true} onPick={() => {}} onClose={() => {}} t={uk} ui="uk" />);
+  expect(row(locked, 'ja').props.accessibilityLabel).toBe(uk('langA11yPro', { l: spoken }));
+  await act(async () => locked.unmount());
 });
 
 test('without isLocked nothing is marked', async () => {

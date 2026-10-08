@@ -19,7 +19,8 @@
 // variant — варіант мови навчання (без нього — той, що обраний зараз);
 // isLocked(code) — мова, за яку тап поведе в пейвол (безкоштовно — одна мова
 // навчання): її рядок лишається натискним, але з пілюлею «Pro», як у
-// Налаштуваннях, і VoiceOver чує «доступна з Pro».
+// Налаштуваннях, і VoiceOver чує «доступна з Pro» після тих самих частин,
+// що й у звичайного рядка (ендонім, назва мовою інтерфейсу, підпис).
 //
 // Варіанти мов (src/langVariants.js): у списку мови навчання англійська й
 // іспанська — по рядку на варіант: прапорець і ендонім варіанта («English
@@ -59,6 +60,10 @@ function LangRow({ code: key, ui, t, on, disabled, locked, note, onPress, first,
   const same = local.toLocaleLowerCase(ui) === name.toLocaleLowerCase(ui);
   const right = note || (variant || same ? '' : local);
   const under = variant && !same ? local : '';
+  // VoiceOver: ендонім, назва мовою інтерфейсу (якщо інша), підпис. Замкнений
+  // рядок читає ті самі частини (ендонім може бути нелатинським: 日本語,
+  // العربية), а в кінці — «доступна з Pro».
+  const spoken = [name, same ? null : local, note].filter(Boolean).join(', ');
   const pill = locked ? (
     <View style={s.proPill} testID={'lang-pro-' + key}>
       <Text style={s.proPillText} maxFontSizeMultiplier={1.2}>
@@ -74,7 +79,7 @@ function LangRow({ code: key, ui, t, on, disabled, locked, note, onPress, first,
       disabled={disabled}
       accessibilityRole="radio"
       accessibilityState={{ checked: on, disabled: !!disabled }}
-      accessibilityLabel={locked ? t('langA11yPro', { l: name }) : [name, same ? null : local, note].filter(Boolean).join(', ')}
+      accessibilityLabel={locked ? t('langA11yPro', { l: spoken }) : spoken}
     >
       <Text style={s.flag}>{flagFor(code, variant || undefined)}</Text>
       {under ? (
