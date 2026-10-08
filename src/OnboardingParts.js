@@ -19,7 +19,7 @@ import { MiniKey, MiniMug, MiniPlant, TagLabel } from './DemoDesk';
 import { IcBell, IcCards, IcChart, IcCheck, IcCompass, IcScan, IcSpeaker } from './icons';
 import { FadeIn } from './ui';
 import { fontSizeForWord, textEm } from './share/layout';
-import { EASE, spring, stagger, useReducedMotion } from './motion';
+import { DUR, EASE, SPRING, stagger, useReducedMotion } from './motion';
 import { CAPS, F, R, track, type, useTheme } from './theme';
 
 // Якщо людина нічого не обрала на кроці «що заважає» (чи у варіанті без
@@ -176,6 +176,30 @@ export function TodayCard({ word, topic, lang, t }) {
 // rows — [{ key, flag?, text, done }].
 export const BUILD_STAGGER = 220;
 
+// Крутилка → галочка. Галочка «вискакує» (0,7 → 1 з проявою), коли рядок
+// щойно став готовий: пружина без перельоту, «Менше руху» — лише поява.
+// Рядок, що зʼявився вже готовим (мова, теми), стоїть на місці.
+function BuildMark({ done, color, spinner }) {
+  const reduced = useReducedMotion();
+  const born = useRef(done);
+  const a = useRef(new Animated.Value(done ? 1 : 0)).current;
+  useEffect(() => {
+    if (!done || born.current) return undefined;
+    born.current = true;
+    if (reduced) Animated.timing(a, { toValue: 1, duration: DUR.micro, easing: EASE.soft, useNativeDriver: true }).start();
+    else Animated.spring(a, { toValue: 1, ...SPRING.snappy }).start();
+    return () => a.stopAnimation();
+  }, [done]);
+  if (!done) return <ActivityIndicator size="small" color={spinner} />;
+  return (
+    <Animated.View
+      style={{ opacity: a, transform: reduced ? [] : [{ scale: a.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1] }) }] }}
+    >
+      <IcCheck size={14} color={color} />
+    </Animated.View>
+  );
+}
+
 export function PlanBuilding({ title, rows }) {
   const { C, SHADOW_SM } = useTheme();
   const s = useMemo(() => makeStyles(C), [C]);
@@ -189,7 +213,7 @@ export function PlanBuilding({ title, rows }) {
         {rows.map((r, i) => (
           <FadeIn key={r.key} delay={i * BUILD_STAGGER} style={[s.buildRow, SHADOW_SM]}>
             <View style={[s.buildMark, r.done && { backgroundColor: C.green }]}>
-              {r.done ? <IcCheck size={14} color={C.onAccent} /> : <ActivityIndicator size="small" color={C.accent} />}
+              <BuildMark done={r.done} color={C.onAccent} spinner={C.accent} />
             </View>
             {r.flag ? <Text style={s.buildFlag}>{r.flag}</Text> : null}
             <Text style={s.buildText} numberOfLines={2}>
@@ -242,7 +266,9 @@ export function HourChips({ value, onChange, t }) {
             <Text style={[s.hourPart, on && { color: C.accent }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
               {t(key)}
             </Text>
-            <Text style={[s.hourTime, on && { color: C.accent }]} numberOfLines={1}>
+            {/* 12-годинний час («10:00 AM») при більшому шрифті не вміщається в
+                чип: стискаємо, а не обрізаємо — людина має бачити, яку годину обирає */}
+            <Text style={[s.hourTime, on && { color: C.accent }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
               {time}
             </Text>
           </Pressable>
@@ -444,10 +470,11 @@ export function WodExample({ sample, t, delay = 220 }) {
       Animated.timing(a, { toValue: 1, duration: 200, delay, easing: EASE.soft, useNativeDriver: true }).start();
       return;
     }
-    Animated.spring(a, { toValue: 1, delay, ...spring(0.42, 0.78) }).start();
+    // Без перельоту: картка просто зʼявилась, її ніхто не кидав (motion.js)
+    Animated.spring(a, { toValue: 1, delay, ...SPRING.ui }).start();
   }, []);
   const style = {
-    opacity: a.interpolate({ inputRange: [0, 0.6, 1.2], outputRange: [0, 1, 1] }),
+    opacity: a.interpolate({ inputRange: [0, 0.6, 1], outputRange: [0, 1, 1] }),
     transform: reduced
       ? []
       : [
@@ -591,15 +618,16 @@ function Floater({ f, reduced, children }) {
   useEffect(() => {
     if (reduced) return undefined;
     const half = { duration: 1600, easing: EASE.inOut, useNativeDriver: true };
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.delay(f.phase * 520),
-        Animated.timing(v, { toValue: 1, ...half }),
-        Animated.timing(v, { toValue: 0, ...half }),
-      ])
-    );
-    loop.start();
-    return () => loop.stop();
+    // Зсув фази — один раз перед циклом, а не всередині нього: інакше предмет
+    // щоразу завмирав би внизу на phase × 520 мс, і періоди розійшлись би
+    const run = Animated.sequence([
+      Animated.delay(f.phase * 520),
+      Animated.loop(
+        Animated.sequence([Animated.timing(v, { toValue: 1, ...half }), Animated.timing(v, { toValue: 0, ...half })])
+      ),
+    ]);
+    run.start();
+    return () => run.stop();
   }, [reduced]);
   return (
     <Animated.View
@@ -760,7 +788,7 @@ export function PledgeCard({ text, lit, t }) {
 const makeStyles = (C) =>
   StyleSheet.create({
     card: { backgroundColor: C.card, borderRadius: R.lg, padding: 18 },
-    caps: { color: C.faint, ...CAPS },
+    caps: { color: C.dim, ...CAPS },
     capsRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     planLang: { flexDirection: 'row', alignItems: 'center', gap: 5, flexShrink: 1 },
     planFlag: { fontSize: 14 },

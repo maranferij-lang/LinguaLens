@@ -57,7 +57,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { FadeIn, GradBtn } from './ui';
+import { FadeIn, GradBtn, Press } from './ui';
 import { DEFAULT_HOUR, permissionStatus, requestPermission } from './wordOfDay';
 import { AppIcon } from './Logo';
 import { MascotBob, MascotLive } from './Mascot';
@@ -126,7 +126,7 @@ import { isVariant } from './langVariants';
 import { phoneUiLang } from './locale';
 import { flag, track } from './analytics';
 import { SafeAreaInsetsContext } from 'react-native-safe-area-context';
-import { EASE, useReducedMotion, useScreenReader } from './motion';
+import { DUR, EASE, announce, useReducedMotion, useScreenReader } from './motion';
 import { F, R, type, useTheme } from './theme';
 
 // Версія воронки в статистиці: події різних версій не змішуються, бо порядок
@@ -311,7 +311,12 @@ function BreathingBtn({ on, children }) {
     ]);
     const run = Animated.sequence([once, once]);
     run.start();
-    return () => run.stop();
+    return () => {
+      run.stop();
+      // «Ще раз» перервало дихання посеред вдиху: обідок не лишається
+      // напівпрозорим на весь повтор, а мʼяко гасне
+      Animated.timing(v, { toValue: 0, duration: DUR.exit, easing: EASE.out, useNativeDriver: true }).start();
+    };
   }, [on, reduced]);
   return (
     <View>
@@ -705,7 +710,12 @@ export default function OnboardingScreen({
     return out;
   }
 
+  // Подвійний дотик «Готово» не має віддати результат двічі (статистика,
+  // збереження профілю в App)
+  const finished = useRef(false);
   function finish() {
+    if (finished.current) return;
+    finished.current = true;
     leave.current?.();
     leave.current = null;
     const r = result();
@@ -773,6 +783,12 @@ export default function OnboardingScreen({
   }, [phase, planKey]);
   const building = phase === 'plan' && !replay && (build.key !== planKey || build.busy);
   const wodWord = today || todayWord;
+  // Під час складання плану заголовка немає, а фокус VoiceOver лишився б на
+  // кнопці, якої вже нема; liveRegion на iOS не працює, тож кажемо самі.
+  // Коли план готовий, зʼявляється заголовок, і StepFrame переносить на нього фокус.
+  useEffect(() => {
+    if (reader && building) announce(t('obBuildTitle'));
+  }, [reader, building]);
 
   // ── Серія ───────────────────────────────────────────────────────────────
   const streakPlay = useRef({ max: 0, touched: false });
@@ -823,6 +839,12 @@ export default function OnboardingScreen({
     const why = word ? 'saved' : ['closed', 'camera_denied', 'limit', 'error'].includes(reason) ? reason : 'closed';
     event('onb_scan', { result: why });
     setScannerOpen(false);
+    // Назад на демо (хрестик, помилка, ліміт): воно програється знову, але
+    // обідок кнопки чекає на його фінал, а крок лише зʼявляється, не заїжджає
+    if (why !== 'saved' && why !== 'camera_denied') {
+      setDemoFinal(false);
+      setDirection('fade');
+    }
     if (why === 'saved') {
       firstWordRef.current = word;
       setFirstWord(word);
@@ -972,6 +994,8 @@ export default function OnboardingScreen({
     mascot: null,
     peek: null,
     onRoom: fitRoom,
+    // крок зʼявився на місці екрана, де щойно тиснули (вітання, сканер)
+    lockMount: direction !== null,
     t,
   };
   const shownName = cleanName(nameDraft);
@@ -1177,7 +1201,7 @@ export default function OnboardingScreen({
       </View>
     );
     // Єдина кнопка — «Далі»: системне вікно саме спитає «дозволити?»
-    footer = <GradBtn title={t('obNext')} onPress={askPush} disabled={busy} />;
+    footer = <GradBtn title={t('obNext')} onPress={askPush} loading={busy} />;
   } else if (phase === 'pushDenied') {
     title = t('obPushDeniedTitle');
     text = t('obPushDeniedText');
@@ -1191,9 +1215,9 @@ export default function OnboardingScreen({
     footer = (
       <View style={{ gap: 4 }}>
         <GradBtn title={nextTitle} onPress={() => next()} />
-        <Pressable style={s.later} onPress={openSettings} accessibilityRole="button">
+        <Press style={s.later} onPress={openSettings} feedback="dim" accessibilityRole="button">
           <Text style={s.laterText}>{t('openSettings')}</Text>
-        </Pressable>
+        </Press>
       </View>
     );
   } else if (phase === 'widgets') {
@@ -1223,17 +1247,18 @@ export default function OnboardingScreen({
             next();
           }}
         />
-        <Pressable
+        <Press
           style={s.later}
           onPress={() => {
             Haptics.selectionAsync();
             event('onb_widget_step', { action: 'howto' });
             setHowto((n) => n + 1);
           }}
+          feedback="dim"
           accessibilityRole="button"
         >
           <Text style={s.laterText}>{t('onbWidgetAgain')}</Text>
-        </Pressable>
+        </Press>
       </View>
     );
   } else if (phase === 'demo') {
@@ -1251,6 +1276,9 @@ export default function OnboardingScreen({
         t={t}
         width={sceneW}
         height={sceneH}
+        // дотики — лише поки демо ще не дограли до кінця: після камери
+        // (хрестик) воно програється знову, але вже без дотиків
+        haptics={demoLoops.current === 0}
         onFinal={() => {
           demoLoops.current += 1;
           setDemoFinal(true);
@@ -1277,17 +1305,18 @@ export default function OnboardingScreen({
           <BreathingBtn on={demoFinal}>
             <GradBtn title={t('obDemoTry')} onPress={tryScan} />
           </BreathingBtn>
-          <Pressable
+          <Press
             style={s.later}
             onPress={() => {
               event('onboarding_skip', { step: 'demo' });
               demoEvent('later');
               next();
             }}
+            feedback="dim"
             accessibilityRole="button"
           >
             <Text style={s.laterText}>{t('obWowLater')}</Text>
-          </Pressable>
+          </Press>
         </View>
       );
     } else {

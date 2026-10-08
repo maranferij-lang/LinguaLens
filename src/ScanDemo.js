@@ -24,7 +24,7 @@
 //
 // Кольори сцени фіксовані (план §5.14: ScanDemo — серед дозволених) —
 // це «кадр камери», а не інтерфейс.
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import Svg, { Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
@@ -413,7 +413,10 @@ export function BeatCaption({ beat, t, style }) {
   const a = useRef(new Animated.Value(1)).current;
   const reduced = useReducedMotion();
   const first = useRef(true);
-  useEffect(() => {
+  // Layout-ефект, а не passive: новий текст уже в цьому коміті, і значення 0
+  // має стояти до першого кадру з ним, інакше кадр-два він видно повним, а
+  // тоді блимає від нуля
+  useLayoutEffect(() => {
     if (first.current) {
       first.current = false;
       return;

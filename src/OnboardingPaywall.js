@@ -21,7 +21,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
   ActivityIndicator,
-  Pressable,
+  Animated,
   ScrollView,
   StyleSheet,
   Text,
@@ -35,8 +35,8 @@ import { IcBell, IcCheck, IcClose } from './icons';
 import { MascotBob } from './Mascot';
 import { StickerLarge } from './Sticker';
 import { photoUri } from './photos';
-import { FadeIn, GradBtn } from './ui';
-import { stagger, useScreenReader } from './motion';
+import { FadeIn, GradBtn, Press } from './ui';
+import { DUR, EASE, stagger, useScreenReader } from './motion';
 import { CAPS, F, R, type, useTheme } from './theme';
 
 // Номер екрана для статистики (paywall_step / paywall_close) — завжди той
@@ -51,11 +51,33 @@ export function paywallSteps(plans) {
 // На (а) — лише те, за чим людина прийшла: скани, кімната, мови.
 const TRIAL_BENEFITS = PRO_BENEFITS.filter((b) => ['scans', 'scene', 'langs'].includes(b.id));
 
+// Скільки «Далі» лишається замкненим після зміни екрана: поки йде поява
+// (DUR.panel) і ще мить. Кнопка одна на екрани (а) і (б), тож швидкий
+// подвійний дотик перестрибнув би (б), де сказано, що ми нагадаємо.
+const LOCK_MS = DUR.panel + 30;
+
 // ui — 'custom' | 'revenuecat'; onPresentRc() → Promise<boolean>: true —
 // пейвол RevenueCat показано (далі все робить App), false — його немає чи він
 // упав, показуємо свій. onStep(i, name) — екран показано; onClose(i) — закрили.
 // Решта пропсів — ті самі, що в PaywallScreen.
-export default function OnboardingPaywall({
+//
+// Після обіцянки («До завтра») пейвол не зʼявляється різким стрибком: уся
+// його поверхня мʼяко проявляється (лише прозорість, тож «Менше руху» нічого
+// не змінює), а екрани всередині міняються вже без цього.
+export default function OnboardingPaywall(props) {
+  const enter = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(enter, { toValue: 1, duration: DUR.sheet, easing: EASE.out, useNativeDriver: true }).start();
+    return () => enter.stopAnimation();
+  }, []);
+  return (
+    <Animated.View style={{ flex: 1, opacity: enter }} testID="opw-enter">
+      <PaywallSteps {...props} />
+    </Animated.View>
+  );
+}
+
+function PaywallSteps({
   plans,
   unavailable,
   plansFailed,
@@ -85,7 +107,19 @@ export default function OnboardingPaywall({
   const [steps] = useState(() => paywallSteps(plans));
   const [i, setI] = useState(0);
   const step = steps[i];
-  const plan = defaultPlan(plans);
+  // Тариф, з яким відкрились: якщо тарифи посеред показу скинуться (невдале
+  // перезавантаження), екрани (а) і (б) не мають впасти на plan.trialDays
+  const [firstPlan] = useState(() => defaultPlan(plans));
+  const plan = defaultPlan(plans) || firstPlan;
+
+  // Замок «Далі» (див. LOCK_MS): settled — екран, що вже встиг зʼявитись
+  const [settled, setSettled] = useState(i);
+  useEffect(() => {
+    if (settled === i) return undefined;
+    const id = setTimeout(() => setSettled(i), LOCK_MS);
+    return () => clearTimeout(id);
+  }, [i, settled]);
+  const locked = settled !== i;
   // Пейвол RevenueCat замість (в): 'idle' → 'pending' (показуємо) → 'failed'
   const [rc, setRc] = useState(ui === 'revenuecat' && onPresentRc ? 'idle' : 'off');
 
@@ -156,11 +190,11 @@ export default function OnboardingPaywall({
     <View style={s.root}>
       {/* Хрестик — у власній смужці поза прокруткою, як у PaywallScreen */}
       <View style={[s.topBar, short && s.topBarShort]}>
-        <Pressable style={s.close} onPress={close} hitSlop={4} accessibilityRole="button" accessibilityLabel={t('close')}>
+        <Press style={s.close} onPress={close} feedback="dim" hitSlop={4} accessibilityRole="button" accessibilityLabel={t('close')}>
           <View style={s.closeDot}>
             <IcClose size={20} color={C.dim} />
           </View>
-        </Pressable>
+        </Press>
       </View>
 
       <ScrollView contentContainerStyle={[s.scroll, short && s.scrollShort]} showsVerticalScrollIndicator={false} bounces={false}>
@@ -224,6 +258,7 @@ export default function OnboardingPaywall({
 
       <View style={[s.footer, SHADOW_LG]}>
         <GradBtn title={t('obNext')} onPress={advance} />
+        {locked ? <View style={StyleSheet.absoluteFill} testID="opw-lock" /> : null}
       </View>
     </View>
   );

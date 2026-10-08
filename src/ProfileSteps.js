@@ -2,8 +2,8 @@
 // рівень → що заважає → звідки дізнались. Ті самі екрани живуть в
 // онбордингу і в редакторі з Параметрів — тут лише їхній вигляд; хто веде
 // по кроках і що зберігає, вирішує OnboardingScreen чи ProfileEditor.
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, Animated, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { AccessibilityInfo, Animated, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import LevelSlider from './LevelSlider';
@@ -24,7 +24,7 @@ import {
   IcPlane,
 } from './icons';
 import { FadeIn, Press } from './ui';
-import { DUR, EASE, useReducedMotion, useScreenReader } from './motion';
+import { DUR, EASE, SPRING, useReducedMotion, useScreenReader } from './motion';
 import { F, R, type, useTheme } from './theme';
 
 // Порядок кроків для цих цілей. Сфера — лише тим, хто вчить для роботи чи
@@ -57,7 +57,16 @@ const STRUGGLE_ICONS = { forget: IcCards, time: IcClock, boring: IcBook, start: 
 // [f0, f1, f2] } — три сегменти онбордингу («Ти» / «Як це працює» /
 // «Спробуй»), кожен заповнений часткою кроків своєї дії. direction —
 // 'forward' | 'back': новий крок заїжджає справа чи зліва (онбординг);
-// без нього — мʼяко зʼявляється знизу, як і раніше.
+// 'fade' — лише зʼявляється, без зсуву (повернулись з камери на той самий
+// крок); без нього — мʼяко зʼявляється знизу, як і раніше.
+//
+// Поки новий крок зʼявляється (LOCK_MS), смужку й футер закриває прозорий
+// щит: кнопка «Далі» лишається на тому ж місці, і другий дотик швидкого
+// «подвійного» влучив би в живу кнопку наступного кроку (пропуск кроків,
+// системний запит сповіщень без пояснення, камера до демо). lockMount — те
+// саме для самого першого кадру: рамка зʼявилась на місці екрана, де щойно
+// тиснули («Почати» на вітанні, хрестик сканера), — тоді щит закриває і
+// вміст, бо під пальцем уже не та кнопка, а список мов чи «Назад».
 //
 // mascot — Lingo праворуч від заголовка (кроки-питання онбордингу): декор,
 // заголовок лишається заголовком для VoiceOver. peek(room) — те, що
@@ -66,18 +75,55 @@ const STRUGGLE_ICONS = { forget: IcCards, time: IcClock, boring: IcBook, start: 
 // ще не виміряно), щоб він ніколи не налазив на поле чи текст. onRoom(room)
 // — те саме число щоразу, як воно змінилось: крок, що хоче заповнити екран
 // (демо, телефон зі сповіщенням), підганяє під нього свою висоту.
-export function StepFrame({ stepKey, progress, onBack, right, header, title, text, children, footer, direction, mascot, peek, onRoom, t }) {
+export function StepFrame({ stepKey, progress, onBack, right, header, title, text, children, footer, direction, mascot, peek, onRoom, lockMount = false, t }) {
   const { C } = useTheme();
   const s = useMemo(() => makeStyles(C), [C]);
   const titleRef = useRef(null);
   const scrollRef = useRef(null);
   const reader = useScreenReader();
+  // !!title: заголовок плану зʼявляється вже після кроку (поки складається
+  // план, його немає) — тоді фокус VoiceOver іде на нього, а не лишається
+  // на кнопці, якої вже нема
   useEffect(() => {
     if (!reader || !titleRef.current) return;
     try {
       AccessibilityInfo.sendAccessibilityEvent?.(titleRef.current, 'focus');
     } catch (_) {}
-  }, [stepKey, reader]);
+  }, [stepKey, reader, !!title]);
+
+  // Замок переходу (див. вище). settled — крок, який уже встиг зʼявитись;
+  // на першому рендері він дорівнює stepKey, тож перший екран не замкнений
+  // (хіба що lockMount: тоді null, і щит стоїть до першого таймера).
+  const [settled, setSettled] = useState(lockMount ? null : stepKey);
+  const mountKey = useRef(lockMount ? stepKey : undefined);
+  useEffect(() => {
+    if (settled === stepKey) return undefined;
+    const id = setTimeout(() => setSettled(stepKey), LOCK_MS);
+    return () => clearTimeout(id);
+  }, [stepKey, settled]);
+  const locked = settled !== stepKey;
+  // Вміст закриваємо лише на кроці, з яким рамка зʼявилась (lockMount)
+  const coverAll = locked && mountKey.current === stepKey;
+
+  // Заголовок, що зʼявився вже після кроку (план після «складаємо…»: поки
+  // триває складання, заголовка немає), мʼяко проявляється — лише
+  // прозорість, тож «Менше руху» його теж лишає. Layout-ефект: до першого
+  // кадру значення вже 0, і заголовок не блимне повним.
+  const late = useRef(new Animated.Value(1)).current;
+  const seen = useRef({ key: stepKey, has: !!title });
+  useLayoutEffect(() => {
+    const was = seen.current;
+    seen.current = { key: stepKey, has: !!title };
+    if (was.key !== stepKey) {
+      // новий крок: те, що не доїхало на попередньому, не тягнемо за собою
+      late.stopAnimation();
+      late.setValue(1);
+      return;
+    }
+    if (was.has || !title) return;
+    late.setValue(0);
+    Animated.timing(late, { toValue: 1, duration: DUR.micro, easing: EASE.soft, useNativeDriver: true }).start();
+  }, [stepKey, !!title]);
 
   // Висота вікна прокрутки, вмісту й де зараз палець — свої для кожного кроку
   const dims = useRef({});
@@ -110,13 +156,16 @@ export function StepFrame({ stepKey, progress, onBack, right, header, title, tex
   }, [over, stepKey]);
   const label = progress?.total ? `${t('obStepOf', { n: progress.step, m: progress.total })}. ${title}` : undefined;
   const dx = direction === 'back' ? -SLIDE : direction === 'forward' ? SLIDE : 0;
+  // 'fade' — без зсуву взагалі, лише поява
+  const dy = direction === 'fade' ? 0 : 10;
   return (
     <View style={s.frame}>
       <View style={s.bar}>
         {onBack ? (
-          <Pressable
+          <Press
             style={s.barBtn}
             onPress={onBack}
+            feedback="dim"
             hitSlop={8}
             accessibilityRole="button"
             accessibilityLabel={t('pfBack')}
@@ -124,7 +173,7 @@ export function StepFrame({ stepKey, progress, onBack, right, header, title, tex
             <View style={{ transform: [{ rotate: '90deg' }] }}>
               <IcChevron size={22} color={C.dim} />
             </View>
-          </Pressable>
+          </Press>
         ) : (
           <View style={s.barBtn} />
         )}
@@ -136,6 +185,7 @@ export function StepFrame({ stepKey, progress, onBack, right, header, title, tex
           <View style={{ flex: 1 }} />
         )}
         <View style={s.barRight}>{right}</View>
+        {locked && !coverAll ? <View style={StyleSheet.absoluteFill} testID="step-lock-bar" /> : null}
       </View>
 
       <ScrollView
@@ -151,19 +201,21 @@ export function StepFrame({ stepKey, progress, onBack, right, header, title, tex
         scrollEventThrottle={32}
       >
         {/* key — новий крок мʼяко зʼявляється, а не підміняється миттєво */}
-        <FadeIn key={stepKey} dy={10} dx={dx}>
+        <FadeIn key={stepKey} dy={dy} dx={dx}>
           {header}
           {title && mascot ? (
-            <View style={s.titleRow}>
+            <Animated.View style={[s.titleRow, { opacity: late }]}>
               <Text ref={titleRef} style={[s.title, { flex: 1 }]} accessibilityRole="header" accessibilityLabel={label}>
                 {title}
               </Text>
               {mascot}
-            </View>
+            </Animated.View>
           ) : title ? (
-            <Text ref={titleRef} style={s.title} accessibilityRole="header" accessibilityLabel={label}>
-              {title}
-            </Text>
+            <Animated.View style={{ opacity: late }}>
+              <Text ref={titleRef} style={s.title} accessibilityRole="header" accessibilityLabel={label}>
+                {title}
+              </Text>
+            </Animated.View>
           ) : null}
           {text ? <Text style={s.text}>{text}</Text> : null}
           <View style={{ marginTop: title ? 22 : 0 }}>{children}</View>
@@ -178,13 +230,18 @@ export function StepFrame({ stepKey, progress, onBack, right, header, title, tex
         ) : null}
         {more ? <FooterFade color={C.bg} /> : null}
         {footer}
+        {locked && !coverAll ? <View style={StyleSheet.absoluteFill} testID="step-lock-footer" /> : null}
       </View>
+      {coverAll ? <View style={StyleSheet.absoluteFill} testID="step-lock-all" /> : null}
     </View>
   );
 }
 
 // На скільки новий крок заїжджає збоку (онбординг: уперед — справа)
 const SLIDE = 24;
+// Скільки смужка й футер лишаються замкненими після зміни кроку: поки йде
+// поява (DUR.panel) і ще мить, щоб запізнілий дотик не влучив у нову кнопку
+export const LOCK_MS = DUR.panel + 30;
 // Нижній відступ прокрутки (s.body) — порожнє місце, яке peek може зайняти
 export const BODY_PAD = 24;
 
@@ -283,9 +340,9 @@ export function SkipButton({ onPress, t, hidden = false }) {
     );
   }
   return (
-    <Pressable style={s.skip} onPress={onPress} hitSlop={8} accessibilityRole="button">
+    <Press style={s.skip} onPress={onPress} feedback="dim" hitSlop={8} accessibilityRole="button">
       <Text style={s.skipText}>{t('obSkip')}</Text>
-    </Pressable>
+    </Press>
   );
 }
 
@@ -294,9 +351,9 @@ export function CloseButton({ onPress, t }) {
   const { C } = useTheme();
   const s = useMemo(() => makeStyles(C), [C]);
   return (
-    <Pressable style={s.close} onPress={onPress} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('close')}>
+    <Press style={s.close} onPress={onPress} feedback="dim" hitSlop={10} accessibilityRole="button" accessibilityLabel={t('close')}>
       <IcClose size={18} color={C.dim} />
-    </Pressable>
+    </Press>
   );
 }
 
@@ -338,7 +395,15 @@ export function LangPill({ code, onPress, t }) {
 // ─── Кілька з переліку: цілі й «що заважає» ────────────────────────────────
 // Порядок відповіді — як у переліку, а не як тапали: від нього залежить
 // підпис кешу слова дня, і однаковий вибір має давати однаковий масив.
+//
+// Галочка «вискакує» (CheckPop) лише на вибір, зроблений на цьому екрані:
+// відповіді, з якими крок відкрився (повернулись назад, чернетка), стоять
+// на місці.
 function CheckList({ items, icons, value, onChange, label, s, C }) {
+  const ready = useRef(false);
+  useEffect(() => {
+    ready.current = true;
+  }, []);
   function toggle(k) {
     Haptics.selectionAsync();
     onChange(value.includes(k) ? value.filter((x) => x !== k) : items.filter((x) => x === k || value.includes(x)));
@@ -362,11 +427,30 @@ function CheckList({ items, icons, value, onChange, label, s, C }) {
               <Icon size={22} color={on ? C.onAccent : C.accent} />
             </View>
             <Text style={[s.optText, on && { color: C.text }]}>{label(k)}</Text>
-            <View style={[s.check, on && s.checkOn]}>{on ? <IcCheck size={14} color={C.onAccent} /> : null}</View>
+            <View style={[s.check, on && s.checkOn]}>{on ? <CheckPop color={C.onAccent} animate={ready.current} /> : null}</View>
           </Press>
         );
       })}
     </View>
+  );
+}
+
+// Галочка виростає з 0,6 до 1 разом із появою: пружина без перельоту
+// (SPRING.snappy), бо її ніхто не кидав. «Менше руху» — лише поява.
+function CheckPop({ color, animate = true }) {
+  const reduced = useReducedMotion();
+  const a = useRef(new Animated.Value(animate ? 0 : 1)).current;
+  useEffect(() => {
+    if (!animate) return undefined;
+    if (reduced) Animated.timing(a, { toValue: 1, duration: DUR.micro, easing: EASE.soft, useNativeDriver: true }).start();
+    else Animated.spring(a, { toValue: 1, ...SPRING.snappy }).start();
+    return () => a.stopAnimation();
+  }, []);
+  const scale = a.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] });
+  return (
+    <Animated.View style={{ opacity: a, transform: reduced ? [] : [{ scale }] }}>
+      <IcCheck size={14} color={color} />
+    </Animated.View>
   );
 }
 
@@ -399,7 +483,7 @@ export function NameField({ value, onChange, onSubmit, label, t }) {
       value={value}
       onChangeText={onChange}
       placeholder={t('yourName')}
-      placeholderTextColor={C.faint}
+      placeholderTextColor={C.dim}
       accessibilityLabel={label}
       maxLength={NAME_MAX}
       autoFocus
@@ -407,7 +491,9 @@ export function NameField({ value, onChange, onSubmit, label, t }) {
       autoCorrect={false}
       autoComplete="given-name"
       textContentType="givenName"
-      returnKeyType="next"
+      returnKeyType="done"
+      enablesReturnKeyAutomatically
+      submitBehavior="submit"
       onSubmitEditing={onSubmit}
       selectionColor={C.accent}
     />

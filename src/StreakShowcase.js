@@ -190,11 +190,11 @@ function Finger({ reduced, C, step }) {
     if (reduced) return undefined;
     const once = Animated.sequence([
       Animated.parallel([
-        Animated.timing(o, { toValue: 1, duration: DUR.micro, useNativeDriver: true }),
+        Animated.timing(o, { toValue: 1, duration: DUR.micro, easing: EASE.out, useNativeDriver: true }),
         Animated.timing(x, { toValue: 0, duration: 0, useNativeDriver: true }),
       ]),
       Animated.timing(x, { toValue: 1, duration: 1100, easing: EASE.inOut, useNativeDriver: true }),
-      Animated.timing(o, { toValue: 0, duration: DUR.exit, useNativeDriver: true }),
+      Animated.timing(o, { toValue: 0, duration: DUR.exit, easing: EASE.out, useNativeDriver: true }),
       Animated.delay(300),
     ]);
     const run = Animated.sequence([once, once]);

@@ -28,6 +28,7 @@ import { useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { LANGS, flagFor, nameFor } from './speech';
+import { Press } from './ui';
 import { langSections, optionLabel, sortLangs } from './langPick';
 import { expandOptions, optionKey, parseOption, variantOf } from './langVariants';
 import { phoneUiLang } from './locale';
@@ -195,7 +196,7 @@ export function LangList({
             value={q}
             onChangeText={setQ}
             placeholder={t('obLangSearch')}
-            placeholderTextColor={C.faint}
+            placeholderTextColor={C.dim}
             accessibilityLabel={t('obLangSearch')}
             autoCorrect={false}
             autoCapitalize="none"
@@ -204,9 +205,9 @@ export function LangList({
             selectionColor={C.accent}
           />
           {q ? (
-            <Pressable onPress={() => setQ('')} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('obLangSearchClear')} style={s.clear}>
+            <Press onPress={() => setQ('')} feedback="dim" hitSlop={10} accessibilityRole="button" accessibilityLabel={t('obLangSearchClear')} style={s.clear}>
               <IcClose size={14} color={C.dim} />
-            </Pressable>
+            </Press>
           ) : null}
         </View>
       ) : null}
@@ -236,11 +237,11 @@ export default function LangSheet({ visible, current, variant = null, native, ot
               </Text>
               <Text style={s.text}>{text || t(nativeMode ? 'obNativeText' : 'learnLangHint')}</Text>
             </View>
-            <Pressable style={s.close} onPress={onClose} hitSlop={4} accessibilityRole="button" accessibilityLabel={t('close')}>
+            <Press style={s.close} onPress={onClose} feedback="dim" hitSlop={4} accessibilityRole="button" accessibilityLabel={t('close')}>
               <View style={s.closeDot}>
                 <IcClose size={16} color={C.dim} />
               </View>
-            </Pressable>
+            </Press>
           </View>
           <ScrollView style={s.list} contentContainerStyle={{ paddingBottom: 8 }} keyboardShouldPersistTaps="handled">
             <LangList

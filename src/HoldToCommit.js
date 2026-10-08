@@ -15,7 +15,9 @@
 // Хто просто тапає, бачив би лише, як кільце спадає, — а пропустити цей
 // крок нема як. Тож відпустив, не дотягнувши й третини кільця, — підказка
 // на мить стає акцентною «Тримай довше» з легким дотиком, а після двох
-// таких спроб кільце здається і стає звичайною кнопкою, як для «Менше руху».
+// таких спроб кільце здається і стає звичайною кнопкою, як для «Менше руху»:
+// друга спроба одразу показує підказку про дотик (а не ще раз «Тримай довше»),
+// і кнопка вже на press-in ледь стискається.
 //
 // Кільце малює SVG (strokeDashoffset — лише JS-драйвер), а вогник, сяйво й
 // іскри — native driver від окремого значення, яке рухається тим самим
@@ -25,7 +27,7 @@ import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import Svg, { Circle, Defs, LinearGradient, RadialGradient, Stop } from 'react-native-svg';
 import Flame from './streak/Flame';
-import { EASE, SPRING, useReducedMotion, useScreenReader } from './motion';
+import { EASE, SPRING, announce, useReducedMotion, useScreenReader } from './motion';
 import { F, type, useTheme } from './theme';
 
 export const HOLD_MS = 1500;
@@ -123,6 +125,9 @@ export default function HoldToCommit({
     setDone(true);
     setHolding(false);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    // З VoiceOver фокус лишається на кнопці, що стала вимкненою, а
+    // accessibilityLiveRegion працює лише на Android: «Домовились» кажемо самі
+    if (reader) announce([doneText, doneSub].filter(Boolean).join('. '));
     if (!reduced && mode === 'hold') {
       // обідок кільця на мить товщає, іскри розлітаються
       setSparkle(true);
@@ -140,7 +145,12 @@ export default function HoldToCommit({
   }
 
   function pressIn() {
-    if (doneRef.current || tapMode) return;
+    if (doneRef.current) return;
+    if (tapMode) {
+      // Звичайна кнопка: відгук на press-in, як у решти (без «Менше руху»)
+      if (!reduced) Animated.spring(scale, { toValue: 0.97, ...SPRING.snappy }).start();
+      return;
+    }
     clearTimers();
     stop();
     const from = level.current;
@@ -186,10 +196,17 @@ export default function HoldToCommit({
   function tooShort() {
     shorts.current += 1;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    // Остання спроба: кільце вже приймає тап, тож «Тримай довше» (ще 1,5 с)
+    // збрехало б — одразу показуємо підказку про дотик
+    if (shorts.current >= SHORTS_TO_TAP) {
+      clearTimeout(nudgeTimer.current);
+      setNudge(false);
+      setTapFallback(true);
+      return;
+    }
     setNudge(true);
     clearTimeout(nudgeTimer.current);
     nudgeTimer.current = setTimeout(() => setNudge(false), NUDGE_MS);
-    if (shorts.current >= SHORTS_TO_TAP) setTapFallback(true);
   }
 
   const r = (size - STROKE) / 2;
