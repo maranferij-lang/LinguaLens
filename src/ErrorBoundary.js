@@ -6,9 +6,19 @@
 // саме він потрібен, щоб знайти справжню поломку.
 import { Component } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import * as SplashScreen from 'expo-splash-screen';
+import { track } from './analytics';
 import { MascotBob } from './Mascot';
 import { GradBtn } from './ui';
+import { makeT } from './i18n';
+import { phoneUiLang } from './locale';
 import { F, R, THEMES, type } from './theme';
+
+// Межа стоїть над App і не бачить його стану, але мова інтерфейсу однаково
+// не з налаштувань, а з телефону — та сама, що й на решті екранів.
+function deviceT() {
+  return makeT(phoneUiLang());
+}
 
 export default class ErrorBoundary extends Component {
   state = { error: null };
@@ -18,9 +28,20 @@ export default class ErrorBoundary extends Component {
   }
 
   componentDidCatch(error, info) {
-    // У продакшені сюди можна підключити збір помилок. Поки просто в консоль —
-    // у Metro це видно одразу.
+    // У Metro це видно одразу.
     console.error('LinguaLens crash:', error, info?.componentStack);
+    // Нативну заставку тримає App (preventAutoHideAsync) і ховає її після
+    // першого успішного кадру. Упав він раніше — без цього «Спробувати знову»
+    // лишилось би під заставкою, і людина бачила б застиглий екран завантаження.
+    try {
+      Promise.resolve(SplashScreen.hideAsync()).catch(() => {});
+    } catch (_) {}
+    // Єдиний слід збою в продакшені (Apple про спіймані помилки JS не звітує).
+    // Лише ім'я помилки: ні тексту, ні стека. Подія чекає в буфері статистики,
+    // доки App після повтору не прочитає вибір людини.
+    try {
+      track('app_crash', { name: error?.name });
+    } catch (_) {}
   }
 
   reset = () => this.setState({ error: null });
@@ -32,15 +53,14 @@ export default class ErrorBoundary extends Component {
     // Тему не беремо з контексту: він міг упасти разом із деревом.
     const C = THEMES.light.C;
     const s = makeStyles(C);
+    const t = deviceT();
     const isDev = typeof __DEV__ !== 'undefined' && __DEV__;
 
     return (
       <View style={s.root}>
         <MascotBob pose="encourage" size={150} />
-        <Text style={s.title}>Щось пішло не так</Text>
-        <Text style={s.text}>
-          Застосунок спіткнувся. Твої слова на місці — вони збережені на пристрої.
-        </Text>
+        <Text style={s.title}>{t('crashTitle')}</Text>
+        <Text style={s.text}>{t('crashText')}</Text>
 
         {isDev ? (
           <ScrollView style={s.devBox} contentContainerStyle={{ padding: 12 }}>
@@ -48,7 +68,7 @@ export default class ErrorBoundary extends Component {
           </ScrollView>
         ) : null}
 
-        <GradBtn title="Спробувати знову" onPress={this.reset} style={s.btn} />
+        <GradBtn title={t('crashRetry')} onPress={this.reset} style={s.btn} />
       </View>
     );
   }

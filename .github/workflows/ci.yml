@@ -1,0 +1,39 @@
+# Перевірки на кожен push і PR: тести застосунку, тести сервера і те, що
+# iOS-бандл узагалі збирається (ловить битий імпорт до того, як EAS витратить
+# пів години на збірку).
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: App tests (jest)
+        run: npm test -- --ci
+      - name: Server tests (node:test)
+        run: npm run test:server
+      # Ті самі тести на емуляторі Firestore: у продакшені дані там, і гонки
+      # (паралельні скани, вебхук посеред скану) поводяться саме так.
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: Server tests on the Firestore emulator
+        run: |
+          curl -sSfL -o /tmp/firestore-emulator.jar https://storage.googleapis.com/firebase-preview-drop/emulator/cloud-firestore-emulator-v1.19.9.jar
+          java -jar /tmp/firestore-emulator.jar --host=127.0.0.1 --port=8089 > /tmp/firestore-emulator.log 2>&1 &
+          for i in $(seq 1 60); do curl -sf http://127.0.0.1:8089/ > /dev/null && break; sleep 1; done
+          FIRESTORE_PROJECT=demo-lingualens FIRESTORE_EMULATOR_HOST=127.0.0.1:8089 npm run test:server
+      - name: iOS bundle builds
+        run: npx expo export --platform ios --output-dir /tmp/export

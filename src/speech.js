@@ -1,10 +1,13 @@
 // Мови + озвучка нативними голосами iOS
 // Кожна мова має перевірену iOS TTS-локаль. Щоб прибрати мову — видали рядок.
+// Англійська й іспанська мають варіанти (src/langVariants.js): прапорець і
+// голос тоді беремо з варіанта, а тут лишається базовий голос (він же запасний).
 import * as Speech from 'expo-speech';
 import { setAudioModeAsync } from 'expo-audio';
+import { variantInfo, variantOf } from './langVariants';
 
 export const LANGS = [
-  { code: 'en', name: 'English', flag: '🇬🇧', tts: 'en-US' },
+  { code: 'en', name: 'English', flag: '🇺🇸', tts: 'en-US' },
   { code: 'uk', name: 'Українська', flag: '🇺🇦', tts: 'uk-UA' },
   { code: 'de', name: 'Deutsch', flag: '🇩🇪', tts: 'de-DE' },
   { code: 'es', name: 'Español', flag: '🇪🇸', tts: 'es-ES' },
@@ -39,22 +42,70 @@ function langOf(code) {
   return LANGS.find((l) => l.code === code) || LANGS[0];
 }
 
-// Дозволяє звуку грати навіть коли iPhone у беззвучному режимі.
+// Дозволяє звуку грати навіть коли iPhone у беззвучному режимі. Заразом
+// дізнаємось, які голоси є на телефоні: голосу варіанта (es-MX) може не
+// бути, і тоді iOS читала б іспанське слово голосом мови системи.
 export async function initAudio() {
+  loadVoices();
   try {
     await setAudioModeAsync({ playsInSilentMode: true });
   } catch (_) {}
 }
 
-export function speak(text, lang = 'en') {
-  Speech.stop();
-  Speech.speak(text, { language: langOf(lang).tts, rate: 0.92 });
+// Мовні теги голосів телефона ('es-mx', 'en-gb'); null — ще не знаємо.
+let voiceTags = null;
+let voicesP = null;
+const tagKey = (tag) => String(tag || '').replace(/_/g, '-').toLowerCase();
+
+export function loadVoices() {
+  if (voicesP) return voicesP;
+  if (typeof Speech.getAvailableVoicesAsync !== 'function') return Promise.resolve(null);
+  voicesP = Speech.getAvailableVoicesAsync()
+    .then((list) => {
+      const tags = new Set((Array.isArray(list) ? list : []).map((v) => tagKey(v?.language)).filter(Boolean));
+      // Веб віддає голоси не одразу: порожній список — ще не знаємо
+      voiceTags = tags.size ? tags : null;
+      if (!voiceTags) voicesP = null;
+      return voiceTags;
+    })
+    .catch(() => {
+      voicesP = null;
+      return null;
+    });
+  return voicesP;
 }
 
-export function flagFor(code) {
-  return langOf(code).flag;
+// Для тестів: забути, які голоси є
+export function resetVoices() {
+  voiceTags = null;
+  voicesP = null;
 }
 
-export function nameFor(code) {
-  return langOf(code).name;
+// Голос для мови й варіанта. Голосу варіанта на телефоні немає — інший тег
+// того ж варіанта (es-US для Латинської Америки), далі базовий голос мови
+// (es-ES). Поки список голосів невідомий — голос варіанта як є.
+export function ttsFor(code, variant = variantOf(code)) {
+  const base = langOf(code).tts;
+  const v = variantInfo(code, variant);
+  if (!v) return base;
+  if (!voiceTags) return v.tts;
+  return [v.tts, ...(v.alt || []), base].find((tag) => voiceTags.has(tagKey(tag))) || v.tts;
+}
+
+export function speak(text, lang = 'en', variant = variantOf(lang)) {
+  Speech.stop().catch(() => {});
+  Speech.speak(text, { language: ttsFor(lang, variant), rate: 0.92 });
+  if (!voiceTags) loadVoices();
+}
+
+// Прапорець мови: варіанта, який людина обрала (чи за замовчуванням), або
+// мови, якщо варіантів у неї немає.
+export function flagFor(code, variant = variantOf(code)) {
+  return variantInfo(code, variant)?.flag || langOf(code).flag;
+}
+
+// Ендонім мови («English»). З явним варіантом — ендонім варіанта
+// («English (UK)»): для списків вибору й рядка мови в Параметрах.
+export function nameFor(code, variant = null) {
+  return variantInfo(code, variant)?.name || langOf(code).name;
 }

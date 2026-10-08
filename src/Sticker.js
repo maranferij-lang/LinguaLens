@@ -1,68 +1,75 @@
-// Наліпка з предметом — справжнє вирізання по силуету.
+// Наліпка з предметом — справжня «вирубка» по силуету.
 //
 // Чому не круглий кроп: круг — це той самий скріншот, просто в іншій рамці.
-// Тло всередині лишається, форма однакова для всього, і відчуття колекції
-// не виникає. Тут предмет вирізається по СВОЄМУ контуру: модель віддає
-// полігон силуету (10–24 точки), а SVG-маска показує тільки те, що всередині.
+// Тут предмет вирізається по СВОЄМУ контуру і отримує білу облямівку, як
+// наліпка, яку відклеїли з аркуша: саме цей вигляд хочеться збирати й
+// показувати іншим.
 //
-// Механіка: <Mask> з білим полігоном → все за межами полігона прозоре.
-// Обводка малюється тим самим полігоном, тож вона йде точно по краю предмета,
-// а не по колу навколо нього.
-//
-// Якщо контуру немає (модель не дала або дала сміття) — падаємо на круглу
-// маску. Це помітно гірше, але ніколи не порожньо.
-import { useMemo } from 'react';
-import { Image, View } from 'react-native';
-import Svg, { ClipPath, Defs, Image as SvgImage, Path, Polygon } from 'react-native-svg';
+// Шари SVG (знизу догори):
+//   1) м'яка тінь — той самий контур, розмитий і зсунутий вниз;
+//   2) тонка тепла лінія по зовнішньому краю — без неї біла облямівка
+//      зникає на білій картці;
+//   3) біла облямівка — товстий штрих по контуру;
+//   4) фото, обрізане по контуру.
+// Геометрія (згладжування, запас під облямівку) — у stickerGeometry.js.
+import { memo, useEffect, useId, useMemo, useRef } from 'react';
+import { Animated, View } from 'react-native';
+import Svg, { ClipPath, Defs, FeGaussianBlur, Filter, G, Image as SvgImage, Path } from 'react-native-svg';
+import { stickerPath } from './stickerGeometry';
+import { SPRING, useReducedMotion } from './motion';
 import { useTheme } from './theme';
 
-// Полігон у координатах 0–1000 (y,x) → шлях у координатах наліпки.
-// Точки приходять для ЦІЛОГО кадру, а наліпка вже обрізана по рамці предмета,
-// тож перераховуємо їх у локальні координати вирізаного квадрата.
-function outlineToPath(outline, box, size) {
-  if (!outline || !box) return null;
-  const [y1, x1, y2, x2] = box;
-  // рамка з тим самим запасом, що й у кропі сканера
-  const pad = 0.06;
-  const bw = (x2 - x1) / 1000 + pad * 2;
-  const bh = (y2 - y1) / 1000 + pad * 2;
-  const side = Math.max(bw, bh);
-  const ox = (x1 / 1000 - pad) + bw / 2 - side / 2;
-  const oy = (y1 / 1000 - pad) + bh / 2 - side / 2;
+// Частки від розміру наліпки
+const BORDER = 0.05; // ширина білої облямівки
+const SHADOW_BLUR = 0.03;
+const SHADOW_DROP = 0.025;
+// Скільки місця лишити довкола контуру, щоб облямівка й тінь не обрізались
+const MARGIN = BORDER + SHADOW_BLUR * 2 + SHADOW_DROP;
 
-  const pts = outline
-    .map(([y, x]) => {
-      const lx = ((x / 1000) - ox) / side;
-      const ly = ((y / 1000) - oy) / side;
-      return [lx * size, ly * size];
-    })
-    // точки, що вилетіли далеко за межі, — ознака галюцинації
-    .filter(([px, py]) => px > -size && px < size * 2 && py > -size && py < size * 2);
+function Cut({ uri, shape, outline, box, size, shadow }) {
+  const { d } = useMemo(() => stickerPath({ shape, outline, box }, size), [shape, outline, box, size]);
+  // React 19 повертає id зі спецсимволами — у url(#…) вони ламають посилання
+  const raw = useId().replace(/[^a-zA-Z0-9_-]/g, '');
+  const clipId = 'cut' + raw;
+  const blurId = 'blur' + raw;
 
-  if (pts.length < 6) return null;
-  return pts.map(([px, py], i) => `${i ? 'L' : 'M'}${px.toFixed(1)} ${py.toFixed(1)}`).join(' ') + ' Z';
-}
-
-function Cut({ uri, outline, box, size, ringColor, ringWidth }) {
-  const path = useMemo(() => outlineToPath(outline, box, size), [outline, box, size]);
-  const id = useMemo(() => 'cut' + Math.random().toString(36).slice(2, 8), []);
-
-  // немає контуру — круг
-  if (!path) {
-    return (
-      <View style={{ width: size, height: size, borderRadius: size / 2, overflow: 'hidden' }}>
-        <Image source={{ uri }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
-      </View>
-    );
-  }
+  const m = size * MARGIN;
+  const border = Math.max(2, size * BORDER);
 
   return (
-    <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+    <Svg width={size} height={size} viewBox={`${-m} ${-m} ${size + m * 2} ${size + m * 2}`}>
       <Defs>
-        <ClipPath id={id}>
-          <Path d={path} />
+        <ClipPath id={clipId}>
+          <Path d={d} />
         </ClipPath>
+        {shadow ? (
+          <Filter id={blurId} x="-30%" y="-30%" width="160%" height="160%">
+            <FeGaussianBlur stdDeviation={size * SHADOW_BLUR} />
+          </Filter>
+        ) : null}
       </Defs>
+
+      {shadow ? (
+        <G transform={`translate(0 ${size * SHADOW_DROP})`} opacity={0.28}>
+          <Path
+            d={d}
+            fill="#3B2F22"
+            stroke="#3B2F22"
+            strokeWidth={border * 2}
+            strokeLinejoin="round"
+            filter={`url(#${blurId})`}
+          />
+        </G>
+      ) : null}
+
+      <Path
+        d={d}
+        fill="none"
+        stroke="rgba(59,47,34,0.14)"
+        strokeWidth={border * 2 + Math.max(1, size * 0.008)}
+        strokeLinejoin="round"
+      />
+      <Path d={d} fill="#FFFFFF" stroke="#FFFFFF" strokeWidth={border * 2} strokeLinejoin="round" />
       <SvgImage
         href={{ uri }}
         x="0"
@@ -70,43 +77,65 @@ function Cut({ uri, outline, box, size, ringColor, ringWidth }) {
         width={size}
         height={size}
         preserveAspectRatio="xMidYMid slice"
-        clipPath={`url(#${id})`}
+        clipPath={`url(#${clipId})`}
       />
-      {/* Обводка по самому силуету, а не по колу навколо нього */}
-      <Path d={path} fill="none" stroke={ringColor} strokeWidth={ringWidth} strokeLinejoin="round" />
     </Svg>
   );
 }
 
-// Дрібна наліпка для рядка словника.
-export function Sticker({ uri, outline, box, size = 48, style }) {
-  const { C } = useTheme();
+// Дрібна наліпка для рядка словника й сітки колекції. Розмиту тінь вмикаємо
+// лише від 72 пт: на 48 пт її майже не видно, а рядків у списку сотні.
+// memo: це ціле дерево SVG, а пропси (фото, силует, розмір) міняються рідко,
+// тоді як батьки (пошук у словнику, сканер зі своїм статусом і підказкою)
+// перемальовуються на кожну літеру чи зміну.
+export const Sticker = memo(function Sticker({ uri, shape, outline, box, size = 48, style }) {
   if (!uri) return null;
   return (
     <View style={[{ width: size, height: size }, style]}>
-      <Cut uri={uri} outline={outline} box={box} size={size} ringColor={C.accent} ringWidth={1.6} />
+      <Cut uri={uri} shape={shape} outline={outline} box={box} size={size} shadow={size >= 72} />
     </View>
   );
-}
+});
 
-// Велика наліпка для картки результату і зворотної сторони флешкартки.
-// Під нею м'яка акцентна пляма — вона дає предмету «землю» й тримає
-// композицію, коли силует вузький.
-export function StickerLarge({ uri, outline, box, size = 132, style }) {
+// Велика наліпка для картки результату, флешкартки й карток «поділитись».
+// `pop` — коротка «шльоп»-анімація появи, наче наліпку щойно приліпили.
+// Переліт тут доречний: це фізичний предмет, а не панель інтерфейсу.
+export function StickerLarge({ uri, shape, outline, box, size = 132, style, pop = false, halo = true }) {
   const { C } = useTheme();
+  const reduced = useReducedMotion();
+  const a = useRef(new Animated.Value(pop && !reduced ? 0 : 1)).current;
+
+  useEffect(() => {
+    if (!pop || reduced) return;
+    Animated.spring(a, { toValue: 1, ...SPRING.gesture }).start();
+  }, [pop, reduced]);
+
   if (!uri) return null;
+  const transform = pop
+    ? [
+        { scale: a.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1] }) },
+        { rotate: a.interpolate({ inputRange: [0, 1], outputRange: ['-9deg', '-2deg'] }) },
+      ]
+    : [{ rotate: '-2deg' }];
+
   return (
     <View style={[{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }, style]}>
-      <View
-        style={{
-          position: 'absolute',
-          width: size * 0.86,
-          height: size * 0.86,
-          borderRadius: size,
-          backgroundColor: C.accentSoft,
-        }}
-      />
-      <Cut uri={uri} outline={outline} box={box} size={size} ringColor={C.accent} ringWidth={2.2} />
+      {halo ? (
+        // М'яка акцентна пляма дає предмету «землю» й тримає композицію,
+        // коли силует вузький (олівець, пляшка).
+        <View
+          style={{
+            position: 'absolute',
+            width: size * 0.8,
+            height: size * 0.8,
+            borderRadius: size,
+            backgroundColor: C.accentSoft,
+          }}
+        />
+      ) : null}
+      <Animated.View style={{ opacity: a, transform }}>
+        <Cut uri={uri} shape={shape} outline={outline} box={box} size={size} shadow />
+      </Animated.View>
     </View>
   );
 }

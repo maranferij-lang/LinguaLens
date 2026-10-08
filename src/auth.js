@@ -1,106 +1,219 @@
-// Клієнтська авторизація: зберігання сесії, вхід/реєстрація/вихід.
-// Токен лежить у SecureStore (захищене сховище iOS), профіль — в AsyncStorage.
+// Анонімна ідентичність пристрою.
+//
+// Реєстрації немає: при першому запуску застосунок тихо отримує від
+// сервера id і токен. Цього досить для слова дня (свій порядок слів),
+// серверного ліміту сканів і прив'язки підписки RevenueCat. Вхід через
+// Apple (account.js) необов'язковий і лише підміняє цю пару на пару акаунта.
+//
+// Токен лежить у Keychain (SecureStore). На iOS Keychain переживає
+// видалення застосунку — тож перевстановлення не обнуляє ні ліміт сканів,
+// ні зв'язок із покупкою.
+import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { apiLogin, apiMe, apiRegister, apiUpdateProfile, setSessionToken } from './api';
+import { apiCreateDevice, apiDeleteMe, apiMe, deviceForgotten, setSessionToken } from './api';
 
-// SecureStore = Keychain на iOS. Якщо пакет ще не встановлено (`npx expo install
-// expo-secure-store`) — не падаємо, а тимчасово тримаємо токен в AsyncStorage.
-let SecureStore;
-try {
-  SecureStore = require('expo-secure-store');
-  if (typeof SecureStore.getItemAsync !== 'function') throw new Error('no api');
-} catch (_) {
-  SecureStore = {
-    getItemAsync: (k) => AsyncStorage.getItem('sec_' + k),
-    setItemAsync: (k, v) => AsyncStorage.setItem('sec_' + k, v),
-    deleteItemAsync: (k) => AsyncStorage.removeItem('sec_' + k),
-  };
+// SecureStore = Keychain на iOS. На вебі (лише для перегляду верстки) модуль
+// є, але порожній — тоді тримаємо токен в AsyncStorage.
+let SecureStore = null;
+if (Platform.OS !== 'web') {
+  try {
+    SecureStore = require('expo-secure-store');
+    if (typeof SecureStore.getItemAsync !== 'function') SecureStore = null;
+  } catch (_) {}
 }
 
 const TOKEN_KEY = 'll_token';
-const USER_KEY = 'll_user_v1';
+// Що нова ідентичність має понести в POST /auth/device як previous: токен, з
+// яким телефон вийшов з акаунта, або carry від DELETE /me. Лежить, доки
+// сервер справді не видасть новий запис (див. startOver, createIdentity).
+const CARRY_KEY = 'll_carry';
+const USER_KEY = 'll_device_v1';
+// Після першого розблокування після перезавантаження — щоб токен був
+// доступний і для фонових задач, але не до того, як людина ввела код.
+const KEYCHAIN = SecureStore ? { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK } : undefined;
 
-export async function loadSession() {
-  let token = '';
+// Keychain порожній чи не відповів — дивимось і в запасну копію в AsyncStorage:
+// туди writeSecret кладе секрет, коли Keychain відмовив у записі. Раніше
+// порожній Keychain означав «ідентичності немає», і щозапуску заводилась нова
+// (новий лічильник сканів, Pro відв'язано).
+async function readSecret(key) {
   try {
-    token = (await SecureStore.getItemAsync(TOKEN_KEY)) || '';
-  } catch (_) {}
-  let user = null;
-  try {
-    const raw = await AsyncStorage.getItem(USER_KEY);
-    user = raw ? JSON.parse(raw) : null;
-  } catch (_) {}
-  setSessionToken(token);
-  return { token, user };
-}
-
-async function saveSession(token, user) {
-  setSessionToken(token);
-  try {
-    if (token) await SecureStore.setItemAsync(TOKEN_KEY, token);
-    else await SecureStore.deleteItemAsync(TOKEN_KEY);
-  } catch (_) {}
-  try {
-    if (user) await AsyncStorage.setItem(USER_KEY, JSON.stringify(user));
-    else await AsyncStorage.removeItem(USER_KEY);
-  } catch (_) {}
-}
-
-// Перетворює технічні коди помилок на зрозумілі повідомлення
-export function authErrorText(err, t) {
-  const code = err?.code || err?.message || '';
-  const map = {
-    INVALID_EMAIL: 'errInvalidEmail',
-    WEAK_PASSWORD: 'errWeakPassword',
-    EMAIL_TAKEN: 'errEmailTaken',
-    BAD_CREDENTIALS: 'errBadCredentials',
-    TOO_MANY_ATTEMPTS: 'errTooMany',
-    OFFLINE: 'errOffline',
-    TIMEOUT: 'errTimeout',
-  };
-  return t(map[code] || 'errGeneric');
-}
-
-export async function register(email, password, name) {
-  const d = await apiRegister(email, password, name);
-  await saveSession(d.token, d.user);
-  return d.user;
-}
-
-export async function login(email, password) {
-  const d = await apiLogin(email, password);
-  await saveSession(d.token, d.user);
-  return d.user;
-}
-
-export async function logout() {
-  await saveSession('', null);
-}
-
-// Оновити профіль (ім'я / аватар) — і локально, і на сервері
-export async function updateProfile(patch, currentUser) {
-  const optimistic = { ...currentUser, ...patch };
-  await AsyncStorage.setItem(USER_KEY, JSON.stringify(optimistic)).catch(() => {});
-  try {
-    const d = await apiUpdateProfile(patch);
-    await AsyncStorage.setItem(USER_KEY, JSON.stringify(d.user)).catch(() => {});
-    return d.user;
-  } catch (_) {
-    return optimistic; // офлайн — лишаємо локальну зміну
-  }
-}
-
-// Перевірити, чи сесія ще жива (тихо, без помилок для юзера)
-export async function refreshUser() {
-  try {
-    const d = await apiMe();
-    await AsyncStorage.setItem(USER_KEY, JSON.stringify(d.user)).catch(() => {});
-    return d.user;
-  } catch (e) {
-    if (e?.status === 401) {
-      await saveSession('', null);
-      return null;
+    if (SecureStore) {
+      const v = await SecureStore.getItemAsync(key, KEYCHAIN);
+      if (v) return v;
     }
-    return undefined; // офлайн — лишаємо як було
+  } catch (_) {}
+  try {
+    return (await AsyncStorage.getItem('sec_' + key)) || '';
+  } catch (_) {
+    return '';
   }
+}
+
+async function writeSecret(key, value) {
+  try {
+    if (SecureStore) {
+      if (value) await SecureStore.setItemAsync(key, value, KEYCHAIN);
+      else await SecureStore.deleteItemAsync(key, KEYCHAIN);
+      // Keychain прийняв запис: запасна копія застаріла (інакше стара могла б
+      // воскреснути після виходу чи стирання)
+      await AsyncStorage.removeItem('sec_' + key).catch(() => {});
+      return;
+    }
+  } catch (_) {}
+  try {
+    if (value) await AsyncStorage.setItem('sec_' + key, value);
+    else await AsyncStorage.removeItem('sec_' + key);
+  } catch (_) {}
+}
+
+const readToken = () => readSecret(TOKEN_KEY);
+const writeToken = (token) => writeSecret(TOKEN_KEY, token);
+
+// Повертає { token, userId } або null, якщо ідентичності ще немає, а сервер
+// зараз недоступний (тоді спробуємо знову при наступному старті чи скані).
+// userId буває null: токен є, але id ще не вдалося спитати (див. нижче).
+export async function ensureSession() {
+  const token = await readToken();
+  let userId = null;
+  try {
+    userId = (await AsyncStorage.getItem(USER_KEY)) || null;
+  } catch (_) {}
+  if (token) setSessionToken(token);
+  if (token && userId) return { token, userId };
+  if (token) {
+    // Токен є, а id немає — застосунок перевстановили: Keychain пережив
+    // видалення, AsyncStorage ні. Питаємо id у сервера, а не заводимо нову
+    // ідентичність — інакше перевстановлення обнуляло б ліміт сканів, а Pro
+    // отримував би новий appUserID у RevenueCat.
+    try {
+      const me = await apiMe();
+      const id = me?.user?.id || null;
+      if (id) await AsyncStorage.setItem(USER_KEY, id).catch(() => {});
+      return { token, userId: id };
+    } catch (e) {
+      // Офлайн чи збій сервера — токен лишаємо, id спитаємо наступного разу.
+      // Нову ідентичність — лише якщо сервер справді забув цей токен.
+      if (!deviceForgotten(e)) return { token, userId: null };
+    }
+  }
+  return freshIdentity();
+}
+
+// Покоління ідентичності: росте, коли телефон свідомо міняє її (вхід через
+// Apple, вихід, стирання). Створення, що вже летіло, коли це сталося, — вчорашнє:
+// його відповідь не має переписати токен, який людина щойно сама змінила.
+let epoch = 0;
+// Одне створення на раз: два 401 поспіль (профіль і синхронізація, сканер і
+// /me) не мають заводити по запису кожен — Keychain, сесія й id іще
+// розійшлися б по різних записах, а ліміт сервера (20 нових пристроїв на
+// годину з однієї адреси) з'їдали б дублі.
+let inflight = null;
+
+function freshIdentity() {
+  if (!inflight) {
+    const run = createIdentity().finally(() => {
+      if (inflight === run) inflight = null;
+    });
+    inflight = run;
+  }
+  return inflight;
+}
+
+// Нова ідентичність від сервера. Старі токен і id переписуємо лише ПІСЛЯ
+// того, як сервер видав нові: збій мережі посередині не має лишати пристрій
+// зовсім без ідентичності. Недонесений carry (startOver) іде з нею — і з
+// наступного старту теж, — а стирається лише тоді, коли сервер уже видав
+// запис із його лічильниками.
+async function createIdentity(carry) {
+  const born = epoch;
+  const previous = carry || (await readSecret(CARRY_KEY));
+  try {
+    const d = await apiCreateDevice(previous);
+    // Поки сервер відповідав, ідентичність змінили навмисно: ця вже зайва
+    if (born !== epoch) return null;
+    await writeToken(d.token);
+    if (previous) await writeSecret(CARRY_KEY, '');
+    await AsyncStorage.setItem(USER_KEY, d.user.id).catch(() => {});
+    setSessionToken(d.token);
+    return { token: d.token, userId: d.user.id };
+  } catch (_) {
+    return null;
+  }
+}
+
+// Сервер забув пристрій (стерли дані або змінили AUTH_SECRET) — тихо
+// отримуємо нову ідентичність. Не вдалось — старі токен і id лишаються,
+// спробуємо наступного разу.
+export function renewSession() {
+  return freshIdentity();
+}
+
+// «Стерти мої дані»: прибираємо запис на сервері й починаємо з чистого
+// аркуша. Кидає помилку, якщо сервер недоступний, — інакше людина думала б,
+// що дані стерто. Старий токен видаляємо з Keychain одразу: навіть якщо
+// нову ідентичність зараз отримати не вдасться, наступний старт почнеться
+// не з токена стертого запису. З нуля — усе, крім лічильників сканів і
+// проби сцени: сервер віддає їх як carry без id, і нова ідентичність їх
+// несе. Інакше стирання щоразу дарувало б безкоштовний скан, а в акаунті
+// Apple ще й нічого не коштувало б (вийти, стерти гостя, увійти назад).
+export async function eraseServerData() {
+  let carry = '';
+  try {
+    const r = await apiDeleteMe();
+    if (typeof r?.carry === 'string') carry = r.carry;
+  } catch (e) {
+    // Сервер уже не знає цього пристрою — стирати там нічого, тож це не
+    // збій: продовжуємо з телефоном.
+    if (!deviceForgotten(e)) throw e;
+  }
+  return startOver({ carry });
+}
+
+// Вхід через Apple віддав токен акаунта. Пишемо його туди ж і так само, як
+// токен нової ідентичності: Keychain переживе перевстановлення, і після
+// нього телефон одразу опиниться в тому самому акаунті.
+export async function adoptSession(token, userId) {
+  // створення, що ще летить, не має переписати токен акаунта
+  epoch++;
+  inflight = null;
+  await writeToken(token);
+  await AsyncStorage.setItem(USER_KEY, userId).catch(() => {});
+  setSessionToken(token);
+  return { token, userId };
+}
+
+// Лише для розробки («Почати з нуля» в діагностиці): телефон забуває свою
+// ідентичність і недонесений carry, тож наступний старт — новий запис на
+// сервері з нульовими лічильниками, як після чистого встановлення.
+export async function forgetIdentityForDev() {
+  epoch++;
+  inflight = null;
+  await writeToken('');
+  await writeSecret(CARRY_KEY, '');
+  await AsyncStorage.removeItem(USER_KEY).catch(() => {});
+  setSessionToken('');
+}
+
+// Вихід з акаунта Apple або стирання: забуваємо поточний токен і беремо
+// нову анонімну ідентичність. Старий токен прибираємо ДО запиту: інакше
+// збій мережі лишив би телефон в акаунті, з якого людина щойно вийшла, —
+// наступний старт тихо повернув би її туди.
+// carry — що нести в нову ідентичність: true — вихід, старий токен іде в
+// запит, і сервер переносить його лічильники сканів і проби сцени; рядок —
+// carry від DELETE /me (стирання). Інакше «вийти й увійти знову» щоразу
+// давало б новий безкоштовний скан і нову пробу сцени. Carry кладемо в
+// Keychain окремо і ДО того, як прибрати токен: без мережі чи з загубленою
+// відповіддю його понесе наступний старт, а не чиста ідентичність. Сесії
+// він не повертає — сервер бере з нього лише лічильники.
+export async function startOver({ carry = false } = {}) {
+  // створення без carry, що ще летить, відкидаємо: ця ідентичність несе carry
+  epoch++;
+  inflight = null;
+  const previous = carry === true ? await readToken() : typeof carry === 'string' ? carry : '';
+  if (previous) await writeSecret(CARRY_KEY, previous);
+  await writeToken('');
+  await AsyncStorage.removeItem(USER_KEY).catch(() => {});
+  setSessionToken('');
+  return createIdentity(previous);
 }

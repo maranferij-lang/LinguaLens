@@ -1,0 +1,503 @@
+// Режим RevenueCat із підставленим SDK. Покупка й відновлення мусять іти на
+// наш id пристрою: на анонімний $RCAnonymousID сервер не дивиться, і Pro,
+// куплений там, не зняв би ліміт сканів.
+import { act, create } from 'react-test-renderer';
+import RevenueCatUI from 'react-native-purchases-ui';
+import { paywallConfig, planOfProduct, purchaseNote, restoreNote, usePro, MODE } from '../src/purchases';
+
+jest.mock('../src/config', () => ({ ...jest.requireActual('../src/config'), REVENUECAT_IOS_KEY: 'test_key' }));
+
+jest.mock('react-native-purchases', () => ({
+  __esModule: true,
+  default: {
+    PURCHASES_ERROR_CODE: {
+      PURCHASE_CANCELLED_ERROR: '1',
+      PURCHASE_NOT_ALLOWED_ERROR: '3',
+      NETWORK_ERROR: '10',
+      PAYMENT_PENDING_ERROR: '20',
+    },
+    LOG_LEVEL: { WARN: 'WARN' },
+    setLogLevel: jest.fn(async () => {}),
+    configure: jest.fn(),
+    enableAdServicesAttributionTokenCollection: jest.fn(async () => {}),
+    showManageSubscriptions: jest.fn(async () => {}),
+    addCustomerInfoUpdateListener: jest.fn(),
+    removeCustomerInfoUpdateListener: jest.fn(),
+    getCustomerInfo: jest.fn(),
+    getOfferings: jest.fn(),
+    checkTrialOrIntroductoryPriceEligibility: jest.fn(),
+    getAppUserID: jest.fn(),
+    logIn: jest.fn(),
+    purchasePackage: jest.fn(),
+    restorePurchases: jest.fn(),
+  },
+}));
+
+const sdk = require('react-native-purchases').default;
+
+const FREE_INFO = { entitlements: { active: {} } };
+const PRO_INFO = {
+  entitlements: {
+    active: { lingualens_pro: { expirationDateMillis: Date.now() + 864e5, periodType: 'NORMAL', willRenew: true, productIdentifier: 'y' } },
+  },
+};
+// Покупка «назавжди»: entitlement без дати закінчення
+const LIFETIME_INFO = {
+  entitlements: {
+    active: { lingualens_pro: { expirationDate: null, expirationDateMillis: null, periodType: 'NORMAL', willRenew: false, productIdentifier: 'l' } },
+  },
+};
+const offering = (metadata = {}) => ({
+  current: {
+    identifier: 'default',
+    metadata,
+    availablePackages: [
+      { packageType: 'MONTHLY', product: { identifier: 'm', price: 9.99, priceString: '$9.99', introPrice: null } },
+      { packageType: 'ANNUAL', product: { identifier: 'y', price: 59.99, priceString: '$59.99', introPrice: null } },
+      { packageType: 'LIFETIME', product: { identifier: 'l', price: 129.99, priceString: '$129.99', introPrice: null } },
+    ],
+  },
+});
+const OFFERING = offering();
+
+let hook;
+function Harness({ id }) {
+  hook = usePro(id);
+  return null;
+}
+
+async function mount(id = 'u1') {
+  let tree;
+  await act(async () => {
+    tree = create(<Harness id={id} />);
+  });
+  await act(async () => {
+    await new Promise((r) => setTimeout(r, 0));
+  });
+  return tree;
+}
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  sdk.getCustomerInfo.mockImplementation(async () => FREE_INFO);
+  sdk.getOfferings.mockImplementation(async () => OFFERING);
+  RevenueCatUI.presentPaywall.mockImplementation(async () => 'CANCELLED');
+  RevenueCatUI.presentCustomerCenter.mockImplementation(async () => {});
+  sdk.getAppUserID.mockImplementation(async () => '$RCAnonymousID:abc');
+  sdk.logIn.mockImplementation(async () => ({ customerInfo: FREE_INFO }));
+  sdk.purchasePackage.mockImplementation(async () => ({ customerInfo: PRO_INFO }));
+});
+
+test('runs in RevenueCat mode with a key', () => {
+  expect(MODE).toBe('revenuecat');
+});
+
+test('buys on our device id even if the start-up logIn failed', async () => {
+  sdk.logIn.mockImplementationOnce(async () => {
+    throw new Error('offline');
+  });
+  const tree = await mount();
+  let res;
+  await act(async () => {
+    res = await hook.purchase('year');
+  });
+  expect(sdk.logIn).toHaveBeenLastCalledWith('u1');
+  expect(sdk.logIn).toHaveBeenCalledTimes(2);
+  expect(sdk.purchasePackage).toHaveBeenCalledTimes(1);
+  expect(res.ok).toBe(true);
+  await act(async () => tree.unmount());
+});
+
+test('does not buy anonymously when logIn keeps failing', async () => {
+  sdk.logIn.mockImplementation(async () => {
+    throw new Error('offline');
+  });
+  const tree = await mount();
+  let res;
+  await act(async () => {
+    res = await hook.purchase('year');
+  });
+  expect(sdk.purchasePackage).not.toHaveBeenCalled();
+  expect(res).toMatchObject({ ok: false, error: 'LOGIN_FAILED', uncharged: true });
+  expect(purchaseNote(res)).toBe('purchaseFailed');
+  await act(async () => tree.unmount());
+});
+
+test('an already identified user is not logged in again', async () => {
+  sdk.getAppUserID.mockImplementation(async () => 'u1');
+  const tree = await mount();
+  await act(async () => {
+    await hook.purchase('year');
+  });
+  expect(sdk.logIn).toHaveBeenCalledTimes(1); // лише при старті
+  expect(sdk.purchasePackage).toHaveBeenCalledTimes(1);
+  await act(async () => tree.unmount());
+});
+
+test('“not charged” only for refusals before payment', async () => {
+  const tree = await mount();
+  const buy = async () => {
+    let res;
+    await act(async () => {
+      res = await hook.purchase('year');
+    });
+    return res;
+  };
+
+  // Apple списала гроші, а продукт не прив'язаний до entitlement 'pro'
+  sdk.purchasePackage.mockImplementationOnce(async () => ({ customerInfo: FREE_INFO }));
+  expect(purchaseNote(await buy())).toBe('purchaseUnclear');
+
+  sdk.purchasePackage.mockImplementationOnce(async () => Promise.reject({ code: '10' }));
+  expect(purchaseNote(await buy())).toBe('purchaseUnclear');
+
+  sdk.purchasePackage.mockImplementationOnce(async () => Promise.reject({ code: '3' }));
+  expect(purchaseNote(await buy())).toBe('purchaseFailed');
+
+  sdk.purchasePackage.mockImplementationOnce(async () => Promise.reject({ code: '1' }));
+  expect(purchaseNote(await buy())).toBeNull();
+  await act(async () => tree.unmount());
+});
+
+test('restore logs in first and reports a store failure as an error', async () => {
+  const tree = await mount();
+  sdk.restorePurchases.mockImplementationOnce(async () => PRO_INFO);
+  let res;
+  await act(async () => {
+    res = await hook.restore();
+  });
+  expect(sdk.logIn).toHaveBeenLastCalledWith('u1');
+  expect(restoreNote(res)).toBe('restoreDone');
+
+  sdk.restorePurchases.mockImplementationOnce(async () => Promise.reject({ code: '10' }));
+  await act(async () => {
+    res = await hook.restore();
+  });
+  expect(res).toEqual({ error: '10' });
+  expect(restoreNote(res)).toBe('restoreFailed');
+  await act(async () => tree.unmount());
+});
+
+// ---------- v1.2: entitlement lingualens_pro, «назавжди», AdServices ----------
+
+test('Apple Ads attribution is switched on once, right after configure', async () => {
+  const tree = await mount();
+  expect(sdk.configure).toHaveBeenCalledTimes(1);
+  expect(sdk.enableAdServicesAttributionTokenCollection).toHaveBeenCalledTimes(1);
+  expect(sdk.configure.mock.invocationCallOrder[0]).toBeLessThan(sdk.enableAdServicesAttributionTokenCollection.mock.invocationCallOrder[0]);
+  await act(async () => tree.unmount());
+});
+
+test('a failing attribution call does not break purchases', async () => {
+  sdk.enableAdServicesAttributionTokenCollection.mockImplementationOnce(async () => {
+    throw new Error('not available');
+  });
+  const tree = await mount();
+  expect(hook.plans.map((p) => p.id)).toEqual(['month', 'year', 'lifetime']);
+  await act(async () => tree.unmount());
+});
+
+test('the offering renders what it has: monthly, yearly and a one-time lifetime', async () => {
+  const tree = await mount();
+  const life = hook.plans.find((p) => p.id === 'lifetime');
+  expect(life).toMatchObject({ lifetime: true, price: '$129.99', trialDays: 0, save: 0, perMonth: null, labelKey: 'planLifetime' });
+  expect(planOfProduct('l')).toBe('lifetime');
+  expect(planOfProduct('y')).toBe('year');
+  expect(planOfProduct('zzz')).toBeNull();
+  await act(async () => tree.unmount());
+});
+
+// Пропозиція прийшла, але жодного пакета ми не впізнали: це «ціни не
+// завантажились» з повідомленням і «Спробувати ще раз», а не пейвол з
+// індикатором, що крутиться без кінця (plansStatus 'ready' при нуль планів).
+describe('an offering with no recognised packages', () => {
+  const unknown = (packages) => ({ current: { identifier: 'default', metadata: {}, availablePackages: packages } });
+  const pkg = (packageType, identifier) => ({ packageType, product: { identifier, price: 1, priceString: '$1', introPrice: null } });
+
+  test('ends in the failed state with no plans, and a retry can recover', async () => {
+    sdk.getOfferings.mockImplementation(async () => unknown([pkg('CUSTOM', 'monthly'), pkg('SIX_MONTH', 'half')]));
+    const tree = await mount();
+    expect(hook.plansStatus).toBe('failed');
+    expect(hook.plans).toEqual([]);
+    expect(hook.ready).toBe(false);
+
+    // у дашборді виправили пакети — «Спробувати ще раз» їх підхоплює
+    sdk.getOfferings.mockImplementation(async () => OFFERING);
+    await act(async () => {
+      await hook.reloadPlans();
+    });
+    expect(hook.plansStatus).toBe('ready');
+    expect(hook.plans.map((p) => p.id)).toEqual(['month', 'year', 'lifetime']);
+    expect(hook.ready).toBe(true);
+    await act(async () => tree.unmount());
+  });
+
+  test('an empty offering is the same failure', async () => {
+    sdk.getOfferings.mockImplementation(async () => unknown([]));
+    const tree = await mount();
+    expect(hook).toMatchObject({ plansStatus: 'failed', plans: [], ready: false });
+    await act(async () => tree.unmount());
+  });
+
+  test('custom packages are recognised by product id, so they are not a failure', async () => {
+    sdk.getOfferings.mockImplementation(async () =>
+      unknown([pkg('CUSTOM', 'com.marik.lingualens.pro.month'), pkg('CUSTOM', 'com.marik.lingualens.pro.year')])
+    );
+    const tree = await mount();
+    expect(hook.plansStatus).toBe('ready');
+    expect(hook.plans.map((p) => p.id)).toEqual(['month', 'year']);
+    // і покупку з пейволу RevenueCat звіряємо з планом так само
+    expect(planOfProduct('com.marik.lingualens.pro.year')).toBe('year');
+    expect(planOfProduct('monthly')).toBeNull();
+    await act(async () => tree.unmount());
+  });
+});
+
+test('an active lingualens_pro without an expiry is lifetime Pro', async () => {
+  sdk.getCustomerInfo.mockImplementation(async () => LIFETIME_INFO);
+  sdk.logIn.mockImplementation(async () => ({ customerInfo: LIFETIME_INFO }));
+  const tree = await mount();
+  expect(hook.state).toMatchObject({ pro: true, until: null, willRenew: false, lifetime: true, productId: 'l' });
+  await act(async () => tree.unmount());
+});
+
+test('the old “pro” entitlement no longer unlocks anything', async () => {
+  const old = { entitlements: { active: { pro: { expirationDateMillis: Date.now() + 864e5, periodType: 'NORMAL', willRenew: true } } } };
+  sdk.getCustomerInfo.mockImplementation(async () => old);
+  sdk.logIn.mockImplementation(async () => ({ customerInfo: old }));
+  const tree = await mount();
+  expect(hook.state.pro).toBe(false);
+  await act(async () => tree.unmount());
+});
+
+describe('remote switches in the offering metadata', () => {
+  test('defaults when the metadata says nothing', async () => {
+    const tree = await mount();
+    expect(hook.config).toEqual({ onboardingPaywall: 'show', ui: 'custom' });
+    expect(hook.offeringId).toBe('default');
+    await act(async () => tree.unmount());
+  });
+
+  test('skip and revenuecat are read from the current offering', async () => {
+    sdk.getOfferings.mockImplementation(async () => offering({ onboarding_paywall: 'skip', paywall_ui: 'revenuecat' }));
+    const tree = await mount();
+    expect(hook.config).toEqual({ onboardingPaywall: 'skip', ui: 'revenuecat' });
+    expect(paywallConfig()).toEqual({ onboardingPaywall: 'skip', ui: 'revenuecat' });
+    await act(async () => tree.unmount());
+  });
+});
+
+describe('the RevenueCat paywall', () => {
+  async function withRcUi() {
+    sdk.getOfferings.mockImplementation(async () => offering({ paywall_ui: 'revenuecat' }));
+    return mount();
+  }
+  const present = async () => {
+    let res;
+    await act(async () => {
+      res = await hook.presentPaywall();
+    });
+    return res;
+  };
+
+  test('is not shown while the offering asks for our own paywall', async () => {
+    const tree = await mount();
+    expect(await present()).toEqual({ fallback: true });
+    expect(RevenueCatUI.presentPaywall).not.toHaveBeenCalled();
+    await act(async () => tree.unmount());
+  });
+
+  test('presents the current offering and unlocks Pro right after a purchase', async () => {
+    const tree = await withRcUi();
+    RevenueCatUI.presentPaywall.mockImplementationOnce(async () => 'PURCHASED');
+    sdk.getCustomerInfo.mockImplementation(async () => PRO_INFO);
+    const res = await present();
+    expect(RevenueCatUI.presentPaywall).toHaveBeenCalledWith(expect.objectContaining({ displayCloseButton: true }));
+    expect(RevenueCatUI.presentPaywall.mock.calls[0][0].offering.identifier).toBe('default');
+    expect(res).toMatchObject({ result: 'PURCHASED', purchased: true, restored: false });
+    expect(res.state.pro).toBe(true);
+    expect(hook.state.pro).toBe(true);
+    // покупка — на наш id, а не на анонімний
+    expect(sdk.logIn).toHaveBeenLastCalledWith('u1');
+    await act(async () => tree.unmount());
+  });
+
+  test('a restore inside it counts too; closing it changes nothing', async () => {
+    const tree = await withRcUi();
+    RevenueCatUI.presentPaywall.mockImplementationOnce(async () => 'RESTORED');
+    sdk.getCustomerInfo.mockImplementation(async () => PRO_INFO);
+    expect(await present()).toMatchObject({ restored: true, purchased: false });
+
+    RevenueCatUI.presentPaywall.mockImplementationOnce(async () => 'CANCELLED');
+    expect(await present()).toMatchObject({ result: 'CANCELLED', purchased: false, restored: false });
+    expect((await present()).fallback).toBeUndefined();
+    await act(async () => tree.unmount());
+  });
+
+  test('an ERROR result or a crash falls back to our paywall', async () => {
+    const tree = await withRcUi();
+    RevenueCatUI.presentPaywall.mockImplementationOnce(async () => 'ERROR');
+    expect(await present()).toMatchObject({ fallback: true });
+    RevenueCatUI.presentPaywall.mockImplementationOnce(async () => {
+      throw new Error('no native module');
+    });
+    expect(await present()).toMatchObject({ fallback: true });
+    await act(async () => tree.unmount());
+  });
+
+  test('when logging into our id fails, our paywall says so honestly instead', async () => {
+    sdk.logIn.mockImplementation(async () => {
+      throw new Error('offline');
+    });
+    const tree = await withRcUi();
+    expect(await present()).toEqual({ fallback: true });
+    expect(RevenueCatUI.presentPaywall).not.toHaveBeenCalled();
+    await act(async () => tree.unmount());
+  });
+});
+
+describe('managing the subscription', () => {
+  const manage = async () => {
+    let res;
+    await act(async () => {
+      res = await hook.manage();
+    });
+    return res;
+  };
+
+  test('opens the RevenueCat Customer Center and refreshes Pro afterwards', async () => {
+    const tree = await mount();
+    sdk.getCustomerInfo.mockClear();
+    expect(await manage()).toBe('customerCenter');
+    const { callbacks } = RevenueCatUI.presentCustomerCenter.mock.calls[0][0];
+    expect(typeof callbacks.onRestoreCompleted).toBe('function');
+    expect(typeof callbacks.onRefundRequestCompleted).toBe('function');
+    expect(sdk.getCustomerInfo).toHaveBeenCalled();
+    // відновлення всередині Customer Center одразу вмикає Pro
+    await act(async () => callbacks.onRestoreCompleted({ customerInfo: PRO_INFO }));
+    expect(hook.state.pro).toBe(true);
+    expect(sdk.showManageSubscriptions).not.toHaveBeenCalled();
+    await act(async () => tree.unmount());
+  });
+
+  test('falls back to the App Store sheet when the Customer Center fails', async () => {
+    const tree = await mount();
+    RevenueCatUI.presentCustomerCenter.mockImplementationOnce(async () => {
+      throw new Error('unavailable');
+    });
+    expect(await manage()).toBe('appStore');
+    expect(sdk.showManageSubscriptions).toHaveBeenCalledTimes(1);
+    await act(async () => tree.unmount());
+  });
+});
+
+// Магазин не віддав тарифів: офлайн на свіжому встановленні, збій App Store
+// чи RevenueCat, продукти, яких ще не видно в пісочниці App Review. Пейвол
+// мусить сказати це й дати спробувати ще раз, а не крутити індикатор без
+// кінця з вимкненою кнопкою покупки (App Review 2.1).
+describe('prices that did not load', () => {
+  const { ActivityIndicator } = require('react-native');
+  const PaywallScreen = require('../src/PaywallScreen').default;
+  const t = require('../src/i18n').makeT('en');
+  const offline = async () => {
+    throw Object.assign(new Error('None of the products registered in the RevenueCat dashboard could be fetched'), { code: '23' });
+  };
+  // Дерево розмонтовуємо й тоді, коли перевірка впала: відкладені появи
+  // пейволу (FadeIn із delay) інакше спрацювали б на знесеному дереві.
+  const mounted = [];
+  afterEach(async () => {
+    while (mounted.length) {
+      const tree = mounted.pop();
+      await act(async () => tree.unmount());
+    }
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 120));
+    });
+  });
+  const settle = async () => {
+    for (let i = 0; i < 3; i++) {
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 20));
+      });
+    }
+  };
+
+  test('the hook says so, and a retry that works brings the plans', async () => {
+    sdk.getOfferings.mockImplementation(offline);
+    const tree = await mount();
+    expect(hook.plansStatus).toBe('failed');
+    expect(hook.plans).toEqual([]);
+    sdk.getOfferings.mockImplementation(async () => OFFERING);
+    await act(async () => {
+      await hook.reloadPlans();
+    });
+    expect(hook.plansStatus).toBe('ready');
+    expect(hook.plans.map((p) => p.id)).toEqual(['month', 'year', 'lifetime']);
+    await act(async () => tree.unmount());
+  });
+
+  test('no current offering counts as failed too', async () => {
+    sdk.getOfferings.mockImplementation(async () => ({ current: null, all: {} }));
+    const tree = await mount();
+    expect(hook.plansStatus).toBe('failed');
+    await act(async () => tree.unmount());
+  });
+
+  test('the paywall: a short note and “Try again” instead of an endless spinner, the buy button stays off', async () => {
+    sdk.getOfferings.mockImplementation(offline);
+    // так само, як пейвол підключає App.js: хук живе з запуску, пейвол
+    // відкривається пізніше (скани скінчились)
+    let open;
+    function App() {
+      const pro = usePro('u1');
+      const [shown, setShown] = require('react').useState(false);
+      open = () => setShown(true);
+      if (!shown) return null;
+      return (
+        <PaywallScreen
+          reason="scans"
+          plans={pro.plans}
+          unavailable={pro.mode === 'unavailable'}
+          plansFailed={pro.plansStatus === 'failed'}
+          onRetry={pro.reloadPlans}
+          onClose={() => {}}
+          onPurchase={async () => ({ ok: true })}
+          onRestore={async () => ({})}
+          onOpen={() => !pro.plans.length && pro.reloadPlans()}
+          lang="en"
+          t={t}
+        />
+      );
+    }
+    let tree;
+    await act(async () => {
+      tree = create(<App />);
+    });
+    mounted.push(tree);
+    await settle();
+    await act(async () => open());
+    await settle();
+    // і на старті, і при відкритті пейволу магазин не відповів
+    expect(sdk.getOfferings).toHaveBeenCalledTimes(2);
+    const texts = () => tree.root.findAll((n) => typeof n.props?.children === 'string').map((n) => n.props.children);
+    const cta = () => tree.root.findAll((n) => n.props.title === t('subscribe') && typeof n.props.onPress === 'function')[0];
+    const retry = () => tree.root.findAll((n) => n.props.title === t('pricesRetry') && typeof n.props.onPress === 'function')[0];
+    expect(tree.root.findAllByType(ActivityIndicator)).toHaveLength(0);
+    expect(texts()).toContain(t('pricesFailed'));
+    expect(retry()).toBeTruthy();
+    // купувати нічого: замість вимкненої кнопки покупки — «Спробувати ще раз»
+    expect(cta()).toBeUndefined();
+
+    // мережа повернулась — «Спробувати ще раз», і тарифи на місці
+    sdk.getOfferings.mockImplementation(async () => OFFERING);
+    await act(async () => {
+      await retry().props.onPress();
+    });
+    await settle();
+    expect(sdk.getOfferings).toHaveBeenCalledTimes(3);
+    expect(texts()).not.toContain(t('pricesFailed'));
+    expect(retry()).toBeUndefined();
+    expect(texts()).toContain('$59.99');
+    expect(cta().props.disabled).toBe(false);
+  });
+});

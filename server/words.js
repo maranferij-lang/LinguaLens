@@ -2,6 +2,11 @@
 // Це базові англійські концепти — сервер перекладає їх мовою, яку вчить юзер.
 // Порядок для кожного користувача СВІЙ (залежить від його seed), тож слова
 // не повторюються, поки не пройде весь список (300+ днів).
+//
+// Від персоналізації цей список живе далі для GET /word-of-day — старі версії
+// застосунку мають бачити ті самі слова, що й до оновлення. Нові клієнти
+// беруть слова з тематичних списків (server/topics, wordplan.js); сюди
+// розклад повертається лише тоді, коли в них не лишилось жодного придатного слова.
 
 const crypto = require('crypto');
 
@@ -80,24 +85,12 @@ function shuffledFor(seed) {
   return a;
 }
 
-// Номер дня від епохи (UTC) — однаковий для всіх пристроїв юзера
-function dayIndex(date = new Date()) {
-  return Math.floor(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / 86400000);
-}
-
-// Слово для конкретного дня. Без повторів, поки не вичерпається список.
-function wordForDay(seed, dayOffset = 0) {
-  const list = shuffledFor(seed);
-  const idx = (dayIndex() + dayOffset) % list.length;
+// Слово для дня з номером dayIndex (днів від епохи). Без повторів, поки не
+// вичерпається список. Номер рахує сервер із ЛОКАЛЬНОЇ дати клієнта — тож
+// «слово на 1 жовтня» однакове для людини і в Києві, і в Нью-Йорку.
+function wordFor(list, dayIndex) {
+  const idx = dayIndex % list.length;
   return list[idx < 0 ? idx + list.length : idx];
 }
 
-function dateKey(dayOffset = 0) {
-  const d = new Date();
-  d.setDate(d.getDate() + dayOffset);
-  return (
-    d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0')
-  );
-}
-
-module.exports = { WORDS, wordForDay, dayIndex, dateKey, shuffledFor };
+module.exports = { WORDS, rng, shuffledFor, wordFor };

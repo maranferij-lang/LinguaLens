@@ -3,9 +3,11 @@
   "version": "1.0.0",
   "private": true,
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node --test 'test/*.test.js'",
+    "dev": "PROVIDER=mock node server.js"
   }
 }

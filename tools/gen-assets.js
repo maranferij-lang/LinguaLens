@@ -2,6 +2,9 @@
 // Запуск із кореня проєкту:  node tools/gen-assets.js
 // Ключ береться з server/.env (GEMINI_API_KEY)
 //
+// Іконку застосунку цей скрипт більше не малює: вона векторна
+// (assets/brand/icon-lingo.svg), PNG з неї робить tools/export-brand.mjs.
+//
 // Концепція: маскот Lingo — маленький допитливий хамелеон, що «міняє колір»
 // під мову, яку вчиш (фіолетово-бірюзовий градієнт). Один і той самий персонаж
 // у всіх ілюстраціях = впізнаваний стиль апки.
@@ -34,36 +37,6 @@ const STYLE =
   'clean composition with generous negative space, premium mobile-app illustration, no text, no watermark.';
 
 const ASSETS = [
-  {
-    file: 'icon.png',
-    prompt:
-      'Square iOS app icon, flat modern vector style. Logo mark: a white rounded speech bubble ' +
-      'with a short tail at the bottom left, containing a bold camera lens ring in indigo, ' +
-      'with a small mint-green sparkle dot at the top right of the ring. ' +
-      'Background: smooth vertical gradient from #527CFF to #5E5CE6. ' +
-      'Soft subtle shadow under the mark, generous margins, no text, no watermark, crisp edges.',
-  },
-  {
-    file: 'onb-1.png',
-    prompt:
-      'Square onboarding illustration. ' + MASCOT +
-      ' Lingo holds up a glowing phone, aiming its camera at a coffee mug; a bright viewfinder frame ' +
-      'with rounded corners highlights the mug. ' + STYLE,
-  },
-  {
-    file: 'onb-2.png',
-    prompt:
-      'Square onboarding illustration. ' + MASCOT +
-      ' Lingo listens with delight to a floating glassy word-card with a speaker symbol and sound waves; ' +
-      'abstract letter shapes float around like fireflies. ' + STYLE,
-  },
-  {
-    file: 'onb-3.png',
-    prompt:
-      'Square onboarding illustration. ' + MASCOT +
-      ' Lingo balances a neat stack of glowing flashcards on its tail; a small warm flame above marks a streak. ' +
-      STYLE,
-  },
   {
     file: 'empty-dict.png',
     prompt:

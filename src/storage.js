@@ -1,5 +1,6 @@
 // Збереження слів і налаштувань (AsyncStorage)
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { clearScenes } from './scene/scenes';
 
 const WORDS_KEY = 'll_words_v1';
 const SETTINGS_KEY = 'll_settings_v1';
@@ -8,12 +9,21 @@ const ONBOARDED_KEY = 'll_onboarded_v1';
 const STATS_KEY = 'll_stats_v1';
 const SEEN_ACH_KEY = 'll_seen_ach_v1';
 const WOD_KEY = 'll_wod_v1';
+const ONB_DRAFT_KEY = 'll_onb_draft_v1';
+
+// Збережене — не довірене: прочитане зі сховища може бути обірваним, зі старої
+// версії чи просто 'null'. Один такий запис у `words.reduce` або `words.some`
+// валив би рендер, а кнопка «Спробувати знову» перечитала б ті самі дані й
+// падала б знову. Тож кожен читач приймає лише очікувану форму, а решту
+// вважає порожнім.
+const plain = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : null);
+const isWord = (w) => !!plain(w) && w.id !== undefined && w.id !== null;
 
 // ---- лічильники для досягнень (квізи, слово дня тощо) ----
 export async function loadStats() {
   try {
     const raw = await AsyncStorage.getItem(STATS_KEY);
-    return raw ? JSON.parse(raw) : {};
+    return (raw && plain(JSON.parse(raw))) || {};
   } catch (_) {
     return {};
   }
@@ -28,7 +38,8 @@ export async function persistStats(stats) {
 export async function loadSeenAchievements() {
   try {
     const raw = await AsyncStorage.getItem(SEEN_ACH_KEY);
-    return raw ? JSON.parse(raw) : [];
+    const ids = raw ? JSON.parse(raw) : [];
+    return Array.isArray(ids) ? ids.filter((id) => typeof id === 'string') : [];
   } catch (_) {
     return [];
   }
@@ -43,7 +54,7 @@ export async function persistSeenAchievements(ids) {
 export async function loadWod() {
   try {
     const raw = await AsyncStorage.getItem(WOD_KEY);
-    return raw ? JSON.parse(raw) : null;
+    return (raw && plain(JSON.parse(raw))) || null;
   } catch (_) {
     return null;
   }
@@ -68,6 +79,76 @@ export async function persistOnboarded() {
   } catch (_) {}
 }
 
+// ---- чернетка онбордингу: крок, відповіді й варіант ----
+// iOS вбиває застосунок, коли в Параметрах міняють доступ до камери (чи
+// просто вивантажує його з пам'яті), — і людина, повернувшись, мусила б
+// відповідати на все спочатку. Тож поки онбординг не скінчився, його стан
+// лежить тут. Лише на телефоні: нікуди не надсилається.
+//
+// Але лише на чверть години (онбординг 3.0, onboarding.md §10.1): людина,
+// яку система вибила посеред знайомства, повертається за хвилину-дві й
+// продовжує; а «відкрила завтра» — це новий старт, з першого екрана й з
+// порожніми відповідями. Чернетка старшого формату (без v: 3) — теж новий
+// старт: її кроки належать іншому потоку. Онбординг 4.0 формат не змінив,
+// лише додав ver: 4 — порядок кроків (restoreDraft в OnboardingScreen.js).
+export const DRAFT_VERSION = 3;
+export const DRAFT_TTL_MS = 15 * 60 * 1000;
+
+// Чи ще жива чернетка: формат v3 і не старша за 15 хвилин
+export function draftFresh(d, now = Date.now()) {
+  if (!d || typeof d !== 'object' || d.v !== DRAFT_VERSION) return false;
+  const at = Number(d.at);
+  return Number.isFinite(at) && now - at >= 0 && now - at <= DRAFT_TTL_MS;
+}
+
+// → чернетка або null. Прострочену чи чужого формату одразу стираємо:
+// наступний старт її вже не побачить.
+export async function loadOnboardingDraft(now = Date.now()) {
+  let d = null;
+  try {
+    const raw = await AsyncStorage.getItem(ONB_DRAFT_KEY);
+    d = raw ? JSON.parse(raw) : null;
+  } catch (_) {
+    d = null;
+  }
+  if (!d || typeof d !== 'object') return null;
+  if (!draftFresh(d, now)) {
+    await clearOnboardingDraft();
+    return null;
+  }
+  return d;
+}
+// Кожен запис отримує формат і час — від нього рахуються 15 хвилин.
+export async function persistOnboardingDraft(draft) {
+  try {
+    await AsyncStorage.setItem(ONB_DRAFT_KEY, JSON.stringify({ ...draft, v: DRAFT_VERSION, at: Date.now() }));
+  } catch (_) {}
+}
+export async function clearOnboardingDraft() {
+  try {
+    await AsyncStorage.removeItem(ONB_DRAFT_KEY);
+  } catch (_) {}
+}
+
+// ---- розробка: «Онбординг на кожному старті» ----
+// Перемикач секції «Розробка» в Параметрах (лише dev-збірка): на старті
+// застосунок поводиться так, ніби онбординг ще не пройдено, нічого не
+// стираючи, — для зйомки екранів. Читає й пише його лише App у __DEV__.
+const DEV_ONB_KEY = 'll_dev_onb_always';
+export async function loadDevOnbAlways() {
+  try {
+    return (await AsyncStorage.getItem(DEV_ONB_KEY)) === '1';
+  } catch (_) {
+    return false;
+  }
+}
+export async function persistDevOnbAlways(on) {
+  try {
+    if (on) await AsyncStorage.setItem(DEV_ONB_KEY, '1');
+    else await AsyncStorage.removeItem(DEV_ONB_KEY);
+  } catch (_) {}
+}
+
 // Локальна дата у форматі 2026-07-21 (для стріка і графіка)
 export function localDayKey(d = new Date()) {
   return (
@@ -82,7 +163,7 @@ export function localDayKey(d = new Date()) {
 export async function loadActivity() {
   try {
     const raw = await AsyncStorage.getItem(ACTIVITY_KEY);
-    return raw ? JSON.parse(raw) : {};
+    return (raw && plain(JSON.parse(raw))) || {};
   } catch (_) {
     return {};
   }
@@ -94,32 +175,86 @@ export async function persistActivity(activity) {
   } catch (_) {}
 }
 
+// Читання словника впало (а не «порожньо»): у сховищі словник, можливо, цілий.
+// Перше ж збереження після цього записало б список з однієї нової картки
+// поверх нього — тож до кінця сеансу не пишемо. Незчитний JSON — інше: там
+// читати вже нічого, і запис його не гірший за залишення.
+let wordsReadFailed = false;
+
 export async function loadWords() {
+  let raw;
   try {
-    const raw = await AsyncStorage.getItem(WORDS_KEY);
-    return raw ? JSON.parse(raw) : [];
+    raw = await AsyncStorage.getItem(WORDS_KEY);
+  } catch (_) {
+    wordsReadFailed = true;
+    return [];
+  }
+  wordsReadFailed = false;
+  try {
+    const list = raw ? JSON.parse(raw) : [];
+    return Array.isArray(list) ? list.filter(isWord) : [];
   } catch (_) {
     return [];
   }
 }
 
 export async function persistWords(words) {
+  if (wordsReadFailed) return;
   try {
     await AsyncStorage.setItem(WORDS_KEY, JSON.stringify(words));
   } catch (_) {}
 }
 
+// Лише те, що справді збережено. Типові значення (мови з телефону тощо)
+// додає App через mergeSettings: «запасний» targetLang тут перебивав би
+// мову за замовчуванням, і англомовний телефон стартував з English → English.
 export async function loadSettings() {
   try {
     const raw = await AsyncStorage.getItem(SETTINGS_KEY);
-    return raw ? JSON.parse(raw) : { autoSpeak: true, targetLang: 'en' };
+    const st = raw ? JSON.parse(raw) : null;
+    return st && typeof st === 'object' ? st : {};
   } catch (_) {
-    return { autoSpeak: true, targetLang: 'en' };
+    return {};
   }
+}
+
+// Збережене поверх типового. Якщо мови збіглися (стара версія зберігала
+// targetLang без рідної мови або вже записала English → English), рідну —
+// мову інтерфейсу — лишаємо, а мовою навчання стає типова; збігається й
+// вона — беремо типову рідну, як обмін місцями в saveSetting.
+export function mergeSettings(defaults, stored) {
+  const next = { ...defaults, ...stored };
+  if (next.targetLang === next.nativeLang) {
+    next.targetLang = defaults.targetLang !== next.nativeLang ? defaults.targetLang : defaults.nativeLang;
+  }
+  return next;
 }
 
 export async function persistSettings(settings) {
   try {
     await AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  } catch (_) {}
+}
+
+// «Стерти все»: слова, статистика, досягнення, кеш слова дня, лічильник,
+// чернетка онбордингу (у ній імʼя й відповіді) і сцени разом із їхніми
+// фото. Налаштування (мова, тема) й позначку онбордингу лишаємо — людина
+// не просила знову проходити знайомство з застосунком.
+export async function clearLocalData() {
+  // сховище навмисно порожнє: захист від стертого за збою читання тут зайвий
+  wordsReadFailed = false;
+  try {
+    await AsyncStorage.multiRemove([WORDS_KEY, ACTIVITY_KEY, STATS_KEY, SEEN_ACH_KEY, WOD_KEY, ONB_DRAFT_KEY, 'll_usage_v1']);
+  } catch (_) {}
+  await clearScenes();
+}
+
+// Вихід з акаунта Apple: слова й прогрес лишаються в акаунті, а з телефона
+// йдуть. Кеш слова дня й лічильник сканів — не особисті дані, їх
+// не чіпаємо (див. account.js).
+export async function clearProgress() {
+  wordsReadFailed = false;
+  try {
+    await AsyncStorage.multiRemove([WORDS_KEY, ACTIVITY_KEY, STATS_KEY, SEEN_ACH_KEY]);
   } catch (_) {}
 }

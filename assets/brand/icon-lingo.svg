@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Іконка застосунку «Лінго» (концепт B, вибір власника): голова
+       маскота в його ж «мʼякому 3D», векторна версія. Майстер для
+       tools/export-brand.mjs: #background — тло на все полотно (кути заокруглює
+       iOS), #lingo — сам персонаж (для адаптивної іконки Android і сплешу його
+       рендерять окремо від тла). Композицію не міняти: це те, що бачив власник. -->
+  <defs>
+    <radialGradient id="bg" cx="0.5" cy="0.42" r="0.75"><stop offset="0" stop-color="#4A3FC6"/><stop offset="1" stop-color="#261E7A"/></radialGradient>
+    <linearGradient id="skin" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#AA94F8"/><stop offset="0.5" stop-color="#8873E8"/><stop offset="1" stop-color="#6955D4"/></linearGradient>
+    <radialGradient id="edge" cx="0.47" cy="0.45" r="0.58"><stop offset="0.7" stop-color="#3A2B9E" stop-opacity="0"/><stop offset="1" stop-color="#3A2B9E" stop-opacity="0.42"/></radialGradient>
+    <radialGradient id="hi" cx="0.4" cy="0.22" r="0.36"><stop offset="0" stop-color="#FFFFFF" stop-opacity="0.38"/><stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/></radialGradient>
+    <radialGradient id="rimlight" cx="0.2" cy="0.4" r="0.95"><stop offset="0.86" stop-color="#C9BEFF" stop-opacity="0"/><stop offset="1" stop-color="#C9BEFF" stop-opacity="0.55"/></radialGradient>
+    <radialGradient id="face" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#80E3D8"/><stop offset="0.5" stop-color="#7CD3DC" stop-opacity="0.8"/><stop offset="1" stop-color="#8A7BE8" stop-opacity="0"/></radialGradient>
+    <linearGradient id="body" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7DE0D2"/><stop offset="1" stop-color="#3FA9B4"/></linearGradient>
+    <radialGradient id="bodyhi" cx="0.35" cy="0.25" r="0.6"><stop offset="0" stop-color="#FFFFFF" stop-opacity="0.25"/><stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/></radialGradient>
+    <linearGradient id="rim" x1="0.3" y1="0" x2="0.7" y2="1"><stop offset="0" stop-color="#F1EEFF"/><stop offset="1" stop-color="#ACA0F0"/></linearGradient>
+    <radialGradient id="ball" cx="0.42" cy="0.34" r="0.72"><stop offset="0.55" stop-color="#FFFFFF"/><stop offset="1" stop-color="#DCD6F8"/></radialGradient>
+    <radialGradient id="pupil" cx="0.38" cy="0.32" r="0.75"><stop offset="0" stop-color="#4C4670"/><stop offset="1" stop-color="#1B1730"/></radialGradient>
+    <linearGradient id="mouth" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3A164A"/><stop offset="1" stop-color="#6E2B66"/></linearGradient>
+    <!-- форми окремо від clipPath: так їх бачать і редактори, які не беруть
+         <use> на елемент усередині clipPath -->
+    <path id="headP" d="M512 178 C562 178 590 222 616 258 C734 276 826 362 844 492 C864 646 770 850 512 854 C254 850 160 646 180 492 C198 362 290 276 408 258 C434 222 462 178 512 178 Z"/>
+    <path id="mouthP" d="M288 610 C 380 652 644 652 736 610 C 708 730 608 782 512 782 C 416 782 316 730 288 610 Z"/>
+    <path id="bodyP" d="M206 1024 C 230 858 352 770 512 770 C 672 770 794 858 818 1024 Z"/>
+    <clipPath id="headClip"><use href="#headP"/></clipPath>
+    <clipPath id="mouthClip"><use href="#mouthP"/></clipPath>
+    <clipPath id="bodyClip"><use href="#bodyP"/></clipPath>
+    <filter id="soft" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="20"/></filter>
+    <filter id="ao" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="12"/></filter>
+    <filter id="dsh" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="18" stdDeviation="22" flood-color="#150F52" flood-opacity="0.4"/></filter>
+  </defs>
+  <rect id="background" width="1024" height="1024" fill="url(#bg)"/>
+  <g id="lingo">
+    <!-- плечі -->
+    <use href="#bodyP" fill="url(#body)"/>
+    <g clip-path="url(#bodyClip)">
+      <rect width="1024" height="1024" fill="url(#bodyhi)"/>
+      <ellipse cx="512" cy="848" rx="270" ry="60" fill="#23808C" opacity="0.6" filter="url(#soft)"/>
+    </g>
+    <!-- голова -->
+    <use href="#headP" fill="url(#skin)" filter="url(#dsh)"/>
+    <g clip-path="url(#headClip)">
+      <ellipse cx="512" cy="530" rx="205" ry="235" fill="url(#face)"/>
+      <use href="#headP" fill="url(#edge)"/>
+      <use href="#headP" fill="url(#rimlight)"/>
+      <rect width="1024" height="1024" fill="url(#hi)"/>
+    </g>
+    <!-- ніздрі -->
+    <ellipse cx="484" cy="556" rx="12" ry="8" fill="#4436A0" opacity="0.6" transform="rotate(-18 484 556)"/>
+    <ellipse cx="540" cy="556" rx="12" ry="8" fill="#4436A0" opacity="0.6" transform="rotate(18 540 556)"/>
+    <!-- рот -->
+    <use href="#mouthP" fill="url(#mouth)"/>
+    <g clip-path="url(#mouthClip)"><ellipse cx="512" cy="778" rx="136" ry="62" fill="#EC7590"/><ellipse cx="512" cy="756" rx="84" ry="18" fill="#F8A9BA" opacity="0.55"/></g>
+    <path d="M266 588 Q 280 598 288 610 C 380 652 644 652 736 610 Q 744 598 758 588" stroke="#5A47C2" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <!-- очі-турелі -->
+    <circle cx="316" cy="432" r="140" fill="#2A1F86" opacity="0.35" filter="url(#ao)"/>
+    <circle cx="316" cy="418" r="140" fill="url(#rim)"/>
+    <circle cx="314" cy="422" r="114" fill="url(#ball)"/>
+    <circle cx="336" cy="428" r="58" fill="url(#pupil)"/>
+    <circle cx="354" cy="409" r="19" fill="#FFFFFF"/>
+    <circle cx="316" cy="448" r="7" fill="#FFFFFF" opacity="0.7"/>
+    <circle cx="708" cy="432" r="140" fill="#2A1F86" opacity="0.35" filter="url(#ao)"/>
+    <circle cx="708" cy="418" r="140" fill="url(#rim)"/>
+    <circle cx="710" cy="422" r="114" fill="url(#ball)"/>
+    <circle cx="688" cy="428" r="58" fill="url(#pupil)"/>
+    <circle cx="706" cy="409" r="19" fill="#FFFFFF"/>
+    <circle cx="668" cy="448" r="7" fill="#FFFFFF" opacity="0.7"/>
+  </g>
+</svg>

@@ -1,20 +1,50 @@
-// «Навчання»: хаб — флешкартки (3D-фліп) + квіз
-import { useMemo, useRef, useState } from 'react';
-import { Animated, ScrollView, StyleSheet, Text, View } from 'react-native';
+// «Навчання»: хаб — флешкартки (3D-фліп) + квіз.
+//
+// v1.3 (core.md B, C.4): картки й квіз видно завжди. Поки слів немає (L0),
+// обидві закриті — замок і пояснення «Збережи хоча б одне слово, щоб
+// відкрити», — а нижче блок «Як отримати перше слово» з двома шляхами:
+// зберегти слово дня або сканувати. Квіз чекає 4 різних перекладів і
+// показує прогрес рисочками (L1). Перше слово відкриває картки з коротким
+// «Відкрито!» — рівно один раз (unlockSeen у налаштуваннях). У шапці — чип
+// серії, з 18:00 згори — банер «серія під загрозою».
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { AccessibilityInfo, Animated, AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { dueWords, nextDueText } from './srs';
+import { dueSession, dueWords, nextDueText, practiceWords } from './srs';
 import { speak } from './speech';
-import QuizScreen from './QuizScreen';
-import { IcCards, IcChevron, IcMedal, IcSpeaker } from './icons';
+import { track } from './analytics';
+import QuizScreen, { SessionClose, quizProgress } from './QuizScreen';
+import { IcCards, IcChevron, IcClock, IcLock, IcMedal, IcScan, IcSparkle, IcSpeaker } from './icons';
 import { Mascot, MascotBob } from './Mascot';
 import { PCrown } from './ProIcons';
 import { StickerLarge } from './Sticker';
+import { photoUri } from './photos';
 import WordOfDayCard from './WordOfDayCard';
-import { FadeIn, GradBtn, Press } from './ui';
+import { ProfileTip, WidgetTip } from './LearnTips';
+import StreakChip, { atRisk } from './streak/StreakChip';
+import RiskBanner from './streak/RiskBanner';
+import { Bar, FadeIn, GradBtn, Pill, Press } from './ui';
 import { UNDER_TAB } from './Chrome';
 
-import { F, R, useTheme } from './theme';
-import { DUR, EASE } from './motion';
+import { F, R, type, useTheme } from './theme';
+import { DUR, EASE, announce, useReducedMotion } from './motion';
+import { quote } from './share/layout';
+
+// Скільки видно ярлик «Відкрито!» і скільки світиться підказаний блок
+export const UNLOCK_MS = 2000;
+export const GLOW_MS = 1200;
+// Подвійний дотик на «Показати відповідь» чи «Знаю»: кнопки відповіді
+// з'являються в тому самому місці, і другий дотик влучив би в «Ще вчу» чи
+// «Знаю» ще до того, як людина побачила переклад. Стільки мс після перевороту
+// чи відповіді відповіді не приймаються (це швидше за реакцію, повільніше за
+// дабл-тап).
+export const TAP_GUARD_MS = 250;
+
+// Останні два слова рядка тримаються разом (нерозривний пробіл): підпис
+// картки на SE не лишає одне слово сиротою в другому рядку.
+export function noOrphan(text) {
+  return String(text).replace(/ (\S+)$/, '\u00A0$1');
+}
 
 function shuffle(arr) {
   const a = [...arr];
@@ -34,140 +64,391 @@ export default function FlashcardsScreen({
   onSaveWod,
   targetLang,
   onQuizDone,
-  onSignIn,
   onOpenPro,
+  // порожнє навчання: «Сканувати» веде на вкладку сканера
+  onGoScan,
   isPro,
+  // слово дня під людину: тема, «Знаю» і пропозиція підняти рівень (App)
+  wodTopic = '',
+  onKnowWod,
+  wodKnowing = false,
+  wodNote = '',
+  levelUp = null,
+  onLevelUp,
+  onKeepLevel,
+  // підказки: налаштувати профіль і додати віджет (умови вирішує App)
+  profileTip = false,
+  onOpenProfile,
+  onHideProfileTip,
+  widgetTip = false,
+  onHideWidgetTip,
+  // «Навчання» до першого слова: скільки безкоштовних сканів (Infinity — Pro;
+  // не передано — кнопка «Сканувати» є), пейвол scans, які «Відкрито!» вже
+  // показали ({ cards, quiz }; не передано — жодних) і onUnlockSeen(card)
+  scansLeft,
+  onOpenPaywall,
+  unlockSeen = null,
+  onUnlockSeen,
+  // поверх екрана зараз свято серії чи інший шар (пейвол, аркуш): «Відкрито!»
+  // дочекається, поки він закриється, — інакше момент відіграв би під ним
+  holdMoments = false,
+  // App тримає свято серії й тости, поки йде сесія карток чи квізу
+  onSessionChange,
+  // серія: { n, doneToday, phase, lastActiveKey } — чип і вечірній банер;
+  // onOpenStreak — тап по чипу (Профіль, «Прогрес»); lang — для «3 год 13 хв»
+  streak = null,
+  onOpenStreak,
+  lang = 'en',
 }) {
-  const { C, SHADOW } = useTheme();
-  const s = useMemo(() => makeStyles(C, SHADOW), [C]);
+  const { C, T, SHADOW } = useTheme();
+  const s = useMemo(() => makeStyles(C), [C]);
+  const reduced = useReducedMotion();
 
   const [mode, setMode] = useState('hub');
   const [session, setSession] = useState(null);
   const [flipped, setFlipped] = useState(false);
   const flipAnim = useRef(new Animated.Value(0)).current;
 
-  const due = useMemo(() => dueWords(words), [words]);
-  const quizReady = words.length >= 4;
+  // «Зараз» для хаба: слово з нульової коробки (10 хв) чи вчорашнє дозріває,
+  // поки екран відкритий, а мемо за words цього не бачить. Тік додаємо, коли
+  // застосунок повертається на передній план і коли настає час найближчого
+  // слова: підказка («Потренуватись») і лічильник не відстають від дії.
+  const [clock, setClock] = useState(0);
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (st) => st === 'active' && setClock((c) => c + 1));
+    return () => sub?.remove?.();
+  }, []);
+  const due = useMemo(() => dueWords(words), [words, clock]);
+  useEffect(() => {
+    if (mode !== 'hub') return undefined;
+    const now = Date.now();
+    let next = Infinity;
+    for (const w of words) {
+      const at = w.srs?.due;
+      if (Number.isFinite(at) && at > now && at < next) next = at;
+    }
+    if (next === Infinity) return undefined;
+    // 2^31 − 1 мс — стеля setTimeout
+    const id = setTimeout(() => setClock((c) => c + 1), Math.min(next - now + 250, 2147483647));
+    return () => clearTimeout(id);
+  }, [words, clock, mode]);
+  // Стан «Навчання» (core.md B.1): 0 — слів немає, 1 — картки є, квізу ще
+  // бракує різних перекладів, 2 — відкрито все
+  const progress = useMemo(() => quizProgress(words), [words]);
+  const quizReady = progress.have >= progress.need;
+  const level = !words.length ? 0 : quizReady ? 2 : 1;
+  const left = progress.need - progress.have;
 
-  function doFlip(to) {
-    setFlipped(to);
-    Haptics.selectionAsync();
-    Animated.timing(flipAnim, {
-      toValue: to ? 1 : 0,
-      duration: DUR.panel,
-      easing: EASE.inOut,
-      useNativeDriver: true,
-    }).start();
+  // Сесія карток чи квізу — App притримує свято серії й тости до її кінця
+  useEffect(() => {
+    onSessionChange?.(mode !== 'hub');
+  }, [mode]);
+  useEffect(() => () => onSessionChange?.(false), []);
+
+  // «Відкрито!» — один раз: щойно з'явилось перше слово (і 4 різні переклади
+  // для квізу), а прапорця в налаштуваннях ще немає. Прапорець пишемо
+  // одразу, ярлик живе своїм таймером.
+  const [unlocking, setUnlocking] = useState({ cards: false, quiz: false });
+  const timers = useRef([]);
+  useEffect(() => () => timers.current.forEach(clearTimeout), []);
+  useEffect(() => {
+    if (mode !== 'hub' || !unlockSeen || !onUnlockSeen || holdMoments) return;
+    const fresh = [];
+    if (words.length && !unlockSeen.cards) fresh.push('cards');
+    if (quizReady && !unlockSeen.quiz) fresh.push('quiz');
+    if (!fresh.length) return;
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setUnlocking((u) => ({ ...u, ...Object.fromEntries(fresh.map((k) => [k, true])) }));
+    for (const card of fresh) {
+      track('learn_unlock', { card });
+      onUnlockSeen(card);
+    }
+    timers.current.push(setTimeout(() => setUnlocking({ cards: false, quiz: false }), UNLOCK_MS));
+  }, [mode, words.length, quizReady, unlockSeen?.cards, unlockSeen?.quiz, holdMoments]);
+
+  // Тап по закритій картці: вона хитається, «Увага» хаптикою, а шлях до
+  // відкриття на мить підсвічується — блок «Як отримати» (L0), «Зберегти» на
+  // слові дня чи підказка про квіз (L1).
+  const shakeCards = useRef(new Animated.Value(0)).current;
+  const shakeQuiz = useRef(new Animated.Value(0)).current;
+  const [glow, setGlow] = useState(null);
+  const glowTimer = useRef(null);
+  // На низькому екрані (SE) блок «Як отримати» буває під таб-баром: тап по
+  // закритій картці докручує до нього, щоб підсвічене було видно
+  const hubScroll = useRef(null);
+  const hubView = useRef({ h: 0, howY: 0, howH: 0, top: 0 });
+  useEffect(() => () => clearTimeout(glowTimer.current), []);
+  const lockText = (card) =>
+    card === 'cards' ? t('learnLockedCards') : level === 0 ? t('learnLockedQuiz', { n: progress.need }) : t('learnQuizLeft', { k: left });
+
+  function lockedTap(card) {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    AccessibilityInfo.announceForAccessibility?.(lockText(card));
+    track('learn_locked_tap', { card });
+    if (!reduced) {
+      const v = card === 'cards' ? shakeCards : shakeQuiz;
+      v.setValue(0);
+      Animated.sequence(
+        [-6, 6, -4, 4, 0].map((x) => Animated.timing(v, { toValue: x, duration: 52, easing: EASE.out, useNativeDriver: true }))
+      ).start();
+    }
+    setGlow(level === 0 ? 'how' : wordOfDay && !wodSaved ? 'wod' : 'tip');
+    const v = hubView.current;
+    const need = v.howY + v.howH + UNDER_TAB + 16 - v.h;
+    if (level === 0 && v.howH && need > v.top) hubScroll.current?.scrollTo?.({ y: need, animated: !reduced });
+    clearTimeout(glowTimer.current);
+    glowTimer.current = setTimeout(() => setGlow(null), GLOW_MS);
   }
 
-  function start(list) {
+  // Вечір без дії дня: банер із однією дією — одна картка або слово дня
+  const risk = atRisk(streak);
+  const riskCta = words.length
+    ? { label: t('streakRiskCta'), run: startOne }
+    : wordOfDay && !wodSaved && onSaveWod
+      ? { label: t('learnSaveWod'), run: onSaveWod }
+      : null;
+  // «Сканувати» — лише коли скан справді буде: кнопка, що замість камери
+  // відкриває пейвол, — це сюрприз
+  const canScan = isPro || scansLeft === undefined || scansLeft === null || scansLeft > 0;
+
+  // practice — сесія зі слів, чий час ще не настав. Відповіді в ній не мають
+  // зсувати розклад уперед (див. applyPractice у srs.js).
+  function start(list, practice) {
     if (!list.length) return;
     flipAnim.setValue(0);
     setFlipped(false);
-    setSession({ ids: shuffle(list.map((w) => w.id)), index: 0, correct: 0 });
+    setSession({ ids: shuffle(list.map((w) => w.id)), index: 0, correct: 0, practice });
     setMode('cards');
+  }
+
+  // «На часі» рахуємо в момент натиску, а не беремо з мемо: хаб міг простояти
+  // відкритим пів години, і слово з нульової коробки (10 хв) вже чекає.
+  // Після двох тижнів перерви на часі може бути сто п'ятдесят слів: сесія
+  // бере найпростроченіші (до SESSION_SIZE), решта чекає наступного дотику, а
+  // хаб показує скільки лишилось.
+  function startCards() {
+    const fresh = dueSession(words);
+    if (fresh.length) start(fresh, false);
+    else start(practiceWords(words), true);
+  }
+
+  // «Повторити 1 картку» з вечірнього банера — рівно одна, як і обіцяє
+  // кнопка: найпростроченіше слово, а як нічого не на часі — тренування.
+  function startOne() {
+    const [first] = dueSession(words, Date.now(), 1);
+    if (first) return start([first], false);
+    const [pick] = practiceWords(words, 1);
+    if (pick) start([pick], true);
+  }
+
+  // Вихід без підтвердження: кожна відповідь уже збережена в onReview.
+  function close() {
+    setSession(null);
+    setMode('hub');
   }
 
   const nextIdx = session
     ? session.ids.findIndex((id, i) => i >= session.index && words.some((w) => w.id === id))
     : -1;
 
+  const current = nextIdx === -1 ? null : words.find((w) => w.id === session.ids[nextIdx]);
+
+  // Короткий «щит» від подвійного дотику (див. TAP_GUARD_MS): стан, а не
+  // перевірка в обробнику, — VoiceOver і прямі виклики onPress він не чіпає.
+  const [hold, setHold] = useState(false);
+  const holdTimer = useRef(null);
+  useEffect(
+    () => () => {
+      clearTimeout(holdTimer.current);
+      flipAnim.stopAnimation();
+    },
+    []
+  );
+  function holdTaps() {
+    setHold(true);
+    clearTimeout(holdTimer.current);
+    holdTimer.current = setTimeout(() => setHold(false), TAP_GUARD_MS);
+  }
+
+  function doFlip(to) {
+    setFlipped(to);
+    holdTaps();
+    Haptics.selectionAsync();
+    // На зворот переходимо — VoiceOver зачитує переклад: той, на кому стояв
+    // курсор, щойно зник, а нові кнопки відповіді він не оголосить сам
+    if (to && current?.translation) announce(current.translation);
+    Animated.timing(flipAnim, {
+      toValue: to ? 1 : 0,
+      // без обертання лишається коротка зміна непрозорості
+      duration: reduced ? DUR.micro : DUR.panel,
+      easing: EASE.inOut,
+      useNativeDriver: true,
+    }).start();
+  }
+
   function answer(known) {
     if (nextIdx === -1) return;
-    onReview(session.ids[nextIdx], known);
-    Haptics.impactAsync(known ? Haptics.ImpactFeedbackStyle.Light : Haptics.ImpactFeedbackStyle.Heavy);
+    // Третій аргумент — режим тренування: App.js обирає applyPractice замість applyReview.
+    onReview(session.ids[nextIdx], known, session.practice);
+    // Остання картка: якщо підсумок добрий (≥ 60 %), замість дрібного відгуку
+    // — «успіх»; сам підсумок з'являється одразу, і це мить винагороди.
+    // «Ще вчу» — найлегший тик: важкий удар читався б як покарання.
+    const correct = session.correct + (known ? 1 : 0);
+    const lastCard = !session.ids.some((id, i) => i > nextIdx && words.some((w) => w.id === id));
+    if (lastCard && correct / session.ids.length >= 0.6) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    else if (known) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    else Haptics.selectionAsync();
+    holdTaps();
     flipAnim.setValue(0);
     setFlipped(false);
-    setSession({ ...session, index: nextIdx + 1, correct: session.correct + (known ? 1 : 0) });
+    setSession({ ...session, index: nextIdx + 1, correct });
   }
 
   if (mode === 'quiz') {
-    return <QuizScreen words={words} t={t} onExit={() => setMode('hub')} onQuizDone={onQuizDone} />;
+    return (
+      <QuizScreen
+        words={words}
+        t={t}
+        onExit={() => setMode('hub')}
+        onQuizDone={onQuizDone}
+        // помилка в квізі — це «ще вчу»: звичайне повторення, нульова коробка
+        onMiss={(id) => onReview(id, false)}
+      />
+    );
   }
 
   if (mode === 'hub') {
+    const quizHint = level === 2 ? t('quizHint') : level === 0 ? t('learnLockedQuiz', { n: progress.need }) : t('learnQuizLeft', { k: left });
     return (
       <ScrollView
+        ref={hubScroll}
         style={s.hubRoot}
-        contentContainerStyle={{ paddingBottom: UNDER_TAB + 14 }}
+        contentContainerStyle={{ padding: 20, paddingBottom: UNDER_TAB + 14 }}
         showsVerticalScrollIndicator={false}
+        onLayout={(e) => (hubView.current.h = e.nativeEvent.layout.height)}
+        onScroll={(e) => (hubView.current.top = e.nativeEvent.contentOffset.y)}
+        scrollEventThrottle={64}
       >
         <View style={s.hubHead}>
-          <Text style={s.title}>{t('learnTitle')}</Text>
-          {/* Pro завжди на очах, але не кричить: маленький піл замість
-              попапа. Попап, що вилітає сам, бісить і псує оцінку. */}
-          {onOpenPro && !isPro ? (
-            <Press style={s.proPill} onPress={onOpenPro}>
-              <PCrown size={13} color={C.accent} />
-              <Text style={s.proPillText}>PRO</Text>
-            </Press>
-          ) : (
-            <Mascot pose="wave" size={64} />
-          )}
+          <Text style={[T.largeTitle, { flexShrink: 1 }]} accessibilityRole="header" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
+            {t('learnTitle')}
+          </Text>
+          <View style={s.headRight}>
+            {streak ? <StreakChip info={streak} onPress={onOpenStreak} t={t} /> : null}
+            {/* Pro завжди на очах, але не кричить: маленький піл замість
+                попапа. Попап, що вилітає сам, бісить і псує оцінку. */}
+            {onOpenPro && !isPro ? (
+              <Press style={s.proPill} onPress={onOpenPro} accessibilityLabel="Pro">
+                <PCrown size={13} color={C.accent} />
+                <Text style={s.proPillText}>PRO</Text>
+              </Press>
+            ) : streak ? null : (
+              <Mascot pose="wave" size={64} />
+            )}
+          </View>
         </View>
 
-        <WordOfDayCard
-          word={wordOfDay}
-          lang={targetLang}
-          saved={wodSaved}
-          onSave={onSaveWod}
-          onSignIn={onSignIn}
-          t={t}
-        />
-
-        {!words.length ? (
-          <FadeIn delay={45} style={{ alignItems: 'center', paddingVertical: 30 }}>
-            <MascotBob pose="think" size={140} />
-            <Text style={s.bigTitle}>{t('cardsEmptyTitle')}</Text>
-            <Text style={s.dimText}>{t('cardsEmptyText')}</Text>
+        {risk ? (
+          <FadeIn dy={8}>
+            <RiskBanner n={streak.n} lang={lang} ctaLabel={riskCta?.label} onCta={riskCta?.run} t={t} />
           </FadeIn>
-        ) : (
-        <>
+        ) : null}
+
+        {/* L1: «Зберегти» на слові дня — шлях до квізу, на мить підсвічується */}
+        <View>
+          <WordOfDayCard
+            word={wordOfDay}
+            lang={targetLang}
+            saved={wodSaved}
+            onSave={onSaveWod}
+            topic={wodTopic}
+            onKnow={onKnowWod}
+            knowing={wodKnowing}
+            knowNote={wodNote}
+            levelUp={levelUp}
+            onLevelUp={onLevelUp}
+            onKeepLevel={onKeepLevel}
+            t={t}
+          />
+          {glow === 'wod' ? <View pointerEvents="none" style={[s.glowRing, s.wodRing]} testID="glow-wod" /> : null}
+        </View>
+
+        {/* Щоденне повторення — одразу під словом дня, ще до підказок: на SE
+            підказки інакше виштовхували «Картки» за край екрана. Картки й квіз
+            видно завжди — закриті теж, щоб було ясно, що вони є і як їх відкрити. */}
         <FadeIn delay={45}>
-          <Press onPress={() => (due.length ? start(due) : start(words))}>
-            <View style={[s.hubCard, SHADOW]}>
-              <View style={s.hubIconWrap}>
-                <IcCards size={26} color={C.accent} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={s.hubCardTitle}>{t('flashcards')}</Text>
-                <Text style={s.hubCardHint}>
-                  {due.length
-                    ? t('dueToday', { n: due.length })
-                    : t('nextRep', { t: nextDueText(words, t) })}
-                </Text>
-              </View>
-              {due.length ? (
-                <View style={s.dueBadge}>
-                  <Text style={s.dueBadgeText}>{due.length}</Text>
-                </View>
-              ) : null}
-              <View style={{ transform: [{ rotate: '-90deg' }] }}>
-                <IcChevron color={C.faint} />
-              </View>
-            </View>
-          </Press>
+          <HubCard
+            Icon={IcCards}
+            title={t('flashcards')}
+            // Нічого не на часі — не «наступне через 2 дні» (звучить як «нема
+            // чого робити»), а запрошення потренуватись: тап однаково
+            // запускає тренування.
+            hint={
+              level === 0
+                ? t('learnLockedCards')
+                : due.length
+                  ? t('dueToday', { n: due.length })
+                  : noOrphan(t('fcPracticeNow', { t: nextDueText(words, t) }))
+            }
+            locked={level === 0}
+            unlocking={unlocking.cards}
+            badge={level > 0 && due.length ? due.length : 0}
+            onPress={startCards}
+            onLocked={() => lockedTap('cards')}
+            shake={shakeCards}
+            reduced={reduced}
+            testID="hub-cards"
+            t={t}
+          />
         </FadeIn>
         <FadeIn delay={90}>
-          <Press onPress={() => quizReady && setMode('quiz')} disabled={!quizReady}>
-            <View style={[s.hubCard, SHADOW]}>
-              <View style={s.hubIconWrap}>
-                <IcMedal size={26} color={C.accent} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={s.hubCardTitle}>{t('quiz')}</Text>
-                <Text style={s.hubCardHint}>
-                  {quizReady ? t('quizHint') : t('quizNeed', { n: 4 })}
-                </Text>
-              </View>
-              <View style={{ transform: [{ rotate: '-90deg' }] }}>
-                <IcChevron color={C.faint} />
-              </View>
-            </View>
-          </Press>
+          <HubCard
+            Icon={IcMedal}
+            title={t('quiz')}
+            hint={quizHint}
+            locked={!quizReady}
+            unlocking={unlocking.quiz}
+            progress={quizReady ? null : progress}
+            onPress={() => setMode('quiz')}
+            onLocked={() => lockedTap('quiz')}
+            shake={shakeQuiz}
+            reduced={reduced}
+            testID="hub-quiz"
+            t={t}
+          />
         </FadeIn>
-        </>
-        )}
+
+        {level === 0 ? (
+          <View
+            onLayout={(e) => {
+              hubView.current.howY = e.nativeEvent.layout.y;
+              hubView.current.howH = e.nativeEvent.layout.height;
+            }}
+          >
+            <FadeIn delay={135}>
+              <HowToGetWord
+                wordOfDay={wordOfDay}
+                wodSaved={wodSaved}
+                onSaveWod={onSaveWod}
+                canScan={canScan}
+                onGoScan={onGoScan}
+                onScanPro={onOpenPaywall ? () => onOpenPaywall('scans') : onOpenPro}
+                glow={glow === 'how'}
+                t={t}
+              />
+            </FadeIn>
+          </View>
+        ) : level === 1 ? (
+          <FadeIn delay={135}>
+            <View style={[s.tip, glow === 'tip' && s.tipGlow]} testID="learn-tip">
+              <IcClock size={18} color={C.dim} />
+              <Text style={s.tipText}>{t('learnTipDaily', { k: left })}</Text>
+            </View>
+          </FadeIn>
+        ) : null}
+
+        {profileTip ? <ProfileTip onOpen={onOpenProfile} onHide={onHideProfileTip} t={t} /> : null}
+        {widgetTip ? <WidgetTip onHide={onHideWidgetTip} t={t} /> : null}
       </ScrollView>
     );
   }
@@ -180,14 +461,20 @@ export default function FlashcardsScreen({
           <MascotBob pose={pct >= 60 ? 'celebrate' : 'encourage'} size={160} />
           <Text style={s.bigTitle}>{t('done')}</Text>
           <Text style={s.dimText}>{t('resultOf', { c: session.correct, n: session.ids.length })}</Text>
-          <GradBtn title={t('next')} onPress={() => setMode('hub')} style={{ alignSelf: 'stretch' }} />
+          {/* Після справжнього повторення — коли повертатись (це і є звичка).
+              Після тренування — чому «знаю» не відсунуло слова на потім. */}
+          {session.practice ? (
+            <Text style={s.note}>{t('practiceNote')}</Text>
+          ) : words.length ? (
+            <Text style={s.note}>{t('nextRep', { t: nextDueText(words, t) })}</Text>
+          ) : null}
+          {/* «Готово», а не «Далі»: кнопка лише вертає в хаб, наступного кроку немає */}
+          <GradBtn title={t('finishBtn')} onPress={close} style={{ alignSelf: 'stretch', marginTop: 22 }} />
         </FadeIn>
       </View>
     );
   }
 
-  const current = words.find((w) => w.id === session.ids[nextIdx]);
-  const progress = (session.index / session.ids.length) * 100;
   const frontRotate = flipAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '180deg'] });
   const backRotate = flipAnim.interpolate({ inputRange: [0, 1], outputRange: ['180deg', '360deg'] });
   // 0.5 — момент, коли картка стоїть ребром. Саме там міняємо, хто видимий.
@@ -199,27 +486,53 @@ export default function FlashcardsScreen({
     inputRange: [0, 0.499, 0.5, 1],
     outputRange: [0, 0, 1, 1],
   });
+  // «Менше руху»: замість 3D-обертання — просте перетікання сторін.
+  const frontStyle = reduced
+    ? { opacity: flipAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }
+    : { opacity: frontOpacity, transform: [{ perspective: 1200 }, { rotateY: frontRotate }] };
+  const backStyle = reduced
+    ? { opacity: flipAnim }
+    : { opacity: backOpacity, transform: [{ perspective: 1200 }, { rotateY: backRotate }] };
 
   return (
     <View style={s.root}>
-      <View style={s.progressTrack}>
-        <View style={[s.progressFill, { width: progress + '%' }]} />
+      <View style={s.top}>
+        <SessionClose onPress={close} label={t('close')} />
+        {/* Bar з ui.js: scaleX від лівого краю на нативному драйвері, без перерахунку лейауту */}
+        <View style={{ flex: 1 }}>
+          {/* «3 / 10» стоїть поруч текстом: смужку VoiceOver не читає вдруге */}
+          <Bar progress={nextIdx / session.ids.length} color={C.accent} bg={C.card2} height={6} decorative />
+        </View>
+        <Text style={s.progress}>
+          {nextIdx + 1} / {session.ids.length}
+        </Text>
       </View>
-      <Text style={s.progress}>{session.index + 1} / {session.ids.length}</Text>
+      {session.practice ? <Pill text={t('practiceMode')} color={C.accent} soft={C.accentSoft} style={s.modePill} /> : null}
 
-      <View style={s.cardWrap}>
+      {/* key — кожна нова картка м'яко з'являється, а не підміняється миттєво */}
+      <FadeIn key={current.id} style={s.cardWrap} dy={10}>
+        {/* Невидима сторона не лишається в дереві доступності: інакше VoiceOver
+            дочитав би зворот ще до перевороту, а після нього курсор лишився б
+            на картці, яка зникла. */}
         <Animated.View
-          style={[
-            s.card,
-            SHADOW,
-            { opacity: frontOpacity, transform: [{ perspective: 1200 }, { rotateY: frontRotate }] },
-          ]}
-          pointerEvents={flipped ? 'none' : 'auto'}
+          style={[s.card, SHADOW, frontStyle]}
+          pointerEvents={flipped || hold ? 'none' : 'auto'}
+          accessibilityElementsHidden={flipped}
+          importantForAccessibility={flipped ? 'no-hide-descendants' : 'auto'}
         >
-          <Press style={s.cardInner} onPress={() => doFlip(true)}>
+          {/* Динамік вкладений у картку, а VoiceOver зливає вкладені кнопки в
+              одну — тож «Слухати» тут окрема дія картки (свайп угору/вниз). */}
+          <Press
+            style={s.cardInner}
+            onPress={() => doFlip(true)}
+            accessibilityActions={[{ name: 'activate' }, { name: 'listen', label: t('listen') }]}
+            onAccessibilityAction={(e) =>
+              e.nativeEvent.actionName === 'listen' ? speak(current.word, current.lang) : doFlip(true)
+            }
+          >
             <Text style={s.cardWord}>{current.word}</Text>
             {current.ipa ? <Text style={s.cardIpa}>{current.ipa}</Text> : null}
-            <Press style={s.speakBtn} onPress={() => speak(current.word, current.lang)}>
+            <Press style={s.speakBtn} onPress={() => speak(current.word, current.lang)} accessibilityLabel={t('listen')}>
               <IcSpeaker size={22} color={C.accent} />
             </Press>
             <Text style={s.tapHint}>{t('tapFlip')}</Text>
@@ -227,39 +540,66 @@ export default function FlashcardsScreen({
         </Animated.View>
 
         <Animated.View
-          style={[
-            s.card,
-            SHADOW,
-            { opacity: backOpacity, transform: [{ perspective: 1200 }, { rotateY: backRotate }] },
-          ]}
-          pointerEvents={flipped ? 'auto' : 'none'}
+          style={[s.card, SHADOW, backStyle]}
+          pointerEvents={flipped && !hold ? 'auto' : 'none'}
+          accessibilityElementsHidden={!flipped}
+          importantForAccessibility={flipped ? 'auto' : 'no-hide-descendants'}
         >
-          <Press style={s.cardInner} onPress={() => doFlip(false)}>
+          {/* На звороті — і саме слово (дрібно, з динаміком) над перекладом:
+              оцінюючи себе, людина бачить слово й значення разом. */}
+          <Press
+            style={s.cardInner}
+            onPress={() => doFlip(false)}
+            accessibilityActions={[{ name: 'activate' }, { name: 'listen', label: t('listen') }]}
+            onAccessibilityAction={(e) =>
+              e.nativeEvent.actionName === 'listen' ? speak(current.word, current.lang) : doFlip(false)
+            }
+          >
             {current.photo ? (
-              <StickerLarge uri={current.photo} outline={current.outline} box={current.box} size={136} style={{ marginBottom: 16 }} />
+              <StickerLarge
+                uri={photoUri(current.photo)}
+                shape={current.shape}
+                outline={current.outline}
+                box={current.box}
+                size={136}
+                style={{ marginBottom: 16 }}
+              />
             ) : null}
+            <View style={s.backWordRow}>
+              <Text style={s.backWord}>{current.word}</Text>
+              <Press
+                style={s.backSpeak}
+                onPress={() => speak(current.word, current.lang)}
+                hitSlop={10}
+                accessibilityLabel={t('listen')}
+              >
+                <IcSpeaker size={16} color={C.dim} />
+              </Press>
+            </View>
             <Text style={s.cardTranslation}>{current.translation}</Text>
             {current.example ? (
               <View style={s.exampleBox}>
-                <Text style={s.example}>“{current.example}”</Text>
-                <Text style={s.exampleTr}>{current.exampleTranslation}</Text>
+                <Text style={s.example}>{quote(current.example, current.lang)}</Text>
+                {current.exampleTranslation ? <Text style={s.exampleTr}>{current.exampleTranslation}</Text> : null}
               </View>
             ) : null}
           </Press>
         </Animated.View>
-      </View>
+      </FadeIn>
 
+      {/* hold: перші TAP_GUARD_MS після перевороту чи відповіді ряд не ловить
+          дотики — подвійний тап не відповідає на картку, якої ще не видно */}
       {flipped ? (
-        <View style={s.answerRow}>
+        <View style={s.answerRow} pointerEvents={hold ? 'none' : 'auto'} testID="fc-answers">
           <Press style={[s.answerBtn, { backgroundColor: C.redSoft }]} onPress={() => answer(false)}>
-            <Text style={[s.answerText, { color: C.red }]}>{t('stillLearning')}</Text>
+            <Text style={[s.answerText, { color: C.redInk }]}>{t('stillLearning')}</Text>
           </Press>
           <Press style={[s.answerBtn, { backgroundColor: C.greenSoft }]} onPress={() => answer(true)}>
-            <Text style={[s.answerText, { color: C.green }]}>{t('know')}</Text>
+            <Text style={[s.answerText, { color: C.greenInk }]}>{t('know')}</Text>
           </Press>
         </View>
       ) : (
-        <View style={s.answerRow}>
+        <View style={s.answerRow} pointerEvents={hold ? 'none' : 'auto'} testID="fc-answers">
           <Press style={[s.answerBtn, { backgroundColor: C.card2 }]} onPress={() => doFlip(true)}>
             <Text style={s.answerText}>{t('showAnswer')}</Text>
           </Press>
@@ -269,10 +609,166 @@ export default function FlashcardsScreen({
   );
 }
 
-const makeStyles = (C, SHADOW) =>
+// ─── Картка хаба: «Картки» чи «Квіз» ─────────────────────────────────────────
+// locked — сіра іконка, назва й підказка dim, замок праворуч; тап хитає
+// картку й каже, як її відкрити (onLocked). progress — рисочки квізу «1 / 4».
+// unlocking — момент «Відкрито!»: замок відлітає, іконка наливається
+// кольором, дві іскри й зелений ярлик.
+function HubCard({ Icon, title, hint, locked, unlocking, badge = 0, progress, onPress, onLocked, shake, reduced, testID, t }) {
+  const { C, SHADOW } = useTheme();
+  const s = useMemo(() => makeStyles(C), [C]);
+  const fly = useRef(new Animated.Value(locked ? 0 : 1)).current;
+  const [flying, setFlying] = useState(false);
+  useEffect(() => {
+    if (!unlocking) return undefined;
+    setFlying(true);
+    fly.setValue(0);
+    const anim = Animated.timing(fly, { toValue: 1, duration: reduced ? DUR.micro : 320, easing: EASE.out, useNativeDriver: true });
+    anim.start(() => setFlying(false));
+    return () => anim.stop();
+  }, [unlocking]);
+  const showLock = locked || flying;
+  const lockStyle = flying
+    ? {
+        opacity: fly.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }),
+        transform: reduced
+          ? []
+          : [
+              { translateX: fly.interpolate({ inputRange: [0, 1], outputRange: [0, 8] }) },
+              { translateY: fly.interpolate({ inputRange: [0, 1], outputRange: [0, -10] }) },
+              { rotate: fly.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '-24deg'] }) },
+            ],
+      }
+    : null;
+  // іконка «наливається» кольором: акцентна плитка проявляється над сірою
+  const tint = flying ? fly : locked ? 0 : 1;
+  return (
+    <Animated.View style={{ transform: [{ translateX: shake }] }}>
+      {/* Press: стиснення на пружині (під «Менше руху» — легке притемнення),
+          а закрита картка відгукується лише хитанням */}
+      <Press
+        onPress={locked ? onLocked : onPress}
+        accessibilityLabel={`${title}. ${hint}`}
+        accessibilityState={{ disabled: !!locked }}
+        testID={testID}
+        scaleTo={0.98}
+        feedback={locked ? 'none' : 'scale'}
+        hitSlop={0}
+        minTarget={0}
+      >
+        <View style={[s.hubCard, SHADOW, unlocking && s.hubCardOpen]}>
+          <View style={s.hubIconWrap}>
+            <View style={[StyleSheet.absoluteFill, s.hubIconLocked]} />
+            <Animated.View style={[StyleSheet.absoluteFill, s.hubIconOpen, { opacity: tint }]} />
+            <View>
+              <Icon size={26} color={locked && !flying ? C.faint : C.accent} />
+            </View>
+            {unlocking ? (
+              <>
+                <View style={s.sparkA} pointerEvents="none">
+                  <IcSparkle size={14} color={C.accent} />
+                </View>
+                <View style={s.sparkB} pointerEvents="none">
+                  <IcSparkle size={11} color={C.accent} />
+                </View>
+              </>
+            ) : null}
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[s.hubCardTitle, locked && { color: C.dim }]}>{title}</Text>
+            <Text style={s.hubCardHint}>{hint}</Text>
+            {progress ? (
+              <View style={s.dashes} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" testID="quiz-progress">
+                {Array.from({ length: progress.need }, (_, i) => (
+                  <View key={i} testID={i < progress.have ? 'dash-on' : 'dash-off'} style={[s.dash, { backgroundColor: i < progress.have ? C.accent : C.card3 }]} />
+                ))}
+              </View>
+            ) : null}
+          </View>
+          {showLock ? (
+            <Animated.View style={[s.lock, lockStyle]} testID={testID + '-lock'}>
+              <IcLock size={16} color={C.dim} />
+            </Animated.View>
+          ) : (
+            <>
+              {badge ? (
+                <View style={s.dueBadge}>
+                  <Text style={s.dueBadgeText}>{badge}</Text>
+                </View>
+              ) : null}
+              <View style={{ transform: [{ rotate: '-90deg' }] }}>
+                <IcChevron color={C.faint} />
+              </View>
+            </>
+          )}
+          {unlocking ? (
+            <FadeIn dy={4} style={s.unlockedWrap}>
+              <View style={s.unlocked} testID="learn-unlocked">
+                <Text style={s.unlockedText}>{t('learnUnlocked')}</Text>
+              </View>
+            </FadeIn>
+          ) : null}
+        </View>
+      </Press>
+    </Animated.View>
+  );
+}
+
+// ─── «Як отримати перше слово» ──────────────────────────────────────────────
+// Два шляхи до першого слова: зберегти слово дня (головна кнопка) або
+// сканувати. Слова дня немає (офлайн при першому запуску) — кажемо, що воно
+// зʼявиться; сканів немає й не Pro — замість «Сканувати» тихий рядок про Pro.
+function HowToGetWord({ wordOfDay, wodSaved, onSaveWod, canScan, onGoScan, onScanPro, glow, t }) {
+  const { C } = useTheme();
+  const s = useMemo(() => makeStyles(C), [C]);
+  return (
+    <View style={[s.how, glow && s.howGlow]} testID="learn-how">
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+        <Mascot pose="wave" size={54} />
+        <View style={{ flex: 1 }}>
+          <Text style={s.howTitle} accessibilityRole="header">
+            {t('learnHowTitle')}
+          </Text>
+          <Text style={s.howText}>{t('learnHowText')}</Text>
+        </View>
+      </View>
+      {wordOfDay ? null : <Text style={s.howNote}>{t('learnNoWod')}</Text>}
+      <View style={s.howBtns}>
+        {wordOfDay && !wodSaved && onSaveWod ? <HowBtn primary title={t('learnSaveWod')} onPress={onSaveWod} /> : null}
+        {canScan ? (
+          onGoScan ? <HowBtn Icon={IcScan} title={t('learnGoScan')} onPress={onGoScan} /> : null
+        ) : onScanPro ? (
+          <Pressable onPress={onScanPro} style={s.scanPro} accessibilityRole="button" hitSlop={{ top: 6, bottom: 6 }}>
+            <PCrown size={14} color={C.accent} />
+            <Text style={s.scanProText}>{t('learnScanPro')}</Text>
+          </Pressable>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+function HowBtn({ title, onPress, primary, Icon }) {
+  const { C, SHADOW_SM } = useTheme();
+  const s = useMemo(() => makeStyles(C), [C]);
+  return (
+    <Press onPress={onPress} style={s.howBtnWrap} scaleTo={0.97}>
+      <View style={[s.howBtn, primary ? [{ backgroundColor: C.accent }, SHADOW_SM] : { backgroundColor: C.card2 }]}>
+        {Icon ? <Icon size={18} color={C.text} /> : null}
+        <Text style={[s.howBtnText, { color: primary ? C.onAccent : C.text }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
+          {title}
+        </Text>
+      </View>
+    </Press>
+  );
+}
+
+const makeStyles = (C) =>
   StyleSheet.create({
-    root: { flex: 1, backgroundColor: C.bg, padding: 20 },
-    hubRoot: { flex: 1, backgroundColor: C.bg, padding: 20 },
+    // Таб-бар лежить поверх контенту (position: absolute), тож знизу сесії
+    // резервуємо UNDER_TAB — інакше кнопки відповіді ховались під панеллю.
+    root: { flex: 1, backgroundColor: C.bg, paddingHorizontal: 20, paddingTop: 20, paddingBottom: UNDER_TAB },
+    hubRoot: { flex: 1, backgroundColor: C.bg },
     proPill: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -283,11 +779,23 @@ const makeStyles = (C, SHADOW) =>
       paddingVertical: 6,
     },
     proPillText: { color: C.accent, fontSize: 11, fontFamily: F.extra, letterSpacing: 1.2 },
-    hubHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 },
-    center: { flex: 1, backgroundColor: C.bg, alignItems: 'center', justifyContent: 'center', padding: 36 },
-    title: { color: C.text, fontSize: 34, letterSpacing: -0.75, fontFamily: F.bold, marginBottom: 18 },
-    bigTitle: { color: C.text, fontSize: 22, fontFamily: F.bold, marginTop: 14 },
-    dimText: { color: C.dim, fontSize: 15, textAlign: 'center', marginTop: 8, lineHeight: 21, marginBottom: 22 },
+    // Висота рядка = висоті заголовка: він стоїть там само, як на інших
+    // вкладках, а пігулка PRO чи маскот центруються відносно нього.
+    hubHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', height: 37, marginBottom: 18, gap: 10 },
+    headRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    // UNDER_TAB знизу — щоб блок центрувався у видимій частині, а не під панеллю
+    center: {
+      flex: 1,
+      backgroundColor: C.bg,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 36,
+      paddingTop: 20,
+      paddingBottom: UNDER_TAB,
+    },
+    bigTitle: { color: C.text, ...type(22, F.bold), marginTop: 14, textAlign: 'center' },
+    dimText: { color: C.dim, ...type(15, F.reg), textAlign: 'center', marginTop: 8 },
+    note: { color: C.dim, ...type(13, F.reg), textAlign: 'center', marginTop: 6 },
 
     hubCard: {
       backgroundColor: C.card,
@@ -297,17 +805,50 @@ const makeStyles = (C, SHADOW) =>
       alignItems: 'center',
       gap: 14,
       marginBottom: 12,
+      // рамка є завжди (прозора), щоб «Відкрито!» не зсував вміст
+      borderWidth: 2,
+      borderColor: 'transparent',
     },
+    hubCardOpen: { borderColor: C.accent },
     hubIconWrap: {
       width: 48,
       height: 48,
       borderRadius: 12,
-      backgroundColor: C.accentSoft,
       alignItems: 'center',
       justifyContent: 'center',
     },
-    hubCardTitle: { color: C.text, fontSize: 17, letterSpacing: -0.1, fontFamily: F.semi },
-    hubCardHint: { color: C.dim, fontSize: 13, marginTop: 2 },
+    hubIconLocked: { borderRadius: 12, backgroundColor: C.card2 },
+    hubIconOpen: { borderRadius: 12, backgroundColor: C.accentSoft },
+    sparkA: { position: 'absolute', top: -7, left: -6 },
+    sparkB: { position: 'absolute', bottom: -4, left: -8 },
+    lock: { width: 32, height: 32, borderRadius: 16, backgroundColor: C.card2, alignItems: 'center', justifyContent: 'center' },
+    dashes: { flexDirection: 'row', gap: 6, marginTop: 8 },
+    dash: { width: 22, height: 4, borderRadius: 2 },
+    unlockedWrap: { position: 'absolute', top: -12, right: 14 },
+    // зелений — колір успіху; дрібний текст — темним зеленим на м'якому
+    // (білий на чистому green — лише 4,1:1)
+    unlocked: { backgroundColor: C.greenSoft, borderRadius: R.pill, paddingHorizontal: 10, paddingVertical: 3 },
+    unlockedText: { color: C.greenInk, ...type(12, F.extra, { noLead: true }) },
+
+    how: { backgroundColor: C.card, borderRadius: R.xl, padding: 16, gap: 14, borderWidth: 2, borderColor: 'transparent', marginBottom: 12 },
+    howGlow: { borderColor: C.accent },
+    howTitle: { color: C.text, ...type(17, F.extra) },
+    howText: { color: C.dim, ...type(14, F.reg), marginTop: 2 },
+    howNote: { color: C.dim, ...type(13, F.semi), textAlign: 'center' },
+    howBtns: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+    howBtnWrap: { flexGrow: 1 },
+    howBtn: { minHeight: 46, borderRadius: R.md, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+    howBtnText: { ...type(15, F.extra, { noLead: true }), flexShrink: 1 },
+    scanPro: { flexGrow: 1, minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+    scanProText: { color: C.accent, ...type(15, F.bold, { noLead: true }) },
+    tip: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: C.card2, borderRadius: R.lg, paddingHorizontal: 16, paddingVertical: 13, borderWidth: 2, borderColor: 'transparent', marginBottom: 12 },
+    tipGlow: { borderColor: C.accent },
+    tipText: { color: C.dim, ...type(14, F.reg), flex: 1 },
+    glowRing: { position: 'absolute', borderWidth: 2, borderColor: C.accent, borderRadius: R.xl + 3 },
+    // WordOfDayCard тримає під собою відступ 12 — кільце обводить саму картку
+    wodRing: { top: -3, left: -3, right: -3, bottom: 9 },
+    hubCardTitle: { color: C.text, ...type(17, F.semi) },
+    hubCardHint: { color: C.dim, ...type(13, F.reg), marginTop: 1 },
     dueBadge: {
       backgroundColor: C.accent,
       borderRadius: R.pill,
@@ -317,21 +858,22 @@ const makeStyles = (C, SHADOW) =>
       justifyContent: 'center',
       paddingHorizontal: 8,
     },
-    dueBadgeText: { color: C.onAccent, fontSize: 13, fontFamily: F.bold },
+    dueBadgeText: { color: C.onAccent, ...type(13, F.bold, { noLead: true }) },
 
-    progressTrack: { height: 4, backgroundColor: C.card2, borderRadius: 2, marginTop: 6, overflow: 'hidden' },
-    progressFill: { height: 4, borderRadius: 2, backgroundColor: C.accent },
-    progress: { color: C.dim, fontSize: 13, textAlign: 'center', marginTop: 8 },
+    top: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+    // табличні цифри — лічильник не стрибає по ширині від картки до картки
+    progress: { color: C.dim, ...type(13, F.semi), fontVariant: ['tabular-nums'], minWidth: 44, textAlign: 'right' },
+    modePill: { alignSelf: 'center', marginTop: 14 },
     cardWrap: { flex: 1, marginVertical: 16 },
     card: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
       backgroundColor: C.card,
       borderRadius: R.xl,
       backfaceVisibility: 'hidden',
     },
     cardInner: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
-    cardWord: { color: C.text, fontSize: 38, letterSpacing: -0.84, fontFamily: F.bold, textAlign: 'center' },
-    cardIpa: { color: C.dim, fontSize: 17, marginTop: 10 },
+    cardWord: { color: C.text, ...type(38, F.bold), textAlign: 'center' },
+    cardIpa: { color: C.dim, ...type(17, F.ipa), fontWeight: '500', marginTop: 8 },
     speakBtn: {
       marginTop: 20,
       backgroundColor: C.card2,
@@ -341,12 +883,15 @@ const makeStyles = (C, SHADOW) =>
       alignItems: 'center',
       justifyContent: 'center',
     },
-    tapHint: { color: C.faint, fontSize: 12, letterSpacing: 0.24, position: 'absolute', bottom: 18 },
-    cardTranslation: { color: C.text, fontSize: 28, fontFamily: F.bold, textAlign: 'center' },
-    exampleBox: { marginTop: 24, backgroundColor: C.card2, borderRadius: R.md, padding: 14 },
-    example: { color: C.text, fontSize: 15, lineHeight: 22, textAlign: 'center' },
-    exampleTr: { color: C.dim, fontSize: 13, marginTop: 6, textAlign: 'center', lineHeight: 19 },
-    answerRow: { flexDirection: 'row', gap: 12, marginBottom: 8 },
+    tapHint: { color: C.dim, ...type(12, F.reg), position: 'absolute', bottom: 18 },
+    backWordRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
+    backWord: { color: C.dim, ...type(17, F.semi), textAlign: 'center', flexShrink: 1 },
+    backSpeak: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: C.card2 },
+    cardTranslation: { color: C.text, ...type(28, F.bold), textAlign: 'center' },
+    exampleBox: { marginTop: 24, backgroundColor: C.card2, borderRadius: R.md, padding: 14, alignSelf: 'stretch' },
+    example: { color: C.text, ...type(15, F.reg), textAlign: 'center' },
+    exampleTr: { color: C.dim, ...type(13, F.reg), marginTop: 6, textAlign: 'center' },
+    answerRow: { flexDirection: 'row', gap: 12 },
     answerBtn: { flex: 1, paddingVertical: 16, borderRadius: R.md, alignItems: 'center' },
-    answerText: { color: C.text, fontSize: 17, fontFamily: F.semi },
+    answerText: { color: C.text, ...type(17, F.semi, { noLead: true }) },
   });

@@ -4,7 +4,7 @@
 // Головне — кожне досягнення має ВЛАСНИЙ силует. Раніше вони відрізнялись
 // лише кількістю однакових кружечків, і з відстані виглядали як один значок.
 // Тепер силует читається навіть у сірому: зерно, книга, вежа, корона, комета.
-import Svg, { Circle, Path, Rect, Polygon } from 'react-native-svg';
+import Svg, { Circle, Path, Rect } from 'react-native-svg';
 
 const S = (c, w = 1.8) => ({
   fill: 'none',
@@ -266,6 +266,27 @@ export const AchEarlyBird = ({ size, color }) => (
   </Base>
 );
 
+// ─── СЦЕНИ ──────────────────────────────────────────────────────────────────
+
+// Перша сцена — кадр 9:16 із кутами видошукача і підписом на предметі.
+export const AchSceneFirst = ({ size, color }) => (
+  <Base size={size} color={color}>
+    <Path d="M9.5 8.5V7.4A1.4 1.4 0 0 1 10.9 6h1.1M16 6h1.1a1.4 1.4 0 0 1 1.4 1.4v1.1M18.5 19.5v1.1a1.4 1.4 0 0 1-1.4 1.4H16M12 22h-1.1a1.4 1.4 0 0 1-1.4-1.4v-1.1" {...S(color)} />
+    <Circle cx="12.6" cy="15.8" r="1" {...FILL(color)} />
+    <Path d="M12.6 14.8 15 11.6h2" {...S(color, 1.3)} />
+  </Base>
+);
+
+// 10 сцен — стос кадрів, верхній з підписом.
+export const AchScenes10 = ({ size, color }) => (
+  <Base size={size} color={color}>
+    <Rect x="8.6" y="7.6" width="9" height="13.4" rx="2" {...S(color)} />
+    <Path d="M11.2 5.6h6.2a2.6 2.6 0 0 1 2.6 2.6v9.6" {...S(color)} />
+    <Circle cx="11.6" cy="16.6" r="0.9" {...FILL(color)} />
+    <Path d="M11.6 15.7 13.6 12.8h1.8" {...S(color, 1.3)} />
+  </Base>
+);
+
 export const ACH_ICONS = {
   first_word: AchFirstWord,
   words_10: AchWords10,
@@ -294,6 +315,8 @@ export const ACH_ICONS = {
   photo_10: AchPhoto10,
   night_owl: AchNightOwl,
   early_bird: AchEarlyBird,
+  scene_first: AchSceneFirst,
+  scenes_10: AchScenes10,
 };
 
 export function AchIcon({ id, size = 32, color }) {

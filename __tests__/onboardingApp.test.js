@@ -1,0 +1,422 @@
+// Онбординг 2.0 у зв'язці з App (магазин — імітація, PostHog — тестовий ключ):
+//   • відповіді зберігаються, імʼя — лише на телефоні (ні в мережу, ні в
+//     статистику);
+//   • наприкінці першого запуску — пейвол онбордингу поверх вкладки
+//     навчання, один раз; не для Pro і не в повторі;
+//   • перший скан — справжній сканер у режимі першого скану, без пейволів;
+//   • покупка з пробним періодом ставить нагадування за 2 дні до кінця.
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { act, create } from 'react-test-renderer';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import PostHog from 'posthog-react-native';
+import * as Notifications from 'expo-notifications';
+import * as Haptics from 'expo-haptics';
+import App from '../App';
+import FlashcardsScreen from '../src/FlashcardsScreen';
+import OnboardingScreen from '../src/OnboardingScreen';
+import OnboardingPaywall from '../src/OnboardingPaywall';
+import AchievementToast from '../src/AchievementToast';
+import PaywallScreen from '../src/PaywallScreen';
+import SettingsScreen from '../src/SettingsScreen';
+import { localDayKey } from '../src/storage';
+import { makeT } from '../src/i18n';
+
+jest.mock('../src/config', () => ({ ...jest.requireActual('../src/config'), POSTHOG_KEY: 'phc_test' }));
+
+// Сповіщення вже дозволені: нагадування про пробний період ставиться одразу
+jest.mock('expo-notifications', () => ({
+  setNotificationHandler: jest.fn(),
+  getPermissionsAsync: jest.fn(async () => ({ status: 'granted', canAskAgain: true })),
+  requestPermissionsAsync: jest.fn(async () => ({ status: 'granted' })),
+  getAllScheduledNotificationsAsync: jest.fn(async () => []),
+  cancelScheduledNotificationAsync: jest.fn(async () => {}),
+  cancelAllScheduledNotificationsAsync: jest.fn(async () => {}),
+  scheduleNotificationAsync: jest.fn(async () => 'id'),
+  setNotificationChannelAsync: jest.fn(async () => {}),
+  addNotificationResponseReceivedListener: jest.fn(() => ({ remove() {} })),
+  getLastNotificationResponse: jest.fn(() => null),
+  clearLastNotificationResponse: jest.fn(),
+  SchedulableTriggerInputTypes: { DATE: 'date', DAILY: 'daily' },
+  AndroidImportance: { DEFAULT: 3 },
+  DEFAULT_ACTION_IDENTIFIER: 'default',
+}));
+
+// Тут рендериться весь застосунок — див. пояснення в App.test.js.
+jest.setTimeout(20000);
+
+const t = makeT('en');
+const metrics = { frame: { x: 0, y: 0, width: 393, height: 852 }, insets: { top: 59, left: 0, right: 0, bottom: 34 } };
+const TODAY = localDayKey();
+const PROFILE = { goals: ['work'], field: 'finance', level: 8, since: TODAY };
+
+let calls;
+beforeEach(async () => {
+  await AsyncStorage.clear();
+  for (const inst of PostHog.instances) for (const v of Object.values(inst)) v?.mockClear?.();
+  jest.clearAllMocks();
+  calls = [];
+  global.fetch = jest.fn(async (url, init) => {
+    calls.push({ url: String(url), body: init?.body ? String(init.body) : '' });
+    throw new TypeError('Network request failed');
+  });
+});
+
+const mounted = [];
+afterEach(async () => {
+  while (mounted.length) {
+    const tree = mounted.pop();
+    await act(async () => tree.unmount());
+  }
+  await act(async () => {
+    await new Promise((r) => setTimeout(r, 150));
+  });
+});
+
+async function renderApp() {
+  let tree;
+  await act(async () => {
+    tree = create(
+      <SafeAreaProvider initialMetrics={metrics}>
+        <App />
+      </SafeAreaProvider>
+    );
+  });
+  mounted.push(tree);
+  for (let i = 0; i < 5; i++) {
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 20));
+    });
+  }
+  return tree;
+}
+
+async function run(fn) {
+  let out;
+  await act(async () => {
+    out = await fn();
+  });
+  await act(async () => {
+    await new Promise((r) => setTimeout(r, 20));
+  });
+  return out;
+}
+
+const stored = async (key) => JSON.parse(await AsyncStorage.getItem(key));
+const one = (tree, type) => tree.root.findAllByType(type)[0] || null;
+const openTab = (tree, key) => run(() => tree.root.findAll((n) => n.props.tb?.key === key)[0].props.onPress());
+const ph = () => PostHog.instances[0];
+const events = (name) => (ph()?.capture.mock.calls || []).filter(([e]) => e === name).map(([, p]) => p);
+async function press(tree, text) {
+  await run(async () => {
+    const hit = tree.root.findAll(
+      (n) => typeof n.props.onPress === 'function' && (n.props.title === text || n.findAll((c) => c.props.children === text).length)
+    );
+    if (!hit.length) throw new Error('no control: ' + text);
+    await hit.at(-1).props.onPress();
+  });
+}
+
+const RESULT = { profile: PROFILE, heardFrom: 'tiktok', name: 'Олена', struggles: ['time', 'forget'], wodEnabled: true, scanned: false, flow: 'control' };
+
+test('first run: answers saved, the name stays on the phone, Learn tab under the onboarding paywall', async () => {
+  const tree = await renderApp();
+  const onb = one(tree, OnboardingScreen);
+  expect(onb.props).toMatchObject({ replay: false, canWow: true, name: '', struggles: [] });
+  await run(() => onb.props.onDone(RESULT));
+
+  const st = await stored('ll_settings_v1');
+  expect(st).toMatchObject({
+    profile: PROFILE,
+    heardFrom: 'tiktok',
+    profileName: 'Олена',
+    struggles: ['forget', 'time'],
+    wodEnabled: true,
+    onbPaywallShown: true,
+  });
+  // крок 13 — вкладка навчання, поверх неї пейвол онбордингу
+  expect(one(tree, FlashcardsScreen)).not.toBeNull();
+  const pw = one(tree, OnboardingPaywall);
+  expect(pw).not.toBeNull();
+  expect(pw.parent.props.accessibilityViewIsModal).toBe(true);
+  expect(events('paywall_view')).toEqual([{ source: 'onboarding', ui: 'custom', offering: null }]);
+  expect(events('paywall_step')).toEqual([{ i: 0, step: 'trial', source: 'onboarding' }]);
+
+  // імʼя не пішло ні в мережу, ні в статистику; «що заважає» — теж лише тут
+  expect(calls.length).toBeGreaterThan(0);
+  expect(calls.some((c) => c.body.includes('Олена') || c.url.includes(encodeURIComponent('Олена')))).toBe(false);
+  expect(calls.some((c) => c.body.includes('struggles'))).toBe(false);
+  expect(JSON.stringify(ph().capture.mock.calls)).not.toMatch(/Олена/);
+  expect(JSON.stringify(ph().register.mock.calls)).not.toMatch(/Олена/);
+  expect(ph().identify).not.toHaveBeenCalled();
+
+  // закрили на першому екрані — людина на вкладці навчання
+  await run(() => tree.root.findAll((n) => n.props.accessibilityLabel === t('close') && n.props.onPress)[0].props.onPress());
+  expect(one(tree, OnboardingPaywall)).toBeNull();
+  expect(events('paywall_close')).toEqual([{ source: 'onboarding', step: 0, ui: 'custom' }]);
+  expect(one(tree, FlashcardsScreen)).not.toBeNull();
+});
+
+test('a trial bought in the onboarding paywall: reminder 2 days before it ends, as the timeline said', async () => {
+  const tree = await renderApp();
+  await run(() => one(tree, OnboardingScreen).props.onDone(RESULT));
+  await press(tree, t('obNext'));
+  await press(tree, t('obNext'));
+  expect(events('paywall_step').map((e) => e.i)).toEqual([0, 1, 2]);
+  const before = Date.now();
+  await press(tree, t('startTrial'));
+  for (let i = 0; i < 3; i++) await run(() => new Promise((r) => setTimeout(r, 20)));
+
+  expect(events('purchase_success')).toEqual([{ plan: 'year', trial: true, source: 'onboarding', ui: 'custom' }]);
+  expect(one(tree, OnboardingPaywall)).toBeNull();
+  const reminder = Notifications.scheduleNotificationAsync.mock.calls.map(([r]) => r).find((r) => r.identifier === 'trial-end');
+  expect(reminder).toBeTruthy();
+  expect(reminder.content).toMatchObject({ title: t('trialEndTitle'), body: t('trialEndBody'), data: { type: 'trial-end' } });
+  const at = reminder.trigger.date.getTime();
+  const charge = before + 7 * 86400000;
+  // не пізніше ніж за 2 дні до списання й не раніше ніж напередодні того дня
+  expect(at).toBeLessThanOrEqual(charge - 2 * 86400000 + 1000);
+  expect(at).toBeGreaterThan(charge - 3 * 86400000);
+  const h = reminder.trigger.date.getHours();
+  expect(h >= 8 && h < 22).toBe(true);
+});
+
+test('Pro already: no onboarding paywall, and no reason to show the post-scan one later', async () => {
+  await AsyncStorage.setItem('ll_sub_v1', JSON.stringify({ planId: 'year', until: Date.now() + 30 * 86400000 }));
+  const tree = await renderApp();
+  await run(() => one(tree, OnboardingScreen).props.onDone(RESULT));
+  expect(one(tree, OnboardingPaywall)).toBeNull();
+  expect(one(tree, PaywallScreen)).toBeNull();
+  expect((await stored('ll_settings_v1')).onbPaywallShown).toBe(false);
+  expect(events('paywall_view')).toEqual([]);
+});
+
+test('replay from Settings: back to Settings, no paywall, the name and struggles can change', async () => {
+  await AsyncStorage.setItem('ll_onboarded_v1', '1');
+  await AsyncStorage.setItem(
+    'll_settings_v1',
+    JSON.stringify({ nativeLang: 'en', targetLang: 'es', profile: PROFILE, profileName: 'Олена', struggles: ['time'] })
+  );
+  const tree = await renderApp();
+  await openTab(tree, 'settings');
+  await run(() => one(tree, SettingsScreen).props.onReplayOnb());
+  const onb = one(tree, OnboardingScreen);
+  expect(onb.props).toMatchObject({ replay: true, canWow: false, name: 'Олена', struggles: ['time'], profile: PROFILE });
+  await run(() => onb.props.onDone({ profile: PROFILE, heardFrom: null, name: 'Оля', struggles: ['boring'], scanned: false, flow: 'replay' }));
+  expect(one(tree, SettingsScreen)).not.toBeNull();
+  expect(one(tree, OnboardingPaywall)).toBeNull();
+  expect(await stored('ll_settings_v1')).toMatchObject({ profileName: 'Оля', struggles: ['boring'], profile: PROFILE });
+});
+
+describe('first scan inside onboarding', () => {
+  const word = { word: 'la taza', translation: 'mug', ipa: '', example: '', exampleTranslation: '', lang: 'es', nativeLang: 'en' };
+
+  test('the real scanner in first-scan mode: word saved from onboarding, then no more “Try it now”', async () => {
+    const tree = await renderApp();
+    const onSaved = jest.fn();
+    const onExit = jest.fn();
+    const el = one(tree, OnboardingScreen).props.renderScanner({ onSaved, onExit, level: 7 });
+    expect(el.props).toMatchObject({ firstScan: true, scanSource: 'onboarding', level: 7, onFirstSaved: onSaved });
+    // вихід зі сканера — з причиною (контракт §5.8); подія дотику без
+    // причини (сканер до W1) — це «закрили»
+    el.props.onExit('camera_denied');
+    el.props.onExit({ nativeEvent: {} });
+    expect(onExit.mock.calls).toEqual([['camera_denied'], ['closed']]);
+    await run(() => el.props.onSaveWord(word));
+    expect(await stored('ll_words_v1')).toHaveLength(1);
+    expect(events('word_saved')).toEqual([{ count: 1, total: 1, source: 'onboarding' }]);
+    // словник уже не порожній — крок «Спробуй зараз» більше не потрібен
+    expect(one(tree, OnboardingScreen).props.canWow).toBe(false);
+    // на час онбордингу мʼякий пейвол після першого скану не готується
+    await run(() => el.props.onScanned({ usage: { day: TODAY, scans: 1, limit: 1 } }));
+    await run(() => el.props.onResultVisible(true));
+    await run(() => el.props.onResultVisible(false));
+    expect(one(tree, PaywallScreen)).toBeNull();
+  });
+
+  test('no scan left or the server says no: back to onboarding with “limit”, no paywall in the middle', async () => {
+    const tree = await renderApp();
+    const onClose = jest.fn();
+    const el = () => one(tree, OnboardingScreen).props.renderScanner({ onSaved: jest.fn(), onExit: onClose, level: undefined });
+    let ok;
+    await run(async () => {
+      ok = await el().props.onLimitReached({ used: 1, limit: 1 }, 'SCAN_LIMIT');
+    });
+    expect(ok).toBe(false);
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(onClose).toHaveBeenLastCalledWith('limit');
+    expect(events('scan_denied')).toEqual([{ reason: 'scans', server: true, source: 'onboarding' }]);
+    // стелю запамʼятали — сканувати вже нічим, тож і кроку немає
+    expect(one(tree, OnboardingScreen).props.canWow).toBe(false);
+    expect(el().props.onGuardScan('object')).toBe(false);
+    expect(onClose).toHaveBeenCalledTimes(2);
+    expect(onClose).toHaveBeenLastCalledWith('limit');
+    // і демо чесно каже, що безкоштовний скан на цьому iPhone уже був
+    expect(one(tree, OnboardingScreen).props.scanUsed).toBe(true);
+    // пейвол ні тут, ні після онбордингу через цей відмовлений скан
+    await run(() => one(tree, OnboardingScreen).props.onDone({ ...RESULT, scanned: false }));
+    expect(one(tree, PaywallScreen)).toBeNull();
+  });
+});
+
+// iOS вбиває застосунок, коли в Параметрах міняють доступ до камери (чи
+// просто вивантажує його з пам'яті) — посеред онбордингу людина не має
+// відповідати на все вдруге. Чернетка — лише на телефоні, у мережу й у
+// статистику нічого з неї не йде.
+describe('a cold start in the middle of onboarding', () => {
+  const header = (tree) =>
+    tree.root.find((n) => typeof n.type === 'string' && n.props.accessibilityRole === 'header').props.children;
+
+  test('carries on from the same step with the same answers; finishing clears the draft', async () => {
+    let tree = await renderApp();
+    await press(tree, t('obStart'));
+    // мова — перший крок; вибір веде далі сам
+    await run(() => tree.root.findAll((n) => n.props.testID === 'lang-de' && typeof n.props.onPress === 'function').at(-1).props.onPress());
+    await run(() => new Promise((r) => setTimeout(r, 320)));
+    expect((await stored('ll_settings_v1')).targetLang).toBe('de');
+    await run(() => tree.root.findAll((n) => typeof n.props.onChangeText === 'function')[0].props.onChangeText('Олена'));
+    await press(tree, t('obNext'));
+    // «звідки» — одразу після імені; вибір веде далі сам
+    expect(header(tree)).toBe(t('pfHeardTitle'));
+    await press(tree, 'TikTok');
+    await run(() => new Promise((r) => setTimeout(r, 320)));
+    await press(tree, t('goal_travel'));
+    await press(tree, t('obNext'));
+    expect(header(tree)).toBe(t('pfLevelTitle'));
+    expect(await stored('ll_onb_draft_v1')).toMatchObject({ v: 3, ver: 5, phase: 'level', name: 'Олена', heard: 'tiktok', goals: ['travel'], target: 'de', native: 'en' });
+
+    // застосунок вбито — і запущено знову (за хвилину: чернетка ще жива)
+    await act(async () => mounted.pop().unmount());
+    tree = await renderApp();
+    const onb = one(tree, OnboardingScreen);
+    expect(onb.props.draft).toMatchObject({ phase: 'level', name: 'Олена' });
+    expect(header(tree)).toBe(t('pfLevelTitle'));
+    expect(calls.some((c) => c.body.includes('Олена') || c.url.includes(encodeURIComponent('Олена')))).toBe(false);
+    expect(JSON.stringify(ph().capture.mock.calls)).not.toMatch(/Олена/);
+
+    await run(() => one(tree, OnboardingScreen).props.onDone(RESULT));
+    expect(await AsyncStorage.getItem('ll_onb_draft_v1')).toBeNull();
+    // далі — звичайний застосунок, а не знову онбординг
+    await act(async () => mounted.pop().unmount());
+    tree = await renderApp();
+    expect(one(tree, OnboardingScreen)).toBeNull();
+  });
+
+  test('a draft older than 15 minutes is wiped: the next start is the welcome screen', async () => {
+    await AsyncStorage.setItem(
+      'll_onb_draft_v1',
+      JSON.stringify({ v: 3, at: Date.now() - 16 * 60 * 1000, phase: 'goals', variant: 'control', name: 'Олена', goals: ['travel'] })
+    );
+    const tree = await renderApp();
+    expect(one(tree, OnboardingScreen).props.draft).toBeNull();
+    expect(await AsyncStorage.getItem('ll_onb_draft_v1')).toBeNull();
+    expect(tree.root.findAll((n) => n.props.children === t('ob3HookTitle')).length).toBeGreaterThan(0);
+  });
+});
+
+// ─── Онбординг 3.0: App ↔ онбординг ────────────────────────────────────────
+describe('onboarding 3.0 in the app', () => {
+  const word = { word: 'la taza', translation: 'mug', ipa: '', example: '', exampleTranslation: '', lang: 'es', nativeLang: 'en', photo: 'stickers/x.jpg' };
+
+  test('a first run never seeds answers from settings left by an earlier run', async () => {
+    await AsyncStorage.setItem('ll_settings_v1', JSON.stringify({ profile: PROFILE, profileName: 'Стара', struggles: ['time'], heardFrom: 'youtube' }));
+    const tree = await renderApp();
+    expect(one(tree, OnboardingScreen).props).toMatchObject({ profile: null, name: '', struggles: [], heardFrom: null, phoneNative: 'en' });
+  });
+
+  test('the languages are saved before the scan, and the scanner gets them', async () => {
+    const tree = await renderApp();
+    await run(() => one(tree, OnboardingScreen).props.onLanguages({ targetLang: 'de', nativeLang: 'pl' }));
+    expect(await stored('ll_settings_v1')).toMatchObject({ targetLang: 'de', nativeLang: 'pl' });
+    const el = one(tree, OnboardingScreen).props.renderScanner({ onSaved: jest.fn(), onExit: jest.fn(), level: 5 });
+    expect(el.props).toMatchObject({ targetLang: 'de', nativeLang: 'pl' });
+  });
+
+  test('the plan saves the profile at once and asks the server for words under it', async () => {
+    const tree = await renderApp();
+    await run(() => one(tree, OnboardingScreen).props.onLanguages({ targetLang: 'es', nativeLang: 'en' }));
+    let out;
+    await run(async () => {
+      out = await one(tree, OnboardingScreen).props.prepareWod(PROFILE);
+    });
+    // офлайн — слова немає, план покажеться без картки
+    expect(out).toBeNull();
+    expect((await stored('ll_settings_v1')).profile).toEqual(PROFILE);
+    expect(calls.some((c) => c.url.includes('/word-of-day'))).toBe(true);
+  });
+
+  test('the promise → the onboarding paywall with the person’s own sticker; the streak party is not repeated today', async () => {
+    const tree = await renderApp();
+    await run(() => one(tree, OnboardingScreen).props.onDone({ ...RESULT, scanned: true, firstWord: word, wodHour: 19 }));
+    const pw = one(tree, OnboardingPaywall);
+    expect(pw.props.firstWord).toEqual(word);
+    expect(tree.root.findAll((n) => n.props.children === t('opwFirstWordText')).length).toBeGreaterThan(0);
+    const st = await stored('ll_settings_v1');
+    expect(st.streakSeen).toMatchObject({ celebrated: TODAY });
+    expect(st.wodHour).toBe(19);
+  });
+
+  test('the “first word” toast waits under the onboarding paywall and shows once it is closed', async () => {
+    const tree = await renderApp();
+    const el = one(tree, OnboardingScreen).props.renderScanner({ onSaved: jest.fn(), onExit: jest.fn(), level: 5 });
+    await run(() => el.props.onSaveWord(word));
+    await run(() => one(tree, OnboardingScreen).props.onDone({ ...RESULT, scanned: true, firstWord: word }));
+    expect(one(tree, OnboardingPaywall)).not.toBeNull();
+    expect(one(tree, AchievementToast).props.achievement).toBeNull();
+    await run(() => tree.root.findAll((n) => n.props.accessibilityLabel === t('close') && n.props.onPress)[0].props.onPress());
+    expect(one(tree, OnboardingPaywall)).toBeNull();
+    expect(one(tree, AchievementToast).props.achievement).toMatchObject({ id: 'first_word' });
+  });
+
+  // Головний шлях конверсії: «Відкрито!» на «Навчанні» не має відігравати
+  // (і позначатись показаним) під пейволом онбордингу — лише коли його закрили
+  test('“Unlocked!” waits under the onboarding paywall: no buzz, not marked seen, plays once it is closed', async () => {
+    const haptic = jest.spyOn(Haptics, 'notificationAsync');
+    const tree = await renderApp();
+    const el = one(tree, OnboardingScreen).props.renderScanner({ onSaved: jest.fn(), onExit: jest.fn(), level: 5 });
+    await run(() => el.props.onSaveWord(word));
+    haptic.mockClear();
+    await run(() => one(tree, OnboardingScreen).props.onDone({ ...RESULT, scanned: true, firstWord: word }));
+    expect(one(tree, OnboardingPaywall)).not.toBeNull();
+    expect(one(tree, FlashcardsScreen)).not.toBeNull();
+    expect(tree.root.findAll((n) => n.props.children === t('learnUnlocked'))).toHaveLength(0);
+    expect(haptic.mock.calls.filter(([k]) => k === Haptics.NotificationFeedbackType.Success)).toHaveLength(0);
+    expect((await stored('ll_settings_v1')).unlockSeen).toEqual({ cards: false, quiz: false });
+
+    await run(() => tree.root.findAll((n) => n.props.accessibilityLabel === t('close') && n.props.onPress)[0].props.onPress());
+    expect(one(tree, OnboardingPaywall)).toBeNull();
+    expect(tree.root.findAll((n) => n.props.children === t('learnUnlocked')).length).toBeGreaterThan(0);
+    expect((await stored('ll_settings_v1')).unlockSeen).toMatchObject({ cards: true });
+    haptic.mockRestore();
+  });
+
+  // Повтор без слів починається з мови: нова мова — нове слово дня (кеш і
+  // сповіщення), а не лише налаштування. Інакше до холодного старту
+  // «Навчання» без слова дня, а віджет і сповіщення — старою мовою.
+  test('the replay without words: a new language asks for the word of the day in it', async () => {
+    await AsyncStorage.setItem('ll_onboarded_v1', '1');
+    await AsyncStorage.setItem('ll_settings_v1', JSON.stringify({ nativeLang: 'uk', targetLang: 'en' }));
+    await AsyncStorage.setItem(
+      'll_wod_v1',
+      JSON.stringify({ lang: 'en', native: 'uk', sig: 'general#0:', perDay: 1, asked: 1, days: 14, fetchedAt: Date.now(), words: [{ date: TODAY, word: 'ledger', translation: 'гросбух', slot: 0 }] })
+    );
+    const tree = await renderApp();
+    await openTab(tree, 'settings');
+    await run(() => one(tree, SettingsScreen).props.onReplayOnb());
+    expect(one(tree, OnboardingScreen).props).toMatchObject({ replay: true, hasWords: false });
+    calls.length = 0;
+    await run(() => tree.root.findAll((n) => n.props.testID === 'lang-de' && typeof n.props.onPress === 'function').at(-1).props.onPress());
+    await run(() => new Promise((r) => setTimeout(r, 320)));
+    expect((await stored('ll_settings_v1')).targetLang).toBe('de');
+    const asked = calls.filter((c) => c.url.includes('/word-of-day')).map((c) => JSON.parse(c.body || '{}'));
+    expect(asked).toContainEqual(expect.objectContaining({ lang: 'de', native: 'uk' }));
+  });
+
+  test('the replay passes the current answers and today’s word, never the paywall', async () => {
+    await AsyncStorage.setItem('ll_onboarded_v1', '1');
+    await AsyncStorage.setItem('ll_settings_v1', JSON.stringify({ nativeLang: 'en', targetLang: 'es', profile: PROFILE, profileName: 'Олена' }));
+    const tree = await renderApp();
+    await openTab(tree, 'settings');
+    await run(() => one(tree, SettingsScreen).props.onReplayOnb());
+    expect(one(tree, OnboardingScreen).props).toMatchObject({ replay: true, profile: PROFILE, name: 'Олена', draft: null, dev: null });
+  });
+});

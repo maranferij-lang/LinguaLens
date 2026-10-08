@@ -7,16 +7,20 @@
 //   • Apple, «Designing Fluid Interfaces» — пружина задається парою
 //     (response, damping), за замовчуванням критично задемпфована;
 //     переліт дозволений ЛИШЕ після жесту з моментумом.
-import { useEffect, useState } from 'react';
-import { AccessibilityInfo, Easing, LayoutAnimation } from 'react-native';
+import { useEffect, useState, useSyncExternalStore } from 'react';
+import { AccessibilityInfo, Easing, LayoutAnimation, Platform } from 'react-native';
 
 // ─── Криві ────────────────────────────────────────────────────────────────
 // Стандартні криві надто мляві — це посилені варіанти.
 // ease-in на UI не використовуємо ніколи: він гальмує саме тієї миті,
 // коли користувач найуважніше дивиться на екран.
+// Єдиний виняток — inOut: крива повільно стартує й повільно гальмує, тож
+// годиться лише для симетричних циклів (дихання маскота, хитання, смужка
+// світла) і руху елемента, що вже стоїть на екрані, з одного спокою в інший
+// (переворот картки). Поява, зникнення й відгук на дотик — завжди out/drawer.
 export const EASE = {
   out: Easing.bezier(0.23, 1, 0.32, 1), // поява/зникнення — миттєвий старт
-  inOut: Easing.bezier(0.77, 0, 0.175, 1), // рух по екрану
+  inOut: Easing.bezier(0.77, 0, 0.175, 1), // цикли й рух по екрану, не поява
   drawer: Easing.bezier(0.32, 0.72, 0, 1), // шторки й аркуші (крива з iOS)
   soft: Easing.bezier(0.4, 0, 0.2, 1), // колір і непрозорість
   linear: Easing.linear, // лише таймери й прогрес-бари
@@ -74,37 +78,138 @@ export function stagger(index, step = STAGGER_STEP) {
 // ─── Reduced motion ───────────────────────────────────────────────────────
 // «Менше руху» не означає «без відгуку»: лишаємо зміни непрозорості й кольору,
 // прибираємо переміщення, масштаб і переліт.
+//
+// Кеш оновлює підписка на рівні модуля, а не хук: FadeIn, Press, layoutNext
+// і travel читають його без хука, і зміна налаштування мусить дійти до них,
+// навіть коли жоден екран із useReducedMotion зараз не змонтований.
 let reducedCache = false;
-AccessibilityInfo.isReduceMotionEnabled?.()
-  .then((v) => {
-    reducedCache = !!v;
-  })
-  .catch(() => {});
+const reducedListeners = new Set();
+
+function setReducedCache(v) {
+  const next = !!v;
+  if (next === reducedCache) return;
+  reducedCache = next;
+  reducedListeners.forEach((fn) => fn(next));
+}
+
+// Свіже значення з системи (кожен хук питає його при монтуванні: тест чи
+// користувач міг змінити налаштування, поки хука не було)
+function readReduced() {
+  try {
+    return Promise.resolve(AccessibilityInfo.isReduceMotionEnabled?.())
+      .then((v) => {
+        if (v != null) setReducedCache(v);
+      })
+      .catch(() => {});
+  } catch (_) {
+    return Promise.resolve();
+  }
+}
+
+readReduced();
+try {
+  AccessibilityInfo.addEventListener?.('reduceMotionChanged', setReducedCache);
+} catch (_) {}
 
 export function isReducedMotion() {
   return reducedCache;
 }
 
+const subscribeReduced = (fn) => {
+  reducedListeners.add(fn);
+  return () => reducedListeners.delete(fn);
+};
+
+// Для компонентів, яких багато (Press, Skeleton): бере кеш і підписується на
+// його зміну, а в системи не питає. Один Set-слухач замість виклику в нативний
+// код при кожному монтуванні.
+export function useReducedMotionCached() {
+  return useSyncExternalStore(subscribeReduced, isReducedMotion);
+}
+
+// Те саме, але при монтуванні ще раз питає систему: екран, якому важливо
+// мати свіже значення (його могли змінити, поки застосунок спав).
 export function useReducedMotion() {
-  const [reduced, setReduced] = useState(reducedCache);
+  const reduced = useReducedMotionCached();
+  useEffect(() => {
+    readReduced();
+  }, []);
+  return reduced;
+}
+
+// Чи увімкнений VoiceOver. Жести, яких незрячій людині не зробити (тримати
+// палець 1,2 с на кільці), з ним стають звичайним дотиком.
+export function useScreenReader() {
+  const [on, setOn] = useState(false);
   useEffect(() => {
     let alive = true;
-    AccessibilityInfo.isReduceMotionEnabled?.()
-      .then((v) => {
-        reducedCache = !!v;
-        if (alive) setReduced(!!v);
-      })
+    AccessibilityInfo.isScreenReaderEnabled?.()
+      .then((v) => alive && setOn(!!v))
       .catch(() => {});
-    const sub = AccessibilityInfo.addEventListener?.('reduceMotionChanged', (v) => {
-      reducedCache = !!v;
-      setReduced(!!v);
-    });
+    const sub = AccessibilityInfo.addEventListener?.('screenReaderChanged', (v) => setOn(!!v));
     return () => {
       alive = false;
       sub?.remove?.();
     };
   }, []);
-  return reduced;
+  return on;
+}
+
+// Оголошення для VoiceOver. accessibilityLiveRegion на iOS не працює (лише
+// Android і веб), тож помилка покупки, помилка скану чи розблоковане
+// досягнення без цього мовчать. Android тримається на liveRegion: там
+// оголошення було б подвійним. Без VoiceOver iOS просто відкидає виклик.
+export function announce(text) {
+  if (Platform.OS !== 'ios' || text == null || text === '') return;
+  try {
+    AccessibilityInfo.announceForAccessibility?.(String(text));
+  } catch (_) {}
+}
+
+// Оголошує text щоразу, коли він змінюється й не порожній (помилка, статус).
+// Не для рядків, що мінялись би під пальцем (підказка слайдера): вони шумлять.
+export function useAnnounce(text) {
+  useEffect(() => {
+    announce(text);
+  }, [text]);
+}
+
+// ─── Haptics ──────────────────────────────────────────────────────────────
+// Легко й за ділом: selection — зміна вибору, light — дотик до кнопки,
+// medium — вагоме підтвердження, success/warning/error — результат дії.
+// Не на кожен тап по списку. Без expo-haptics, на вебі й у збірці без модуля
+// (Expo Go, jest-заглушка) виклик нічого не робить і не падає.
+const HAPTICS = {
+  selection: (H) => H.selectionAsync?.(),
+  light: (H) => H.impactAsync?.(H.ImpactFeedbackStyle?.Light ?? 'light'),
+  medium: (H) => H.impactAsync?.(H.ImpactFeedbackStyle?.Medium ?? 'medium'),
+  success: (H) => H.notificationAsync?.(H.NotificationFeedbackType?.Success ?? 'success'),
+  warning: (H) => H.notificationAsync?.(H.NotificationFeedbackType?.Warning ?? 'warning'),
+  error: (H) => H.notificationAsync?.(H.NotificationFeedbackType?.Error ?? 'error'),
+};
+
+// Бюджет вібрацій: дві «успішні» поспіль (збережене слово дня й одразу свято
+// серії) відчуваються як тремтіння, а не як підтвердження. Хто вібрує «успіх»
+// через haptic('success'), лишає позначку часу; свято серії дивиться на неї
+// (recentSuccess) і своєї вібрації не додає.
+const SUCCESS_WINDOW_MS = 1200;
+let lastSuccessAt = 0;
+export function recentSuccess(now = Date.now()) {
+  return now - lastSuccessAt < SUCCESS_WINDOW_MS;
+}
+// Для тестів: щоб один тест не бачив «успіху» іншого
+export function resetHapticBudget() {
+  lastSuccessAt = 0;
+}
+
+export function haptic(kind) {
+  const run = HAPTICS[kind];
+  if (!run || Platform.OS === 'web') return;
+  if (kind === 'success') lastSuccessAt = Date.now();
+  try {
+    // require, а не import: збірка без модуля не має падати на старті
+    Promise.resolve(run(require('expo-haptics'))).catch(() => {});
+  } catch (_) {}
 }
 
 // Пружина, що поважає системне налаштування: при reduced motion

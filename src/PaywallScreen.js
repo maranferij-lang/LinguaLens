@@ -2,197 +2,996 @@
 //
 // Правила, за якими він побудований:
 //   • Заголовок говорить про людину, не про тариф. Причина відмови приходить
-//     ззовні (скани / словник / мови), і текст під неї підлаштовується —
-//     людина бачить відповідь саме на ту стіну, в яку щойно вперлась.
-//   • Тижневий тариф присутній, але не виділений. Він потрібен як якір:
-//     поруч із $4.99/тиждень річний за $34.99 читається як очевидний вибір.
-//   • Річний обраний за замовчуванням і має пробний тиждень. Ніяких
-//     передвибраних дорогих варіантів — це нечесно і повертається відписками.
-//   • Закрити можна завжди, хрестик великий і на своєму місці. Пейвол, з
-//     якого важко вийти, псує оцінку в App Store сильніше, ніж дає виторгу.
-import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+//     ззовні (безкоштовний скан витрачено / скан кімнати / мови), і текст під
+//     неї підлаштовується — людина бачить відповідь саме на ту стіну, в яку
+//     щойно вперлась. Словник безкоштовний без меж, тож стіни «словник» немає.
+//   • Тарифи — ті, що прийшли з поточної пропозиції RevenueCat (зазвичай
+//     місяць, рік і «назавжди»). Річний обраний за замовчуванням і має
+//     пробний тиждень. Ніяких передвибраних дорогих варіантів — це нечесно
+//     і повертається відписками.
+//   • Тарифи — одразу під заголовком, на кожній стіні: сума списання —
+//     найпомітніша цифра на екрані й видна без прокрутки навіть на SE (App
+//     Review 3.1.2). Далі таймлайн пробного періоду, таблиця й переваги.
+//   • «Назавжди» — разова покупка: без «на місяць», без «−N%», і юридичний
+//     рядок під кнопкою прямо каже, що це не підписка.
+//   • Закрити можна завжди, хрестик великий і на своєму місці — у власній
+//     смужці згори, поза прокруткою: ціни під ним ніколи не пропливають. Пейвол,
+//     з якого важко вийти, псує оцінку в App Store сильніше, ніж дає виторгу.
+//   • 'intro' — мʼякий пейвол один раз після першого скану: замість таблиці
+//     таймлайн пробного періоду (сьогодні — доступ, день 5 — нагадування,
+//     день 7 — списання) і окрема кнопка «Продовжити безкоштовно». Так
+//     людина знає, що й коли станеться, ще до натиску (App Review 3.1.2).
+//     Без пробного періоду таймлайну немає і «безкоштовно» не обіцяємо —
+//     замість нього один рядок «сьогодні — $9.99, далі щомісяця». Таблиці
+//     тут немає ніколи, а шапка завжди однакової висоти: тариф під пальцем
+//     не зсувається, хоч би який людина обрала.
+//     Безкоштовний скан один на все життя, і його вже витрачено (перший
+//     скан в онбордингу чи щойно зроблений) — кнопка не обіцяє ще одного ні
+//     сьогодні, ні завтра.
+//   • Наприкінці онбордингу перед цим екраном ще два (OnboardingPaywall.js):
+//     пробний період і таймлайн. Таймлайн і план за замовчуванням — звідси.
+//   • v1.3 — дві нові причини. 'themes' (тап по палітрі з короною в
+//     Параметрах): замість Lingo — мініекран «Навчання» в палітрі, яку людина
+//     обрала, і п'ять кружечків, що його перефарбовують; куплено — App одразу
+//     бере ту палітру, яку людина дивилась останньою (onPalette). 'wod_per_day'
+//     (тап на 3 чи 5 у «Слів на день»): лише свій заголовок і текст.
+//     Таблиця й переваги — з прапорців (src/flags.js): вимкнене не обіцяємо.
+import { Children, Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Alert,
+  Animated,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { PLANS, PRO_BENEFITS, COMPARISON, FREE } from './subscription';
+import Svg, { Circle, Path } from 'react-native-svg';
+import { PRO_BENEFITS, COMPARISON, FREE, TRIAL_REMIND_DAYS, topBenefits } from './subscription';
+import { PRIVACY_URL, SUPPORT_EMAIL, TERMS_URL } from './config';
+import { purchaseNote, restoreNote, restoreTitle } from './purchases';
+import { openLink, openSupportMail } from './settings/links';
+import { formatDate } from './locale';
 import { ProIcon, PCrown } from './ProIcons';
-import { IcCheck, IcClose } from './icons';
-import { MascotBob } from './Mascot';
-import { FadeIn, GradBtn, Press } from './ui';
-import { CAPS, F, R, type, useTheme } from './theme';
+import { IcBell, IcCheck, IcClose, IcFlame, IcSpeaker } from './icons';
+import { Mascot, MascotBob } from './Mascot';
+import { FadeIn, GradBtn, Press, Skeleton } from './ui';
+import { DUR, EASE, useAnnounce } from './motion';
+import { CAPS, F, PALETTE_KEYS, PRO_PALETTES, R, THEMES, ipaFont, themeKeyOf, type, useTheme } from './theme';
 
-export default function PaywallScreen({ reason, onClose, onPurchase, t }) {
-  const { C, SHADOW, SHADOW_LG } = useTheme();
+// Нижче за це (iPhone SE, mini, збільшений шрифт дисплея) — без Lingo і з
+// тіснішою шапкою: тарифи мають влізти над кнопкою без прокрутки.
+export const SHORT_SCREEN = 740;
+
+// Юридичний рядок без пробного періоду — з ціною й періодом обраного тарифу,
+// як у trialLegal*. Невідомий період — загальний renewLegal.
+const RENEW_LEGAL = { week: 'renewLegalWeek', month: 'renewLegalMonth', quarter: 'renewLegalQuarter', year: 'renewLegalYear' };
+// Один рядок замість таймлайну, коли пробного періоду в тарифу немає
+const TODAY_LINE = { week: 'pwTodayWeek', month: 'pwTodayMonth', quarter: 'pwTodayQuarter', year: 'pwTodayYear' };
+// Причина стіни → рядок таблиці, що її пояснює (його ставимо першим)
+const REASON_ROW = { scans: 'scans', scene: 'scene', langs: 'langs', themes: 'themes', wod_per_day: 'wodn' };
+// Більша ціль для дрібних посилань під кнопкою
+const LINK_SLOP = { top: 6, bottom: 6, left: 10, right: 10 };
+// Висота рядка тарифу (s.plan): відступи 2 × 15 + рамка 2 × 2 + назва й підпис
+// (≈ 22 + 3 + 18). Заглушка на час завантаження цін такої ж висоти, тож
+// справжні рядки стають на її місце без стрибка вмісту нижче. На SE (planShort)
+// відступи по 12.
+const PLAN_H = 77;
+const PLAN_H_SHORT = 71;
+const PLAN_SKELETONS = 3;
+
+// freeScans — скільки сканів безкоштовно за все життя, стеля з сервера (див.
+// freeScans у subscription.js), freeScenes — те саме для сцен.
+// unavailable — збірка без магазину: тарифів немає, купити не можна.
+// plansFailed — магазин не віддав тарифів (офлайн, збій App Store чи
+// RevenueCat): замість вічного індикатора й вимкненої кнопки покупки —
+// пояснення, підказка й «Спробувати ще раз» (onRetry) просто в підвалі.
+// canRemind — чи зможемо нагадати про кінець пробного періоду (сповіщення
+// дозволені або ще можна спитати): лише тоді таймлайн це обіцяє.
+// scansLeft — скільки безкоштовних сканів ще лишилось (0 — більше не буде).
+// compact — третій екран пейволу онбордингу: Lingo, переваги й пробний
+// період людина щойно бачила на двох попередніх, тут — лише тарифи й
+// таймлайн обраного.
+// palette — з якою палітрою відкрити прев'ю 'themes' (на яку людина
+// натиснула); onPalette(key) — людина обрала інший кружечок; previewWord —
+// її слово дня ({ word, ipa, translation }) для мініекрана, без нього —
+// слово-приклад.
+export default function PaywallScreen({
+  reason,
+  plans,
+  compact = false,
+  palette,
+  onPalette,
+  previewWord = null,
+  freeScans = FREE.scans,
+  freeScenes = FREE.scenes,
+  scansLeft,
+  unavailable,
+  plansFailed = false,
+  onRetry,
+  canRemind = true,
+  onClose,
+  onPurchase,
+  onRestore,
+  onOpen,
+  lang,
+  t,
+}) {
+  const { C, SHADOW, SHADOW_LG, isDark } = useTheme();
   const s = useMemo(() => makeStyles(C), [C]);
+  const short = useWindowDimensions().height < SHORT_SCREEN;
+  // Палітра в прев'ю 'themes': та, на яку людина натиснула, інакше перша з Pro
+  const [shownPalette, setShownPalette] = useState(PALETTE_KEYS.includes(palette) ? palette : PRO_PALETTES[0]);
+  const themes = reason === 'themes' && !compact;
   const [picked, setPicked] = useState('year');
   const [busy, setBusy] = useState(false);
+  // покупка вже йде: другий тап, що встиг до перерендеру, нічого не запускає
+  const buyingRef = useRef(false);
+  // ключ примітки під кнопкою після покупки (purchaseNote) або null
+  const [note, setNote] = useState(null);
+  // «Відновити покупки» вже йде: другий тап не запускає другого відновлення
+  const [restoring, setRestoring] = useState(false);
+  const restoringRef = useRef(false);
+  // «Спробувати ще раз» для цін: поки йде повторний запит, блок помилки лишається
+  // на екрані зі спінером на кнопці, а не зникає разом із кнопкою, яку щойно
+  // натиснули (sawLoading — запит справді стартував: plansFailed хоч раз скинувся)
+  const [retrying, setRetrying] = useState(false);
+  const sawLoading = useRef(false);
+  // Ціни прийшли вже після заглушки: рядки тоді проявляються (FadeIn), а не
+  // з'являються рвучко. Якщо ціни були на місці з першого кадру — анімації нема.
+  const sawSkeleton = useRef(false);
+
+  // Ціни могли не завантажитись при старті (офлайн) — перепитуємо магазин.
+  useEffect(() => {
+    if (onOpen) onOpen();
+  }, []);
+
+  // Ціни приходять з App Store (RevenueCat) у валюті людини. Поки вони
+  // вантажаться, список порожній — показуємо індикатор, а не вигадані ціни.
+  const list = plans || [];
+  const plan = list.find((p) => p.id === picked) || defaultPlan(list);
+  const intro = reason === 'intro';
+  // Магазин не віддав цін — купувати нічого; підвал пояснює й пропонує ще раз
+  const failed = !unavailable && !list.length && plansFailed;
+  // Блок помилки тримається й під час повторного запиту (див. retrying)
+  const showFailed = failed || (retrying && !unavailable && !list.length);
+  // Ціни ще їдуть: на їхньому місці заглушка (не помилка й не «без магазину»)
+  const loadingPlans = !list.length && !unavailable && !failed;
+  useEffect(() => {
+    if (loadingPlans) sawSkeleton.current = true;
+  }, [loadingPlans]);
+  useEffect(() => {
+    if (!retrying) return;
+    if (list.length) {
+      setRetrying(false);
+      return;
+    }
+    if (!plansFailed) {
+      sawLoading.current = true;
+      return;
+    }
+    if (sawLoading.current) {
+      // Запит закінчився, а цін знову нема: легке попередження в руці. Голосом
+      // це скаже useAnnounce нижче: failed знову став true після порожнього тексту.
+      sawLoading.current = false;
+      setRetrying(false);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    }
+  }, [retrying, plansFailed, list.length]);
+  // Запит міг узагалі не стартувати (немає магазину): не крутимо спінер вічно
+  useEffect(() => {
+    if (!retrying) return;
+    const id = setTimeout(() => setRetrying(false), 10000);
+    return () => clearTimeout(id);
+  }, [retrying]);
+
+  // «Спробуй безкоштовно» і таймлайн — лише коли пробний період є саме в
+  // обраного тарифу (Apple дає його не всім: хто вже пробував, платить
+  // одразу). Обрав місячний без пробного — заголовок не обіцяє «безкоштовно»
+  // над кнопкою, що списує гроші сьогодні (App Review 3.1.2).
+  const timeline = intro && plan?.trialDays > 0;
+  // «Продовжити безкоштовно»: скільки безкоштовних сканів ЛИШИЛОСЬ (а не
+  // скільки їх було на старті); жодного — просто «продовжити». Лічильник
+  // невідомий (екран без App) — стеля.
+  const freeLeft = Number.isFinite(scansLeft) ? scansLeft : freeScans;
+
+  // Скільки слів дня дає Pro: найбільший варіант (з таблиці, тобто з прапорців)
+  const wodMost = COMPARISON.find((r) => r.id === 'wodn')?.pro || 5;
 
   // Заголовок під причину: кожна стіна має свій аргумент.
   const HEAD = {
-    scans: { title: t('pwScansTitle'), text: t('pwScansText', { n: FREE.scansPerDay }) },
-    words: { title: t('pwWordsTitle'), text: t('pwWordsText', { n: FREE.maxWords }) },
+    scans: { title: t('pwScansTitle', { n: freeScans }), text: t('pwScansText', { n: freeScans }) },
+    scene: { title: t('pwSceneTitle'), text: t('pwSceneText', { n: freeScenes }) },
     langs: { title: t('pwLangsTitle'), text: t('pwLangsText') },
+    themes: { title: t('pwThemesTitle'), text: t('pwThemesText') },
+    wod_per_day: { title: t('pwWodTitle', { n: wodMost }), text: t('pwWodText') },
   };
-  const head = HEAD[reason] || { title: t('pwTitle'), text: t('pwText') };
+  const plain = { title: t('pwTitle'), text: t('pwText') };
+  const trialHead = { title: t('pwIntroTitle'), text: t('pwIntroText') };
+  // Мʼякий пейвол: шапка з пробним періодом чи без — залежно від тарифу.
+  // Обидві займають місце більшої з них (Stable), тож тарифи під шапкою
+  // стоять на місці, поки людина їх перемикає.
+  const heads = compact
+    ? [{ title: t('pwPlansTitle'), text: '' }]
+    : intro
+      ? list.some((p) => p.trialDays > 0)
+        ? [trialHead, plain]
+        : [plain]
+      : [HEAD[reason] || plain];
+  const headAt = intro && !compact && heads.length > 1 && !timeline ? 1 : 0;
 
-  const plan = PLANS.find((p) => p.id === picked);
+  // Таблиця з рядком цієї стіни першим: на стіні мов перше, що бачить
+  // людина, — «Мов одночасно 1 → 29», а не скани.
+  const rows = useMemo(() => {
+    const first = REASON_ROW[reason];
+    return first ? [...COMPARISON].sort((a, b) => (b.id === first) - (a.id === first)) : COMPARISON;
+  }, [reason]);
 
   // Пряма дата, коли спишуться гроші. «Через 7 днів» — розмито;
   // конкретне число прибирає відчуття, що щось приховали.
   function chargeDate(days) {
-    const d = new Date(Date.now() + days * 86400000);
-    return d.toLocaleDateString(undefined, { day: 'numeric', month: 'long' });
+    return formatDate(Date.now() + days * 86400000, lang);
   }
 
   async function buy() {
+    // покупка й відновлення не йдуть разом: StoreKit і logIn не люблять паралелі
+    if (!plan || buyingRef.current || restoringRef.current) return;
+    buyingRef.current = true;
     setBusy(true);
+    setNote(null);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    await onPurchase(picked);
-    setBusy(false);
+    let res;
+    try {
+      res = await onPurchase(plan.id);
+    } catch (_) {
+      // невідомо, чи списано: «щось пішло не так» з виходом через відновлення
+      res = { ok: false, error: 'FAILED' };
+    } finally {
+      buyingRef.current = false;
+      setBusy(false);
+    }
+    // Скасування в системному вікні — не помилка, мовчимо. «Гроші не
+    // списано» — лише коли це точно так (див. purchaseNote).
+    const next = purchaseNote(res);
+    setNote(next);
+    // Збій — легке попередження в руці; «чекаємо схвалення» й «вже куплено» не
+    // помилки, а скасування людина зробила сама
+    if (next === 'purchaseFailed' || next === 'purchaseUnclear') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
   }
+
+  async function restore() {
+    if (restoringRef.current || buyingRef.current) return;
+    restoringRef.current = true;
+    setRestoring(true);
+    Haptics.selectionAsync();
+    let next = null;
+    try {
+      next = await onRestore();
+    } catch (_) {
+      next = { error: 'FAILED' };
+    } finally {
+      restoringRef.current = false;
+      setRestoring(false);
+    }
+    // Короткий жирний заголовок і пояснення під ним, а не речення в заголовку
+    const key = restoreNote(next);
+    Alert.alert(t(restoreTitle(key)), t(key));
+    if (next?.pro && !next.error) onClose();
+  }
+
+  function retry() {
+    Haptics.selectionAsync();
+    sawLoading.current = false;
+    setRetrying(true);
+    if (onRetry) onRetry();
+  }
+
+  // Той самий тариф: нічого не змінилось, тож і вібрації нема
+  function pickPlan(id) {
+    if (id === plan?.id) return;
+    Haptics.selectionAsync();
+    setPicked(id);
+  }
+
+  // Кружечок палітри: мініекран перефарбовується, App запамʼятовує вибір
+  function pickPalette(key) {
+    if (key === shownPalette) return;
+    Haptics.selectionAsync();
+    setShownPalette(key);
+    if (onPalette) onPalette(key);
+  }
+
+  // Що під назвою тарифу: місячний — «щомісяця, скасуй будь-коли» (ціна й
+  // так праворуч), річний — скільки це на місяць і пробний період.
+  function subParts(p) {
+    if (p.lifetime) return [t('lifetimeOnce')];
+    const base = p.id === 'month' ? t('planSubMonth') : p.id === 'week' ? t('planSubWeek') : p.perMonth ? t('perMonth', { p: p.perMonth }) : '';
+    return [base, p.trialDays ? t('trialDays', { n: p.trialDays }) : ''].filter(Boolean);
+  }
+
+  // Тарифи з ціною з магазину — перші під заголовком на кожній стіні.
+  // Для VoiceOver — група перемикачів: «Рік, $59.99, …, вибрано».
+  const plansBlock = (
+    <FadeIn delay={45} style={{ marginTop: compact ? 20 : short ? 12 : 26 }}>
+      {/* Три сірі блоки висоти тарифів замість спінера: екран не підстрибує,
+          коли ціни приходять. Skeleton сам прихований від VoiceOver, тож
+          «завантажується» каже контейнер. */}
+      {loadingPlans ? (
+        <View accessible accessibilityLabel={t('plansLoading')} accessibilityState={{ busy: true }} style={{ gap: 10 }} testID="plans-skeleton">
+          {Array.from({ length: PLAN_SKELETONS }, (_, i) => (
+            <Skeleton key={i} height={short && !compact ? PLAN_H_SHORT : PLAN_H} radius={R.lg} />
+          ))}
+        </View>
+      ) : null}
+      <View style={{ gap: 10 }} accessibilityRole="radiogroup">
+        {list.map((p, i) => {
+          const active = plan?.id === p.id;
+          const parts = subParts(p);
+          const save = p.save ? t('saveN', { n: p.save }) : '';
+          const label = [t(p.labelKey), p.price, ...parts, p.best ? t('bestValue') : '', save].filter(Boolean).join(', ');
+          const row = (
+            <PlanRow
+              p={p}
+              active={active}
+              short={short}
+              compact={compact}
+              label={label}
+              parts={parts}
+              save={save}
+              onPick={() => pickPlan(p.id)}
+              s={s}
+              C={C}
+              SHADOW={SHADOW}
+              t={t}
+            />
+          );
+          // dy={0}: лише проявлення, без зсуву; рядки йдуть один за одним
+          return sawSkeleton.current ? (
+            <FadeIn key={p.id} index={i} dy={0}>
+              {row}
+            </FadeIn>
+          ) : (
+            <Fragment key={p.id}>{row}</Fragment>
+          );
+        })}
+      </View>
+    </FadeIn>
+  );
+
+  // Без пробного періоду в мʼякому пейволі — один рядок замість таймлайну
+  const todayLine =
+    intro && plan && !timeline
+      ? plan.lifetime
+        ? t('pwTodayLifetime')
+        : TODAY_LINE[plan.id]
+          ? t(TODAY_LINE[plan.id], { p: plan.price })
+          : null
+      : null;
+
+  const legal = plan?.lifetime
+    ? t('lifetimeLegal')
+    : plan?.trialDays
+      ? t(plan.legalKey, { p: plan.price, d: chargeDate(plan.trialDays) })
+      : plan && RENEW_LEGAL[plan.id]
+        ? t(RENEW_LEGAL[plan.id], { p: plan.price })
+        : t('renewLegal');
+
+  // Ask to Buy «чекаємо на схвалення» — стан, а не помилка: сірим.
+  // «Щось пішло не так» — без «напиши в підтримку» в самому реченні: коли
+  // адреса є, під ним справжнє посилання, а коли нема — і писати нікуди.
+  const noteText = unavailable ? t('purchasesUnavailable') : note === 'purchaseUnclear' ? t('pwUnclearNote') : note ? t(note) : '';
+
+  // VoiceOver на iOS не читає accessibilityLiveRegion (це лише Android): збій
+  // чи «чекаємо схвалення» під кнопкою, що з'явилися самі, озвучуємо вголос.
+  // Лише відповідь на дію людини (note), а не «покупки недоступні» зі старту.
+  useAnnounce(note ? noteText : '');
+  useAnnounce(failed ? `${t('pricesFailed')}. ${t('pricesFailedHint')}` : '');
 
   return (
     <View style={s.root}>
-      <Pressable style={s.close} onPress={onClose} hitSlop={12}>
-        <IcClose size={22} color={C.faint} />
-      </Pressable>
+      {/* Хрестик — у власній смужці поза прокруткою: ціни під ним не їздять */}
+      <View style={[s.topBar, short && s.topBarShort]}>
+        <Press style={s.close} onPress={onClose} hitSlop={4} minTarget={0} feedback="dim" accessibilityRole="button" accessibilityLabel={t('close')}>
+          <View style={s.closeDot}>
+            <IcClose size={20} color={C.dim} />
+          </View>
+        </Press>
+      </View>
 
-      <ScrollView
-        contentContainerStyle={s.scroll}
-        showsVerticalScrollIndicator={false}
-        bounces={false}
-      >
+      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false} bounces={false}>
         <FadeIn style={{ alignItems: 'center' }}>
-          <MascotBob pose="celebrate" size={140} />
-          <View style={s.proBadge}>
-            <PCrown size={17} color={C.onAccent} />
-            <Text style={s.proBadgeText}>PRO</Text>
+          {themes ? (
+            <>
+              <ThemePreview palette={shownPalette} dark={isDark} word={previewWord} short={short} t={t} />
+              <PaletteDots value={shownPalette} dark={isDark} onPick={pickPalette} short={short} t={t} />
+            </>
+          ) : compact || short ? null : (
+            <MascotBob pose="celebrate" size={140} />
+          )}
+          {/* на SE під прев'ю бейдж зайвий: заголовок і так каже «у Pro», а
+              тарифи мають лишитись над підвалом */}
+          {themes && short ? null : (
+            <View style={[s.proBadge, themes && s.proBadgeAfterDots]}>
+              <PCrown size={17} color={C.onAccent} />
+              <Text style={s.proBadgeText}>PRO</Text>
+            </View>
+          )}
+          <Stable index={headAt}>
+            {heads.map((h, i) => (
+              <View key={i} style={{ alignItems: 'center' }}>
+                <Text style={[s.title, short && s.titleShort]} accessibilityRole="header">
+                  {h.title}
+                </Text>
+                {h.text ? <Text style={[s.text, short && s.textShort]}>{h.text}</Text> : null}
+              </View>
+            ))}
+          </Stable>
+        </FadeIn>
+
+        {plansBlock}
+
+        {/* Таймлайн пробного періоду: людина щойно побачила, що вміє
+            застосунок, і тепер питання не «що дає Pro», а «що буде, якщо
+            спробую». Без пробного — один рядок про сьогоднішнє списання. */}
+        {timeline ? (
+          <FadeIn delay={70}>
+            <TrialTimeline days={plan.trialDays} price={plan.price} lang={lang} canRemind={canRemind} t={t} />
+          </FadeIn>
+        ) : todayLine ? (
+          <View style={s.today} accessible>
+            <View style={[s.tlDot, s.tlDotNow, { marginTop: 0 }]} />
+            <Text style={s.todayText}>{todayLine}</Text>
           </View>
-          <Text style={s.title}>{head.title}</Text>
-          <Text style={s.text}>{head.text}</Text>
-        </FadeIn>
+        ) : null}
 
-        {/* Порівняння. Це головне на екрані: людина має побачити не список
-            благ, а свою нинішню ситуацію і те, як вона зміниться. Без лівої
-            колонки «зараз» права колонка нічого не означає. */}
-        <FadeIn delay={45} style={s.table}>
-          <View style={s.tableHead}>
-            <View style={{ flex: 1 }} />
-            <Text style={s.colFree}>{t('colFree')}</Text>
-            <View style={s.colProWrap}>
-              <Text style={s.colPro}>PRO</Text>
-            </View>
-          </View>
-
-          {COMPARISON.map((row, i) => (
-            <View key={row.id} style={[s.tableRow, i > 0 && s.tableRowLine]}>
-              <Text style={s.rowLabel}>{t('cmp_' + row.id)}</Text>
-
-              <View style={s.cellFree}>
-                {row.free === true ? (
-                  <IcCheck size={16} color={C.faint} />
-                ) : (
-                  <Text style={s.cellFreeText}>{row.free}</Text>
-                )}
-              </View>
-
-              <View style={s.cellPro}>
-                {row.pro === true ? (
-                  <IcCheck size={16} color={C.accent} />
-                ) : (
-                  <Text style={s.cellProText}>{row.pro}</Text>
-                )}
+        {/* Порівняння: не список благ, а нинішня ситуація людини і те, як
+            вона зміниться. Без лівої колонки «безкоштовно» права нічого не
+            означає. Рядок цієї стіни — першим. */}
+        {intro || compact ? null : (
+          <FadeIn delay={70} style={s.table}>
+            <View style={s.tableHead}>
+              <View style={{ flex: 1 }} />
+              <Text style={s.colFree} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} maxFontSizeMultiplier={1.2}>
+                {t('colFree')}
+              </Text>
+              <View style={s.colProWrap}>
+                <Text style={s.colPro}>PRO</Text>
               </View>
             </View>
-          ))}
-        </FadeIn>
 
-        {/* Те, чого без Pro немає взагалі */}
-        <FadeIn delay={70} style={s.benefits}>
-          {PRO_BENEFITS.filter((b) => b.id === 'photos' || b.id === 'support').map((b) => (
-            <View key={b.id} style={s.benefitRow}>
-              <View style={s.benefitIcon}>
-                <ProIcon name={b.icon} size={20} color={C.accent} />
-              </View>
-              <Text style={s.benefitText}>{t('pro_' + b.id)}</Text>
-            </View>
-          ))}
-        </FadeIn>
-
-        {/* Тарифи */}
-        <FadeIn delay={90} style={{ gap: 10, marginTop: 26 }}>
-          {PLANS.map((p) => {
-            const active = picked === p.id;
-            return (
-              <Press
-                key={p.id}
-                onPress={() => {
-                  Haptics.selectionAsync();
-                  setPicked(p.id);
-                }}
-                style={[s.plan, active && s.planActive, active && SHADOW]}
-              >
-                <View style={[s.radio, active && s.radioOn]}>
-                  {active ? <IcCheck size={13} color={C.onAccent} /> : null}
-                </View>
-
-                <View style={{ flex: 1 }}>
-                  <View style={s.planTop}>
-                    <Text style={[s.planName, active && { color: C.text }]}>{t(p.labelKey)}</Text>
-                    {p.best ? (
-                      <View style={s.bestTag}>
-                        <Text style={s.bestTagText}>{t('bestValue')}</Text>
+            {rows.map((row, i) => {
+              // стелі — з сервера, а не з довідника
+              const free = row.id === 'scans' ? String(freeScans) : row.id === 'scene' ? String(freeScenes) : row.free;
+              const pro = row.upTo ? t('cmpUpTo', { n: row.pro }) : row.pro;
+              return (
+                <View key={row.id} style={[s.tableRow, i > 0 && s.tableRowLine]}>
+                  {/* Нове у v1.3 — з позначкою; на вузькому екрані вона
+                      переходить під назву, а не стискає її */}
+                  <View style={s.rowLabelWrap}>
+                    <Text style={s.rowLabel}>{t('cmp_' + row.id)}</Text>
+                    {row.fresh ? (
+                      <View style={s.newTag}>
+                        <Text style={s.newTagText}>{t('cmpNew')}</Text>
                       </View>
                     ) : null}
                   </View>
-                  <Text style={s.planPer}>
-                    {p.trialDays ? t('trialDays', { n: p.trialDays }) : t('perMonth', { p: p.perMonth })}
-                  </Text>
-                </View>
 
-                <View style={{ alignItems: 'flex-end' }}>
-                  <Text style={[s.planPrice, active && { color: C.accent }]}>{p.price}</Text>
-                  {p.saveKey ? <Text style={s.saveText}>{t(p.saveKey)}</Text> : null}
+                  <View style={s.cellFree}>
+                    {free === true ? (
+                      <IcCheck size={16} color={C.faint} />
+                    ) : row.none ? (
+                      // «немає» — тихий хрестик у тон галочки, а не риска:
+                      // тире в тексті власник заборонив
+                      <View accessible accessibilityLabel={t('cmpNone')} testID="cmp-none">
+                        <IcClose size={14} color={C.faint} />
+                      </View>
+                    ) : (
+                      <Text style={s.cellFreeText}>{free}</Text>
+                    )}
+                  </View>
+
+                  <View style={s.cellPro}>
+                    {pro === true ? (
+                      <IcCheck size={16} color={C.accent} />
+                    ) : (
+                      <Text style={s.cellProText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
+                        {pro}
+                      </Text>
+                    )}
+                  </View>
                 </View>
-              </Press>
-            );
-          })}
+              );
+            })}
+          </FadeIn>
+        )}
+
+        {/* Те, чого немає в таблиці. Лише правда: наліпки й колекція
+            безкоштовні для всіх, тож тут їх немає (App Review 3.1.2). У
+            мʼякому пейволі таблиці немає — тоді тут і самі переваги Pro. */}
+        <FadeIn delay={90} style={s.benefits}>
+          {(compact ? [] : intro ? topBenefits(PRO_BENEFITS) : PRO_BENEFITS.filter((b) => b.id === 'support')).map((b) => (
+            <View key={b.id} style={s.benefitRow}>
+              <View style={s.benefitIcon}>
+                <BenefitIcon name={b.icon} size={20} color={C.accent} />
+              </View>
+              <Text style={s.benefitText}>{t('pro_' + b.id, { n: b.n })}</Text>
+            </View>
+          ))}
         </FadeIn>
       </ScrollView>
 
       {/* Дія притиснута донизу — під великий палець */}
       <View style={[s.footer, SHADOW_LG]}>
-        <GradBtn
-          title={plan?.trialDays ? t('startTrial') : t('subscribe')}
-          onPress={buy}
-          disabled={busy}
-        />
-        <Text style={s.legal}>
-          {plan?.trialDays
-            ? t('trialLegal', { p: plan.price, d: chargeDate(plan.trialDays) })
-            : t('renewLegal')}
-        </Text>
+        {showFailed ? (
+          // Ціни не завантажились: що сталося, що зробити і кнопка, а не
+          // мовчазна вимкнена «Перейти на Pro». Android читає зміну сам
+          // (liveRegion), iOS чує її з useAnnounce вище.
+          <View accessibilityLiveRegion="polite">
+            <Text style={s.failedText} maxFontSizeMultiplier={1.3}>
+              {t('pricesFailed')}
+            </Text>
+            <Text style={s.failedHint} maxFontSizeMultiplier={1.3}>
+              {t('pricesFailedHint')}
+            </Text>
+            <GradBtn title={t('pricesRetry')} onPress={retry} loading={retrying} style={{ marginTop: 12 }} />
+          </View>
+        ) : (
+          <>
+            <GradBtn
+              title={plan?.trialDays ? t('startTrial') : plan?.lifetime ? t('buyLifetime') : t('subscribe')}
+              onPress={buy}
+              loading={busy}
+              disabled={!plan || unavailable || restoring}
+              // найбільший системний шрифт не має виштовхувати основну кнопку
+              // з екрана пейволу (тарифи вище вже з обмеженням)
+              maxFontScale={1.4}
+            />
+            {/* Без магазину кажемо це одразу, а не після марного тапу */}
+            {noteText ? (
+              <Text
+                style={[s.note, note === 'purchasePending' && !unavailable && s.notePending]}
+                numberOfLines={2}
+                maxFontSizeMultiplier={1.3}
+                accessibilityLiveRegion="polite"
+              >
+                {noteText}
+              </Text>
+            ) : null}
+            {note === 'purchaseUnclear' && SUPPORT_EMAIL ? (
+              <Press
+                style={s.supportHit}
+                hitSlop={LINK_SLOP}
+                minTarget={0}
+                feedback="dim"
+                onPress={() => openSupportMail(t)}
+                accessibilityRole="link"
+              >
+                <Text style={s.supportLink} maxFontSizeMultiplier={1.3}>
+                  {t('pwContactSupport')}
+                </Text>
+              </Press>
+            ) : null}
+            {/* Умови поруч із кнопкою покупки завжди (App Review 3.1.2) */}
+            <Text style={s.legal} maxFontSizeMultiplier={1.3}>
+              {legal}
+            </Text>
+          </>
+        )}
+        {/* Вихід без покупки — повноцінна кнопка в один рядок, а не сірий
+            дрібний текст, який треба шукати. */}
+        {intro ? (
+          <Press style={s.freeBtn} onPress={onClose} minTarget={0} accessibilityRole="button">
+            <Text
+              style={s.freeBtnText}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.85}
+              maxFontSizeMultiplier={1.3}
+            >
+              {freeLeft > 0 ? t('pwContinueFree', { n: freeLeft }) : t('pwContinueFreeNoScans')}
+            </Text>
+          </Press>
+        ) : null}
         <View style={s.legalRow}>
-          <Pressable hitSlop={8}>
-            <Text style={s.legalLink}>{t('restore')}</Text>
-          </Pressable>
-          <Text style={s.legalDot}>·</Text>
-          <Pressable hitSlop={8}>
-            <Text style={s.legalLink}>{t('terms')}</Text>
-          </Pressable>
+          <Press
+            style={s.linkHit}
+            hitSlop={LINK_SLOP}
+            minTarget={0}
+            feedback="dim"
+            onPress={restore}
+            busy={restoring}
+            disabled={busy}
+            accessibilityRole="button"
+            accessibilityState={{ busy: restoring, disabled: restoring || busy }}
+          >
+            <Text style={s.legalLink} maxFontSizeMultiplier={1.3}>
+              {restoring ? t('restoreBusy') : t('restore')}
+            </Text>
+          </Press>
+          <Press style={s.linkHit} hitSlop={LINK_SLOP} minTarget={0} feedback="dim" onPress={() => openLink(TERMS_URL)} accessibilityRole="link">
+            <Text style={s.legalLink} maxFontSizeMultiplier={1.3}>
+              {t('terms')}
+            </Text>
+          </Press>
+          {PRIVACY_URL ? (
+            <Press style={s.linkHit} hitSlop={LINK_SLOP} minTarget={0} feedback="dim" onPress={() => openLink(PRIVACY_URL)} accessibilityRole="link">
+              <Text style={s.legalLink} maxFontSizeMultiplier={1.3}>
+                {t('privacy')}
+              </Text>
+            </Press>
+          ) : null}
         </View>
       </View>
     </View>
   );
 }
 
+// Рядок тарифу. Вибір показує не рамка, що перемикається за один кадр, а шар,
+// що проявляється: кільце акценту й заливка радіо виходять із 0 за DUR.micro і
+// гаснуть за DUR.press. Це лише непрозорість, тож «Зменшити рух» її лишає.
+// Звичайна рамка в картки прозора й завжди є, тож розміри не міняються.
+function PlanRow({ p, active, short, compact, label, parts, save, onPick, s, C, SHADOW, t }) {
+  const sel = useRef(new Animated.Value(active ? 1 : 0)).current;
+  const seen = useRef(false);
+  useEffect(() => {
+    // перший рендер: вибір уже на місці, анімувати нічого
+    if (!seen.current) {
+      seen.current = true;
+      return;
+    }
+    const anim = Animated.timing(sel, {
+      toValue: active ? 1 : 0,
+      duration: active ? DUR.micro : DUR.press,
+      easing: EASE.soft,
+      useNativeDriver: true,
+    });
+    anim.start();
+    return () => anim.stop();
+  }, [active]);
+
+  return (
+    <Press
+      onPress={onPick}
+      style={[s.plan, short && !compact && s.planShort, active && SHADOW]}
+      accessibilityRole="radio"
+      accessibilityState={{ checked: active }}
+      accessibilityLabel={label}
+    >
+      <Animated.View pointerEvents="none" style={[s.planRing, { opacity: sel }]} />
+      <View style={s.radio}>
+        <Animated.View style={[s.radioFill, { opacity: sel }]}>
+          <IcCheck size={13} color={C.onAccent} />
+        </Animated.View>
+      </View>
+
+      <View style={{ flex: 1 }}>
+        <View style={s.planTop}>
+          <Text style={[s.planName, active && { color: C.text }]} maxFontSizeMultiplier={1.4}>
+            {t(p.labelKey)}
+          </Text>
+          {p.best ? (
+            <View style={s.bestTag}>
+              <Text style={s.bestTagText} maxFontSizeMultiplier={1.3}>
+                {t('bestValue')}
+              </Text>
+            </View>
+          ) : null}
+        </View>
+        <Text style={s.planPer} maxFontSizeMultiplier={1.4}>
+          {parts.join(' · ')}
+        </Text>
+      </View>
+
+      <View style={{ alignItems: 'flex-end' }}>
+        <Text style={[s.planPrice, active && { color: C.accent }]} maxFontSizeMultiplier={1.4}>
+          {p.price}
+        </Text>
+        {save ? (
+          <Text style={s.saveText} maxFontSizeMultiplier={1.3}>
+            {save}
+          </Text>
+        ) : null}
+      </View>
+    </Press>
+  );
+}
+
+// Кілька варіантів в одній клітинці: висота — найбільшого з них, видно лише
+// index-ий. Невидимі стоять поруч праворуч, за обрізаним краєм, і сховані
+// від VoiceOver: шапка не міняє висоти, коли міняється її текст.
+function Stable({ index, children }) {
+  const items = Children.toArray(children);
+  if (items.length < 2) return items[0] || null;
+  const order = [index, ...items.map((_, i) => i).filter((i) => i !== index)];
+  return (
+    <View style={{ flexDirection: 'row', alignSelf: 'stretch', overflow: 'hidden' }}>
+      {order.map((i) => {
+        const on = i === index;
+        return (
+          <View
+            key={i}
+            style={[{ width: '100%', flexShrink: 0 }, !on && { opacity: 0 }]}
+            pointerEvents={on ? 'auto' : 'none'}
+            accessibilityElementsHidden={!on}
+            importantForAccessibility={on ? 'auto' : 'no-hide-descendants'}
+            aria-hidden={!on}
+          >
+            {items[i]}
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+// План, обраний за замовчуванням: річний (у нього пробний тиждень), інакше
+// позначений «найвигідніше», інакше перший. Ніяких передвибраних дорожчих.
+export function defaultPlan(list) {
+  const all = list || [];
+  return all.find((p) => p.id === 'year') || all.find((p) => p.best) || all[0] || null;
+}
+
+// Таймлайн пробного періоду: сьогодні → нагадування за 2 дні до кінця →
+// списання. Дні рахуються від сьогодні, дати — конкретні числа: «8 жовтня»
+// чесніше за «через тиждень». Нагадування — лише якщо зможемо його
+// надіслати (див. canRemind) і якщо до нього лишається хоч день. День
+// нагадування — той самий, що ставить scheduleTrialReminder (wordOfDay.js).
+//
+// dense — тісніший варіант для низьких екранів (SE): на другому екрані
+// пейволу онбордингу під таймлайном ще має влізти «скасувати будь-коли».
+export function TrialTimeline({ days, price, lang, canRemind, dense = false, t }) {
+  const { C } = useTheme();
+  const s = useMemo(() => makeStyles(C), [C]);
+  const date = (n) => formatDate(Date.now() + n * 86400000, lang);
+  const rows = [
+    { key: 'today', label: t('tlToday'), text: t('tlTodayText') },
+    ...(canRemind && days > TRIAL_REMIND_DAYS
+      ? [
+          {
+            key: 'remind',
+            label: t('tlDay', { n: days - TRIAL_REMIND_DAYS }),
+            date: date(days - TRIAL_REMIND_DAYS),
+            text: t('tlRemindText'),
+          },
+        ]
+      : []),
+    { key: 'charge', label: t('tlDay', { n: days }), date: date(days), text: t('tlChargeText', { p: price }) },
+  ];
+  return (
+    <View style={[s.timeline, dense && s.timelineDense]}>
+      {rows.map((r, i) => (
+        <View key={r.key} style={s.tlRow} accessible>
+          <View style={s.tlRail}>
+            <View style={[s.tlDot, i === 0 && s.tlDotNow]} />
+            {i < rows.length - 1 ? <View style={s.tlLine} /> : null}
+          </View>
+          <View style={[s.tlBody, dense && s.tlBodyDense]}>
+            <Text style={s.tlLabel}>
+              {r.label}
+              {r.date ? <Text style={s.tlDate}>{'  ·  ' + r.date}</Text> : null}
+            </Text>
+            <Text style={s.tlText}>{r.text}</Text>
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+// ── Пейвол «themes» ──────────────────────────────────────────────────────────
+// Мініекран у палітрі, яку людина дивиться: картка слова дня, як на
+// «Навчанні», лише без дотиків. Кольори — не з контексту (там тема, яку
+// людина має зараз), а з THEMES обраної палітри, у тому ж світлому чи
+// темному вигляді, що й застосунок. Видно, що змінюється (тло, картка,
+// акцент, вогник серії), а що ні (Lingo). Шрифт не масштабується: це
+// ілюстрація, а не текст для читання, і VoiceOver чує її одним підписом.
+// short — iPhone SE: без рядка кнопок, «Зберегти» поруч зі словом, щоб
+// тарифи лишились над підвалом без прокрутки.
+export function ThemePreview({ palette, dark, word, short = false, t }) {
+  const th = THEMES[themeKeyOf(palette, dark)] || THEMES.light;
+  const P = th.C;
+  const s = useMemo(() => makePreviewStyles(P), [P]);
+  const w = word?.word ? word : { word: t('themeSampleWord'), ipa: t('themeSampleIpa'), translation: t('themeSampleTr') };
+  const name = t('palette_' + palette);
+  const save = (
+    <View style={[s.btn, s.saveBtn, short ? s.saveShort : s.grow]}>
+      <Text style={[s.btnText, { color: P.onAccent }]} numberOfLines={1} allowFontScaling={false}>
+        {t('saveWord')}
+      </Text>
+    </View>
+  );
+  return (
+    <View
+      testID="theme-preview"
+      style={[s.stage, short && s.stageShort]}
+      accessible
+      accessibilityRole="image"
+      accessibilityLabel={t('pwThemesPreview', { p: name })}
+    >
+      <View style={[s.card, th.SHADOW_SM, short && s.cardShort]}>
+        <View style={s.head}>
+          <View style={s.badge}>
+            <Text style={s.badgeText} numberOfLines={1} allowFontScaling={false}>
+              {t('wordOfDay').toLocaleUpperCase()}
+            </Text>
+          </View>
+          <View style={{ flex: 1 }} />
+          {/* серія — вогник у кольорах палітри */}
+          <View style={s.streak}>
+            <IcFlame size={12} color={P.flame} />
+            <Text style={s.streakText} allowFontScaling={false}>
+              5
+            </Text>
+          </View>
+        </View>
+        <View style={s.row}>
+          <View style={{ flex: 1 }}>
+            <Text style={s.word} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} allowFontScaling={false}>
+              {w.word}
+            </Text>
+            <Text style={s.tr} numberOfLines={1} allowFontScaling={false}>
+              {!short && w.ipa ? <Text style={s.ipa}>{w.ipa + '  '}</Text> : null}
+              {w.translation}
+            </Text>
+          </View>
+          {short ? save : <Mascot pose="think" size={40} />}
+        </View>
+        {short ? null : (
+          <View style={s.actions}>
+            <View style={[s.btn, s.listen]}>
+              <IcSpeaker size={14} color={P.accent} />
+            </View>
+            <View style={[s.btn, s.know, s.grow]}>
+              <Text style={s.btnText} numberOfLines={1} allowFontScaling={false}>
+                {t('wodKnow')}
+              </Text>
+            </View>
+            {save}
+          </View>
+        )}
+      </View>
+    </View>
+  );
+}
+
+// П'ять кружечків — акценти палітр у теперішньому вигляді (світлому чи
+// темному). Обраний обведено його ж кольором з проміжком у колір тла.
+// Для VoiceOver — група перемикачів з назвами палітр.
+export function PaletteDots({ value, dark, onPick, short = false, t }) {
+  const { C } = useTheme();
+  const s = useMemo(() => makePreviewStyles(C), [C]);
+  return (
+    <View style={[s.dots, short && s.dotsShort]} accessibilityRole="radiogroup">
+      {PALETTE_KEYS.map((key) => {
+        const accent = (THEMES[themeKeyOf(key, dark)] || THEMES.light).C.accent;
+        const on = key === value;
+        return (
+          <Pressable
+            key={key}
+            testID={'palette-dot-' + key}
+            onPress={() => onPick(key)}
+            hitSlop={short ? 6 : 5}
+            style={[s.dotHit, short && s.dotHitShort]}
+            accessibilityRole="radio"
+            accessibilityState={{ checked: on }}
+            accessibilityLabel={t('palette_' + key)}
+          >
+            <View style={[s.dotRing, short && s.dotRingShort, on && { borderColor: accent }]}>
+              <View style={[s.dot, short && s.dotShort, { backgroundColor: accent }]} />
+            </View>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+// Іконки переваг (і для інших екранів, що показують PRO_BENEFITS): решта —
+// з ProIcons, «слова дня» — дзвіночок сповіщення, «теми» — палітра
+// художника (сітка 24, штрих 1.8, як у ProIcons).
+export function BenefitIcon({ name, size, color }) {
+  if (name === 'bell') return <IcBell size={size} color={color} />;
+  if (name === 'palette') {
+    const st = { fill: 'none', stroke: color, strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round' };
+    return (
+      <Svg width={size} height={size} viewBox="0 0 24 24">
+        <Path
+          d="M12 3.6a8.4 8.4 0 1 0 0 16.8c1.1 0 1.8-.7 1.8-1.6 0-.5-.2-.9-.5-1.2-.3-.3-.5-.7-.5-1.2 0-.9.8-1.7 1.7-1.7h2.1a3.8 3.8 0 0 0 3.8-3.8c0-4-3.8-7.3-8.4-7.3z"
+          {...st}
+        />
+        <Circle cx="7.6" cy="11.4" r="1.2" {...st} strokeWidth={1.5} />
+        <Circle cx="9.8" cy="7.6" r="1.2" {...st} strokeWidth={1.5} />
+        <Circle cx="14.4" cy="7.4" r="1.2" {...st} strokeWidth={1.5} />
+      </Svg>
+    );
+  }
+  return <ProIcon name={name} size={size} color={color} />;
+}
+
+const DOT = 26;
+const makePreviewStyles = (P) =>
+  StyleSheet.create({
+    // Сцена — тло палітри. Тонка рамка її ж роздільника: світле тло палітри
+    // інакше зливалося б зі світлим тлом пейволу.
+    stage: {
+      alignSelf: 'stretch',
+      backgroundColor: P.bg,
+      borderRadius: R.xl,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: P.sep,
+      padding: 12,
+    },
+    stageShort: { padding: 8, borderRadius: R.lg },
+    card: { backgroundColor: P.card, borderRadius: 20, padding: 12 },
+    cardShort: { paddingVertical: 10 },
+    head: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
+    badge: { flexShrink: 1, backgroundColor: P.accentSoft, borderRadius: R.pill, paddingHorizontal: 8, paddingVertical: 3 },
+    badgeText: { color: P.accent, ...CAPS, fontSize: 9, letterSpacing: 0.5 },
+    streak: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 3,
+      backgroundColor: P.flameSoft,
+      borderRadius: R.pill,
+      paddingHorizontal: 7,
+      paddingVertical: 2,
+    },
+    streakText: { color: P.text, ...type(11, F.extra, { noLead: true }) },
+    row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    word: { color: P.text, ...type(20, F.extra, { noLead: true }), lineHeight: 25 },
+    ipa: { color: P.dim, ...ipaFont('500') },
+    tr: { color: P.text, ...type(13, F.semi, { noLead: true }), lineHeight: 17, marginTop: 1 },
+    actions: { flexDirection: 'row', gap: 7, marginTop: 10 },
+    btn: { height: 30, borderRadius: 10, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
+    listen: { width: 38, backgroundColor: P.accentSoft },
+    grow: { flex: 1 },
+    know: { backgroundColor: P.card2 },
+    saveBtn: { backgroundColor: P.accent },
+    saveShort: { paddingHorizontal: 14 },
+    btnText: { color: P.text, ...type(12, F.bold, { noLead: true }) },
+
+    dots: { flexDirection: 'row', justifyContent: 'center', gap: 10, marginTop: 12 },
+    dotsShort: { marginTop: 4, gap: 8 },
+    dotHit: { width: DOT + 12, height: DOT + 12, alignItems: 'center', justifyContent: 'center' },
+    // Кільце обраного: колір акценту, проміжок у колір тла
+    dotRing: {
+      width: DOT + 10,
+      height: DOT + 10,
+      borderRadius: (DOT + 10) / 2,
+      borderWidth: 2.5,
+      borderColor: 'transparent',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    dot: { width: DOT, height: DOT, borderRadius: DOT / 2 },
+    // SE: на 4 pt менші — з hitSlop ціль однаково ≥ 44
+    dotHitShort: { width: DOT + 6, height: DOT + 6 },
+    dotRingShort: { width: DOT + 4, height: DOT + 4, borderRadius: (DOT + 4) / 2, borderWidth: 2 },
+    dotShort: { width: DOT - 4, height: DOT - 4, borderRadius: (DOT - 4) / 2 },
+  });
+
+// Ширина колонки «безкоштовно»: «БЕЗКОШТОВНО» капсом має влізти в рядок
+const FREE_COL = 96;
+const PRO_COL = 66;
+
 const makeStyles = (C) =>
   StyleSheet.create({
     root: { flex: 1, backgroundColor: C.bg },
-    close: {
-      position: 'absolute',
-      top: 14,
-      right: 18,
-      zIndex: 10,
+    // Смужка під хрестик: тло екрана, ціль 44 pt
+    topBar: {
+      height: 52,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'flex-end',
+      paddingHorizontal: 10,
+      backgroundColor: C.bg,
+    },
+    // на SE — рівно на висоту цілі: кожен пункт тут на рахунку
+    topBarShort: { height: 44 },
+    close: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+    closeDot: {
       width: 36,
       height: 36,
       borderRadius: 18,
@@ -200,7 +999,7 @@ const makeStyles = (C) =>
       alignItems: 'center',
       justifyContent: 'center',
     },
-    scroll: { paddingHorizontal: 22, paddingTop: 26, paddingBottom: 20 },
+    scroll: { paddingHorizontal: 22, paddingTop: 0, paddingBottom: 20 },
 
     proBadge: {
       flexDirection: 'row',
@@ -213,8 +1012,11 @@ const makeStyles = (C) =>
       marginTop: 4,
     },
     proBadgeText: { color: C.onAccent, ...CAPS, letterSpacing: 1.6 },
+    // під кружечками палітр — трохи повітря, щоб бейдж не злипався з ними
+    proBadgeAfterDots: { marginTop: 12 },
 
     title: { color: C.text, ...type(28, F.extra), textAlign: 'center', marginTop: 14 },
+    titleShort: { ...type(26, F.extra), marginTop: 10 },
     text: {
       color: C.dim,
       ...type(15, F.reg),
@@ -222,18 +1024,19 @@ const makeStyles = (C) =>
       marginTop: 8,
       maxWidth: 300,
     },
+    textShort: { marginTop: 6, maxWidth: 330 },
 
     table: {
-      marginTop: 26,
+      marginTop: 22,
       backgroundColor: C.card,
       borderRadius: R.lg,
       paddingHorizontal: 16,
       paddingVertical: 6,
     },
     tableHead: { flexDirection: 'row', alignItems: 'flex-end', paddingVertical: 10 },
-    colFree: { width: 66, textAlign: 'center', color: C.faint, ...CAPS },
+    colFree: { width: FREE_COL, textAlign: 'center', color: C.dim, ...CAPS, letterSpacing: 0.4 },
     colProWrap: {
-      width: 66,
+      width: PRO_COL,
       alignItems: 'center',
       backgroundColor: C.accentSoft,
       borderTopLeftRadius: 10,
@@ -243,10 +1046,14 @@ const makeStyles = (C) =>
     colPro: { color: C.accent, ...CAPS, letterSpacing: 1.4 },
     tableRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 13 },
     tableRowLine: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.sep },
-    rowLabel: { flex: 1, color: C.text, ...type(14, F.semi, { noLead: true }) },
-    cellFree: { width: 66, alignItems: 'center' },
+    rowLabelWrap: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 6, rowGap: 4, paddingRight: 4 },
+    rowLabel: { flexShrink: 1, color: C.text, ...type(14, F.semi, { noLead: true }) },
+    // «нове» — тихо, мʼяким бурштином, а не другим акцентом
+    newTag: { backgroundColor: C.warmSoft, borderRadius: R.pill, paddingHorizontal: 7, paddingVertical: 2 },
+    newTagText: { color: C.text, ...type(11, F.extra, { noLead: true }) },
+    cellFree: { width: FREE_COL, alignItems: 'center' },
     cellFreeText: { color: C.dim, ...type(14, F.semi, { noLead: true }) },
-    cellPro: { width: 66, alignItems: 'center', backgroundColor: C.accentSoft, paddingVertical: 8 },
+    cellPro: { width: PRO_COL, alignItems: 'center', backgroundColor: C.accentSoft, paddingVertical: 8 },
     cellProText: { color: C.accent, ...type(15, F.extra, { noLead: true }) },
 
     benefits: { marginTop: 20, gap: 12 },
@@ -271,7 +1078,20 @@ const makeStyles = (C) =>
       borderWidth: 2,
       borderColor: 'transparent',
     },
-    planActive: { borderColor: C.accent },
+    // на SE тарифи трохи нижчі, щоб обраний лишався над підвалом навіть з
+    // помилкою покупки (рядок однаково вищий за 44 pt)
+    planShort: { paddingVertical: 12 },
+    // кільце вибору лежить поверх прозорої рамки картки (-2 = її товщина)
+    planRing: {
+      position: 'absolute',
+      top: -2,
+      left: -2,
+      right: -2,
+      bottom: -2,
+      borderRadius: R.lg,
+      borderWidth: 2,
+      borderColor: C.accent,
+    },
     radio: {
       width: 22,
       height: 22,
@@ -281,12 +1101,24 @@ const makeStyles = (C) =>
       alignItems: 'center',
       justifyContent: 'center',
     },
-    radioOn: { backgroundColor: C.accent, borderColor: C.accent },
-    planTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    // заливка з галочкою накриває рамку радіо (-2) і проявляється разом з кільцем
+    radioFill: {
+      position: 'absolute',
+      top: -2,
+      left: -2,
+      width: 22,
+      height: 22,
+      borderRadius: 11,
+      backgroundColor: C.accent,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    planTop: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 8, rowGap: 2 },
     planName: { color: C.dim, ...type(16, F.bold, { noLead: true }) },
-    planPer: { color: C.faint, ...type(13, F.reg, { noLead: true }), marginTop: 3 },
+    // dim, а не faint: «7 днів безкоштовно» — частина умов, ≥ 4.5:1
+    planPer: { color: C.dim, ...type(13, F.reg, { noLead: true }), marginTop: 3 },
     planPrice: { color: C.text, ...type(18, F.extra, { noLead: true }) },
-    saveText: { color: C.green, ...CAPS, marginTop: 3 },
+    saveText: { color: C.greenInk, ...CAPS, marginTop: 3 },
 
     bestTag: {
       backgroundColor: C.accentSoft,
@@ -296,22 +1128,74 @@ const makeStyles = (C) =>
     },
     bestTagText: { color: C.accent, ...CAPS, fontSize: 10 },
 
+    // Без пробного періоду — один рядок на місці таймлайну
+    today: {
+      marginTop: 24,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 14,
+      backgroundColor: C.card,
+      borderRadius: R.lg,
+      paddingHorizontal: 18,
+      paddingVertical: 16,
+    },
+    todayText: { flex: 1, color: C.text, ...type(15, F.bold) },
+
     footer: {
       backgroundColor: C.card,
       paddingHorizontal: 22,
       paddingTop: 16,
-      paddingBottom: 30,
+      // App уже додає відступ домашнього індикатора — свій лише невеликий
+      paddingBottom: 16,
       borderTopLeftRadius: R.xl,
       borderTopRightRadius: R.xl,
     },
+    // Юридичний рядок — частина розкриття умов (App Review 3.1.2): дрібний,
+    // але читабельний — dim, а не faint (у темній темі faint ледь видно).
     legal: {
-      color: C.faint,
-      ...type(11, F.reg),
+      color: C.dim,
+      ...type(12, F.reg),
       textAlign: 'center',
-      marginTop: 10,
+      marginTop: 8,
     },
-    legalStrong: { color: C.dim, ...type(12, F.semi), textAlign: 'center', marginTop: 4 },
-    legalRow: { flexDirection: 'row', justifyContent: 'center', gap: 8, marginTop: 6 },
-    legalLink: { color: C.dim, ...type(12, F.semi, { noLead: true }) },
-    legalDot: { color: C.faint },
+    note: { color: C.redInk, ...type(13, F.semi), textAlign: 'center', marginTop: 8 },
+    notePending: { color: C.dim },
+    supportHit: { alignSelf: 'center', minHeight: 44, justifyContent: 'center', paddingVertical: 10, marginTop: -6, marginBottom: -10 },
+    supportLink: { color: C.accent, ...type(13, F.bold, { noLead: true }) },
+    failedText: { color: C.text, ...type(16, F.bold), textAlign: 'center' },
+    failedHint: { color: C.dim, ...type(14, F.reg), textAlign: 'center', marginTop: 4 },
+    legalRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', columnGap: 16, marginTop: 2 },
+    linkHit: { minHeight: 44, paddingVertical: 10, justifyContent: 'center' },
+    legalLink: { color: C.dim, ...type(13, F.semi, { noLead: true }) },
+    freeBtn: {
+      marginTop: 10,
+      minHeight: 44,
+      borderRadius: R.lg,
+      backgroundColor: C.card2,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+    },
+    freeBtnText: { color: C.text, ...type(15, F.bold), textAlign: 'center' },
+
+    timeline: {
+      marginTop: 24,
+      backgroundColor: C.card,
+      borderRadius: R.lg,
+      paddingHorizontal: 18,
+      paddingTop: 18,
+      paddingBottom: 6,
+    },
+    tlRow: { flexDirection: 'row', gap: 14 },
+    tlRail: { width: 16, alignItems: 'center' },
+    tlDot: { width: 14, height: 14, borderRadius: 7, borderWidth: 3, borderColor: C.accent, backgroundColor: C.card, marginTop: 3 },
+    tlDotNow: { backgroundColor: C.accent },
+    tlLine: { flex: 1, width: 2, borderRadius: 1, backgroundColor: C.accentSoft, marginVertical: 4 },
+    tlBody: { flex: 1, paddingBottom: 16 },
+    timelineDense: { marginTop: 14, paddingTop: 14, paddingBottom: 2 },
+    tlBodyDense: { paddingBottom: 10 },
+    tlLabel: { color: C.text, ...type(16, F.extra) },
+    tlDate: { color: C.dim, ...type(14, F.semi) },
+    tlText: { color: C.dim, ...type(14, F.reg), marginTop: 2 },
   });

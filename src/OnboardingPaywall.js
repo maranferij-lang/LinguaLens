@@ -1,0 +1,348 @@
+// Пейвол наприкінці онбордингу — кілька екранів, по одній думці на кожному:
+//   а) «Спробуй Pro 7 днів безкоштовно» і три переваги (скани без меж,
+//      ціла кімната, 29 мов);
+//   б) «Нагадаємо за 2 дні до кінця» і таймлайн: сьогодні — повний доступ,
+//      за 2 дні до кінця — нагадування, день N — перше списання з ціною;
+//   в) наш PaywallScreen у режимі 'intro' (тарифи, ціна з магазину, умови,
+//      відновлення, «Продовжити безкоштовно») — або пейвол RevenueCat, якщо
+//      так каже metadata пропозиції (paywall_ui: "revenuecat").
+// Пробного періоду в тарифі за замовчуванням немає — (а) і (б) були б
+// неправдою: одразу (в), без таймлайну. Хрестик — на кожному екрані.
+//
+// Онбординг 3.0 (onboarding.md §5.13): firstWord — слово, яке людина щойно
+// зберегла першим сканом. Тоді на (а) замість Lingo — її власна наліпка, а
+// текст — «Твій безкоштовний скан — уже в словнику. З Pro скануй скільки
+// хочеш.»: пейвол продовжує мить, а не перебиває її.
+//
+// App Review 3.1.2: ціни на (а) і (б) немає взагалі, на (в) найпомітніша
+// цифра — сума списання в рядку тарифу; тривалість пробного періоду, що
+// буде після нього й як скасувати, видно до натиску.
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  AccessibilityInfo,
+  ActivityIndicator,
+  Animated,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from 'react-native';
+import PaywallScreen, { SHORT_SCREEN, TrialTimeline, defaultPlan } from './PaywallScreen';
+import { PRO_BENEFITS } from './subscription';
+import { ProIcon, PCrown } from './ProIcons';
+import { IcBell, IcCheck, IcClose } from './icons';
+import { MascotBob } from './Mascot';
+import { StickerLarge } from './Sticker';
+import { photoUri } from './photos';
+import { FadeIn, GradBtn, Press } from './ui';
+import { DUR, EASE, stagger, useScreenReader } from './motion';
+import { CAPS, F, R, type, useTheme } from './theme';
+
+// Номер екрана для статистики (paywall_step / paywall_close) — завжди той
+// самий для того самого екрана, навіть коли (а) і (б) пропущено.
+export const PAYWALL_STEP_INDEX = { trial: 0, reminder: 1, plans: 2 };
+
+// Екрани для цих тарифів: з пробним періодом — три, без нього — лише тарифи.
+export function paywallSteps(plans) {
+  return defaultPlan(plans)?.trialDays > 0 ? ['trial', 'reminder', 'plans'] : ['plans'];
+}
+
+// На (а) — лише те, за чим людина прийшла: скани, кімната, мови.
+const TRIAL_BENEFITS = PRO_BENEFITS.filter((b) => ['scans', 'scene', 'langs'].includes(b.id));
+
+// Скільки «Далі» лишається замкненим після зміни екрана: поки йде поява
+// (DUR.panel) і ще мить. Кнопка одна на екрани (а) і (б), тож швидкий
+// подвійний дотик перестрибнув би (б), де сказано, що ми нагадаємо.
+const LOCK_MS = DUR.panel + 30;
+
+// ui — 'custom' | 'revenuecat'; onPresentRc() → Promise<boolean>: true —
+// пейвол RevenueCat показано (далі все робить App), false — його немає чи він
+// упав, показуємо свій. onStep(i, name) — екран показано; onClose(i) — закрили.
+// Решта пропсів — ті самі, що в PaywallScreen.
+//
+// Після обіцянки («До завтра») пейвол не зʼявляється різким стрибком: уся
+// його поверхня мʼяко проявляється (лише прозорість, тож «Менше руху» нічого
+// не змінює), а екрани всередині міняються вже без цього.
+export default function OnboardingPaywall(props) {
+  const enter = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(enter, { toValue: 1, duration: DUR.sheet, easing: EASE.out, useNativeDriver: true }).start();
+    return () => enter.stopAnimation();
+  }, []);
+  return (
+    <Animated.View style={{ flex: 1, opacity: enter }} testID="opw-enter">
+      <PaywallSteps {...props} />
+    </Animated.View>
+  );
+}
+
+function PaywallSteps({
+  plans,
+  unavailable,
+  plansFailed,
+  onRetry,
+  canRemind = true,
+  freeScans,
+  scansLeft,
+  ui = 'custom',
+  onPresentRc,
+  onStep,
+  onClose,
+  onPurchase,
+  onRestore,
+  onOpen,
+  firstWord = null,
+  lang,
+  t,
+}) {
+  const { C, SHADOW_LG } = useTheme();
+  const s = useMemo(() => makeStyles(C), [C]);
+  // SE і подібні: менші Lingo й коло, тісніші відступи й таймлайн — (а)
+  // показує всі три переваги, а (б) — рядок списання й «скасувати можна
+  // будь-коли» без прокрутки
+  const short = useWindowDimensions().height < SHORT_SCREEN;
+  // Набір екранів фіксуємо на старті: тарифи, що дозавантажились посеред
+  // показу, не мають перекидати людину назад на (а).
+  const [steps] = useState(() => paywallSteps(plans));
+  const [i, setI] = useState(0);
+  const step = steps[i];
+  // Тариф, з яким відкрились: якщо тарифи посеред показу скинуться (невдале
+  // перезавантаження), екрани (а) і (б) не мають впасти на plan.trialDays
+  const [firstPlan] = useState(() => defaultPlan(plans));
+  const plan = defaultPlan(plans) || firstPlan;
+
+  // Замок «Далі» (див. LOCK_MS): settled — екран, що вже встиг зʼявитись
+  const [settled, setSettled] = useState(i);
+  useEffect(() => {
+    if (settled === i) return undefined;
+    const id = setTimeout(() => setSettled(i), LOCK_MS);
+    return () => clearTimeout(id);
+  }, [i, settled]);
+  const locked = settled !== i;
+  // Пейвол RevenueCat замість (в): 'idle' → 'pending' (показуємо) → 'failed'
+  const [rc, setRc] = useState(ui === 'revenuecat' && onPresentRc ? 'idle' : 'off');
+
+  useEffect(() => {
+    if (onStep) onStep(PAYWALL_STEP_INDEX[step], step);
+  }, [step]);
+
+  // «Далі» лишається на місці, тож VoiceOver стояв би на ньому й мовчав:
+  // незряча людина не почула б ні нового екрана, ні таймлайну з ціною й
+  // датою списання. Як у StepFrame — на кожному екрані фокус на заголовок.
+  const titleRef = useRef(null);
+  const reader = useScreenReader();
+  useEffect(() => {
+    if (!reader || !titleRef.current) return;
+    try {
+      AccessibilityInfo.sendAccessibilityEvent?.(titleRef.current, 'focus');
+    } catch (_) {}
+  }, [step, reader]);
+
+  useEffect(() => {
+    if (step !== 'plans' || rc !== 'idle') return;
+    setRc('pending');
+    Promise.resolve(onPresentRc())
+      .then((shown) => !shown && setRc('failed'))
+      .catch(() => setRc('failed'));
+  }, [step, rc]);
+
+  const close = () => onClose(PAYWALL_STEP_INDEX[step]);
+  const advance = () => setI((n) => Math.min(steps.length - 1, n + 1));
+
+  if (step === 'plans') {
+    if (rc === 'idle' || rc === 'pending') {
+      // Поки зверху нативний пейвол RevenueCat — під ним тихе тло
+      return (
+        <View style={[s.root, s.center]}>
+          <ActivityIndicator color={C.accent} />
+        </View>
+      );
+    }
+    return (
+      <PaywallScreen
+        reason="intro"
+        compact
+        plans={plans}
+        freeScans={freeScans}
+        scansLeft={scansLeft}
+        unavailable={unavailable}
+        plansFailed={plansFailed}
+        onRetry={onRetry}
+        canRemind={canRemind}
+        onClose={close}
+        onPurchase={onPurchase}
+        onRestore={onRestore}
+        onOpen={onOpen}
+        lang={lang}
+        t={t}
+      />
+    );
+  }
+
+  const trial = step === 'trial';
+  // Наліпка людини — лише якщо слово справді з фото (слово дня його не має)
+  const sticker = firstWord ? photoUri(firstWord.photo) : null;
+  // Без нагадування дзвоник обіцяв би те, від чого текст щойно відмовився:
+  // тоді галочка «усе прозоро»
+  const Glyph = canRemind ? IcBell : IcCheck;
+  return (
+    <View style={s.root}>
+      {/* Хрестик — у власній смужці поза прокруткою, як у PaywallScreen */}
+      <View style={[s.topBar, short && s.topBarShort]}>
+        <Press style={s.close} onPress={close} feedback="dim" hitSlop={4} accessibilityRole="button" accessibilityLabel={t('close')}>
+          <View style={s.closeDot}>
+            <IcClose size={20} color={C.dim} />
+          </View>
+        </Press>
+      </View>
+
+      <ScrollView contentContainerStyle={[s.scroll, short && s.scrollShort]} showsVerticalScrollIndicator={false} bounces={false}>
+        {/* key — новий екран мʼяко зʼявляється, а не підміняється миттєво */}
+        <FadeIn key={step} style={{ alignItems: 'center' }}>
+          {trial ? (
+            <>
+              {sticker ? (
+                <StickerLarge
+                  uri={sticker}
+                  shape={firstWord.shape}
+                  outline={firstWord.outline}
+                  box={firstWord.box}
+                  size={short ? 104 : 132}
+                  pop
+                  style={{ transform: [{ rotate: '-4deg' }] }}
+                />
+              ) : (
+                <MascotBob pose="celebrate" size={short ? 100 : 150} />
+              )}
+              <View style={s.proBadge}>
+                <PCrown size={17} color={C.onAccent} />
+                <Text style={s.proBadgeText}>PRO</Text>
+              </View>
+            </>
+          ) : (
+            <View style={[s.bell, short && s.bellShort]} testID={canRemind ? 'opw-bell' : 'opw-check'}>
+              <Glyph size={short ? 36 : 46} color={C.accent} />
+            </View>
+          )}
+          <Text ref={titleRef} style={[s.title, short && s.titleShort]} accessibilityRole="header">
+            {trial
+              ? t('opwTrialTitle', { n: plan.trialDays })
+              : canRemind
+                ? t('opwRemindTitle')
+                : t('opwNoRemindTitle')}
+          </Text>
+          <Text style={s.text}>
+            {trial ? t(firstWord ? 'opwFirstWordText' : 'pwIntroText') : canRemind ? t('opwRemindText') : t('opwNoRemindText')}
+          </Text>
+        </FadeIn>
+
+        {trial ? (
+          <View style={[s.benefits, short && s.benefitsShort]}>
+            {TRIAL_BENEFITS.map((b, n) => (
+              <FadeIn key={b.id} delay={stagger(n + 1)} style={s.benefitRow}>
+                <View style={s.benefitIcon}>
+                  <ProIcon name={b.icon} size={22} color={C.accent} />
+                </View>
+                <Text style={s.benefitText}>{t('pro_' + b.id)}</Text>
+              </FadeIn>
+            ))}
+          </View>
+        ) : (
+          <FadeIn key="tl" delay={stagger(1)}>
+            <TrialTimeline days={plan.trialDays} price={plan.price} lang={lang} canRemind={canRemind} dense={short} t={t} />
+            <Text style={[s.cancel, short && s.cancelShort]}>{t('opwCancel')}</Text>
+          </FadeIn>
+        )}
+      </ScrollView>
+
+      <View style={[s.footer, SHADOW_LG]}>
+        <GradBtn title={t('obNext')} onPress={advance} />
+        {locked ? <View style={StyleSheet.absoluteFill} testID="opw-lock" /> : null}
+      </View>
+    </View>
+  );
+}
+
+const makeStyles = (C) =>
+  StyleSheet.create({
+    root: { flex: 1, backgroundColor: C.bg },
+    center: { alignItems: 'center', justifyContent: 'center' },
+    // Смужка під хрестик: тло екрана, ціль 44 pt
+    topBar: {
+      height: 52,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'flex-end',
+      paddingHorizontal: 10,
+      backgroundColor: C.bg,
+    },
+    topBarShort: { height: 44 },
+    close: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+    closeDot: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: C.card2,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    // хрестик тепер у смужці над прокруткою — згори лише невеликий відступ
+    scroll: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24, paddingTop: 12, paddingBottom: 24 },
+    scrollShort: { paddingTop: 0, paddingBottom: 16 },
+    proBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      backgroundColor: C.accent,
+      borderRadius: R.pill,
+      paddingHorizontal: 13,
+      paddingVertical: 6,
+      marginTop: 4,
+    },
+    proBadgeText: { color: C.onAccent, ...CAPS, letterSpacing: 1.6 },
+    bell: {
+      width: 104,
+      height: 104,
+      borderRadius: 52,
+      backgroundColor: C.accentSoft,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 6,
+    },
+    bellShort: { width: 76, height: 76, borderRadius: 38, marginBottom: 2 },
+    title: { color: C.text, ...type(28, F.extra), textAlign: 'center', marginTop: 14 },
+    titleShort: { ...type(26, F.extra), marginTop: 10 },
+    text: { color: C.dim, ...type(15, F.reg), textAlign: 'center', marginTop: 8, maxWidth: 320 },
+    benefits: { marginTop: 28, gap: 14, alignSelf: 'stretch' },
+    benefitsShort: { marginTop: 20, gap: 10 },
+    benefitRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 14,
+      backgroundColor: C.card,
+      borderRadius: R.lg,
+      paddingVertical: 12,
+      paddingHorizontal: 14,
+    },
+    benefitIcon: {
+      width: 42,
+      height: 42,
+      borderRadius: 13,
+      backgroundColor: C.accentSoft,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    benefitText: { flex: 1, color: C.text, ...type(16, F.bold) },
+    cancel: { color: C.dim, ...type(13, F.semi), textAlign: 'center', marginTop: 14 },
+    cancelShort: { marginTop: 10 },
+    footer: {
+      backgroundColor: C.card,
+      paddingHorizontal: 22,
+      paddingTop: 16,
+      // App уже додає відступ домашнього індикатора — свій лише невеликий
+      paddingBottom: 16,
+      borderTopLeftRadius: R.xl,
+      borderTopRightRadius: R.xl,
+    },
+  });
