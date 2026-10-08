@@ -1,4 +1,4 @@
-import { apiMe, apiProfile, apiWordOfDay, cleanExtras, deviceForgotten, recognizeImage, recognizeScene, setSessionToken } from '../src/api';
+import { abortScans, apiMe, apiProfile, apiWordOfDay, cleanExtras, deviceForgotten, recognizeImage, recognizeScene, setSessionToken } from '../src/api';
 import { localDayKey } from '../src/storage';
 
 function respond(status, body) {
@@ -102,6 +102,39 @@ test('network failure is OFFLINE, an aborted request is TIMEOUT', async () => {
   jest.advanceTimersByTime(26000);
   await expect(p).rejects.toThrow('SCAN_TIMEOUT');
   jest.useRealTimers();
+});
+
+// Сканер, який закрили посеред розпізнавання, перериває запит: він виходить як
+// SCAN_TIMEOUT (сканер без екрана на цьому мовчить), а не як «сервер зламався»
+test('abortScans cancels every scan in flight as SCAN_TIMEOUT and leaves other requests alone', async () => {
+  const signals = [];
+  global.fetch = jest.fn((url, { signal }) => {
+    signals.push([url, signal]);
+    if (url.endsWith('/me')) return Promise.resolve({ ok: true, status: 200, json: async () => ({ pro: false }) });
+    return new Promise((_, reject) => signal.addEventListener('abort', () => reject(new Error('fetch failed: canceled'))));
+  });
+  const one = recognizeImage('b64');
+  const scene = recognizeScene('b64');
+  const me = apiMe();
+  abortScans();
+  await expect(one).rejects.toThrow('SCAN_TIMEOUT');
+  await expect(scene).rejects.toThrow('SCAN_TIMEOUT');
+  await expect(me).resolves.toEqual({ pro: false });
+  expect(signals.find(([url]) => url.endsWith('/me'))[1].aborted).toBe(false);
+});
+
+test('abortScans with nothing in flight does nothing, and a later scan still works', async () => {
+  expect(() => abortScans()).not.toThrow();
+  respond(200, { word: 'mug', box: [1, 2, 3, 4] });
+  expect((await recognizeImage('b64')).word).toBe('mug');
+  abortScans();
+});
+
+test('a malformed box from the server becomes null instead of reaching the cutter', async () => {
+  for (const box of [[1, 2, 3], [5, 5, 1, 1], [1, 2, 'x', 4], [1, 2, NaN, 9], 'abc']) {
+    respond(200, { word: 'mug', box });
+    expect((await recognizeImage('b64')).box).toBeNull();
+  }
 });
 
 test('requests carry the device token and the local day', async () => {

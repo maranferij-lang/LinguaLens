@@ -32,9 +32,16 @@ const USER_KEY = 'll_device_v1';
 // доступний і для фонових задач, але не до того, як людина ввела код.
 const KEYCHAIN = SecureStore ? { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK } : undefined;
 
+// Keychain порожній чи не відповів — дивимось і в запасну копію в AsyncStorage:
+// туди writeSecret кладе секрет, коли Keychain відмовив у записі. Раніше
+// порожній Keychain означав «ідентичності немає», і щозапуску заводилась нова
+// (новий лічильник сканів, Pro відв'язано).
 async function readSecret(key) {
   try {
-    if (SecureStore) return (await SecureStore.getItemAsync(key, KEYCHAIN)) || '';
+    if (SecureStore) {
+      const v = await SecureStore.getItemAsync(key, KEYCHAIN);
+      if (v) return v;
+    }
   } catch (_) {}
   try {
     return (await AsyncStorage.getItem('sec_' + key)) || '';
@@ -48,6 +55,9 @@ async function writeSecret(key, value) {
     if (SecureStore) {
       if (value) await SecureStore.setItemAsync(key, value, KEYCHAIN);
       else await SecureStore.deleteItemAsync(key, KEYCHAIN);
+      // Keychain прийняв запис: запасна копія застаріла (інакше стара могла б
+      // воскреснути після виходу чи стирання)
+      await AsyncStorage.removeItem('sec_' + key).catch(() => {});
       return;
     }
   } catch (_) {}
@@ -87,7 +97,27 @@ export async function ensureSession() {
       if (!deviceForgotten(e)) return { token, userId: null };
     }
   }
-  return createIdentity();
+  return freshIdentity();
+}
+
+// Покоління ідентичності: росте, коли телефон свідомо міняє її (вхід через
+// Apple, вихід, стирання). Створення, що вже летіло, коли це сталося, — вчорашнє:
+// його відповідь не має переписати токен, який людина щойно сама змінила.
+let epoch = 0;
+// Одне створення на раз: два 401 поспіль (профіль і синхронізація, сканер і
+// /me) не мають заводити по запису кожен — Keychain, сесія й id іще
+// розійшлися б по різних записах, а ліміт сервера (20 нових пристроїв на
+// годину з однієї адреси) з'їдали б дублі.
+let inflight = null;
+
+function freshIdentity() {
+  if (!inflight) {
+    const run = createIdentity().finally(() => {
+      if (inflight === run) inflight = null;
+    });
+    inflight = run;
+  }
+  return inflight;
 }
 
 // Нова ідентичність від сервера. Старі токен і id переписуємо лише ПІСЛЯ
@@ -96,9 +126,12 @@ export async function ensureSession() {
 // наступного старту теж, — а стирається лише тоді, коли сервер уже видав
 // запис із його лічильниками.
 async function createIdentity(carry) {
+  const born = epoch;
   const previous = carry || (await readSecret(CARRY_KEY));
   try {
     const d = await apiCreateDevice(previous);
+    // Поки сервер відповідав, ідентичність змінили навмисно: ця вже зайва
+    if (born !== epoch) return null;
     await writeToken(d.token);
     if (previous) await writeSecret(CARRY_KEY, '');
     await AsyncStorage.setItem(USER_KEY, d.user.id).catch(() => {});
@@ -113,7 +146,7 @@ async function createIdentity(carry) {
 // отримуємо нову ідентичність. Не вдалось — старі токен і id лишаються,
 // спробуємо наступного разу.
 export function renewSession() {
-  return createIdentity();
+  return freshIdentity();
 }
 
 // «Стерти мої дані»: прибираємо запис на сервері й починаємо з чистого
@@ -141,6 +174,9 @@ export async function eraseServerData() {
 // токен нової ідентичності: Keychain переживе перевстановлення, і після
 // нього телефон одразу опиниться в тому самому акаунті.
 export async function adoptSession(token, userId) {
+  // створення, що ще летить, не має переписати токен акаунта
+  epoch++;
+  inflight = null;
   await writeToken(token);
   await AsyncStorage.setItem(USER_KEY, userId).catch(() => {});
   setSessionToken(token);
@@ -151,6 +187,8 @@ export async function adoptSession(token, userId) {
 // ідентичність і недонесений carry, тож наступний старт — новий запис на
 // сервері з нульовими лічильниками, як після чистого встановлення.
 export async function forgetIdentityForDev() {
+  epoch++;
+  inflight = null;
   await writeToken('');
   await writeSecret(CARRY_KEY, '');
   await AsyncStorage.removeItem(USER_KEY).catch(() => {});
@@ -169,6 +207,9 @@ export async function forgetIdentityForDev() {
 // відповіддю його понесе наступний старт, а не чиста ідентичність. Сесії
 // він не повертає — сервер бере з нього лише лічильники.
 export async function startOver({ carry = false } = {}) {
+  // створення без carry, що ще летить, відкидаємо: ця ідентичність несе carry
+  epoch++;
+  inflight = null;
   const previous = carry === true ? await readToken() : typeof carry === 'string' ? carry : '';
   if (previous) await writeSecret(CARRY_KEY, previous);
   await writeToken('');

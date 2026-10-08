@@ -11,11 +11,19 @@ const SEEN_ACH_KEY = 'll_seen_ach_v1';
 const WOD_KEY = 'll_wod_v1';
 const ONB_DRAFT_KEY = 'll_onb_draft_v1';
 
+// Збережене — не довірене: прочитане зі сховища може бути обірваним, зі старої
+// версії чи просто 'null'. Один такий запис у `words.reduce` або `words.some`
+// валив би рендер, а кнопка «Спробувати знову» перечитала б ті самі дані й
+// падала б знову. Тож кожен читач приймає лише очікувану форму, а решту
+// вважає порожнім.
+const plain = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : null);
+const isWord = (w) => !!plain(w) && w.id !== undefined && w.id !== null;
+
 // ---- лічильники для досягнень (квізи, слово дня тощо) ----
 export async function loadStats() {
   try {
     const raw = await AsyncStorage.getItem(STATS_KEY);
-    return raw ? JSON.parse(raw) : {};
+    return (raw && plain(JSON.parse(raw))) || {};
   } catch (_) {
     return {};
   }
@@ -30,7 +38,8 @@ export async function persistStats(stats) {
 export async function loadSeenAchievements() {
   try {
     const raw = await AsyncStorage.getItem(SEEN_ACH_KEY);
-    return raw ? JSON.parse(raw) : [];
+    const ids = raw ? JSON.parse(raw) : [];
+    return Array.isArray(ids) ? ids.filter((id) => typeof id === 'string') : [];
   } catch (_) {
     return [];
   }
@@ -45,7 +54,7 @@ export async function persistSeenAchievements(ids) {
 export async function loadWod() {
   try {
     const raw = await AsyncStorage.getItem(WOD_KEY);
-    return raw ? JSON.parse(raw) : null;
+    return (raw && plain(JSON.parse(raw))) || null;
   } catch (_) {
     return null;
   }
@@ -154,7 +163,7 @@ export function localDayKey(d = new Date()) {
 export async function loadActivity() {
   try {
     const raw = await AsyncStorage.getItem(ACTIVITY_KEY);
-    return raw ? JSON.parse(raw) : {};
+    return (raw && plain(JSON.parse(raw))) || {};
   } catch (_) {
     return {};
   }
@@ -166,16 +175,31 @@ export async function persistActivity(activity) {
   } catch (_) {}
 }
 
+// Читання словника впало (а не «порожньо»): у сховищі словник, можливо, цілий.
+// Перше ж збереження після цього записало б список з однієї нової картки
+// поверх нього — тож до кінця сеансу не пишемо. Незчитний JSON — інше: там
+// читати вже нічого, і запис його не гірший за залишення.
+let wordsReadFailed = false;
+
 export async function loadWords() {
+  let raw;
   try {
-    const raw = await AsyncStorage.getItem(WORDS_KEY);
-    return raw ? JSON.parse(raw) : [];
+    raw = await AsyncStorage.getItem(WORDS_KEY);
+  } catch (_) {
+    wordsReadFailed = true;
+    return [];
+  }
+  wordsReadFailed = false;
+  try {
+    const list = raw ? JSON.parse(raw) : [];
+    return Array.isArray(list) ? list.filter(isWord) : [];
   } catch (_) {
     return [];
   }
 }
 
 export async function persistWords(words) {
+  if (wordsReadFailed) return;
   try {
     await AsyncStorage.setItem(WORDS_KEY, JSON.stringify(words));
   } catch (_) {}
@@ -217,6 +241,8 @@ export async function persistSettings(settings) {
 // фото. Налаштування (мова, тема) й позначку онбордингу лишаємо — людина
 // не просила знову проходити знайомство з застосунком.
 export async function clearLocalData() {
+  // сховище навмисно порожнє: захист від стертого за збою читання тут зайвий
+  wordsReadFailed = false;
   try {
     await AsyncStorage.multiRemove([WORDS_KEY, ACTIVITY_KEY, STATS_KEY, SEEN_ACH_KEY, WOD_KEY, ONB_DRAFT_KEY, 'll_usage_v1']);
   } catch (_) {}
@@ -227,6 +253,7 @@ export async function clearLocalData() {
 // йдуть. Кеш слова дня й лічильник сканів — не особисті дані, їх
 // не чіпаємо (див. account.js).
 export async function clearProgress() {
+  wordsReadFailed = false;
   try {
     await AsyncStorage.multiRemove([WORDS_KEY, ACTIVITY_KEY, STATS_KEY, SEEN_ACH_KEY]);
   } catch (_) {}

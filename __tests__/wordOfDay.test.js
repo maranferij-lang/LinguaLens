@@ -302,7 +302,7 @@ describe('several words a day (Pro slots)', () => {
   } = require('../src/wordOfDay');
 
   // Сервер v1.3: perDay слів на день (без Pro — 1), не більше 42 слів
-  function servePerDay({ pro = true, legacy = false } = {}) {
+  function servePerDay({ pro = true, legacy = false, partial = false } = {}) {
     served = [];
     global.fetch = jest.fn(async (url, init = {}) => {
       const body = init.body ? JSON.parse(init.body) : null;
@@ -316,7 +316,7 @@ describe('several words a day (Pro slots)', () => {
           words.push(legacy ? w : { ...w, slot: s });
         }
       }
-      return { ok: true, status: 200, json: async () => (legacy ? { words } : { words, perDay }) };
+      return { ok: true, status: 200, json: async () => (legacy ? { words } : { words, perDay, ...(partial ? { partial: true } : {}) }) };
     });
   }
 
@@ -401,6 +401,35 @@ describe('several words a day (Pro slots)', () => {
     const past = Array.from({ length: 6 }, (_, i) => ({ date: day(-1 - i), slot: 0 }));
     const extra = words.slice(0, 6).map((w) => ({ ...w, slot: 1 }));
     expect(needsRefresh({ ...one, words: [...past, ...extra, ...words.slice(0, 6)] }, want(1), now)).toBe(true);
+  });
+
+  // Сервер не встиг перекласти частину слів і віддав решту з partial: true.
+  // Кеш пам'ятає це і перепитує не частіше за раз на 10 хвилин, як і Pro, що
+  // ще не дійшов до сервера; звичайний кеш цього не торкається.
+  test('needsRefresh: a partial answer is asked again after 10 minutes, a complete one is left alone', () => {
+    const sig = wodSignature(PROFILE, []);
+    const words = Array.from({ length: 14 }, (_, i) => ({ date: day(i), slot: 0 }));
+    const now = Date.now();
+    const want = { lang: 'en', native: 'uk', sig, perDay: 1 };
+    const full = { lang: 'en', native: 'uk', sig, perDay: 1, asked: 1, words, fetchedAt: now };
+    expect(needsRefresh(full, want, now + 60 * 60000)).toBe(false);
+    expect(needsRefresh({ ...full, partial: false }, want, now + 60 * 60000)).toBe(false);
+    const partial = { ...full, partial: true };
+    expect(needsRefresh(partial, want, now)).toBe(false);
+    expect(needsRefresh(partial, want, now + 60000)).toBe(false);
+    expect(needsRefresh(partial, want, now + 10 * 60000)).toBe(true);
+    // без fetchedAt (кеш старої версії) partial не може бути, але й не ламає
+    expect(needsRefresh({ ...full, partial: true, fetchedAt: undefined }, want, now)).toBe(true);
+  });
+
+  test('syncWordOfDay remembers a partial answer, and the next complete one clears the flag', async () => {
+    servePerDay({ partial: true });
+    const part = await syncWordOfDay(args());
+    expect(part.partial).toBe(true);
+    expect(JSON.parse(await AsyncStorage.getItem('ll_wod_v1')).partial).toBe(true);
+    servePerDay();
+    const whole = await syncWordOfDay(args({ force: true }));
+    expect(whole.partial).toBe(false);
   });
 
   test('the past week survives a refresh for the same languages (for the large widget)', async () => {

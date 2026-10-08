@@ -13,18 +13,16 @@ import { useRef } from 'react';
 import { Switch, Text, View } from 'react-native';
 import { Glass } from '../ui';
 import { track } from '../analytics';
-import { hasPermission, requestPermission } from '../wordOfDay';
+import { askNotifications } from '../notifPermission';
 import { RISK_HOUR, cancelStreakRisk } from '../streakNotify';
 import { hourLabel } from './WodSection';
 
 // Увімкнути чи вимкнути нагадування. Увімкнення без дозволу спершу питає
-// систему; відмова — нічого не змінюємо (→ false). save(patch) — зберегти.
-export async function setStreakRemind(on, save) {
-  if (on && !(await hasPermission())) {
-    const granted = await requestPermission();
-    track('push_permission', { granted, source: 'streak' });
-    if (!granted) return false;
-  }
+// систему (а коли iOS уже відмовила й не спитає, пояснює, як увімкнути в
+// Параметрах); відмова — нічого не змінюємо (→ false). save(patch) — зберегти,
+// t — переклад для цього пояснення.
+export async function setStreakRemind(on, save, t) {
+  if (on && !(await askNotifications({ t, source: 'streak' }))) return false;
   save({ streakRemind: !!on });
   track('streak_reminder', { action: on ? 'on' : 'off' });
   // Вимкнули — уже заплановане на сьогодні теж знімаємо
@@ -39,7 +37,7 @@ export default function StreakSection({ ctx }) {
   // людина читала діалог, App міг перемалюватись.
   const latest = useRef(ctx);
   latest.current = ctx;
-  const toggle = (v) => setStreakRemind(v, (patch) => latest.current.saveSetting?.(patch));
+  const toggle = (v) => setStreakRemind(v, (patch) => latest.current.saveSetting?.(patch), latest.current.t);
   return (
     <>
       <Text style={s.sectionLabel}>{t('streakSectionTitle')}</Text>

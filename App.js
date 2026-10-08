@@ -83,6 +83,7 @@ import {
   settingsPair,
   requestPermission,
   cancelAll,
+  cancelWordOfDay,
   subscribeToNotificationTaps,
   scheduleTrialReminder,
   cancelTrialReminder,
@@ -98,7 +99,8 @@ import { planOfProduct, trackPaywallImpression, usePro } from './src/purchases';
 
 import { FadeIn } from './src/ui';
 import { F, THEMES, ThemeProvider, type } from './src/theme';
-import { SPRING } from './src/motion';
+import { DUR, EASE, SPRING, haptic, travel, safeSpring, useReducedMotion } from './src/motion';
+import { askNotifications } from './src/notifPermission';
 import {
   canScan,
   canScene,
@@ -118,7 +120,7 @@ import LangSheet from './src/LangSheet';
 import StreakCelebration from './src/streak/StreakCelebration';
 import { isQuizReady } from './src/QuizScreen';
 import { bestStreak, phase as dayPhase } from './src/streak';
-import { cancelStreakRisk, syncStreakRisk } from './src/streakNotify';
+import { cancelStreakRisk, streakRiskAt, syncStreakRisk } from './src/streakNotify';
 // </v13:W1>
 // <v13:W2>
 import { useWidgets } from './src/widgets/useWidgets';
@@ -173,6 +175,27 @@ SplashScreen.setOptions({ duration: 250, fade: true });
 // пейвол онбордингу (див. openOnboardingPaywall): довше — людина вже гортає
 // застосунок, і пейвол, що вискочив зненацька, дратував би.
 const ONB_PAYWALL_WAIT_MS = 8000;
+
+// Захисний таймер заставки: якщо читання даних чи шрифтів зависло, через стільки
+// ховаємо її самі — екран завантаження з Лінго краще за застиглий кадр заставки.
+const SPLASH_WATCHDOG_MS = 8000;
+
+// Мережевий старт без id пристрою повторюємо при поверненні в застосунок, але
+// не частіше (сервер дає 20 нових пристроїв на годину з однієї адреси).
+const BOOT_RETRY_MS = 20000;
+
+// Скільки найдовше чекаємо першу відповідь магазину про Pro, перш ніж просити
+// слова дня: хто обрав 3 чи 5 слів на день, інакше спершу отримав би одне.
+const PRO_WAIT_MS = 1500;
+
+// Прохання про оцінку не перебиває: чекаємо, поки черга оверлеїв вільна, ще
+// стільки мс, і забуваємо, якщо вона не звільнилась за REVIEW_TTL_MS.
+const REVIEW_DELAY_MS = 800;
+const REVIEW_TTL_MS = 2 * 60 * 1000;
+
+// Найдовше, що вкладки тримаються замкненими на розпізнаванні (SCAN_TIMEOUT у
+// api.js — 25 с): якщо сканер колись не скаже, що закінчив, не застрягаємо.
+const SCAN_LOCK_MAX_MS = 30000;
 
 // Старі й альтернативні коди мов, які віддають iOS/Android.
 const LANG_ALIAS = { nb: 'no', nn: 'no', iw: 'he', in: 'id' };
@@ -331,6 +354,10 @@ export default function App() {
   const [share, setShare] = useState(null); // payload для картки «поділитись»
   // Онбординг відкрили повторно з налаштувань (див. finishOnboarding).
   const onbReplay = useRef(false);
+  // Онбординг уже завершено: другий finishOnboarding (подвійний тап «Готово» чи
+  // «Пропустити» ще до того, як екран зник) не міняє вкладку й не відкриває
+  // пейвол вдруге. Знімається, коли онбординг показують знову.
+  const onbFinished = useRef(false);
   // Чернетка недопройденого онбордингу з минулого запуску (див.
   // loadOnboardingDraft): знайомство продовжується з того ж кроку.
   const onbDraft = useRef(null);
@@ -414,15 +441,56 @@ export default function App() {
       setReady(true);
 
       // Мережа — у фоні: перший екран не чекає на сервер.
+      await bootNetwork();
+    })();
+  }, []);
+
+  // Мережева половина старту: ідентичність, /me, слово дня. Один політ за раз:
+  // старт і повернення в застосунок не мають іти одночасно. Не вдалась (перший
+  // запуск у літаку, погане покриття) — id лишається порожнім, і наступну
+  // спробу робить повернення в застосунок (див. retryBoot), а не лише
+  // холодний старт: інакше без слова дня й сповіщень минув би весь сеанс.
+  const netBoot = useRef({ busy: false, at: 0 });
+  // Відповідь магазину про Pro (subKnown) для тих, хто на неї чекає
+  const subKnownRef = useRef(false);
+  const subWaiters = useRef([]);
+  async function bootNetwork() {
+    const r = netBoot.current;
+    if (r.busy) return;
+    r.busy = true;
+    r.at = Date.now();
+    try {
       const session = await ensureSession();
       if (!session) return;
-      setDeviceId(session.userId);
+      // id, що встиг прийти звідкись ще (/me, вхід через Apple), не затираємо
+      setDeviceId((id) => id || session.userId);
       refreshMe();
+      // Слова дня на 3 чи 5 на день (Pro) без відповіді магазину вийшли б
+      // однією на день, а Pro-ефект нижче одразу перепитав би сервер ще раз:
+      // коротко чекаємо на магазин, лише тих, кому це важливо.
+      if (wodPerDayOf(settingsRef.current, true) > 1) await proKnown(PRO_WAIT_MS);
       // Не merged, а найсвіжіші: поки сервер відповідав, людина могла вже
       // пройти онбординг, і слова мають бути під її профіль.
       syncWordOfDay(wodArgs(settingsRef.current)).then((c) => c && setWod(c));
-    })();
-  }, []);
+    } finally {
+      r.busy = false;
+    }
+  }
+  function proKnown(ms) {
+    if (subKnownRef.current) return Promise.resolve();
+    return new Promise((resolve) => {
+      const done = () => {
+        clearTimeout(timer);
+        resolve();
+      };
+      const timer = setTimeout(done, ms);
+      subWaiters.current.push(done);
+    });
+  }
+  subKnownRef.current = subKnown;
+  useEffect(() => {
+    if (subKnown) subWaiters.current.splice(0).forEach((done) => done());
+  }, [subKnown]);
 
   // Стартова вкладка — сканер, але безкоштовний скан уже витрачено, а Pro
   // немає: камера однаково відкрила б лише пейвол, а все, що лишилось
@@ -581,14 +649,20 @@ export default function App() {
   // заголовки сповіщень були мовою, актуальною на момент планування.
   const tRef = useRef(t);
   tRef.current = t;
-  const s = useMemo(() => makeStyles(C), [C]);
+  const s = useMemo(() => makeStyles(C, theme.isDark), [C, theme.isDark]);
 
   // ---------- ДОСЯГНЕННЯ ----------
   // Серія — з src/streak.js, як і в Профілі, «Навчанні» й віджеті: одне
   // число на весь застосунок. streakNow — уся інформація (doneToday,
   // todayKey, lastActiveKey), streak — саме число.
   const activeDays = useMemo(() => activeDaySet(activity, words), [activity, words]);
-  const streakNow = useMemo(() => streakInfo({ activeDays }), [activeDays]);
+  // Ключ дня — залежність усього, що читає «сьогодні» (серія, слово дня):
+  // застосунок, що спав у фоні, прокидається вже наступного дня, а ні слова,
+  // ні активність при цьому не змінились, і мемо віддавало б учорашнє. App
+  // перемальовується на 'active' і о 00:00:01 (streakClock), тож ключ міняється
+  // сам, без окремого слухача.
+  const dayKey = localDayKey();
+  const streakNow = useMemo(() => streakInfo({ activeDays }), [activeDays, dayKey]);
   const streak = streakNow.n;
 
   // перевіряємо нові досягнення після кожної зміни даних
@@ -682,8 +756,18 @@ export default function App() {
     else if (h >= 5 && h < 8) bumpStatOnce('morningScan');
     // Десяте слово — момент, коли застосунок уже приніс користь: саме тоді
     // доречно спитати про оцінку (не частіше, ніж дозволяє review.js).
-    // Сцена може перескочити через десяте одразу кількома словами.
-    if (before < 10 && next.length >= 10) maybeAskForReview();
+    // Сцена може перескочити через десяте одразу кількома словами. Не одразу:
+    // це «Зберегти» в аркуші результату, і системне вікно лягло б на
+    // анімацію наліпки та закриття аркуша (див. askReviewLater).
+    if (before < 10 && next.length >= 10) askReviewLater();
+  }
+
+  // Просимо оцінку не посеред дії, а коли людина вже дійшла кінця: черга
+  // оверлеїв вільна (аркуш скану закрито, пейвол, свято й тост не показані)
+  // ще REVIEW_DELAY_MS. Стан, а не таймер у обробнику: умови міняються самі.
+  const [reviewSince, setReviewSince] = useState(0);
+  function askReviewLater() {
+    setReviewSince(Date.now());
   }
 
   // Ставить прапорець один раз — повторні виклики нічого не міняють.
@@ -764,21 +848,24 @@ export default function App() {
   }
 
   function saveSetting(patch) {
+    // Найсвіжіші налаштування, а не з останнього рендера: дві зміни в одному
+    // такті (ефект і обробник) інакше затирали б одна одну застарілим об'єктом.
+    const cur = settingsRef.current;
     // Вчити мову, яка й так рідна, безглуздо: обрали її з іншого боку —
     // міняємо мови місцями, а не лишаємо «English → English».
-    if (patch.targetLang && patch.targetLang === settings.nativeLang) {
-      patch = { ...patch, nativeLang: settings.targetLang };
-    } else if (patch.nativeLang && patch.nativeLang === settings.targetLang) {
+    if (patch.targetLang && patch.targetLang === cur.nativeLang) {
+      patch = { ...patch, nativeLang: cur.targetLang };
+    } else if (patch.nativeLang && patch.nativeLang === cur.targetLang) {
       // Обмін робить колишню рідну мовою навчання — це така сама нова мова,
       // як обрана у списку «вчу», і безкоштовний ліміт діє так само.
-      const deny = canUseLanguage({ pro: sub.pro, words, nextLang: settings.nativeLang });
+      const deny = canUseLanguage({ pro: sub.pro, words, nextLang: cur.nativeLang });
       if (deny) {
         openPaywall(deny);
         return;
       }
-      patch = { ...patch, targetLang: settings.nativeLang };
+      patch = { ...patch, targetLang: cur.nativeLang };
     }
-    const next = { ...settings, ...patch };
+    const next = { ...cur, ...patch };
     commitSettings(next);
     // мови (чи варіант мови) змінились — перезавантажуємо слово дня
     if (patch.targetLang || patch.nativeLang || patch.variants) {
@@ -839,7 +926,9 @@ export default function App() {
 
   async function toggleWod(value) {
     if (value) {
-      const granted = await askPush('settings');
+      // iOS після відмови вікна вже не покаже: тоді людині пояснюють і ведуть у
+      // Параметри (src/notifPermission.js), а не лишають перемикач «мертвим»
+      const granted = await askNotifications({ t: tRef.current, source: 'settings' });
       if (!granted) return; // користувач відмовив — лишаємо вимкненим
     }
     const next = { ...settingsRef.current, wodEnabled: value };
@@ -848,7 +937,7 @@ export default function App() {
   }
 
   function setWodHour(h) {
-    const next = { ...settings, wodHour: h };
+    const next = { ...settingsRef.current, wodHour: h };
     commitSettings(next);
     syncWordOfDay(wodArgs(next)).then((c) => c && setWod(c));
   }
@@ -859,10 +948,12 @@ export default function App() {
   // офлайн — і довше), і картка показувала б слово іншої мови або
   // американське слово під британським прапорцем.
   const wodFits = samePair(wod, settingsPair(settings));
-  const todayWord = useMemo(() => (wodFits ? todayFrom(wod) : null), [wod, wodFits]);
+  const todayWord = useMemo(() => (wodFits ? todayFrom(wod) : null), [wod, wodFits, dayKey]);
+  // «Вже збережено» — те саме слово тією самою мовою: «taxi» в англійській не
+  // робить німецьке чи іспанське «taxi» збереженим (hasWord, як у сцен).
   const wodSaved = useMemo(
-    () => !!todayWord && words.some((w) => w.word?.toLowerCase() === todayWord.word?.toLowerCase()),
-    [todayWord, words]
+    () => !!todayWord && hasWord(words, { word: todayWord.word, lang: wod?.lang }),
+    [todayWord, words, wod]
   );
   // Тема слова дня для рядка-кепсу («СЛОВО ДНЯ · ФІНАНСИ»); '' — загальне
   const wodTopic = useMemo(() => topicName(t, todayWord?.topic), [t, todayWord]);
@@ -879,6 +970,18 @@ export default function App() {
     uiSeen.current = ui;
     if (ready) syncWordOfDay(wodArgs(settingsRef.current)).then((c) => c && setWod(c));
   }, [ui, ready]);
+
+  // Новий день: кеш на 14 днів і сповіщення поповнюються не лише на холодному
+  // старті (iOS тримає застосунок у пам'яті днями, і хто рідко «вмирає», тихо
+  // скочувався б до порожнього кешу). Раз на день: ключ дня міняється, коли
+  // застосунок прокинувся чи минула північ; мережі це коштує, лише коли
+  // needsRefresh так вирішить. Перший кадр не рахується: старт робить своє.
+  const syncedDay = useRef(dayKey);
+  useEffect(() => {
+    if (syncedDay.current === dayKey) return;
+    syncedDay.current = dayKey;
+    if (ready && deviceId) syncWordOfDay(wodArgs(settingsRef.current)).then((c) => c && setWod(c));
+  }, [dayKey]);
 
   function saveWordOfDay() {
     if (!todayWord || wodSaved) return;
@@ -1165,6 +1268,16 @@ export default function App() {
   // якому екрані пейволу онбордингу закрили (у решти пейволів екран один).
   function closePaywall(step) {
     const source = paywallRef.current;
+    // Пейвол уже закрито зсередини (відновлення покупок: restorePurchases
+    // знімає його ДО того, як PaywallScreen покличе onClose). Це не відмова, а
+    // завершення: вибір «3 чи 5 слів» ще має дожити до ефекту [sub.pro], який
+    // спрацює лише після перемальовки, — той самий мікротік-ланцюг його б
+    // стер. Справжні закриття (хрестик, «Продовжити безкоштовно», «назад»)
+    // завжди мають source і чистять усе, як і раніше.
+    if (!source) {
+      setPaywall(null);
+      return;
+    }
     const at = Number.isInteger(step) ? step : source === 'onboarding' ? onbPaywallStep.current : 0;
     if (source) track('paywall_close', { source, step: at, ui: 'custom' });
     paywallRef.current = null;
@@ -1240,7 +1353,13 @@ export default function App() {
     wordsRef.current.forEach((w) => deletePhoto(w.photo));
     await clearLocalData();
     await clearPersonalData();
-    await cancelAll();
+    // Не cancelAll: він знімав би й нагадування про кінець пробного періоду
+    // (підписка стиранням даних не скасовується, і обіцянка пейволу «нагадаємо
+    // за 2 дні» лишається в силі). Знімаємо слова дня (їхній план був під
+    // стертий профіль; новий поставить syncWordOfDay нижче, якщо є мережа) і
+    // нагадування про серію.
+    await cancelWordOfDay();
+    await cancelStreakRisk();
     // Статистика й так анонімна, але після стирання телефон — нова людина:
     // новий випадковий id PostHog, старі властивості не тягнуться за ним.
     resetAnalytics();
@@ -1266,6 +1385,10 @@ export default function App() {
     if (session) {
       setDeviceId(session.userId);
       refreshMe();
+      // Кеш слів дня стерто разом зі сповіщеннями: без нового запиту картка
+      // «Навчання» порожня, а пуші мовчать аж до холодного старту. «Знаю» вже
+      // порожнє, тож новий запис сервера отримує чистий план.
+      syncWordOfDay(wodArgs(settingsRef.current, true)).then((c) => c && setWod(c));
     }
   }
 
@@ -1330,13 +1453,37 @@ export default function App() {
     if (session) refreshMe();
   }
 
+  // Розпізнавання об'єкта в дорозі: сервер уже зарахував скан, і якщо людина
+  // зачепить вкладку (таб-бар одразу під затвором), сканер зникне разом із
+  // результатом, а єдиний безкоштовний скан згорить. Тож доки сканер каже
+  // «зайнятий» (onBusyChange), з нього не виходимо. Прапорець скидається сам:
+  // сканер при демонтажі, зміна вкладки, стеля SCAN_LOCK_MAX_MS.
+  const [scanBusy, setScanBusy] = useState(false);
+  const scanLock = useRef({ on: false, at: 0 });
+  function onScanBusy(on) {
+    scanLock.current = { on: !!on, at: Date.now() };
+    setScanBusy(!!on);
+  }
+  useEffect(() => {
+    if (tab === 'scan') return;
+    scanLock.current = { on: false, at: 0 };
+    setScanBusy(false);
+  }, [tab]);
+
   function switchTab(key) {
+    const lock = scanLock.current;
+    if (lock.on && tab === 'scan' && key !== 'scan' && Date.now() - lock.at < SCAN_LOCK_MAX_MS) {
+      haptic('warning');
+      return;
+    }
     if (key !== tab) Haptics.selectionAsync();
     startTab.current.moved = true;
     setTab(key);
   }
 
   function finishOnboarding(result) {
+    if (onbFinished.current) return;
+    onbFinished.current = true;
     const replay = onbReplay.current;
     onbReplay.current = false;
     onbDevForce.current = false;
@@ -1394,6 +1541,7 @@ export default function App() {
   }
 
   function replayOnboarding() {
+    onbFinished.current = false;
     onbReplay.current = true;
     onbDevForce.current = false;
     setOnboarded(false);
@@ -1520,7 +1668,6 @@ export default function App() {
     });
   }, [ready, ui, settings.nativeLang, settings.targetLang, targetVariant, settings.profile, sub.pro, settings.analytics]);
 
-  const dueCount = useMemo(() => dueWords(words).length, [words, tab]);
   const profile = { name: settings.profileName, avatar: settings.avatar || 'wave' };
 
   // Шрифт не завантажився — не застрягаємо на заставці, а йдемо далі із
@@ -1528,6 +1675,13 @@ export default function App() {
   const appReady = ready && (fontsLoaded || !!fontError);
   useEffect(() => {
     if (appReady) SplashScreen.hideAsync().catch(() => {});
+  }, [appReady]);
+  // Зависло читання даних чи шрифтів: заставка не має висіти вічно — показуємо
+  // екран завантаження з Лінго (він під нею вже намальований).
+  useEffect(() => {
+    if (appReady) return;
+    const timer = setTimeout(() => SplashScreen.hideAsync().catch(() => {}), SPLASH_WATCHDOG_MS);
+    return () => clearTimeout(timer);
   }, [appReady]);
 
   // ---------- ВІДКРИТИ СЛОВО ----------
@@ -1566,18 +1720,40 @@ export default function App() {
   }, [activeDays, streakClock]);
   const streakRef = useRef(streakLive);
   streakRef.current = streakLive;
+  // Скільки карток чекає. «Готова» залежить від часу, а не лише від слів: без
+  // годинника значок «Навчання» ранком після ночі у фоні лишався б нулем.
+  const dueCount = useMemo(() => dueWords(words).length, [words, tab, streakClock]);
 
   // Фон: нагадування о 20:00, якщо серія під загрозою — сьогодні, а з дією
   // дня — завтра (src/streakNotify.js); повернення — свіжий годинник.
   // Ліхтарик сканера гасне сам (ScannerScreen).
+  // Остання дата, на яку нагадування вже порахували: згортання застосунку
+  // перепланує те саме сповіщення на ту саму годину, і «scheduled» без цього
+  // рахував би перемикання між застосунками, а не нагадування.
+  const riskTracked = useRef(0);
+  // Старт був без мережі й id пристрою досі немає: повернулись у застосунок —
+  // пробуємо мережевий старт ще раз (не частіше за BOOT_RETRY_MS).
+  const retryBoot = useRef(() => {});
+  retryBoot.current = () => {
+    if (deviceId || !ready || Date.now() - netBoot.current.at < BOOT_RETRY_MS) return;
+    bootNetwork();
+  };
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
       setAppActive(state === 'active');
-      if (state === 'active') setStreakClock(Date.now());
+      if (state === 'active') {
+        setStreakClock(Date.now());
+        retryBoot.current();
+      }
       if (state !== 'background') return;
       const cur = streakRef.current;
+      const at = streakRiskAt(new Date(), cur.doneToday)?.getTime() || 0;
       syncStreakRisk({ n: cur.n, doneToday: cur.doneToday, enabled: settingsRef.current.streakRemind !== false, t: tRef.current })
-        .then((ok) => ok && track('streak_reminder', { action: 'scheduled' }))
+        .then((ok) => {
+          if (!ok || riskTracked.current === at) return;
+          riskTracked.current = at;
+          track('streak_reminder', { action: 'scheduled' });
+        })
         .catch(() => {});
     });
     return () => sub?.remove?.();
@@ -1634,6 +1810,17 @@ export default function App() {
   useEffect(() => {
     if (shownAch) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }, [shownAch]);
+  // Оцінка (askReviewLater): коли черга оверлеїв вільна, ні свята, ні тоста, і
+  // так REVIEW_DELAY_MS. Не дочекались за REVIEW_TTL_MS (людина пішла, повернулась
+  // наступного дня) — забуваємо: вікно «оціни» при відкритті застосунку не вчасне.
+  useEffect(() => {
+    if (!reviewSince || !overlayFree || celebration || toastAch) return;
+    const timer = setTimeout(() => {
+      setReviewSince(0);
+      if (Date.now() - reviewSince < REVIEW_TTL_MS) maybeAskForReview();
+    }, REVIEW_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [reviewSince, overlayFree, celebration, toastAch]);
 
   // ---------- «НАВЧАННЯ» ДО ПЕРШОГО СЛОВА ----------
   // «Відкрито!» — один раз на картки й один на квіз (settings.unlockSeen).
@@ -1764,7 +1951,7 @@ export default function App() {
   // todayWord; решту картка зберігає й «знає» через ці дві дії.
   function saveWodSlot(w) {
     if (!w || !w.slot) return saveWordOfDay();
-    if (!wod || wordsRef.current.some((x) => x.word?.toLowerCase() === w.word?.toLowerCase())) return;
+    if (!wod || hasWord(wordsRef.current, { word: w.word, lang: wod.lang })) return;
     addWord(
       {
         word: w.word,
@@ -1857,6 +2044,7 @@ export default function App() {
     onbDraft.current = null;
     onbReplay.current = false;
     onbDevForce.current = true;
+    onbFinished.current = false;
     setOnboarded(false);
   }
   const [devOnbAlways, setDevOnbAlwaysState] = useState(false);
@@ -2026,6 +2214,8 @@ export default function App() {
                 onLimitReached={scanLimitReached}
                 onSessionLost={renewIdentity}
                 onResultVisible={setScanSheetOpen}
+                // розпізнавання об'єкта в дорозі: вкладку не міняємо (switchTab)
+                onBusyChange={onScanBusy}
                 aiConsent={!!settings.aiConsent}
                 onAiConsent={() => saveSetting({ aiConsent: true })}
                 scansLeft={scansLeft({ pro: sub.pro, usage })}
@@ -2043,7 +2233,7 @@ export default function App() {
             ) : null}
 
             {tab === 'dict' ? (
-              <FadeIn style={{ flex: 1 }} dy={10}>
+              <FadeIn style={{ flex: 1 }} dy={0}>
                 <DictionaryScreen
                   words={words}
                   onDelete={deleteWord}
@@ -2067,7 +2257,7 @@ export default function App() {
             ) : null}
 
             {tab === 'cards' ? (
-              <FadeIn style={{ flex: 1 }} dy={10}>
+              <FadeIn style={{ flex: 1 }} dy={0}>
                 <FlashcardsScreen
                   words={words}
                   onReview={reviewWord}
@@ -2083,7 +2273,7 @@ export default function App() {
                     logActivity(correct || 0);
                     if (perfect) {
                       bumpStat('perfectQuiz');
-                      maybeAskForReview();
+                      askReviewLater();
                     }
                   }}
                   onOpenPro={() => openPaywall('info')}
@@ -2129,7 +2319,7 @@ export default function App() {
             ) : null}
 
             {tab === 'profile' ? (
-              <FadeIn style={{ flex: 1 }} dy={10}>
+              <FadeIn style={{ flex: 1 }} dy={0}>
                 <ProfileScreen
                   words={words}
                   activity={activity}
@@ -2152,7 +2342,7 @@ export default function App() {
             ) : null}
 
             {tab === 'settings' ? (
-              <FadeIn style={{ flex: 1 }} dy={10}>
+              <FadeIn style={{ flex: 1 }} dy={0}>
                 <SettingsScreen
                   targetLang={settings.targetLang}
                   targetVariant={targetVariant}
@@ -2211,6 +2401,7 @@ export default function App() {
               tb={tb}
               active={tab === tb.key}
               badge={tb.key === 'cards' ? dueCount : 0}
+              locked={scanBusy && tb.key !== 'scan'}
               onPress={() => switchTab(tb.key)}
               onCamera={tab === 'scan'}
               C={C}
@@ -2225,7 +2416,7 @@ export default function App() {
             Для VoiceOver шар — модальний: вкладки під ним не читаються, а
             жест «назад» (двома пальцями «Z») закриває редактор. */}
         {profileEdit ? (
-          <View
+          <OverlayLayer
             style={[StyleSheet.absoluteFill, { paddingTop: insets.top, paddingBottom: insets.bottom, backgroundColor: C.bg }]}
             accessibilityViewIsModal
             onAccessibilityEscape={() => setProfileEdit(false)}
@@ -2240,14 +2431,14 @@ export default function App() {
               onClose={() => setProfileEdit(false)}
               t={t}
             />
-          </View>
+          </OverlayLayer>
         ) : null}
 
         {/* Пейвол поверх усього. Modal тут не потрібен: власний шар дає
             повний контроль над анімацією і не конфліктує з таб-баром.
             VoiceOver — як і з редактором: модальний шар, «назад» закриває. */}
         {paywall ? (
-          <View
+          <OverlayLayer
             style={[StyleSheet.absoluteFill, { paddingTop: insets.top, paddingBottom: insets.bottom, backgroundColor: C.bg }]}
             accessibilityViewIsModal
             onAccessibilityEscape={() => closePaywall()}
@@ -2297,7 +2488,7 @@ export default function App() {
                 t={t}
               />
             )}
-          </View>
+          </OverlayLayer>
         ) : null}
 
         {/* Спливаюче вітання з новим досягненням; тап — поділитись ним */}
@@ -2340,25 +2531,64 @@ export default function App() {
   );
 }
 
+// Оверлей поверх вкладок (пейвол, редактор профілю): проявляється й підіймається
+// на 16 пт за DUR.sheet, крива шторки. Лише поява: закриття лишається миттєвим і
+// синхронним, бо пейвол знімають покупка, відновлення й жест «назад»
+// VoiceOver, і всі вони покладаються на те, що шару одразу немає. Тло — на самому
+// анімованому шарі: інакше суцільний колір ставав би миттєво, а анімувався б
+// лише вміст, і виходив би спалах. «Менше руху» лишає тільки проявляння.
+function OverlayLayer({ style, children, ...rest }) {
+  const reduced = useReducedMotion();
+  const a = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(a, {
+      toValue: 1,
+      duration: reduced ? DUR.micro : DUR.sheet,
+      easing: reduced ? EASE.soft : EASE.drawer,
+      useNativeDriver: true,
+    }).start();
+    return () => a.stopAnimation();
+  }, []);
+  const rise = travel(16);
+  return (
+    <Animated.View
+      style={[style, { opacity: a, transform: rise ? [{ translateY: a.interpolate({ inputRange: [0, 1], outputRange: [rise, 0] }) }] : [] }]}
+      {...rest}
+    >
+      {children}
+    </Animated.View>
+  );
+}
+
 // Кнопка таб-бара.
 // Перемикання вкладок — дія, яку роблять десятки разів на день, тож рух тут
 // мінімальний і швидкий: «пігулка» проявляється, іконка ледь підростає.
 // Жодного перельоту — інакше на кожен тап екран підстрибує.
 // Неактивні — кольору dim (≥4.5:1), без додаткової прозорості; над камерою
 // (onCamera) — білі, неактивні на 70 %, як у Камері iOS.
-function TabButton({ tb, active, badge, onPress, onCamera, C, s, t }) {
+// «Менше руху»: без масштабу (іконка, натиск, пігулка), лишається проявляння
+// пігулки й колір.
+// locked — скан у дорозі, вкладку не перемкнути (switchTab): VoiceOver чує
+// «недоступно», а тап дає лише попередження.
+function TabButton({ tb, active, badge, locked = false, onPress, onCamera, C, s, t }) {
+  const reduced = useReducedMotion();
   const color = onCamera ? (active ? '#FFFFFF' : 'rgba(255,255,255,0.7)') : active ? C.accent : C.dim;
   const a = useRef(new Animated.Value(active ? 1 : 0)).current;
   const press = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    Animated.spring(a, { toValue: active ? 1 : 0, ...SPRING.snappy }).start();
+    Animated.spring(a, { toValue: active ? 1 : 0, ...safeSpring(SPRING.snappy) }).start();
   }, [active]);
 
-  const scale = Animated.multiply(
-    a.interpolate({ inputRange: [0, 1], outputRange: [1, 1.06] }),
-    press
+  // Вузли анімації будуємо раз, а не на кожен рендер App (п'ять кнопок, а App
+  // перемальовується з кожною карткою): нові вузли щоразу означали б відчіплення
+  // старих і створення нових на нативному боці
+  const scale = useMemo(
+    () => (reduced ? 1 : Animated.multiply(a.interpolate({ inputRange: [0, 1], outputRange: [1, 1.06] }), press)),
+    [a, press, reduced]
   );
+  // пігулка не виникає з нуля — стартує з 0.85
+  const pillScale = useMemo(() => (reduced ? 1 : a.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1] })), [a, reduced]);
 
   return (
     <Pressable
@@ -2366,10 +2596,16 @@ function TabButton({ tb, active, badge, onPress, onCamera, C, s, t }) {
       onPress={onPress}
       accessibilityRole="tab"
       accessibilityLabel={t(tb.label)}
-      accessibilityState={{ selected: active }}
+      // скільки карток чекає, VoiceOver читає після назви вкладки
+      accessibilityValue={badge > 0 ? { text: t('dueToday', { n: badge }) } : undefined}
+      accessibilityState={locked ? { selected: active, disabled: true } : { selected: active }}
       // відгук на натиск, а не на відпускання
-      onPressIn={() => Animated.spring(press, { toValue: 0.92, ...SPRING.snappy }).start()}
-      onPressOut={() => Animated.spring(press, { toValue: 1, ...SPRING.ui }).start()}
+      onPressIn={() => {
+        if (!reduced) Animated.spring(press, { toValue: 0.92, ...SPRING.snappy }).start();
+      }}
+      onPressOut={() => {
+        if (!reduced) Animated.spring(press, { toValue: 1, ...SPRING.ui }).start();
+      }}
     >
       <Animated.View style={[s.tabIconWrap, { transform: [{ scale }] }]}>
         <Animated.View
@@ -2378,8 +2614,7 @@ function TabButton({ tb, active, badge, onPress, onCamera, C, s, t }) {
             {
               backgroundColor: onCamera ? 'rgba(255,255,255,0.18)' : C.accentSoft,
               opacity: a,
-              // пігулка не виникає з нуля — стартує з 0.85
-              transform: [{ scale: a.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1] }) }],
+              transform: [{ scale: pillScale }],
             },
           ]}
         />
@@ -2409,7 +2644,7 @@ function TabButton({ tb, active, badge, onPress, onCamera, C, s, t }) {
   );
 }
 
-const makeStyles = (C) =>
+const makeStyles = (C, isDark) =>
   StyleSheet.create({
     safe: { flex: 1, backgroundColor: C.bg },
     loader: { flex: 1, backgroundColor: C.bg, alignItems: 'center', justifyContent: 'center' },
@@ -2440,5 +2675,7 @@ const makeStyles = (C) =>
       justifyContent: 'center',
       paddingHorizontal: 4,
     },
-    badgeText: { color: '#fff', fontSize: 10, letterSpacing: 0.2, fontFamily: F.extra },
+    // Біле на світлому червоному, тло теми на «живому» червоному темних тем:
+    // біле там давало 2.5:1, тло теми (майже чорне) дає понад 7:1
+    badgeText: { color: isDark ? C.bg : '#fff', fontSize: 10, letterSpacing: 0.2, fontFamily: F.extra },
   });

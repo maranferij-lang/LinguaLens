@@ -33,6 +33,14 @@ try {
 let client = null;
 // Вимкнено в налаштуваннях: клієнт (якщо вже є) лише мовчить
 let enabled = false;
+// Чи вже відомо рішення людини (initAnalytics викликали). Тап по сповіщенню чи
+// віджету з вбитого застосунку приходить раніше — до читання налаштувань, —
+// і без буфера найцінніша подія воронки («відкрито зі сповіщення») пропадала.
+// Тримаємо до EARLY_MAX подій і відправляємо, лише якщо статистику не
+// вимкнено; вимкнено чи її нема в збірці — викидаємо, нічого не йде.
+let decided = false;
+const EARLY_MAX = 20;
+const early = [];
 
 export function analyticsAvailable() {
   return !!POSTHOG_KEY && !!PostHog;
@@ -42,7 +50,11 @@ export function analyticsAvailable() {
 // мережі, ні файлів. Повторний виклик нічого не міняє (див. setAnalyticsEnabled).
 export function initAnalytics({ enabled: on = true } = {}) {
   enabled = !!on;
-  if (!enabled || client || !analyticsAvailable()) return;
+  decided = true;
+  if (!enabled || client || !analyticsAvailable()) {
+    early.length = 0;
+    return;
+  }
   try {
     client = new PostHog(POSTHOG_KEY, {
       host: POSTHOG_HOST,
@@ -61,9 +73,11 @@ export function initAnalytics({ enabled: on = true } = {}) {
     });
     // Колись вимикали й увімкнули знову — PostHog пам'ятає opt-out сам
     Promise.resolve(client.optIn()).catch(() => {});
+    for (const [event, props] of early) safe(() => client.capture(event, props));
   } catch (_) {
     client = null;
   }
+  early.length = 0;
 }
 
 // Перемикач «Анонімна статистика» в налаштуваннях.
@@ -86,7 +100,10 @@ export function isEnabled() {
 
 // Подія: назва snake_case і властивості-коди. Нічого не повертає й не кидає.
 export function track(event, props) {
-  if (!isEnabled()) return;
+  if (!isEnabled()) {
+    if (!decided && early.length < EARLY_MAX && analyticsAvailable()) early.push([event, clean(props)]);
+    return;
+  }
   safe(() => client.capture(event, clean(props)));
 }
 

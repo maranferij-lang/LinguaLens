@@ -261,8 +261,9 @@ export function settingsPair(st) {
 }
 
 // Чи треба оновити кеш: немає, інші мови (чи їхні варіанти), інший профіль
-// чи «Знаю», інша кількість слів на день, або наперед лишилось менше тижня
-// (половини відповіді — для 5 слів на день це 4 дні з 8).
+// чи «Знаю», інша кількість слів на день, відповідь сервера була неповною
+// (partial) і минуло 10 хвилин, або наперед лишилось менше тижня (половини
+// відповіді — для 5 слів на день це 4 дні з 8).
 export function needsRefresh(cache, { lang, native, variant = null, nativeVariant = null, sig, perDay = 1 }, now = Date.now()) {
   if (!cache || !Array.isArray(cache.words) || !cache.words.length) return true;
   if (!samePair(cache, { lang, native, variant, nativeVariant })) return true;
@@ -273,6 +274,9 @@ export function needsRefresh(cache, { lang, native, variant = null, nativeVarian
     const short = (cache.asked || 1) === perDay && have < perDay;
     if (!short || now - (cache.fetchedAt || 0) >= RETRY_PER_DAY_MS) return true;
   }
+  // Сервер не встиг перекласти частину слів і чесно сказав partial: чекаємо
+  // стільки ж, скільки на Pro, що не дійшов до сервера, і просимо знову
+  if (cache.partial && now - (cache.fetchedAt || 0) >= RETRY_PER_DAY_MS) return true;
   const today = localDayKey(new Date(now));
   const span = cache.days || WOD_DAYS;
   return daysAhead(cache.words, today) < Math.min(REFRESH_BELOW, Math.floor(span / 2));
@@ -396,6 +400,7 @@ async function doSync({
           sig,
           perDay: got,
           asked: perDay,
+          partial: d.partial === true,
           days: daysAhead(words, today),
           words: [...pastWords(cache, pair, today), ...words],
           fetchedAt: Date.now(),
@@ -407,13 +412,23 @@ async function doSync({
     }
   }
 
+  // Мову (чи її варіант) змінили, а нових слів немає (офлайн): старий кеш —
+  // слова іншою мовою, і пуші з нього теж були б не тією мовою ще до двох
+  // тижнів. Картка його вже ховає (wodFits у App), тож і сповіщення знімаємо;
+  // перша вдала синхронізація поставить нові. Кеш повертаємо як є: інші його
+  // читачі самі звіряють пару.
+  if (!samePair(cache, pair)) {
+    await rescheduleNotifications(null, enabled, slots, t);
+    return cache;
+  }
+
   await rescheduleNotifications(cache, enabled, slots, t);
   return cache;
 }
 
 // Скасовує лише сповіщення «слово дня». cancelAll тут не годиться: він
 // стер би й нагадування про кінець пробного періоду.
-async function cancelWordOfDay() {
+export async function cancelWordOfDay() {
   try {
     const scheduled = await Notifications.getAllScheduledNotificationsAsync();
     await Promise.all(
@@ -473,26 +488,31 @@ export async function rescheduleNotifications(cache, enabled, hours = [DEFAULT_H
     } catch (_) {}
   }
 
-  for (const { identifier, date, slot, when, word: w } of notificationPlan(cache, hours)) {
-    try {
-      await Notifications.scheduleNotificationAsync({
-        identifier,
-        content: {
-          title: notificationTitle(w, t),
-          body: w.translation
-            ? w.translation + (w.example ? ' · ' + w.example : '')
-            : w.example || '',
-          // slot — тап відкриває саме це слово дня (Pro: їх кілька)
-          data: { type: 'word-of-day', date, slot },
-        },
-        trigger: {
-          type: Notifications.SchedulableTriggerInputTypes.DATE,
-          date: when,
-          channelId: 'word-of-day',
-        },
-      });
-    } catch (_) {}
-  }
+  // Паралельно: до 56 викликів через міст по черзі — це сотні мілісекунд, які
+  // «Знаю» чекає, перш ніж показати нове слово. Виклики йдуть у порядку плану
+  // (кожен раніше за наступний у черзі моста), а збій одного не зупиняє решту.
+  await Promise.all(
+    notificationPlan(cache, hours).map(async ({ identifier, date, slot, when, word: w }) => {
+      try {
+        await Notifications.scheduleNotificationAsync({
+          identifier,
+          content: {
+            title: notificationTitle(w, t),
+            body: w.translation
+              ? w.translation + (w.example ? ' · ' + w.example : '')
+              : w.example || '',
+            // slot — тап відкриває саме це слово дня (Pro: їх кілька)
+            data: { type: 'word-of-day', date, slot },
+          },
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.DATE,
+            date: when,
+            channelId: 'word-of-day',
+          },
+        });
+      } catch (_) {}
+    })
+  );
 }
 
 // Коли нагадати про кінець пробного періоду: за 2 дні до списання, як

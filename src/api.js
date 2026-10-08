@@ -21,11 +21,14 @@ function headers(token) {
   };
 }
 
-async function request(path, { method = 'GET', body, timeout = 20000 } = {}) {
+async function request(path, { method = 'GET', body, timeout = 20000, track = null } = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeout);
+  // track — набір, у якому викликач може перервати запит ззовні (abortScans)
+  track?.add(controller);
   const token = sessionToken;
   let res;
+  let data = null;
   try {
     res = await fetch(SERVER_URL + path, {
       method,
@@ -33,19 +36,28 @@ async function request(path, { method = 'GET', body, timeout = 20000 } = {}) {
       headers: headers(token),
       body: body ? JSON.stringify(body) : undefined,
     });
+    // Таймер живе, поки не прочитано і тіло: сервер, що віддав заголовки й
+    // замовк (інстанс Cloud Run помирає посеред відповіді), інакше тримав би
+    // виклик, а з ним «Знаю», синхронізацію й сканер, поки не здасться ОС.
+    let read = true;
+    try {
+      data = await res.json();
+    } catch (_) {
+      read = false;
+    }
+    // Тіло не дочитали, бо таймер перервав запит (а не бо воно порожнє)
+    if (!read && controller.signal.aborted) throw codeError('TIMEOUT');
   } catch (e) {
+    if (e?.code === 'TIMEOUT') throw e;
     // З SDK 56 глобальний fetch — це expo/fetch: перерваний запит падає з
     // FetchError, а не AbortError. Тож про таймаут питаємо сам сигнал.
     if (controller.signal.aborted || e.name === 'AbortError') throw codeError('TIMEOUT');
     throw codeError('OFFLINE');
   } finally {
     clearTimeout(timer);
+    track?.delete(controller);
   }
 
-  let data = null;
-  try {
-    data = await res.json();
-  } catch (_) {}
   if (!res.ok) {
     const err = codeError(data?.error || 'HTTP_' + res.status);
     err.status = res.status;
@@ -133,10 +145,20 @@ function paymentCode(data) {
   return data?.error === 'SCENE_PRO' ? 'SCENE_PRO' : 'SCAN_LIMIT';
 }
 
+// Запити /scan, що летять просто зараз. Сканер, який закрили посеред
+// розпізнавання (вкладку покинули, камеру зачинили), перериває їх через
+// abortScans: на сервері, що ще не взяв слот, безкоштовний скан не згорає.
+// Перерваний запит виходить як SCAN_TIMEOUT, і сканер без екрана мовчить.
+const inflightScans = new Set();
+export function abortScans() {
+  for (const c of [...inflightScans]) c.abort();
+  inflightScans.clear();
+}
+
 // Один запит /scan із перекладом мережевих помилок у коди сканера.
 async function scanRequest(body, timeout) {
   try {
-    return await request('/scan', { method: 'POST', body, timeout });
+    return await request('/scan', { method: 'POST', body, timeout, track: inflightScans });
   } catch (e) {
     if (e.code === 'TIMEOUT') throw codeError('SCAN_TIMEOUT');
     if (e.code === 'OFFLINE') throw codeError('SCAN_OFFLINE');
@@ -197,7 +219,7 @@ export async function recognizeImage(base64Jpeg, lang = 'en', nativeLang = 'uk',
 
   return {
     ...wordFields(data),
-    box: Array.isArray(data.box) && data.box.length === 4 ? data.box : null,
+    box: validBox(data.box) ? data.box : null,
     outline: Array.isArray(data.outline) && data.outline.length >= 6 ? data.outline : null,
     extras: cleanExtras(data.extras),
     usage: data.usage || null,

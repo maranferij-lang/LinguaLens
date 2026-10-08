@@ -46,9 +46,27 @@ export function useUiLang() {
   return lang;
 }
 
+// Регіон телефона для дат і часу: британець з англійським інтерфейсом бачить
+// «8 October» і 24 години, а не американські «October 8» і AM/PM; австрієць —
+// de-AT. Береться лише перша мова телефона, що збігається з мовою інтерфейсу
+// (телефон [fr-FR, en-GB] має англійський інтерфейс, і французька дата в
+// англійському реченні була б гірша за американську), і лише тег, який
+// рушій знає. Нічого не вийшло — типова локаль мови з LOCALES.
+function phoneTag(code) {
+  try {
+    for (const l of getLocales()) {
+      const base = String(l?.languageCode || String(l?.languageTag || '').split(/[-_]/)[0] || '').toLowerCase();
+      if (base !== code) continue;
+      const tag = String(l.languageTag || '');
+      return tag && Intl.DateTimeFormat.supportedLocalesOf(tag).length ? tag : null;
+    }
+  } catch (_) {}
+  return null;
+}
+
 export function localeFor(lang) {
   const code = uiLang(lang);
-  return LOCALES[code] || code;
+  return phoneTag(code) || LOCALES[code] || code;
 }
 
 export function formatDate(ts, lang, options = { day: 'numeric', month: 'long' }) {

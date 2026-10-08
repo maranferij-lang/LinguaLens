@@ -7,7 +7,7 @@
  * @jest-environment-options {"timezone": "Europe/Kyiv"}
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { AppState } from 'react-native';
+import { Alert, AppState } from 'react-native';
 import { act, create } from 'react-test-renderer';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as Notifications from 'expo-notifications';
@@ -158,6 +158,29 @@ describe('settings', () => {
     await act(async () => theSwitch(tree).props.onValueChange(true));
     expect(save).toHaveBeenCalledWith({ streakRemind: true });
     expect(Notifications.cancelScheduledNotificationAsync).not.toHaveBeenCalled();
+    await act(async () => tree.unmount());
+  });
+
+  // iOS уже відмовила й системного вікна не покаже: перемикач не смикається
+  // мовчки, а пояснює і веде в Параметри (як і «Слово дня»)
+  test('turning it on after iOS has already refused explains why instead of failing silently', async () => {
+    Notifications.getPermissionsAsync.mockImplementation(async () => ({ status: 'denied', canAskAgain: false }));
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    const save = jest.fn();
+    let tree;
+    await act(async () => {
+      tree = create(<StreakSection ctx={ctx({ streakRemind: false }, save)} extra={{}} />);
+    });
+    await act(async () => theSwitch(tree).props.onValueChange(true));
+    expect(Notifications.requestPermissionsAsync).not.toHaveBeenCalled();
+    expect(save).not.toHaveBeenCalled();
+    expect(alert).toHaveBeenCalledTimes(1);
+    expect(alert.mock.calls[0][0]).toBe(t('notifOffTitle'));
+    expect(alert.mock.calls[0][2].map((b) => b.text)).toEqual([t('cancel'), t('openSettings')]);
+    // вимкнути можна й без дозволу: пояснення тільки для вмикання
+    await act(async () => theSwitch(tree).props.onValueChange(false));
+    expect(save).toHaveBeenCalledWith({ streakRemind: false });
+    expect(alert).toHaveBeenCalledTimes(1);
     await act(async () => tree.unmount());
   });
 });

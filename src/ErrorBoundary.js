@@ -6,6 +6,8 @@
 // саме він потрібен, щоб знайти справжню поломку.
 import { Component } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import * as SplashScreen from 'expo-splash-screen';
+import { track } from './analytics';
 import { MascotBob } from './Mascot';
 import { GradBtn } from './ui';
 import { makeT } from './i18n';
@@ -26,9 +28,20 @@ export default class ErrorBoundary extends Component {
   }
 
   componentDidCatch(error, info) {
-    // У продакшені сюди можна підключити збір помилок. Поки просто в консоль —
-    // у Metro це видно одразу.
+    // У Metro це видно одразу.
     console.error('LinguaLens crash:', error, info?.componentStack);
+    // Нативну заставку тримає App (preventAutoHideAsync) і ховає її після
+    // першого успішного кадру. Упав він раніше — без цього «Спробувати знову»
+    // лишилось би під заставкою, і людина бачила б застиглий екран завантаження.
+    try {
+      Promise.resolve(SplashScreen.hideAsync()).catch(() => {});
+    } catch (_) {}
+    // Єдиний слід збою в продакшені (Apple про спіймані помилки JS не звітує).
+    // Лише ім'я помилки: ні тексту, ні стека. Подія чекає в буфері статистики,
+    // доки App після повтору не прочитає вибір людини.
+    try {
+      track('app_crash', { name: error?.name });
+    } catch (_) {}
   }
 
   reset = () => this.setState({ error: null });
