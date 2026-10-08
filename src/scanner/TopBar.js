@@ -152,9 +152,20 @@ export function TorchButton({ on, onPress, t }) {
   );
 }
 
-export function CloseButton({ onPress, t }) {
+// disabled — поки йде розпізнавання: вихід посеред запиту згорів би
+// єдиний безкоштовний скан (запит летить далі, а результату вже ніхто не побачить)
+export function CloseButton({ onPress, disabled, t }) {
   return (
-    <Pressable onPress={onPress} hitSlop={6} accessibilityRole="button" accessibilityLabel={t('close')} testID="scan-close">
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      hitSlop={6}
+      style={disabled ? { opacity: 0.45 } : null}
+      accessibilityRole="button"
+      accessibilityLabel={t('close')}
+      accessibilityState={{ disabled: !!disabled }}
+      testID="scan-close"
+    >
       <CamGlass style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
         <IcClose size={20} color={CAM.text} />
       </CamGlass>
@@ -165,7 +176,7 @@ export function CloseButton({ onPress, t }) {
 // wide — екран від 390 pt: бокові слоти однакові, і статус стоїть рівно по
 // центру. На SE слоти вужчі, щоб довгий чип Pro вліз у ряд.
 // offset — на скільки сканер зайшов під статус-бар: ряд лишається під ним.
-export default function TopBar({ firstScan, lang, onLang, langDisabled, status, onPro, torch, onTorch, onClose, wide, offset = 0, t }) {
+export default function TopBar({ firstScan, lang, onLang, langDisabled, status, onPro, torch, onTorch, onClose, closeDisabled, wide, offset = 0, t }) {
   // 84: чип «🇺🇸 EN ⌄» з прапорцем варіанта
   const slot = wide ? { width: 84 } : null;
   return (
@@ -174,7 +185,7 @@ export default function TopBar({ firstScan, lang, onLang, langDisabled, status, 
       style={{ position: 'absolute', top: TOP + offset, left: SIDE, right: SIDE, height: BAR_H, flexDirection: 'row', alignItems: 'center' }}
     >
       <View style={[{ alignItems: 'flex-start' }, slot]}>
-        {firstScan ? onClose ? <CloseButton onPress={onClose} t={t} /> : null : <LangChip lang={lang} onPress={onLang} disabled={langDisabled} t={t} />}
+        {firstScan ? onClose ? <CloseButton onPress={onClose} disabled={closeDisabled} t={t} /> : null : <LangChip lang={lang} onPress={onLang} disabled={langDisabled} t={t} />}
       </View>
       <View style={{ flex: 1, alignItems: 'center', paddingHorizontal: 8 }} pointerEvents="box-none">
         {firstScan ? null : <Status status={status} onPro={onPro} t={t} />}

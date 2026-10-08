@@ -8,13 +8,14 @@
 // Нативний Modal поверх сканера (або словника, коли сцену відкрили з
 // історії). ShareSheet і картка слова живуть усередині нього: iOS не
 // покаже другий нативний Modal поверх уже відкритого.
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
   Image,
   Modal,
   Pressable,
+  ScrollView,
   StyleSheet,
   Switch,
   Text,
@@ -175,9 +176,12 @@ function SceneBody({ scene, active, backRef, cutter, savedWords, onSaveWords, on
   }, []);
 
   // ─── Дії ───
+  // Картка слова закривається сама: від'їжджає й лише тоді знімається (див.
+  // WordCard.close). Тож і «назад», і жест виходу VoiceOver ідуть через неї.
+  const closeCard = useRef(null);
   function back() {
     if (sharing) setSharing(null);
-    else if (selected) setSelected(null);
+    else if (selected) (closeCard.current || (() => setSelected(null)))();
     else onClose?.();
   }
   backRef.current = active ? back : null;
@@ -195,9 +199,10 @@ function SceneBody({ scene, active, backRef, cutter, savedWords, onSaveWords, on
     onUpdateScene?.(scene.id, { hidden: [...next] });
   }
 
-  // Зберігає список предметів. Якщо App зберіг не все (стеля безкоштовного
-  // словника), він уже відкрив пейвол, а під цим Modal його не видно, тож
-  // сцену закриваємо — решту слів App збереже сам після покупки.
+  // Зберігає список предметів. Словник безкоштовний без меж, тож App може
+  // зберегти менше лише тоді, коли якесь слово встигло з'явитись у словнику
+  // (синхронізація з іншого iPhone між показом і тапом): воно вже там, і
+  // позначаємо збереженими всі, а не перші N.
   async function save(objs) {
     if (busyRef.current || !objs.length || !onSaveWords) return;
     busyRef.current = true;
@@ -222,16 +227,12 @@ function SceneBody({ scene, active, backRef, cutter, savedWords, onSaveWords, on
           };
         })
       );
-      const saved = onSaveWords(list);
+      onSaveWords(list);
       setJustSaved((prev) => {
         const next = new Set(prev);
-        uniq.slice(0, saved).forEach((o) => next.add(o.key));
+        uniq.forEach((o) => next.add(o.key));
         return next;
       });
-      if (saved < list.length) {
-        onClose?.();
-        return;
-      }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     } finally {
       busyRef.current = false;
@@ -371,7 +372,9 @@ function SceneBody({ scene, active, backRef, cutter, savedWords, onSaveWords, on
               <Text style={s.savedAllText}>{t('sceneAllDone')}</Text>
             </View>
           ) : (
-            <Press onPress={() => save(unsaved)} disabled={busy || !unsaved.length} accessibilityLabel={saveLabel}>
+            // busy, а не disabled: кнопка, що працює, лишається в повному кольорі
+            // (disabled її притьмарив би до 45 %, ніби вимкнену)
+            <Press onPress={() => save(unsaved)} disabled={!unsaved.length} busy={busy} accessibilityLabel={saveLabel}>
               <View style={s.primary}>
                 {busy && !current ? (
                   <ActivityIndicator color={C.onAccent} />
@@ -401,6 +404,7 @@ function SceneBody({ scene, active, backRef, cutter, savedWords, onSaveWords, on
           onToggle={(show) => toggleHidden(current.key, show)}
           onSave={() => save([current])}
           onClose={() => setSelected(null)}
+          closeRef={closeCard}
           insets={insets}
           reduced={reduced}
           s={s}
@@ -440,9 +444,10 @@ function Scrim({ width, height, from }) {
 
 // ─── Картка слова ──────────────────────────────────────────────────────────
 // Не окремий Modal (iOS не покаже його поверх сцени), а аркуш усередині.
-function WordCard({ o, lang, cut, saved, busy, shownOnCard, onToggle, onSave, onClose, insets, reduced, s, C, t }) {
+function WordCard({ o, lang, cut, saved, busy, shownOnCard, onToggle, onSave, onClose, closeRef, insets, reduced, s, C, t }) {
   const a = useRef(new Animated.Value(0)).current;
   const [sticker, setSticker] = useState(null);
+  const { height: H } = useWindowDimensions();
 
   useEffect(() => {
     Animated.timing(a, { toValue: 1, duration: DUR.sheet, easing: EASE.drawer, useNativeDriver: true }).start();
@@ -453,64 +458,84 @@ function WordCard({ o, lang, cut, saved, busy, shownOnCard, onToggle, onSave, on
     };
   }, []);
 
+  // Вихід швидший за вхід (DUR.exit проти DUR.sheet), без ease-in; картка
+  // знімається, лише коли доїхала. Повторні тапи по тлу за час виходу ігноруємо.
+  const closing = useRef(false);
+  const close = useCallback(() => {
+    if (closing.current) return;
+    closing.current = true;
+    Animated.timing(a, { toValue: 0, duration: DUR.exit, easing: EASE.out, useNativeDriver: true }).start(() => onClose());
+  }, [onClose]);
+  useEffect(() => {
+    if (closeRef) closeRef.current = close;
+    return () => {
+      if (closeRef) closeRef.current = null;
+    };
+  }, [close]);
+
   const motion = reduced
     ? { opacity: a }
     : { transform: [{ translateY: a.interpolate({ inputRange: [0, 1], outputRange: [420, 0] }) }] };
 
   return (
-    <View style={StyleSheet.absoluteFill} accessibilityViewIsModal onAccessibilityEscape={onClose}>
+    <View style={StyleSheet.absoluteFill} accessibilityViewIsModal onAccessibilityEscape={close}>
       <Animated.View style={[StyleSheet.absoluteFill, s.cardBackdrop, { opacity: a }]}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityRole="button" accessibilityLabel={t('close')} />
+        <Pressable style={StyleSheet.absoluteFill} onPress={close} accessibilityRole="button" accessibilityLabel={t('close')} />
       </Animated.View>
-      <Animated.View style={[s.card, { paddingBottom: Math.max(insets.bottom, 12) + 16 }, motion]}>
+      {/* На великому шрифті (Dynamic Type) вміст не влазить у картку: гортається
+          лише він, а «Зберегти» стоїть унизу, як в аркуші сканера. */}
+      <Animated.View style={[s.card, { paddingBottom: Math.max(insets.bottom, 12) + 16, maxHeight: H - insets.top - 8 }, motion]}>
         <View style={s.handle} />
-        <View style={s.cardHead}>
-          <View style={s.cardArt} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-            {sticker ? <StickerLarge uri={sticker.uri} shape={sticker.shape} size={72} halo={false} pop /> : null}
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={s.cardWord} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.7}>
-              {o.word}
-            </Text>
-            {o.ipa ? <Text style={s.ipa}>{o.ipa}</Text> : null}
-          </View>
-          <Press style={s.speakBtn} onPress={() => speak(o.word, lang)} accessibilityLabel={t('listen')}>
-            <IcSpeaker size={20} color={C.accent} />
-          </Press>
-        </View>
-        {o.translation ? <Text style={s.cardTr}>{o.translation}</Text> : null}
-
-        {o.example ? (
-          <Press style={s.exampleBox} onPress={() => speak(o.example, lang)} accessibilityHint={t('listen')}>
-            <View style={s.exampleSpeaker}>
-              <IcSpeaker size={15} color={C.dim} />
+        <ScrollView style={s.cardScroll} contentContainerStyle={s.cardBody} bounces={false} showsVerticalScrollIndicator={false}>
+          <View style={s.cardHead}>
+            <View style={s.cardArt} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+              {sticker ? <StickerLarge uri={sticker.uri} shape={sticker.shape} size={72} halo={false} pop /> : null}
             </View>
-            <Text style={s.example}>{quote(o.example, lang)}</Text>
-            {o.exampleTranslation ? <Text style={s.exampleTr}>{o.exampleTranslation}</Text> : null}
-          </Press>
-        ) : null}
-
-        <View style={s.toggleRow}>
-          <View style={{ flex: 1 }}>
-            <Text style={s.toggleLabel}>{t('sceneShowOnCard')}</Text>
-            <Text style={s.toggleHint}>{t('sceneShowOnCardHint')}</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={s.cardWord} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.7}>
+                {o.word}
+              </Text>
+              {o.ipa ? <Text style={s.ipa}>{o.ipa}</Text> : null}
+            </View>
+            <Press style={s.speakBtn} onPress={() => speak(o.word, lang)} accessibilityLabel={t('listen')}>
+              <IcSpeaker size={20} color={C.accent} />
+            </Press>
           </View>
-          <Switch
-            value={shownOnCard}
-            onValueChange={onToggle}
-            trackColor={{ true: C.accent, false: C.card3 }}
-            thumbColor="#FFFFFF"
-            ios_backgroundColor={C.card3}
-            accessibilityLabel={t('sceneShowOnCard')}
-          />
-        </View>
+          {o.translation ? <Text style={s.cardTr}>{o.translation}</Text> : null}
+
+          {o.example ? (
+            <Press style={s.exampleBox} onPress={() => speak(o.example, lang)} accessibilityHint={t('listen')}>
+              <View style={s.exampleSpeaker}>
+                <IcSpeaker size={15} color={C.dim} />
+              </View>
+              <Text style={s.example}>{quote(o.example, lang)}</Text>
+              {o.exampleTranslation ? <Text style={s.exampleTr}>{o.exampleTranslation}</Text> : null}
+            </Press>
+          ) : null}
+
+          <View style={s.toggleRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={s.toggleLabel}>{t('sceneShowOnCard')}</Text>
+              <Text style={s.toggleHint}>{t('sceneShowOnCardHint')}</Text>
+            </View>
+            <Switch
+              value={shownOnCard}
+              onValueChange={onToggle}
+              trackColor={{ true: C.accent, false: C.card3 }}
+              thumbColor="#FFFFFF"
+              ios_backgroundColor={C.card3}
+              accessibilityLabel={t('sceneShowOnCard')}
+            />
+          </View>
+        </ScrollView>
 
         {saved ? (
           <View style={s.savedBadge}>
             <Text style={s.savedBadgeText}>{t('saved')}</Text>
           </View>
         ) : (
-          <Press onPress={onSave} disabled={busy} accessibilityLabel={t('save')}>
+          // busy, а не disabled: кнопка, що зберігає, не блякне
+          <Press onPress={onSave} busy={busy} accessibilityLabel={t('save')}>
             <View style={s.primary}>
               {busy ? <ActivityIndicator color={C.onAccent} /> : <Text style={s.primaryText}>{t('save')}</Text>}
             </View>
@@ -600,6 +625,9 @@ const makeStyles = (C) =>
       gap: 12,
     },
     handle: { width: 36, height: 5, borderRadius: 3, backgroundColor: C.card3, alignSelf: 'center', marginBottom: 4 },
+    // не тягнеться понад вміст, а гортається, лише коли впирається в maxHeight картки
+    cardScroll: { flexGrow: 0, flexShrink: 1 },
+    cardBody: { gap: 12 },
     cardHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
     cardArt: { width: 72, height: 72, alignItems: 'center', justifyContent: 'center' },
     cardWord: { color: C.text, ...type(28, F.bold) },
@@ -632,5 +660,6 @@ const makeStyles = (C) =>
     toggleLabel: { color: C.text, ...type(15, F.semi) },
     toggleHint: { color: C.dim, ...type(13, F.reg) },
     savedBadge: { height: BTN_H, borderRadius: R.lg, alignItems: 'center', justifyContent: 'center', backgroundColor: C.greenSoft },
-    savedBadgeText: { color: C.green, ...type(17, F.semi, { noLead: true }) },
+    // текст успіху на greenSoft — greenInk (чистий green там лише 3,8:1)
+    savedBadgeText: { color: C.greenInk, ...type(17, F.semi, { noLead: true }) },
   });

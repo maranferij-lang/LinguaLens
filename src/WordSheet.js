@@ -9,7 +9,7 @@
 // Тут же живуть дрібниці, спільні для аркуша й словника: «типографська
 // наліпка» для слів без фото, розбір артикля й підтвердження видалення.
 // Окремо від DictionaryScreen, бо той імпортує аркуш — інакше вийшло б коло.
-import { memo, useEffect, useMemo, useRef } from 'react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Animated,
@@ -17,12 +17,12 @@ import {
   PanResponder,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   useWindowDimensions,
   View,
 } from 'react-native';
-import * as Haptics from 'expo-haptics';
 import { speak } from './speech';
 import { IcSpeaker } from './icons';
 import { StickerLarge } from './Sticker';
@@ -30,7 +30,7 @@ import { PLATE } from './WordPlate';
 import { photoUri } from './photos';
 import { useSafeAreaInsets } from './SafeArea';
 import { FadeIn, GradBtn, Press } from './ui';
-import { DUR, EASE, SPRING, useReducedMotion } from './motion';
+import { DUR, EASE, SPRING, haptic, safeSpring, useReducedMotion } from './motion';
 import { F, R, type, useTheme } from './theme';
 import { quote } from './share/layout';
 
@@ -80,7 +80,7 @@ export function confirmDelete(t, word, onConfirm) {
       text: t('delete'),
       style: 'destructive',
       onPress: () => {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        haptic('medium');
         onConfirm();
       },
     },
@@ -164,10 +164,22 @@ export default function WordSheet({ item, onClose, onDelete, onShare, t }) {
   // Дія, яку треба виконати, коли Modal остаточно зник (див. afterDismiss)
   const pending = useRef(null);
 
+  // Великий шрифт (Dynamic Type) чи низький екран: вміст не влазить у аркуш, і
+  // верх (ручка, наліпка, слово) вилазив би за екран без шансу прочитати.
+  // Тоді вміст гортається, а «Поділитися» й «Видалити» стоять унизу. Звичайний
+  // аркуш, що влазить, лишається без ScrollView: жест закриття в нього той самий.
+  const maxH = height - insets.top - 8;
+  const [scrolls, setScrolls] = useState(false);
+  const scrollsRef = useRef(false);
+  scrollsRef.current = scrolls;
+  const scrollY = useRef(0);
+
   const id = item?.id;
   useEffect(() => {
     if (!id) return;
     closing.current = false;
+    setScrolls(false);
+    scrollY.current = 0;
     a.setValue(0);
     drag.setValue(0);
     // Крива шторок iOS: різкий старт, м'яке приземлення, без перельоту.
@@ -200,12 +212,15 @@ export default function WordSheet({ item, onClose, onDelete, onShare, t }) {
   const pan = useRef(
     PanResponder.create({
       // Лише явний рух униз: дотики до прикладу й кнопок лишаються дотиками.
-      onMoveShouldSetPanResponder: (_, g) => g.dy > 6 && Math.abs(g.dy) > Math.abs(g.dx) * 1.5,
+      // Вміст прогорнуто нижче верху: рух униз тоді гортає його назад, а не
+      // тягне аркуш.
+      onMoveShouldSetPanResponder: (_, g) =>
+        g.dy > 6 && Math.abs(g.dy) > Math.abs(g.dx) * 1.5 && !(scrollsRef.current && scrollY.current > 1),
       onPanResponderMove: (_, g) => drag.setValue(Math.max(0, g.dy)),
       onPanResponderRelease: (_, g) => {
         if (g.dy > 110 || g.vy > 0.9) dismissRef.current();
         // Після жесту з моментумом легкий переліт доречний (motion.js)
-        else Animated.spring(drag, { toValue: 0, ...SPRING.gesture }).start();
+        else Animated.spring(drag, { toValue: 0, ...safeSpring(SPRING.gesture) }).start();
       },
       onPanResponderTerminate: () => Animated.spring(drag, { toValue: 0, ...SPRING.ui }).start(),
     })
@@ -243,20 +258,27 @@ export default function WordSheet({ item, onClose, onDelete, onShare, t }) {
           </Animated.View>
 
           <Animated.View
-            style={[s.sheet, { paddingBottom: Math.max(insets.bottom, 12) + 20 }, sheetMotion]}
+            style={[s.sheet, { paddingBottom: Math.max(insets.bottom, 12) + 20, maxHeight: maxH }, sheetMotion]}
+            // аркуш уперся в maxHeight: вміст не влазить — вмикаємо гортання
+            onLayout={(e) => {
+              if (!scrollsRef.current && e.nativeEvent.layout.height >= maxH - 0.5) setScrolls(true);
+            }}
+            onAccessibilityEscape={() => dismiss()}
             {...pan.panHandlers}
           >
             <View style={s.handle} />
             <SheetBody
               item={item}
               art={Math.round(Math.min(156, height * 0.2))}
+              scrolls={scrolls}
+              onScrollY={(y) => (scrollY.current = y)}
               s={s}
               C={C}
               t={t}
               onShare={
                 onShare
                   ? () => {
-                      Haptics.selectionAsync();
+                      haptic('selection');
                       dismiss(() => onShare({ kind: 'word', word: item }));
                     }
                   : null
@@ -272,10 +294,10 @@ export default function WordSheet({ item, onClose, onDelete, onShare, t }) {
 
 // Вміст аркуша. Розмір наліпки (art) рахується від висоти екрана: на
 // iPhone SE аркуш із прикладом інакше не влазить.
-function SheetBody({ item, art, s, C, t, onShare, onDelete }) {
+function SheetBody({ item, art, scrolls, onScrollY, s, C, t, onShare, onDelete }) {
   const uri = photoUri(item.photo);
   const lang = item.lang || 'en';
-  return (
+  const top = (
     <>
       <View style={s.art}>
         {uri ? (
@@ -302,7 +324,7 @@ function SheetBody({ item, art, s, C, t, onShare, onDelete }) {
 
       {item.example ? (
         <FadeIn delay={45}>
-          <Press style={s.exampleBox} onPress={() => speak(item.example, lang)}>
+          <Press style={s.exampleBox} onPress={() => speak(item.example, lang)} accessibilityHint={t('listen')}>
             <View style={s.exampleSpeaker}>
               <IcSpeaker size={15} color={C.dim} />
             </View>
@@ -311,6 +333,23 @@ function SheetBody({ item, art, s, C, t, onShare, onDelete }) {
           </Press>
         </FadeIn>
       ) : null}
+    </>
+  );
+  return (
+    <>
+      {scrolls ? (
+        <ScrollView
+          style={s.scroll}
+          bounces={false}
+          showsVerticalScrollIndicator={false}
+          scrollEventThrottle={16}
+          onScroll={(e) => onScrollY(e.nativeEvent.contentOffset.y)}
+        >
+          {top}
+        </ScrollView>
+      ) : (
+        top
+      )}
 
       <FadeIn delay={90} style={s.actions}>
         {onShare ? <GradBtn title={t('share')} onPress={onShare} /> : null}
@@ -343,6 +382,8 @@ const makeStyles = (C) =>
       alignSelf: 'center',
       marginBottom: 14,
     },
+    // не тягнеться понад вміст, а гортається, лише коли впирається в maxHeight аркуша
+    scroll: { flexGrow: 0, flexShrink: 1 },
     art: { alignItems: 'center', marginBottom: 14 },
     wordRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12 },
     word: { color: C.text, ...type(34, F.bold), textAlign: 'center', flexShrink: 1 },
@@ -374,5 +415,6 @@ const makeStyles = (C) =>
     exampleTr: { color: C.dim, ...type(13, F.reg), marginTop: 6 },
     actions: { marginTop: 22, gap: 4 },
     deleteBtn: { alignSelf: 'center', paddingVertical: 12, paddingHorizontal: 20 },
-    deleteText: { color: C.red, ...type(15, F.semi, { noLead: true }) },
+    // текст помилки й видалення — redInk (чистий red на картці лише 4,0:1)
+    deleteText: { color: C.redInk, ...type(15, F.semi, { noLead: true }) },
   });

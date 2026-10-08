@@ -8,7 +8,7 @@
 //
 // Тінь кутів — ширший темний штрих під білим (а не shadow* у View: на вебі
 // той малював би прямокутну тінь довкола порожнього кадру).
-import { useEffect, useRef } from 'react';
+import { memo, useEffect, useRef } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
 import Svg, { Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
 import { EASE } from '../motion';
@@ -50,7 +50,9 @@ export function spotlightPath(W, H, { x, y, w, h }, r = FRAME_R) {
   );
 }
 
-export default function Viewfinder({ frame, rootW, rootH, loading = false, reduced = false }) {
+// memo: рамка, кути й «прожектор» від зуму не залежать, а щипок перемальовує
+// весь сканер на кожен дотик (рамка приходить стабільним обʼєктом, див. ScannerScreen).
+function Viewfinder({ frame, rootW, rootH, loading = false, reduced = false }) {
   const { x, y, w, h } = frame;
   const breath = useRef(new Animated.Value(0)).current;
   const sweep = useRef(new Animated.Value(0)).current;
@@ -121,3 +123,5 @@ export default function Viewfinder({ frame, rootW, rootH, loading = false, reduc
     </View>
   );
 }
+
+export default memo(Viewfinder);

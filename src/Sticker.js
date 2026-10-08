@@ -12,7 +12,7 @@
 //   3) біла облямівка — товстий штрих по контуру;
 //   4) фото, обрізане по контуру.
 // Геометрія (згладжування, запас під облямівку) — у stickerGeometry.js.
-import { useEffect, useId, useMemo, useRef } from 'react';
+import { memo, useEffect, useId, useMemo, useRef } from 'react';
 import { Animated, View } from 'react-native';
 import Svg, { ClipPath, Defs, FeGaussianBlur, Filter, G, Image as SvgImage, Path } from 'react-native-svg';
 import { stickerPath } from './stickerGeometry';
@@ -85,14 +85,17 @@ function Cut({ uri, shape, outline, box, size, shadow }) {
 
 // Дрібна наліпка для рядка словника й сітки колекції. Розмиту тінь вмикаємо
 // лише від 72 пт: на 48 пт її майже не видно, а рядків у списку сотні.
-export function Sticker({ uri, shape, outline, box, size = 48, style }) {
+// memo: це ціле дерево SVG, а пропси (фото, силует, розмір) міняються рідко,
+// тоді як батьки (пошук у словнику, щипок зуму в сканері) перемальовуються
+// на кожну літеру чи дотик.
+export const Sticker = memo(function Sticker({ uri, shape, outline, box, size = 48, style }) {
   if (!uri) return null;
   return (
     <View style={[{ width: size, height: size }, style]}>
       <Cut uri={uri} shape={shape} outline={outline} box={box} size={size} shadow={size >= 72} />
     </View>
   );
-}
+});
 
 // Велика наліпка для картки результату, флешкартки й карток «поділитись».
 // `pop` — коротка «шльоп»-анімація появи, наче наліпку щойно приліпили.

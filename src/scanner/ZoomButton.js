@@ -1,12 +1,15 @@
 // Зум праворуч від затвора (core.md A9): кругла кнопка «1×» / «2×», а не
 // пігулка на кадрі — вона більше не лежить на предметі. Тап перемикає між
-// пресетами, підпис — найближчий пресет; щипок по кадру працює, як і раніше.
+// пресетами; щипок по кадру працює, як і раніше.
 //
 // Точної кратності тут не буде: iOS рахує зум як maxZoom^value, а maxZoom
-// залежить від моделі телефону. Тому лише мітки пресетів, без «1.4×».
+// залежить від моделі телефону. Тому лише мітки пресетів, без «1.4×». Після
+// щипка зум не збігається ні з одним пресетом, і підпис «2×» збрехав би
+// (там може бути й 5×): тоді замість числа лупа, а тап повертає «1×».
 import { Pressable, Text } from 'react-native';
-import * as Haptics from 'expo-haptics';
 import { track } from '../analytics';
+import { IcSearch } from '../icons';
+import { haptic } from '../motion';
 import { F } from '../theme';
 import { CAM, CAM_FONT, CamGlass } from './CamGlass';
 
@@ -19,21 +22,37 @@ export function nearestPreset(zoom) {
   return ZOOM_PRESETS.reduce((best, p) => (Math.abs(p.value - zoom) < Math.abs(best.value - zoom) ? p : best), ZOOM_PRESETS[0]);
 }
 
+// Пресет, на якому зум стоїть насправді; після щипка — null
+const SNAP = 0.01;
+export function exactPreset(zoom) {
+  return ZOOM_PRESETS.find((p) => Math.abs(p.value - zoom) < SNAP) || null;
+}
+
 export default function ZoomButton({ zoom, onChange, t }) {
-  const cur = nearestPreset(zoom);
+  const cur = exactPreset(zoom);
   function next() {
-    const i = ZOOM_PRESETS.indexOf(cur);
-    const to = ZOOM_PRESETS[(i + 1) % ZOOM_PRESETS.length];
-    Haptics.selectionAsync();
+    // пресет → наступний пресет; після щипка → «1×»
+    const to = cur ? ZOOM_PRESETS[(ZOOM_PRESETS.indexOf(cur) + 1) % ZOOM_PRESETS.length] : ZOOM_PRESETS[0];
+    haptic('selection');
     track('scan_zoom', { preset: to.label });
     onChange(to.value);
   }
   return (
-    <Pressable onPress={next} hitSlop={4} accessibilityRole="button" accessibilityLabel={t('scanZoomA11y', { z: cur.label })} testID="zoom">
+    <Pressable
+      onPress={next}
+      hitSlop={4}
+      accessibilityRole="button"
+      accessibilityLabel={cur ? t('scanZoomA11y', { z: cur.label }) : t('scanZoomResetA11y')}
+      testID="zoom"
+    >
       <CamGlass style={{ width: 48, height: 48, alignItems: 'center', justifyContent: 'center' }}>
-        <Text style={{ color: CAM.text, fontSize: 15, fontFamily: F.extra }} maxFontSizeMultiplier={CAM_FONT}>
-          {cur.label}
-        </Text>
+        {cur ? (
+          <Text style={{ color: CAM.text, fontSize: 15, fontFamily: F.extra }} maxFontSizeMultiplier={CAM_FONT}>
+            {cur.label}
+          </Text>
+        ) : (
+          <IcSearch size={22} color={CAM.text} />
+        )}
       </CamGlass>
     </Pressable>
   );

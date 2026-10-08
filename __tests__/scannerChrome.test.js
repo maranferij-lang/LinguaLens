@@ -12,7 +12,7 @@ import { STRINGS, makeT } from '../src/i18n';
 import { CameraView } from 'expo-camera';
 import { SIDE, scannerLayout } from '../src/scanner/layout';
 import { textEm } from '../src/share/layout';
-import Viewfinder, { cornersPath, spotlightPath } from '../src/scanner/Viewfinder';
+import { cornersPath, spotlightPath } from '../src/scanner/Viewfinder';
 import TopBar from '../src/scanner/TopBar';
 import { CAM } from '../src/scanner/CamGlass';
 import { StyleSheet } from 'react-native';
@@ -397,7 +397,9 @@ describe('layout', () => {
     const root = (tree) => tree.root.findAll((n) => n.type === 'View' && typeof n.props.onLayout === 'function' && StyleSheet.flatten(n.props.style)?.backgroundColor === CAM.black)[0];
     const lay = async (tree, height) => {
       await act(async () => root(tree).props.onLayout({ nativeEvent: { layout: { height } } }));
-      return tree.root.findByType(Viewfinder).props;
+      // Viewfinder — memo (щипок перемальовує сканер на кожен дотик), тож за
+      // типом його не знайти; шукаємо за пропсами
+      return tree.root.find((n) => typeof n.type === 'function' && n.props.frame && 'rootH' in n.props).props;
     };
     // без заходу — як і раніше: сканер лише у своїй зоні
     let tree = await render({ scansLeft: 1 });

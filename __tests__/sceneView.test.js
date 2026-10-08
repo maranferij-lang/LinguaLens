@@ -1,4 +1,4 @@
-// Екран сцени: зберегти все з урахуванням стелі словника, сховати хибний
+// Екран сцени: зберегти все, не закриваючи сцену, сховати хибний
 // підпис перед тим, як ділитися, і правильний порядок «назад».
 import { Image, Modal, Switch } from 'react-native';
 import { act, create } from 'react-test-renderer';
@@ -122,11 +122,20 @@ test('chips of words already in the list carry a check, and VoiceOver hears it',
   await act(async () => fresh.tree.unmount());
 });
 
-test('the free cap stops part of the list: the scene closes so the paywall is visible', async () => {
+// Словник безкоштовний без меж, тож App зберігає менше лише коли якесь слово
+// встигло з'явитись у словнику (синхронізація з іншого iPhone між показом
+// сцени й тапом «Зберегти всі»). Це не привід закривати сцену: слово вже там.
+test('App saved fewer words than asked (one was synced meanwhile): the scene stays, every chip counts as saved', async () => {
+  const Haptics = require('expo-haptics');
+  const note = jest.spyOn(Haptics, 'notificationAsync');
   const { tree, props } = await render({ onSaveWords: jest.fn(() => 1) });
   await run(() => byLabel(tree, t('sceneSaveAll', { n: 3 })).props.onPress());
   expect(props.onSaveWords.mock.calls[0][0]).toHaveLength(3);
-  expect(props.onClose).toHaveBeenCalledTimes(1);
+  expect(props.onClose).not.toHaveBeenCalled();
+  expect(texts(tree)).toContain(t('sceneAllDone'));
+  expect(tree.root.findAllByType(SceneChip).map((c) => c.props.saved)).toEqual([true, true, true]);
+  expect(note).toHaveBeenCalledWith(Haptics.NotificationFeedbackType.Success);
+  note.mockRestore();
   await act(async () => tree.unmount());
 });
 

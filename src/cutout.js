@@ -16,14 +16,16 @@ const PAD = 0.06;
 
 // Рендерить ланцюжок ImageManipulator і зберігає файл. Нативні об'єкти
 // звільняємо завжди — повнорозмірний кадр у пам'яті займає десятки МБ.
+// release викликаємо через `?.()`: заглушка чи старіша збірка без нього не
+// має перетворювати вдалий рендер на помилку (так само робить widgets/thumbs.js).
 export async function renderAndSave(context, saveOptions) {
   let image = null;
   try {
     image = await context.renderAsync();
     return await image.saveAsync(saveOptions);
   } finally {
-    image?.release();
-    context.release();
+    image?.release?.();
+    context.release?.();
   }
 }
 
@@ -44,14 +46,20 @@ export async function objectJpeg(source, W) {
 // Квадрат — щоб предмет однаково добре сидів і в словнику, і на картці.
 // Цілі пікселі з округленням ВНИЗ: originX + width ніколи не вийде за W
 // (на Android вихід навіть на 1 px — виняток і скан без наліпки).
+// Криву рамку (не чотири числа, перевернута, квадрат менший за MIN_SIDE px)
+// не ріжемо: повертаємо null, а cropToObject бере шлях без рамки.
+export const MIN_SIDE = 8;
 export function stickerCrop(W, H, box) {
+  if (!Array.isArray(box) || box.length !== 4 || !box.every(Number.isFinite)) return null;
   const [y1, x1, y2, x2] = box;
+  if (!(y2 >= y1 && x2 >= x1)) return null;
   const left = (x1 / 1000 - PAD) * W;
   const top = (y1 / 1000 - PAD) * H;
   const w = ((x2 - x1) / 1000 + PAD * 2) * W;
   const h = ((y2 - y1) / 1000 + PAD * 2) * H;
   // Доводимо до квадрата по довшій стороні, тримаючи центр предмета.
   const side = Math.min(Math.max(w, h), Math.min(W, H));
+  if (!(side >= MIN_SIDE)) return null;
   const cx = left + w / 2;
   const cy = top + h / 2;
   return {
@@ -75,14 +83,14 @@ export function shapeInCrop(outline, W, H, { L, T, S }) {
 // source — PictureRef камери (на телефоні) або URI файлу.
 export async function cropToObject(source, W, H, box, outline) {
   try {
-    if (!box) {
+    const crop = box ? stickerCrop(W, H, box) : null;
+    if (!crop) {
       const c = await renderAndSave(ImageManipulator.manipulate(source).resize({ width: STICKER_PX }), {
         compress: 0.7,
         format: SaveFormat.JPEG,
       });
       return { uri: c.uri, shape: null };
     }
-    const crop = stickerCrop(W, H, box);
     const c = await renderAndSave(
       ImageManipulator.manipulate(source)
         .crop({ originX: crop.L, originY: crop.T, width: crop.S, height: crop.S })
@@ -184,25 +192,63 @@ export function dropFile(uri) {
 //   eager — одразу всі по черзі (повний кадр із камери: його треба
 //           звільнити якомога раніше, done каже коли);
 //   інакше — лише на вимогу (сцена з історії: ріжемо зі збереженого 9:16).
-// Послідовно, а не всі разом: кожне вирізання декодує великий кадр, і
-// вісім паралельних на старому iPhone забили б пам'ять.
+// Завжди по одному, і для eager, і для запитів на вимогу: кожне вирізання
+// декодує великий кадр, і вісім паралельних («Зберегти всі» одразу після
+// появи сцени) на старому iPhone забили б пам'ять. Слово, чия наліпка ще
+// стоїть у черзі, тап ставить попереду: людина чекає саме на нього. get()
+// для одного ключа завжди повертає той самий проміс.
 export function createCutter({ source, width, height, crop, objects, eager = false }) {
   const cache = new Map();
-  const cut = (o) => {
-    if (!cache.has(o.key)) {
-      cache.set(
-        o.key,
-        cropToObject(source, width, height, boxToFrame(o.box, crop, width, height), outlineToFrame(o.outline, crop, width, height))
-      );
-    }
-    return cache.get(o.key);
+  const jobs = new Map();
+  const queue = [];
+  let running = false;
+
+  const pump = () => {
+    if (running) return;
+    const job = queue.shift();
+    if (!job) return;
+    running = true;
+    const { o, resolve } = job;
+    // через then: крива рамка кине виняток уже всередині ланцюжка, а не
+    // зависне з running = true і не заблокує чергу
+    Promise.resolve()
+      .then(() => cropToObject(source, width, height, boxToFrame(o.box, crop, width, height), outlineToFrame(o.outline, crop, width, height)))
+      .catch(() => ({ uri: null, shape: null }))
+      .then((res) => {
+        running = false;
+        resolve(res);
+        pump();
+      });
   };
-  const done = eager ? objects.reduce((p, o) => p.then(() => cut(o)), Promise.resolve()) : Promise.resolve();
+
+  const cut = (o, urgent = false) => {
+    const have = cache.get(o.key);
+    if (have) {
+      const job = jobs.get(o.key);
+      const at = urgent && job ? queue.indexOf(job) : -1;
+      if (at > 0) {
+        queue.splice(at, 1);
+        queue.unshift(job);
+      }
+      return have;
+    }
+    let resolve;
+    const promise = new Promise((r) => (resolve = r));
+    const job = { o, resolve };
+    cache.set(o.key, promise);
+    jobs.set(o.key, job);
+    if (urgent) queue.unshift(job);
+    else queue.push(job);
+    pump();
+    return promise;
+  };
+
+  const done = eager ? Promise.all(objects.map((o) => cut(o))).then(() => undefined) : Promise.resolve();
   return {
     done,
     get(key) {
       const o = objects.find((x) => x.key === key);
-      return o ? cut(o) : Promise.resolve({ uri: null, shape: null });
+      return o ? cut(o, true) : Promise.resolve({ uri: null, shape: null });
     },
   };
 }
