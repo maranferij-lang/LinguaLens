@@ -265,7 +265,8 @@ export default function LangSheet({ visible, current, variant = null, native, ot
 
 const makeStyles = (C) =>
   StyleSheet.create({
-    backdrop: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,0.4)' },
+    // затемнення з теми: у темних версіях густіше, ніж 40 % чорного
+    backdrop: { ...StyleSheet.absoluteFill, backgroundColor: C.scrim },
     kav: { flex: 1, justifyContent: 'flex-end' },
     sheet: {
       maxHeight: '86%',

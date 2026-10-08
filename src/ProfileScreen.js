@@ -559,7 +559,7 @@ const makeStyles = (C) =>
 
     // Тло — на весь екран, аркуш — окремо над клавіатурою (KeyboardAvoidingView
     // пропускає дотики повз себе до тла: pointerEvents box-none)
-    backdrop: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,0.45)' },
+    backdrop: { ...StyleSheet.absoluteFill, backgroundColor: C.scrim },
     kav: { flex: 1, justifyContent: 'flex-end' },
     sheet: {
       backgroundColor: C.sheet,

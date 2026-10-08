@@ -366,7 +366,8 @@ function SheetBody({ item, art, scrolls, onScrollY, s, C, t, onShare, onDelete }
 const makeStyles = (C) =>
   StyleSheet.create({
     root: { flex: 1, justifyContent: 'flex-end' },
-    backdrop: { backgroundColor: 'rgba(0,0,0,0.4)' },
+    // затемнення з теми: у темних версіях густіше (C.scrim)
+    backdrop: { backgroundColor: C.scrim },
     sheet: {
       backgroundColor: C.sheet,
       borderTopLeftRadius: R.xl,

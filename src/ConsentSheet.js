@@ -51,7 +51,8 @@ export default function ConsentSheet({ visible, onAllow, onClose, t }) {
 
 const makeStyles = (C) =>
   StyleSheet.create({
-    backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
+    // затемнення з теми: у темних версіях густіше (C.scrim)
+    backdrop: { flex: 1, backgroundColor: C.scrim },
     sheet: {
       backgroundColor: C.sheet,
       borderTopLeftRadius: R.xl,
