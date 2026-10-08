@@ -9,11 +9,11 @@
 //
 // Колір — лише токени теми; іконка застосунку — справжня (AppIcon).
 import { useEffect, useMemo, useRef } from 'react';
-import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
+import { Animated, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import { AppIcon } from '../Logo';
 import { IcPlus } from '../icons';
-import { useReducedMotion } from '../motion';
+import { EASE, useReducedMotion } from '../motion';
 import { F, R, type, useTheme } from '../theme';
 
 // Один крок — 1,2 с, коло з трьох — 3,6 с.
@@ -53,7 +53,7 @@ export function WidgetHowTo({ t, compact = false, style }) {
       return undefined;
     }
     const loop = Animated.loop(
-      Animated.timing(phase, { toValue: 3, duration: STEP_MS * 3, easing: Easing.linear, useNativeDriver: true })
+      Animated.timing(phase, { toValue: 3, duration: STEP_MS * 3, easing: EASE.linear, useNativeDriver: true })
     );
     loop.start();
     return () => loop.stop();

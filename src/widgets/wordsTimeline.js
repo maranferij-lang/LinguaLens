@@ -69,6 +69,20 @@ function rotations(now, clock) {
   return out;
 }
 
+// Початок поточного інтервалу ротації — час для key запису «зараз». Сам now
+// міняється на кожному переписуванні таймлайну (щоразу, як застосунок
+// відкривають), і відкритий «Переклад» цього запису губився б; початок
+// інтервалу стоїть на місці до наступної парної години. Лише для key: дата
+// запису лишається now, щоб віджет показав його одразу.
+export function rotationStart(now, clock = REAL_CLOCK) {
+  if (clock.fast) {
+    const step = ROTATE_HOURS * clock.hour;
+    return new Date(Math.floor(now.getTime() / step) * step);
+  }
+  const h = now.getHours();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate(), h - (h % ROTATE_HOURS));
+}
+
 function common(ctx, o) {
   return {
     kind: 'words',
@@ -122,7 +136,7 @@ function emptyProps(ctx) {
   };
 }
 
-function wordProps(ctx, { w, at, k, pool, stats }) {
+function wordProps(ctx, { w, at, keyAt = at, k, pool, stats }) {
   const { t } = ctx;
   const id = String(w.id);
   const word = text(w.word);
@@ -145,7 +159,7 @@ function wordProps(ctx, { w, at, k, pool, stats }) {
   const md = ctx.markdown ? exampleMarkdown(example, word, lang, EXAMPLE) : '';
   return {
     ...common(ctx, {
-      key: `words|${id}|${at.getTime()}`,
+      key: `words|${id}|${keyAt.getTime()}`,
       state: 'word',
       link: widgetLink('word', { id }, 'words'),
       a11y: [caption, word, translation].filter(Boolean).join(', '),
@@ -208,7 +222,7 @@ export function buildMyWordsTimeline(
   const stats = { total: all.length, learned: all.filter(isLearned).length };
   const entries = rotations(now, clock).map((at, k) => ({
     date: at,
-    props: wordProps(ctx, { w: pool[k % pool.length], at, k, pool, stats }),
+    props: wordProps(ctx, { w: pool[k % pool.length], at, keyAt: k ? at : rotationStart(now, clock), k, pool, stats }),
   }));
   return withinBudget(entries);
 }

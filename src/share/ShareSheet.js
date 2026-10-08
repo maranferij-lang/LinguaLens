@@ -16,13 +16,17 @@
 // transform-ом на обгортці. Знімається незменшений корінь, тож PNG чіткий,
 // а на екрані видно рівно те, що полетить. Один знімок живе, поки не
 // змінився вигляд: «Копіювати», а потім «Зберегти» знімають лише раз.
-import { useEffect, useRef, useState } from 'react';
+//
+// Закрити: «Закрити», дотик повз аркуш, «назад» (Android), жест «Z» у
+// VoiceOver і потяг униз за ручку чи заголовок.
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
   ActivityIndicator,
   Animated,
   BackHandler,
   Linking,
+  PanResponder,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -34,7 +38,7 @@ import * as Haptics from 'expo-haptics';
 import Svg, { Defs, LinearGradient, Pattern, Rect, Stop } from 'react-native-svg';
 import { track } from '../analytics';
 import { IcCheck, IcCopy, IcDownload, IcMore, IcShare, IcStories, IcWarn } from '../icons';
-import { DUR, EASE, useReducedMotion } from '../motion';
+import { DUR, EASE, SPRING, layoutNext, safeSpring, useReducedMotion } from '../motion';
 import { useSafeAreaInsets } from '../SafeArea';
 import { CAPS, F, R, type, useTheme } from '../theme';
 import { FadeIn, Press } from '../ui';
@@ -91,8 +95,14 @@ const ERRORS = {
   SAVE_FAILED: 'shareSaveError',
   SAVE_DENIED: 'shareSaveDenied',
 };
-// Скільки живе рядок «Скопійовано…» / «Збережено…»
+// Скільки живе рядок «Збережено…». «Скопійовано…» довший: це інструкція
+// на два рядки («відкрий Stories, торкнись екрана, обери Вставити»), і її
+// треба встигнути прочитати й виконати.
 const OK_MS = 4000;
+const COPIED_MS = 5500;
+// Потяг за ручку чи заголовок: далі за відстань або швидкість — закрити
+const DRAG_CLOSE_DY = 110;
+const DRAG_CLOSE_VY = 0.9;
 // Позначка «людина передумала» (закрила вибір фото, пішла з аркуша):
 // без помилки, без статистики, без хаптики.
 const CANCELLED = Symbol('cancelled');
@@ -138,6 +148,8 @@ function Sheet({ payload, onClose, t }) {
   const [stories, setStories] = useState(() => (storiesSupported() ? null : false));
 
   const a = useRef(new Animated.Value(0)).current;
+  // Палець тягне панель вниз за ручку чи заголовок
+  const drag = useRef(new Animated.Value(0)).current;
   const closing = useRef(false);
   const alive = useRef(true);
   const pageRef = useRef(0);
@@ -149,6 +161,9 @@ function Sheet({ payload, onClose, t }) {
   // Один знімок на вигляд: { key, uri }. Новий ключ — старий файл геть.
   const shot = useRef(null);
   const statusTimer = useRef(null);
+  // Чи рядок стану зараз на екрані: від цього залежить, чи просити анімацію
+  // розкладки (див. showStatus)
+  const statusOn = useRef(false);
   // Окремо від стану busy: два швидкі тапи встигають прийти до перерендеру,
   // і тоді дія виконалася б двічі.
   const busyRef = useRef(false);
@@ -221,6 +236,23 @@ function Sheet({ payload, onClose, t }) {
   // Усередині Modal її раніше перехопить сам Modal — там це й правильно.
   const closeRef = useRef(close);
   closeRef.current = close;
+
+  // Потяг униз за ручку чи заголовок закриває аркуш, як у системних шторках.
+  // Жест лише на цій смузі, а не на всій панелі: прев'ю з гортанням, плитки й
+  // кнопки лишаються при своїх дотиках. Повернення без перельоту: панель
+  // стоїть на нижньому краї, і пружина з перельотом підняла б її вище
+  // краю, відкривши щілину.
+  const pan = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, g) => g.dy > 6 && Math.abs(g.dy) > Math.abs(g.dx) * 1.5,
+      onPanResponderMove: (_, g) => drag.setValue(Math.max(0, g.dy)),
+      onPanResponderRelease: (_, g) => {
+        if (g.dy > DRAG_CLOSE_DY || g.vy > DRAG_CLOSE_VY) closeRef.current();
+        else Animated.spring(drag, { toValue: 0, ...safeSpring(SPRING.snappy) }).start();
+      },
+      onPanResponderTerminate: () => Animated.spring(drag, { toValue: 0, ...safeSpring(SPRING.snappy) }).start(),
+    })
+  ).current;
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
       closeRef.current();
@@ -229,12 +261,24 @@ function Sheet({ payload, onClose, t }) {
     return () => sub.remove();
   }, []);
 
-  function say(next) {
-    clearTimeout(statusTimer.current);
+  // Рядок стану стоїть у потоці й виштовхує аркуш угору. Щоб заголовок і
+  // прев'ю плавно їхали, а не стрибали під пальцем, перед зміною просимо
+  // анімацію розкладки: з'явився — DUR.panel, зник — швидше, DUR.exit. Коли
+  // рядка не було й немає, нічого не просимо: запит дістався б чужій зміні.
+  // На невисокому екрані рядок плаває поверх заголовка й нічого не зсуває.
+  function showStatus(next) {
+    const on = !!next;
+    if (!compact && (on || statusOn.current)) layoutNext(on ? DUR.panel : DUR.exit);
+    statusOn.current = on;
     setStatus(next);
+  }
+
+  function say(next, ms = OK_MS) {
+    clearTimeout(statusTimer.current);
+    showStatus(next);
     if (next?.text) AccessibilityInfo.announceForAccessibility?.(next.text);
     // Успіх тихне сам; помилка висить до наступної дії
-    if (next?.ok) statusTimer.current = setTimeout(() => alive.current && setStatus(null), OK_MS);
+    if (next?.ok) statusTimer.current = setTimeout(() => alive.current && showStatus(null), ms);
   }
 
   function pickMode(m) {
@@ -370,7 +414,9 @@ function Sheet({ payload, onClose, t }) {
       });
       if (target === 'copy' || target === 'save') {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-        say({ ok: true, text: t(target === 'copy' ? 'shareCopied' : 'shareSaved') });
+        // Картка суцільна, прозорого тла в неї немає: «з прозорим тлом» тут була б неправда
+        const text = target === 'copy' ? 'shareCopied' : mode === 'card' ? 'shareSavedCard' : 'shareSaved';
+        say({ ok: true, text: t(text) }, target === 'copy' ? COPIED_MS : OK_MS);
       }
     } catch (e) {
       if (!alive.current) return;
@@ -383,9 +429,23 @@ function Sheet({ payload, onClose, t }) {
   }
 
   const lift = reduced ? 0 : 48;
+  // Панель їде знизу (a) плюс те, на скільки її тягне палець (drag): один вузол
+  // на всі рендери, а не новий при кожній прокрутці прев'ю
+  const panelY = useMemo(() => Animated.add(a.interpolate({ inputRange: [0, 1], outputRange: [lift, 0] }), drag), [lift]);
+  // Початкова позиція гортальників. Рахується лише коли гортальник
+  // монтується заново (зміна режиму) і не слідує за сторінкою під час
+  // свайпу: Fabric застосовує змінений contentOffset програмно, навіть коли
+  // палець ще веде, і свайп смикався б. Усе інше (перемикання режиму, крапки)
+  // робить scrollTo з ефекту вище.
+  const stickerOffset = useMemo(() => ({ x: stylePageRef.current * boxW, y: 0 }), [mode, boxW]);
+  const cardOffset = useMemo(() => ({ x: pageRef.current * pageW, y: 0 }), [mode, pageW]);
   const previewW = CARD_W * scale;
   const cardPreviewH = CARD_H * scale;
   const fit = (k) => stickerFit(boxW, previewH, stickerH[k] || minHeight(k));
+  // Підпис сторінки картки: назва шаблону (де їх кілька) і про що вона. Тиждень
+  // і досягнення мають один шаблон без назви, тож там лише заголовок аркуша.
+  const cardLabel = (tp) =>
+    [TEMPLATE_NAMES[tp] ? t(TEMPLATE_NAMES[tp]) : '', stickerLabel(payload, t) || title].filter(Boolean).join(': ');
   const okInk = C.greenInk;
 
   const PRIMARY = {
@@ -421,41 +481,31 @@ function Sheet({ payload, onClose, t }) {
             backgroundColor: C.sheet,
             paddingBottom: insets.bottom + SHEET_ROWS.bottom,
             opacity: a,
-            transform: [{ translateY: a.interpolate({ inputRange: [0, 1], outputRange: [lift, 0] }) }],
+            transform: [{ translateY: panelY }],
           },
         ]}
       >
-        <View style={[s.grabber, { backgroundColor: C.card3 }]} />
-        <Text style={[s.title, { color: C.text }]} accessibilityRole="header" numberOfLines={1}>
-          {title}
-        </Text>
+        <View style={s.header} testID="share-header" {...pan.panHandlers}>
+          <View style={[s.grabber, { backgroundColor: C.card3 }]} />
+          <Text style={[s.title, { color: C.text }]} accessibilityRole="header" numberOfLines={1} maxFontSizeMultiplier={1.3}>
+            {title}
+          </Text>
+        </View>
 
         {segment ? (
           <View style={s.segmentRow}>
-            <View style={[s.segment, { backgroundColor: isDark ? C.bg : C.card2 }]} accessibilityRole="tablist">
-              {['sticker', 'card'].map((m) => {
-                const on = m === mode;
-                const label = t(m === 'sticker' ? 'shareModeSticker' : 'shareModeCard');
-                return (
-                  <Pressable
-                    key={m}
-                    onPress={() => pickMode(m)}
-                    accessibilityRole="tab"
-                    accessibilityLabel={label}
-                    accessibilityState={{ selected: on }}
-                    style={[s.segBtn, on && [{ backgroundColor: isDark ? C.card3 : C.card }, SHADOW_SM]]}
-                  >
-                    <Text
-                      numberOfLines={1}
-                      maxFontSizeMultiplier={1.3}
-                      style={{ color: on ? C.text : C.dim, ...type(15, on ? F.extra : F.bold, { noLead: true }) }}
-                    >
-                      {label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+            <Segment
+              value={mode}
+              options={[
+                { k: 'sticker', label: t('shareModeSticker') },
+                { k: 'card', label: t('shareModeCard') },
+              ]}
+              onChange={pickMode}
+              C={C}
+              isDark={isDark}
+              shadow={SHADOW_SM}
+              reduced={reduced}
+            />
           </View>
         ) : null}
 
@@ -488,7 +538,7 @@ function Sheet({ payload, onClose, t }) {
                 showsHorizontalScrollIndicator={false}
                 onScroll={onStyleScroll}
                 scrollEventThrottle={16}
-                contentOffset={{ x: stylePage * boxW, y: 0 }}
+                contentOffset={stickerOffset}
                 style={StyleSheet.absoluteFill}
               >
                 {styles.map((k) => {
@@ -542,11 +592,22 @@ function Sheet({ payload, onClose, t }) {
               showsHorizontalScrollIndicator={false}
               onScroll={onScroll}
               scrollEventThrottle={16}
-              contentOffset={{ x: page * pageW, y: 0 }}
+              contentOffset={cardOffset}
               style={{ flexGrow: 0, marginTop: 12 }}
             >
               {templates.map((tp, i) => (
-                <View key={tp} style={{ width: pageW, alignItems: 'center' }}>
+                // Сторінка для VoiceOver — одна картинка з підписом (шаблон: слово), а
+                // не десяток розрізнених текстів; сторінки поза екраном приховані.
+                // Обгортка зовні знімка: PNG береться з cardRef усередині.
+                <View
+                  key={tp}
+                  style={{ width: pageW, alignItems: 'center' }}
+                  accessible
+                  accessibilityRole="image"
+                  accessibilityLabel={cardLabel(tp)}
+                  accessibilityElementsHidden={i !== page}
+                  importantForAccessibility={i === page ? 'yes' : 'no-hide-descendants'}
+                >
                   {/* Тінь і скруглення — лише в прев'ю; сам PNG прямокутний,
                       кути Stories скругляє Instagram. */}
                   <View style={[{ width: previewW, height: cardPreviewH, borderRadius: PREVIEW_RADIUS, backgroundColor: pal.bg }, SHADOW]}>
@@ -690,7 +751,9 @@ function Sheet({ payload, onClose, t }) {
           {status && !compact ? <Status status={status} okInk={okInk} t={t} C={C} /> : null}
 
           <Press onPress={close} style={{ marginTop: 2 }}>
-            <Text style={[s.close, { color: C.dim }]}>{t('shareClose')}</Text>
+            <Text maxFontSizeMultiplier={1.3} style={[s.close, { color: C.dim }]}>
+              {t('shareClose')}
+            </Text>
           </Press>
         </View>
       </Animated.View>
@@ -739,7 +802,68 @@ function Status({ status, okInk, t, C, top = false, onDismiss }) {
   );
 }
 
-// Крапки сторінок і назва поточного вигляду капсом
+// Перемикач «Наліпка · Картка»: світла «пігулка» переїжджає під обраний пункт
+// (так само, як у Словнику й Темі), а не стрибає. Під «Менше руху» стає на
+// місце одразу. Мітка пункту міняє колір миттєво, кнопки лишаються
+// вкладками зі станом selected.
+function Segment({ value, options, onChange, C, isDark, shadow, reduced }) {
+  const [w, setW] = useState(0);
+  const idx = Math.max(
+    0,
+    options.findIndex((o) => o.k === value)
+  );
+  const a = useRef(new Animated.Value(idx)).current;
+
+  useEffect(() => {
+    if (reduced) a.setValue(idx);
+    else Animated.spring(a, { toValue: idx, ...SPRING.snappy }).start();
+  }, [idx, reduced]);
+
+  const thumb = w ? (w - 6) / options.length : 0;
+  const shift = useMemo(() => Animated.multiply(a, thumb), [thumb]);
+  return (
+    <View
+      style={[s.segment, { backgroundColor: isDark ? C.bg : C.card2 }]}
+      onLayout={(e) => setW(e.nativeEvent.layout.width)}
+      accessibilityRole="tablist"
+    >
+      {thumb ? (
+        <Animated.View
+          pointerEvents="none"
+          style={[s.segThumb, { width: thumb, backgroundColor: isDark ? C.card3 : C.card, transform: [{ translateX: shift }] }, shadow]}
+        />
+      ) : null}
+      {options.map((o) => {
+        const on = o.k === value;
+        return (
+          <Pressable
+            key={o.k}
+            onPress={() => onChange(o.k)}
+            // 30 pt на вигляд, 44 для пальця: над перемикачем і під ним є вільне поле
+            hitSlop={{ top: 7, bottom: 7 }}
+            accessibilityRole="tab"
+            accessibilityLabel={o.label}
+            accessibilityState={{ selected: on }}
+            style={s.segBtn}
+          >
+            <Text
+              numberOfLines={1}
+              maxFontSizeMultiplier={1.3}
+              style={{ color: on ? C.text : C.dim, ...type(15, on ? F.extra : F.bold, { noLead: true }) }}
+            >
+              {o.label}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+// Крапки сторінок і назва поточного вигляду капсом.
+// Кожна крапка — окрема кнопка 28×44: свайпу немає ні в VoiceOver, ні в
+// Switch Control, тож крапки — головний спосіб змінити вигляд. Висота 44 із
+// від'ємним полем лишає ряд заввишки 18 pt, і розкладка аркуша не міняється.
 function Dots({ items, current, onPick, label, C }) {
   return (
     <View style={s.dots}>
@@ -747,7 +871,7 @@ function Dots({ items, current, onPick, label, C }) {
         <Pressable
           key={it}
           onPress={() => onPick(i)}
-          hitSlop={8}
+          style={s.dotHit}
           accessibilityRole="button"
           accessibilityLabel={label(it)}
           accessibilityState={{ selected: i === current }}
@@ -803,16 +927,22 @@ const s = StyleSheet.create({
     borderTopRightRadius: R.xl,
     paddingTop: 8,
   },
+  // Смуга потягу: ручка й заголовок. Мінус 8 зверху з тим самим відступом
+  // всередині підхоплює й поле над ручкою, а розкладка не змінюється.
+  header: { marginTop: -8, paddingTop: 8 },
   // ручка + відступ до заголовка = SHEET_ROWS.top
   grabber: { alignSelf: 'center', width: 36, height: 5, borderRadius: 3, marginBottom: 7 },
   title: { ...type(19, F.extra, { noLead: true }), lineHeight: SHEET_ROWS.title, textAlign: 'center', paddingHorizontal: 20 },
   segmentRow: { marginTop: SHEET_ROWS.segment - 36, alignItems: 'center' },
   segment: { flexDirection: 'row', height: 36, borderRadius: 12, padding: 3, minWidth: 220 },
+  segThumb: { position: 'absolute', top: 3, bottom: 3, left: 3, borderRadius: 9 },
   segBtn: { flex: 1, minWidth: 104, paddingHorizontal: 16, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
   stickerBox: { borderRadius: STICKER_RADIUS, overflow: 'hidden' },
   hint: { position: 'absolute', left: 12, right: 12, bottom: 0, height: STICKER_HINT_H, justifyContent: 'flex-start' },
   hintText: { ...type(13, F.semi, { noLead: true }), lineHeight: 18, textAlign: 'center' },
-  dots: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 8, height: SHEET_ROWS.style - 8 },
+  dots: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 8, height: SHEET_ROWS.style - 8 },
+  // 44 pt для пальця й VoiceOver: висота ряду 18, тож по 13 pt поля зверху й знизу
+  dotHit: { minWidth: 28, height: 44, marginVertical: -13, alignItems: 'center', justifyContent: 'center' },
   dot: { width: 6, height: 6, borderRadius: 3 },
   swatches: { flexDirection: 'row', justifyContent: 'center', gap: 12, marginTop: SHEET_ROWS.swatches - 44 },
   swatchRing: { width: 44, height: 44, borderRadius: 22, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },

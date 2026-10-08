@@ -160,7 +160,8 @@ describe('buildMyWordsTimeline', () => {
     expect(entries.at(-1).date - NOW).toBeGreaterThan(6 * 86400000);
     // слова йдуть по колу
     expect(entries.slice(0, 8).map((e) => e.props.id)).toEqual(['id0', 'id1', 'id2', 'id3', 'id4', 'id5', 'id0', 'id1']);
-    expect(entries[0].props.key).toBe(`words|id0|${NOW.getTime()}`);
+    // key «зараз» — початок інтервалу ротації (14:00), а не 15:30
+    expect(entries[0].props.key).toBe(`words|id0|${new Date(2026, 9, 8, 14).getTime()}`);
   });
 
   test('25 October 2026 in Kyiv: the rotation stays on even hours through the clock change', () => {

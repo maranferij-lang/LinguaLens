@@ -28,7 +28,7 @@ import { headLetter } from '../WordSheet';
 import { nameFor } from '../speech';
 import { topicName } from '../profile';
 import { ipaLabel } from '../share/layout';
-import { useReducedMotion } from '../motion';
+import { DUR, EASE, useReducedMotion } from '../motion';
 import { F, R, ipaFont, useTheme } from '../theme';
 import { exampleMarkdown } from './format';
 import { mix, widgetPalette } from './palette';
@@ -64,15 +64,18 @@ function Reveal({ label, onPress, pal, s, k = 1, testID }) {
   );
 }
 
-// Переклад з'являється м'яким проявом (без руху — одразу).
+// Переклад з'являється м'яким проявом знизу на кілька пунктів, як у справжнього
+// віджета (без руху — одразу). Пресети motion.js: DUR.panel й EASE.out.
 function Appear({ children, style }) {
   const reduce = useReducedMotion();
   const v = useRef(new Animated.Value(reduce ? 1 : 0)).current;
   useEffect(() => {
-    if (reduce) return;
-    Animated.timing(v, { toValue: 1, duration: 260, useNativeDriver: true }).start();
+    if (reduce) return undefined;
+    Animated.timing(v, { toValue: 1, duration: DUR.panel, easing: EASE.out, useNativeDriver: true }).start();
+    return () => v.stopAnimation();
   }, []);
-  return <Animated.View style={[style, { opacity: v }]}>{children}</Animated.View>;
+  const rise = reduce ? [] : [{ translateY: v.interpolate({ inputRange: [0, 1], outputRange: [4, 0] }) }];
+  return <Animated.View style={[style, { opacity: v, transform: rise }]}>{children}</Animated.View>;
 }
 
 export function WidgetPreview({ wod = null, sample = null, streakN = 1, t, lang, targetLang, onReveal, style }) {

@@ -88,7 +88,16 @@ export async function pickBackground() {
   });
   const asset = res && !res.canceled ? res.assets?.[0] : null;
   if (!asset?.uri) return null;
-  return normalizeBackground(asset);
+  let bg = null;
+  try {
+    bg = await normalizeBackground(asset);
+    return bg;
+  } finally {
+    // Вибір фото кладе оригінал у Caches/ImagePicker (HEIC → JPEG якістю 1,
+    // кілька МБ) і сам його не прибирає. Нормалізоване тло — окремий файл,
+    // тож оригінал після обробки (чи після її збою) більше нікому не потрібен.
+    if (asset.uri !== bg?.uri) dropFile(asset.uri);
+  }
 }
 
 // Тло Stories — 9:16. Вертикальне фото (ширина ≤ 0.7 висоти) ріжемо по

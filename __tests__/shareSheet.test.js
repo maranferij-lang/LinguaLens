@@ -237,7 +237,8 @@ describe('Instagram Stories', () => {
     const tree = await open(fromDictionary);
     await press(tree, t('shareStoriesMyPhoto'));
     expect(shareToStories).toHaveBeenCalledWith({ backgroundImage: 'file:///cache/picked-bg.jpg', stickerImage: expect.any(String) });
-    expect(mockDeleted).toEqual(['file:///cache/picked-bg.jpg']);
+    // і оригінал із кешу вибору фото (пішов одразу після обробки), і тло після Instagram
+    expect(mockDeleted).toEqual(['file:///picked.heic', 'file:///cache/picked-bg.jpg']);
     expect(track).toHaveBeenLastCalledWith('share', expect.objectContaining({ target: 'stories_gallery' }));
     await unmount(tree);
   });

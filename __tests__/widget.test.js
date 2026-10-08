@@ -204,7 +204,7 @@ describe('buildWordTimeline', () => {
   test('the link opens this day and slot; links carry the widget kind', () => {
     const [first] = buildWordTimeline(cache([day(1, 'lighthouse')]), opts());
     expect(first.props.link).toBe(`lingualens://word-of-day?date=${key(1)}&slot=0&from=widget&w=wod`);
-    expect(first.props.key).toBe(`wod|${key(1)}|0`);
+    expect(first.props.key).toBe(`wod|${key(1)}|0|lighthouse`);
     const [empty] = buildWordTimeline(null, opts());
     expect(empty.props.link).toBe('lingualens://word-of-day?from=widget&w=wod');
   });
@@ -234,11 +234,11 @@ describe('buildWordTimeline with slots (Pro)', () => {
       [midnight(3), 'empty', ''],
     ]);
     expect(entries.map((e) => e.props.key)).toEqual([
-      `wod|${key(1)}|1`,
-      `wod|${key(1)}|2`,
-      `wod|${key(2)}|0`,
-      `wod|${key(2)}|1`,
-      `wod|${key(2)}|2`,
+      `wod|${key(1)}|1|w1-1`,
+      `wod|${key(1)}|2|w1-2`,
+      `wod|${key(2)}|0|w2-0`,
+      `wod|${key(2)}|1|w2-1`,
+      `wod|${key(2)}|2|w2-2`,
       `wod|empty|${key(3)}`,
     ]);
   });

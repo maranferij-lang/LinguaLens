@@ -5,7 +5,8 @@
 //     приховування перекладу чи тему;
 //   «Мої слова» — із затримкою 2 с і лише коли змінився пул (id, переклади,
 //     година повторення): під час карток кожна відповідь міняє srs, і без
-//     підпису й затримки ми переписували б таймлайн на кожен тап;
+//     підпису й затримки ми переписували б таймлайн на кожен тап. Пішли у
+//     фон раніше за 2 с — запис виконується одразу, поки iOS не заморозив JS;
 //   «Серія» — коли змінились активні дні.
 // Повернення застосунку на передній план переписує всі три (минув час:
 // ротація, фази серії) — поки застосунок відкритий, WidgetKit такі
@@ -45,6 +46,8 @@ export function useWidgets({ ready, t, ui, settings, wod, words, activity, pro, 
   const available = useMemo(() => widgetsAvailable(), []);
   const clock = useWidgetClock();
   const [tick, setTick] = useState(0);
+  // Відкладений запис «Моїх слів», поки він ще чекає свої 2 с (інакше null)
+  const flushWords = useRef(null);
   const pal = useMemo(() => widgetPalette(themeKey), [themeKey]);
   // «Серії» — ще й вогник у кольорах палітри (flame*)
   const streakPal = useMemo(() => streakPalette(themeKey), [themeKey]);
@@ -63,6 +66,9 @@ export function useWidgets({ ready, t, ui, settings, wod, words, activity, pro, 
     if (!available) return undefined;
     const sub = AppState.addEventListener('change', (s) => {
       if (s === 'active') setTick((x) => x + 1);
+      // лише 'background': 'inactive' приходить і від Центру керування чи
+      // системного вікна, а застосунок лишається на екрані
+      else if (s === 'background') flushWords.current?.();
     });
     return () => sub?.remove?.();
   }, [available]);
@@ -99,7 +105,8 @@ export function useWidgets({ ready, t, ui, settings, wod, words, activity, pro, 
   useEffect(() => {
     if (!available || !ready) return undefined;
     let alive = true;
-    const timer = setTimeout(() => {
+    const run = () => {
+      flushWords.current = null;
       const list = wordsRef.current;
       const opts = { t, targetLang, hide, pal, clock };
       const pool = wordsPool(list, targetLang).filter((w) => thumbIds([w]).length);
@@ -113,10 +120,17 @@ export function useWidgets({ ready, t, ui, settings, wod, words, activity, pro, 
           if (added) updateMyWordsWidget(wordsRef.current, { ...opts, thumbs });
         })
         .catch(() => {});
-    }, WORDS_DEBOUNCE_MS);
+    };
+    const timer = setTimeout(run, WORDS_DEBOUNCE_MS);
+    // у фон: запис одразу, а таймер знімаємо, щоб він не спрацював удруге
+    flushWords.current = () => {
+      clearTimeout(timer);
+      run();
+    };
     return () => {
       alive = false;
       clearTimeout(timer);
+      flushWords.current = null;
     };
   }, [available, ready, wordsSig, t, targetLang, hide, palSig, clock, tick]);
 

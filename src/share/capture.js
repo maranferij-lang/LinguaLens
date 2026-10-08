@@ -33,9 +33,6 @@ export async function captureView(view, { size = { w: EXPORT_W, h: EXPORT_H } } 
   return web ? uri : toFileUri(uri);
 }
 
-// Стара назва (до наліпок v1.3)
-export const captureCard = captureView;
-
 // Прибирає тимчасовий PNG знімка. view-shot видаляє лише файли зі своєї
 // теки tmp і хоче голий шлях, без file://.
 export function releaseShot(uri) {
@@ -71,16 +68,4 @@ export async function shareFile(uri, { dialogTitle, fileName = 'lingualens.png' 
     throw err;
   }
   await Sharing.shareAsync(uri, { mimeType: 'image/png', UTI: 'public.png', dialogTitle });
-}
-
-// Знімок + меню одним викликом. cancelled() — людина закрила аркуш, поки
-// картка рендерилась: меню тоді не відкриваємо, інакше воно вискочило б над
-// екраном, з якого вже пішли.
-export async function shareCard(view, { dialogTitle, fileName, size, cancelled } = {}) {
-  const uri = await captureView(view, { size });
-  if (cancelled?.()) {
-    releaseShot(uri);
-    return;
-  }
-  await shareFile(uri, { dialogTitle, fileName });
 }

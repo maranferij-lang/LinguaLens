@@ -147,7 +147,9 @@ function wordProps(ctx, { day, slots, s, labels, week }) {
   return {
     ...common({
       ...ctx,
-      key: `wod|${day}|${s}`,
+      // слово в key: після зміни мови чи кешу той самий слот може показати інше
+      // слово, і відкритий «Переклад» не мусить перейти на нього
+      key: `wod|${day}|${s}|${word}`,
       state: 'word',
       link: widgetLink('word-of-day', { date: day, slot: s }, 'wod'),
       a11y: [title, topic, word, translation].filter(Boolean).join(', '),

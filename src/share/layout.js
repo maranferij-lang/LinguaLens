@@ -312,11 +312,12 @@ export function weekStats({ days = [], words = [], streak = 0 }) {
     streak,
     reviews: Math.max(0, active - recent.length),
     days,
-    // найсвіжіші наліпки тижня — для колажу
+    // найсвіжіші наліпки тижня — для колажу. Порядок масиву не гарантує
+    // давнину (слова з сервера sync дописує після місцевих), тож за addedAt.
     stickers: recent
       .filter((w) => w.photo)
-      .slice(-6)
-      .reverse(),
+      .sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0))
+      .slice(0, 6),
     langs: [...new Set(recent.map((w) => w.lang || 'en'))],
   };
 }

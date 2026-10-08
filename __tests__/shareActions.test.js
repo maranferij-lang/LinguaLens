@@ -34,6 +34,8 @@ jest.mock('expo-file-system', () => ({
 // Маніпулятор: перший manipulate(uri).renderAsync() — «декодоване» фото з
 // розміром mockDecoded (уже з поворотом EXIF), далі — ланцюжок операцій.
 let mockDecoded = { width: 1170, height: 2532 };
+// Збій запису готового JPEG (диск повний): сам вибір фото вже відбувся
+let mockSaveError = null;
 const mockOps = [];
 const mockSaves = [];
 jest.mock('expo-image-manipulator', () => {
@@ -47,6 +49,7 @@ jest.mock('expo-image-manipulator', () => {
         mockOps.push(...ops);
         return {
           saveAsync: async (opts) => {
+            if (mockSaveError) throw mockSaveError;
             mockSaves.push(opts);
             return { uri: 'file:///cache/bg.jpg', width: 1080, height: 1920 };
           },
@@ -67,6 +70,7 @@ beforeEach(() => {
   mockOps.length = 0;
   mockSaves.length = 0;
   mockDecoded = { width: 1170, height: 2532 };
+  mockSaveError = null;
 });
 afterEach(() => {
   nativeModules.reset();
@@ -195,6 +199,29 @@ describe('your own photo as the Stories background', () => {
     const bg = await pickBackground();
     expect(bg).toEqual({ uri: 'file:///cache/bg.jpg', width: 1080, height: 1920 });
     expect(mockOps).toEqual([{ crop: { originX: 0, originY: 226, width: 1170, height: 2080 } }, { resize: { width: 1080 } }]);
+  });
+
+  // Вибір фото кладе оригінал у Caches/ImagePicker і сам не прибирає: після
+  // обробки (чи її збою) його видаляємо, а нормалізоване тло не чіпаємо.
+  test('the picked original is deleted after processing; the normalised background is left for the caller', async () => {
+    ImagePicker.launchImageLibraryAsync.mockResolvedValueOnce({ canceled: false, assets: [{ uri: 'file:///cache/ImagePicker/p.jpg', width: 1170, height: 2532 }] });
+    const bg = await pickBackground();
+    expect(bg.uri).toBe('file:///cache/bg.jpg');
+    expect(mockFiles.deleted).toEqual(['file:///cache/ImagePicker/p.jpg']);
+  });
+
+  test('the picked original is deleted even when processing fails, and the error still reaches the caller', async () => {
+    ImagePicker.launchImageLibraryAsync.mockResolvedValueOnce({ canceled: false, assets: [{ uri: 'file:///cache/ImagePicker/q.heic', width: 1170, height: 2532 }] });
+    mockSaveError = new Error('disk full');
+    await expect(pickBackground()).rejects.toThrow('disk full');
+    expect(mockFiles.deleted).toEqual(['file:///cache/ImagePicker/q.heic']);
+  });
+
+  test('cancelled or empty picks delete nothing', async () => {
+    await pickBackground();
+    ImagePicker.launchImageLibraryAsync.mockResolvedValueOnce({ canceled: false, assets: [] });
+    expect(await pickBackground()).toBeNull();
+    expect(mockFiles.deleted).toEqual([]);
   });
 
   test('the decoded size wins over the picker’s (EXIF rotation)', async () => {

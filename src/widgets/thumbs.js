@@ -14,18 +14,7 @@ import { Directory, File } from 'expo-file-system';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { WIDGET_THUMBS } from '../flags';
 import { photoUri } from '../photos';
-
-// Рендер і збереження; нативні об'єкти звільняємо завжди.
-async function renderAndSave(context, saveOptions) {
-  let image = null;
-  try {
-    image = await context.renderAsync();
-    return await image.saveAsync(saveOptions);
-  } finally {
-    image?.release?.();
-    context.release?.();
-  }
-}
+import { renderAndSave } from '../cutout';
 
 export const THUMB_PX = 200;
 export const MAX_THUMBS = 30;
