@@ -29,7 +29,7 @@ import { IcFlame, IcMedal, IcShare } from '../icons';
 import { Mascot } from '../Mascot';
 import { useSafeAreaInsets } from '../SafeArea';
 import { GradBtn, Press } from '../ui';
-import { DUR, EASE, SPRING, useReducedMotion, useScreenReader } from '../motion';
+import { DUR, EASE, SPRING, recentSuccess, useReducedMotion, useScreenReader } from '../motion';
 import { F, R, type, useTheme } from '../theme';
 
 // Скільки звичайний день лишається на екрані
@@ -181,7 +181,8 @@ export default function StreakCelebration({ data, activeDays, onDone, onShare, t
     setShown(data);
     if (counted.current !== data) track('streak_celebrate', { n: to, milestone });
     counted.current = data;
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    // Слово дня щойно дало власний «успіх»: другий поспіль не вібруємо
+    if (!recentSuccess()) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     AccessibilityInfo.announceForAccessibility?.(`${streakMessage({ n: to, doneToday: true }, t)}. ${streakMessage({ n: to }, t, { line: 'next' })}`);
     if (reduced) {
       [grow, flash, roll, burst].forEach((v) => v.setValue(1));

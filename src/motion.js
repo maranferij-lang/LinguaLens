@@ -188,9 +188,24 @@ const HAPTICS = {
   error: (H) => H.notificationAsync?.(H.NotificationFeedbackType?.Error ?? 'error'),
 };
 
+// Бюджет вібрацій: дві «успішні» поспіль (збережене слово дня й одразу свято
+// серії) відчуваються як тремтіння, а не як підтвердження. Хто вібрує «успіх»
+// через haptic('success'), лишає позначку часу; свято серії дивиться на неї
+// (recentSuccess) і своєї вібрації не додає.
+const SUCCESS_WINDOW_MS = 1200;
+let lastSuccessAt = 0;
+export function recentSuccess(now = Date.now()) {
+  return now - lastSuccessAt < SUCCESS_WINDOW_MS;
+}
+// Для тестів: щоб один тест не бачив «успіху» іншого
+export function resetHapticBudget() {
+  lastSuccessAt = 0;
+}
+
 export function haptic(kind) {
   const run = HAPTICS[kind];
   if (!run || Platform.OS === 'web') return;
+  if (kind === 'success') lastSuccessAt = Date.now();
   try {
     // require, а не import: збірка без модуля не має падати на старті
     Promise.resolve(run(require('expo-haptics'))).catch(() => {});
