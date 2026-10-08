@@ -36,9 +36,8 @@
 //     бере ту палітру, яку людина дивилась останньою (onPalette). 'wod_per_day'
 //     (тап на 3 чи 5 у «Слів на день»): лише свій заголовок і текст.
 //     Таблиця й переваги — з прапорців (src/flags.js): вимкнене не обіцяємо.
-import { Children, useEffect, useMemo, useRef, useState } from 'react';
+import { Children, Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Alert,
   Animated,
   Pressable,
@@ -58,7 +57,7 @@ import { formatDate } from './locale';
 import { ProIcon, PCrown } from './ProIcons';
 import { IcBell, IcCheck, IcClose, IcFlame, IcSpeaker } from './icons';
 import { Mascot, MascotBob } from './Mascot';
-import { FadeIn, GradBtn, Press } from './ui';
+import { FadeIn, GradBtn, Press, Skeleton } from './ui';
 import { DUR, EASE, useAnnounce } from './motion';
 import { CAPS, F, PALETTE_KEYS, PRO_PALETTES, R, THEMES, ipaFont, themeKeyOf, type, useTheme } from './theme';
 
@@ -75,6 +74,13 @@ const TODAY_LINE = { week: 'pwTodayWeek', month: 'pwTodayMonth', quarter: 'pwTod
 const REASON_ROW = { scans: 'scans', scene: 'scene', langs: 'langs', themes: 'themes', wod_per_day: 'wodn' };
 // Більша ціль для дрібних посилань під кнопкою
 const LINK_SLOP = { top: 6, bottom: 6, left: 10, right: 10 };
+// Висота рядка тарифу (s.plan): відступи 2 × 15 + рамка 2 × 2 + назва й підпис
+// (≈ 22 + 3 + 18). Заглушка на час завантаження цін такої ж висоти, тож
+// справжні рядки стають на її місце без стрибка вмісту нижче. На SE (planShort)
+// відступи по 12.
+const PLAN_H = 77;
+const PLAN_H_SHORT = 71;
+const PLAN_SKELETONS = 3;
 
 // freeScans — скільки сканів безкоштовно за все життя, стеля з сервера (див.
 // freeScans у subscription.js), freeScenes — те саме для сцен.
@@ -133,6 +139,9 @@ export default function PaywallScreen({
   // натиснули (sawLoading — запит справді стартував: plansFailed хоч раз скинувся)
   const [retrying, setRetrying] = useState(false);
   const sawLoading = useRef(false);
+  // Ціни прийшли вже після заглушки: рядки тоді проявляються (FadeIn), а не
+  // з'являються рвучко. Якщо ціни були на місці з першого кадру — анімації нема.
+  const sawSkeleton = useRef(false);
 
   // Ціни могли не завантажитись при старті (офлайн) — перепитуємо магазин.
   useEffect(() => {
@@ -148,6 +157,11 @@ export default function PaywallScreen({
   const failed = !unavailable && !list.length && plansFailed;
   // Блок помилки тримається й під час повторного запиту (див. retrying)
   const showFailed = failed || (retrying && !unavailable && !list.length);
+  // Ціни ще їдуть: на їхньому місці заглушка (не помилка й не «без магазину»)
+  const loadingPlans = !list.length && !unavailable && !failed;
+  useEffect(() => {
+    if (loadingPlans) sawSkeleton.current = true;
+  }, [loadingPlans]);
   useEffect(() => {
     if (!retrying) return;
     if (list.length) {
@@ -301,16 +315,24 @@ export default function PaywallScreen({
   // Для VoiceOver — група перемикачів: «Рік, $59.99, …, вибрано».
   const plansBlock = (
     <FadeIn delay={45} style={{ marginTop: compact ? 20 : short ? 12 : 26 }}>
-      {!list.length && !unavailable && !failed ? <ActivityIndicator color={C.accent} style={{ marginVertical: 30 }} /> : null}
+      {/* Три сірі блоки висоти тарифів замість спінера: екран не підстрибує,
+          коли ціни приходять. Skeleton сам прихований від VoiceOver, тож
+          «завантажується» каже контейнер. */}
+      {loadingPlans ? (
+        <View accessible accessibilityLabel={t('plansLoading')} accessibilityState={{ busy: true }} style={{ gap: 10 }} testID="plans-skeleton">
+          {Array.from({ length: PLAN_SKELETONS }, (_, i) => (
+            <Skeleton key={i} height={short && !compact ? PLAN_H_SHORT : PLAN_H} radius={R.lg} />
+          ))}
+        </View>
+      ) : null}
       <View style={{ gap: 10 }} accessibilityRole="radiogroup">
-        {list.map((p) => {
+        {list.map((p, i) => {
           const active = plan?.id === p.id;
           const parts = subParts(p);
           const save = p.save ? t('saveN', { n: p.save }) : '';
           const label = [t(p.labelKey), p.price, ...parts, p.best ? t('bestValue') : '', save].filter(Boolean).join(', ');
-          return (
+          const row = (
             <PlanRow
-              key={p.id}
               p={p}
               active={active}
               short={short}
@@ -324,6 +346,14 @@ export default function PaywallScreen({
               SHADOW={SHADOW}
               t={t}
             />
+          );
+          // dy={0}: лише проявлення, без зсуву; рядки йдуть один за одним
+          return sawSkeleton.current ? (
+            <FadeIn key={p.id} index={i} dy={0}>
+              {row}
+            </FadeIn>
+          ) : (
+            <Fragment key={p.id}>{row}</Fragment>
           );
         })}
       </View>
@@ -514,6 +544,9 @@ export default function PaywallScreen({
               onPress={buy}
               loading={busy}
               disabled={!plan || unavailable || restoring}
+              // найбільший системний шрифт не має виштовхувати основну кнопку
+              // з екрана пейволу (тарифи вище вже з обмеженням)
+              maxFontScale={1.4}
             />
             {/* Без магазину кажемо це одразу, а не після марного тапу */}
             {noteText ? (

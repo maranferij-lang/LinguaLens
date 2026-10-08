@@ -1,6 +1,7 @@
 // Рядки полірування «Pro» (жовтень 2026): стирання даних і відновлення покупок
 // у Параметрах, підпис аватарів у редакторі профілю, лист до підтримки без
-// поштового застосунку, «вже куплено» на пейволі, заголовок діагностики.
+// поштового застосунку, «вже куплено» на пейволі, заголовок діагностики,
+// підпис заглушки цін на пейволі і мова, що відкриє Pro, у списку мов.
 // Власник — потік pro; інші потоки цей файл лише читають.
 //
 // Правила тексту — у шапці src/i18n.js: однаковий набір ключів у пʼяти
@@ -28,6 +29,12 @@ export default {
     // ── пейвол: Pro вже є на цьому Apple ID ──
     purchaseAlreadyOwned: 'You may already have Pro on this Apple ID. Tap “Restore purchases”.',
 
+    // ── пейвол: на місці цін заглушка (Skeleton прихований від VoiceOver) ──
+    plansLoading: 'Loading prices',
+
+    // ── Параметри → мова навчання: рядок, що відкриє пейвол ──
+    langA11yPro: '{l}, available with Pro',
+
     // ── Параметри: прихована діагностика (сім дотиків по футеру) ──
     diagnostics: 'Diagnostics',
   },
@@ -42,6 +49,10 @@ export default {
 
     purchaseAlreadyOwned: 'Схоже, Pro вже є на цьому Apple ID. Натисни «Відновити покупки».',
 
+    plansLoading: 'Завантаження цін',
+
+    langA11yPro: '{l}, доступна з Pro',
+
     diagnostics: 'Діагностика',
   },
   de: {
@@ -54,6 +65,10 @@ export default {
     avatarOption: 'Lingo {n} von {total}',
 
     purchaseAlreadyOwned: 'Vielleicht hast du Pro mit dieser Apple-ID schon. Tippe auf „Käufe wiederherstellen“.',
+
+    plansLoading: 'Preise werden geladen',
+
+    langA11yPro: '{l}, mit Pro verfügbar',
 
     diagnostics: 'Diagnose',
   },
@@ -68,6 +83,10 @@ export default {
 
     purchaseAlreadyOwned: 'Puede que ya tengas Pro con este Apple ID. Toca «Restaurar compras».',
 
+    plansLoading: 'Cargando precios',
+
+    langA11yPro: '{l}, disponible con Pro',
+
     diagnostics: 'Diagnóstico',
   },
   ru: {
@@ -80,6 +99,10 @@ export default {
     avatarOption: 'Линго {n} из {total}',
 
     purchaseAlreadyOwned: 'Похоже, Pro уже есть на этом Apple ID. Нажми «Восстановить покупки».',
+
+    plansLoading: 'Загрузка цен',
+
+    langA11yPro: '{l}, доступен с Pro',
 
     diagnostics: 'Диагностика',
   },

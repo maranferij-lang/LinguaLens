@@ -64,8 +64,10 @@ const CODES = LANGS.map((l) => l.code);
 // Тогл-лист вибору мови: розгортається на ~4 рядки, далі скрол. variants —
 // мова навчання: англійська й іспанська по рядку на варіант («English
 // (US)», «English (UK)»), onChange(code, variant); без них — лише мови,
-// onChange(code). variant — обраний варіант value.
-function LangPicker({ label, hint, value, variant = null, variants = false, onChange, C, s }) {
+// onChange(code). variant — обраний варіант value. isLocked(code) — чи відкриє
+// тап по цій мові пейвол (безкоштовно лише одна мова навчання): такий рядок
+// має позначку Pro, а поведінка тапу не міняється. Без isLocked позначок нема.
+function LangPicker({ label, hint, value, variant = null, variants = false, onChange, isLocked, t, C, s }) {
   const [open, setOpen] = useState(false);
   const current = variants ? optionKey(value, variant) : value;
   const head = parseOption(current);
@@ -117,6 +119,8 @@ function LangPicker({ label, hint, value, variant = null, variants = false, onCh
             {(variants ? expandOptions(CODES) : CODES).map((key) => {
               const active = current === key;
               const { code, variant: v } = parseOption(key);
+              // обрана мова не заблокована: вона вже в роботі
+              const locked = !active && !!isLocked?.(code);
               return (
                 <Pressable
                   key={key}
@@ -125,11 +129,19 @@ function LangPicker({ label, hint, value, variant = null, variants = false, onCh
                   onPress={() => select(key)}
                   accessibilityRole="radio"
                   accessibilityState={{ checked: active }}
+                  accessibilityLabel={locked ? t('langA11yPro', { l: nameFor(code, v) }) : undefined}
                 >
                   <Text style={{ fontSize: 18 }}>{flagFor(code, v || undefined)}</Text>
                   <Text style={[s.listName, active && { color: C.text, fontFamily: F.bold }]}>
                     {nameFor(code, v)}
                   </Text>
+                  {locked ? (
+                    <View style={s.proPill} testID={'setlang-pro-' + key}>
+                      <Text style={s.proPillText} maxFontSizeMultiplier={1.2}>
+                        Pro
+                      </Text>
+                    </View>
+                  ) : null}
                   {active ? <IcCheck color={C.accent} /> : null}
                 </Pressable>
               );
@@ -354,6 +366,9 @@ export default function SettingsScreen(props) {
     // Варіант мови навчання (англійська США чи Британії…), src/langVariants.js
     targetVariant = null,
     onSetLang,
+    // (code) => true, якщо тап по цій мові навчання відкриє пейвол «мови»: App
+    // дає canUseLanguage з поточними словами. Без нього позначок Pro нема.
+    isLangLocked,
     nativeLang,
     onSetNative,
     // Мова, якою зараз говорить інтерфейс (мова телефону): для рядка «Мова
@@ -582,6 +597,8 @@ export default function SettingsScreen(props) {
           variant={targetVariant}
           variants
           onChange={onSetLang}
+          isLocked={isLangLocked}
+          t={t}
           C={C}
           s={s}
         />
@@ -591,6 +608,7 @@ export default function SettingsScreen(props) {
           hint={t('myLangHint')}
           value={nativeLang}
           onChange={onSetNative}
+          t={t}
           C={C}
           s={s}
         />
@@ -789,6 +807,9 @@ const makeStyles = (C) =>
     listRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 11 },
     listRowActive: { backgroundColor: C.accentSoft },
     listName: { color: C.text, fontSize: 15, flex: 1, opacity: 0.85, fontFamily: F.semi },
+    // така сама позначка, як біля «3» і «5» у «Слів на день» (WodSection)
+    proPill: { backgroundColor: C.accentSoft, borderRadius: R.pill, paddingHorizontal: 6, paddingVertical: 1 },
+    proPillText: { color: C.accent, ...type(11, F.extra, { noLead: true }) },
 
     switchRow: { flexDirection: 'row', alignItems: 'center' },
     profileRow: { flexDirection: 'row', alignItems: 'center', minHeight: 44 },
