@@ -27,7 +27,8 @@
 //
 // v1.3: нові рядки живуть не тут, а у фрагментах src/strings/*.js — по
 // одному на потік (shared — W0, core — W1, widgets — W2, onb — W3,
-// share — W4, pro — W5), щоб паралельні гілки не правили один файл.
+// share — W4, pro — W5; полірування жовтня 2026 — polish-app-core,
+// polish-learn, polish-pro, polish-scanner), щоб паралельні гілки не правили один файл.
 // STRINGS нижче — це база, злита з фрагментами. Фрагмент не повторює ключ
 // іншого фрагмента, а базовий ключ перекриває лише той, що названий у його
 // OVERRIDES (__tests__/i18nFragments.test.js).
@@ -37,6 +38,10 @@ import * as widgets from './strings/widgets';
 import * as onb from './strings/onb';
 import * as share from './strings/share';
 import * as pro from './strings/pro';
+import * as polishAppCore from './strings/polish-app-core';
+import * as polishLearn from './strings/polish-learn';
+import * as polishPro from './strings/polish-pro';
+import * as polishScanner from './strings/polish-scanner';
 
 const BASE = {
   en: {
@@ -2321,7 +2326,13 @@ const BASE = {
 };
 
 // Фрагменти в порядку злиття: { default: { en, uk, de, es, ru }, OVERRIDES? }.
-export const FRAGMENTS = { shared, core, widgets, onb, share, pro };
+export const FRAGMENTS = {
+  shared, core, widgets, onb, share, pro,
+  'polish-app-core': polishAppCore,
+  'polish-learn': polishLearn,
+  'polish-pro': polishPro,
+  'polish-scanner': polishScanner,
+};
 // База без фрагментів — для тесту перекриттів.
 export const BASE_STRINGS = BASE;
 
@@ -2333,6 +2344,10 @@ const merged = (l) => ({
   ...onb.default[l],
   ...share.default[l],
   ...pro.default[l],
+  ...polishAppCore.default[l],
+  ...polishLearn.default[l],
+  ...polishPro.default[l],
+  ...polishScanner.default[l],
 });
 
 export const STRINGS = { en: merged('en'), uk: merged('uk'), de: merged('de'), es: merged('es'), ru: merged('ru') };
