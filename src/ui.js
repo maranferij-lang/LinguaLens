@@ -16,6 +16,8 @@ const APressable = Animated.createAnimatedComponent(Pressable);
 
 // Зона дотику не менша за 44 pt (HIG).
 const MIN_TARGET = 44;
+// hitSlop за замовчуванням, коли Press сам дбає про зону дотику
+const DEFAULT_SLOP = 6;
 
 const slopOf = (h) =>
   typeof h === 'number'
@@ -46,6 +48,17 @@ function reachMin(base, box, min) {
 //     кожного рядка списку.
 //   minTarget — мінімальна зона дотику, pt (44; 0 вимикає): після лейауту
 //     hitSlop сам добирається до неї, видимий розмір не міняється.
+//   hitSlop — типово 6 pt навколо; з minTarget={0} («зону дотику задає сам
+//     елемент») типово 0, тож заміна сирого Pressable на Press не змінює
+//     геометрію дотику, а рядки списку не відбирають по 6 pt один в одного.
+//     Явний hitSlop завжди перемагає.
+// Рецепти:
+//   рядок/картка списку — <Press feedback="dim" minTarget={0}>;
+//   чип/сегмент/хрестик — <Press feedback="dim"> (зона добереться до 44 pt);
+//   кнопка — Press як є (scale 0.97), основна — GradBtn.
+// style — об'єкт чи масив, не функція ({ pressed }) => …: відгук задає
+// feedback. Власний transform у style під scale перекривається масштабом;
+// щоб повернути чи зсунути елемент, оберніть Press у View.
 // Решта пропсів (accessibilityLabel, accessibilityRole, testID…) іде прямо
 // в Pressable: кнопки-іконки без підпису VoiceOver читає як «кнопка».
 // busy — дія вже виконується: натиснути не можна, але кнопка не блякне —
@@ -63,7 +76,7 @@ export function Press({
   scaleTo = 0.97,
   feedback = 'scale',
   haptic,
-  hitSlop = 6,
+  hitSlop,
   minTarget = MIN_TARGET,
   ...rest
 }) {
@@ -100,7 +113,7 @@ export function Press({
       }
       onLongPress={onLongPress}
       disabled={disabled || busy}
-      hitSlop={reachMin(hitSlop, box, minTarget)}
+      hitSlop={reachMin(hitSlop ?? (minTarget ? DEFAULT_SLOP : 0), box, minTarget)}
       onLayout={(e) => {
         onLayout?.(e);
         if (!minTarget) return;
@@ -181,8 +194,9 @@ export function Caps({ children, style }) {
 // Головна кнопка. loading — дія вже йде (покупка чекає на App Store):
 // замість підпису — індикатор у кольорі тексту, кнопка в повному кольорі
 // (бліда виглядала б вимкненою, наче нічого не сталося), другий натиск не
-// проходить, а VoiceOver чує підпис і «зайнято».
-export function GradBtn({ title, onPress, disabled, loading = false, style, small, accessibilityLabel, ...rest }) {
+// проходить, а VoiceOver чує підпис і «зайнято». maxFontScale — стеля системного
+// шрифту для підпису (типово без стелі; обмежуємо лише там, де кнопка має вміститись).
+export function GradBtn({ title, onPress, disabled, loading = false, style, small, accessibilityLabel, maxFontScale, ...rest }) {
   const { C, SHADOW } = useTheme();
   const size = small ? 15 : 17;
   return (
@@ -211,7 +225,7 @@ export function GradBtn({ title, onPress, disabled, loading = false, style, smal
           // висота — як у рядка тексту (Nunito ≈ 1.36 кегля): кнопка не стрибає
           <ActivityIndicator color={C.onAccent} style={{ height: Math.round(size * 1.36) }} />
         ) : (
-          <Text style={{ color: C.onAccent, ...type(size, F.extra, { noLead: true }) }}>{title}</Text>
+          <Text maxFontSizeMultiplier={maxFontScale} style={{ color: C.onAccent, ...type(size, F.extra, { noLead: true }) }}>{title}</Text>
         )}
       </View>
     </Press>
@@ -219,7 +233,7 @@ export function GradBtn({ title, onPress, disabled, loading = false, style, smal
 }
 
 // Другорядна кнопка
-export function SecBtn({ title, onPress, style, ...rest }) {
+export function SecBtn({ title, onPress, style, maxFontScale, ...rest }) {
   const { C } = useTheme();
   return (
     <Press {...rest} onPress={onPress} style={style}>
@@ -228,7 +242,7 @@ export function SecBtn({ title, onPress, style, ...rest }) {
           { backgroundColor: C.card2, borderRadius: R.lg, paddingVertical: 15, alignItems: 'center' },
         ]}
       >
-        <Text style={{ color: C.text, ...type(16, F.bold, { noLead: true }) }}>{title}</Text>
+        <Text maxFontSizeMultiplier={maxFontScale} style={{ color: C.text, ...type(16, F.bold, { noLead: true }) }}>{title}</Text>
       </View>
     </Press>
   );

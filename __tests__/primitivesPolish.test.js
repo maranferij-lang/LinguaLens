@@ -215,7 +215,31 @@ describe('Press: hit area and haptics', () => {
     expect(pressable(tree).props.hitSlop).toEqual({ top: 7, bottom: 7, left: 0, right: 0 });
     const off = await mount(<Press minTarget={0}><Text>x</Text></Press>);
     await act(async () => pressable(off).props.onLayout({ nativeEvent: { layout: { width: 10, height: 10 } } }));
-    expect(pressable(off).props.hitSlop).toBe(6);
+    // «зону дотику задає сам елемент»: без growth і без власного запасу
+    expect(pressable(off).props.hitSlop).toBe(0);
+  });
+
+  test('minTarget={0} also drops the default 6 pt slop, so stacked rows do not steal touches; an explicit hitSlop always wins', async () => {
+    // рядки списку: геометрія дотику така сама, як у сирого Pressable
+    const row = await mount(<Press feedback="dim" minTarget={0}><Text>x</Text></Press>);
+    expect(pressable(row).props.hitSlop).toBe(0);
+    await act(async () => pressable(row).props.onLayout({ nativeEvent: { layout: { width: 360, height: 56 } } }));
+    expect(pressable(row).props.hitSlop).toBe(0);
+
+    const own = await mount(<Press minTarget={0} hitSlop={4}><Text>x</Text></Press>);
+    expect(pressable(own).props.hitSlop).toBe(4);
+    const zero = await mount(<Press hitSlop={0}><Text>x</Text></Press>);
+    expect(pressable(zero).props.hitSlop).toBe(0);
+    // хрестик чи чип: типовий запас лишається
+    const chip = await mount(<Press feedback="dim"><Text>x</Text></Press>);
+    expect(pressable(chip).props.hitSlop).toBe(6);
+  });
+
+  test('hitSlop={undefined} falls back to the default for the mode', async () => {
+    const a = await mount(<Press hitSlop={undefined}><Text>x</Text></Press>);
+    expect(pressable(a).props.hitSlop).toBe(6);
+    const b = await mount(<Press hitSlop={undefined} minTarget={0}><Text>x</Text></Press>);
+    expect(pressable(b).props.hitSlop).toBe(0);
   });
 
   test('haptic prop fires before onPress; without it nothing buzzes and onPress is passed as is', async () => {
