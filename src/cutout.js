@@ -246,6 +246,12 @@ export function createCutter({ source, width, height, crop, objects, eager = fal
   const done = eager ? Promise.all(objects.map((o) => cut(o))).then(() => undefined) : Promise.resolve();
   return {
     done,
+    // Файли всіх наліпок, які різальник уже зробив або ще робить (чекає кінця
+    // черги): сканер стирає з них ті, що не потрапили в словник. Невдале
+    // вирізання файлу не дає.
+    files() {
+      return Promise.all([...cache.values()]).then((all) => all.map((r) => r && r.uri).filter(Boolean));
+    },
     get(key) {
       const o = objects.find((x) => x.key === key);
       return o ? cut(o, true) : Promise.resolve({ uri: null, shape: null });

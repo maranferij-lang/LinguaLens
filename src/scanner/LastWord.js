@@ -96,6 +96,6 @@ function LastWord({ word, onPress, paused = false, disabled = false, reduced = f
   );
 }
 
-// memo: щипок по кадру перемальовує весь сканер на кожен дотик, а наліпка —
-// це SVG, який від зуму не міняється
+// memo: сканер перемальовується на кожну зміну статусу, підказки чи помилки,
+// а наліпка — це SVG, який від них не міняється
 export default memo(LastWord);

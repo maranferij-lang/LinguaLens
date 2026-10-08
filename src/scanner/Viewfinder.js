@@ -50,8 +50,8 @@ export function spotlightPath(W, H, { x, y, w, h }, r = FRAME_R) {
   );
 }
 
-// memo: рамка, кути й «прожектор» від зуму не залежать, а щипок перемальовує
-// весь сканер на кожен дотик (рамка приходить стабільним обʼєктом, див. ScannerScreen).
+// memo: рамка, кути й «прожектор» не залежать від статусу, підказки й помилки,
+// що перемальовують сканер (рамка приходить стабільним обʼєктом, див. ScannerScreen).
 function Viewfinder({ frame, rootW, rootH, loading = false, reduced = false }) {
   const { x, y, w, h } = frame;
   const breath = useRef(new Animated.Value(0)).current;

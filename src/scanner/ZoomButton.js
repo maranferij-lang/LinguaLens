@@ -12,6 +12,7 @@ import { IcSearch } from '../icons';
 import { haptic } from '../motion';
 import { F } from '../theme';
 import { CAM, CAM_FONT, CamGlass } from './CamGlass';
+import { useZoom } from './zoomStore';
 
 export const ZOOM_PRESETS = [
   { label: '1×', value: 0 },
@@ -56,4 +57,10 @@ export default function ZoomButton({ zoom, onChange, t }) {
       </CamGlass>
     </Pressable>
   );
+}
+
+// Кнопка, що сама стежить за зумом зі сховища (zoomStore.js): щипок
+// перемальовує лише її й камеру, а не весь сканер.
+export function ZoomControl({ store, onChange, t }) {
+  return <ZoomButton zoom={useZoom(store)} onChange={onChange} t={t} />;
 }

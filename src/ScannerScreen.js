@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   AppState,
@@ -42,8 +42,9 @@ import Viewfinder from './scanner/Viewfinder';
 import ModeSwitch, { MODES } from './scanner/ModeSwitch';
 import Shutter from './scanner/Shutter';
 import LastWord from './scanner/LastWord';
-import ZoomButton from './scanner/ZoomButton';
+import { ZoomControl } from './scanner/ZoomButton';
 import { pinchStep } from './scanner/pinch';
+import { createZoom, useZoom } from './scanner/zoomStore';
 import { SHUTTER, SIDE_OFFSET, scannerLayout } from './scanner/layout';
 import { quote } from './share/layout';
 
@@ -162,7 +163,9 @@ export default function ScannerScreen({
   const [justSaved, setJustSaved] = useState(false);
   const [sharing, setSharing] = useState(null);
   const [askConsent, setAskConsent] = useState(false);
-  const [zoom, setZoom] = useState(0);
+  // Зум — не стан сканера: щипок міняє його до 60 разів на секунду, і весь хром
+  // не мусить за ним перемальовуватись (див. src/scanner/zoomStore.js)
+  const [zoom] = useState(createZoom);
   const [torch, setTorch] = useState(false);
   // Висота самого сканера (екран мінус безпечна зона й таб-бар): від неї
   // рахуються кадр, ряд затвора й заморожений кадр сцени.
@@ -200,6 +203,22 @@ export default function ScannerScreen({
   // Кадр 9:16 останнього скану (тло для Stories) — лише до закриття
   // результату; при демонтажі сканера файл теж стираємо.
   const backdropRef = useRef(null);
+  // Файли кешу, які після закриття нікому не потрібні, стираємо, а не
+  // лишаємо на тижні:
+  //   frozenFile — кадр 9:16 сцени, поки він під сценою; null, якщо на нього
+  //     посилається сама збережена сцена (копія в Documents не вдалась);
+  //   resultUsed — слово з результату зберігали чи ним ділились: тоді файл
+  //     наліпки не чіпаємо (App міг не скопіювати його в Documents, і слово
+  //     тримає саме цей шлях);
+  //   strays — наліпки закритих результатів, якими ніхто не скористався;
+  //   cutterRef — різальник сцени, чиї наліпки предметів лежать у кеші.
+  const frozenFile = useRef(null);
+  const resultUsed = useRef(false);
+  const strays = useRef([]);
+  const cutterRef = useRef(null);
+  // Свіжий словник для таймерів і демонтажу, що створені один раз
+  const savedRef = useRef(savedWords);
+  savedRef.current = savedWords;
   // Сканер демонтується посеред запиту (людина пішла на іншу вкладку): усе,
   // що scan() робив би далі, втрачає сенс. Запит скасовуємо (api.abortScans):
   // поки фото ще вантажиться, сервер слот не бере і скан не згорає (коли AI
@@ -217,6 +236,10 @@ export default function ScannerScreen({
       firstDone.current.forEach(clearTimeout);
       dropFile(backdropRef.current);
       backdropRef.current = null;
+      dropFile(frozenFile.current);
+      frozenFile.current = null;
+      flushStrays();
+      dropSceneCuts();
     };
   }, []);
 
@@ -318,7 +341,6 @@ export default function ScannerScreen({
   // боці. Ref спрацьовує миттєво.
   const busy = useRef(false);
 
-  const zoomRef = useRef(0);
   // База щипка: відстань між пальцями й зум на мить, коли їх стало двоє.
   // pinched — щипок у цьому жесті справді був (щоб він не став свайпом режиму).
   const pinchBase = useRef(null);
@@ -340,30 +362,32 @@ export default function ScannerScreen({
         pinched.current = false;
       },
       onPanResponderMove: (e) => {
-        const step = pinchStep(pinchBase.current, e.nativeEvent.touches, zoomRef.current);
+        const step = pinchStep(pinchBase.current, e.nativeEvent.touches, zoom.get());
         pinchBase.current = step.base;
         if (step.base) pinched.current = true;
+        // палець піднято: зум стає там, де зупинились пальці
+        else zoom.settle();
         if (step.zoom === null) return;
-        zoomRef.current = step.zoom;
-        setZoom(step.zoom);
+        zoom.pinch(step.zoom);
       },
       onPanResponderRelease: (_, g) => {
         // жест зуму не перемикає режим, навіть якщо пальці з'їхали вбік
         const wasPinch = pinched.current;
         pinched.current = false;
         pinchBase.current = null;
+        zoom.settle();
         if (!wasPinch && Math.abs(g.dx) > 50 && Math.abs(g.dx) > Math.abs(g.dy) * 2) swipeRef.current(g.dx);
       },
       onPanResponderTerminate: () => {
         pinched.current = false;
         pinchBase.current = null;
+        zoom.settle();
       },
     })
   ).current;
 
   function setZoomPreset(v) {
-    zoomRef.current = v;
-    setZoom(v);
+    zoom.set(v);
   }
 
   function switchMode(next) {
@@ -434,7 +458,10 @@ export default function ScannerScreen({
     // Кадр сцени, що ще не встиг зійти (450 мс після її закриття), не має
     // лишитись висіти над камерою нового скану
     clearTimeout(thaw.current);
-    setFrozen(null);
+    clearFrozen();
+    dropSceneCuts();
+    // на Android події dismiss нема: до нового скану аркуш давно поїхав
+    flushStrays();
     let photo = null;
     // Кадр сцени живе довше за запит: з нього ще ріжуться наліпки
     let handedOver = false;
@@ -497,6 +524,7 @@ export default function ScannerScreen({
         }
         dropFile(backdropRef.current);
         backdropRef.current = backdrop;
+        resultUsed.current = false;
         setResult({ ...res, photo: cut.uri, shape: cut.shape, backdrop });
         setJustSaved(false);
       }
@@ -556,6 +584,7 @@ export default function ScannerScreen({
       return false;
     }
     setFrozen(shot.image);
+    frozenFile.current = shot.image.uri;
     let res;
     try {
       res = await recognize(recognizeScene, shot.base64);
@@ -584,8 +613,12 @@ export default function ScannerScreen({
     };
     // App кладе сцену в історію (фото — у Documents) і віддає збережений запис
     const stored = (onSceneScanned && onSceneScanned(fresh)) || fresh;
+    // Шлях змінився — фото вже скопійоване в Documents, і кеш-оригінал піде
+    // разом із замороженим кадром. Той самий шлях — сцена тримає саме його.
+    if (stored.image === shot.image.uri) frozenFile.current = null;
     const cutter = createCutter({ source, width: photo.width, height: photo.height, crop: shot.crop, objects, eager: true });
     cutter.done.finally(() => typeof photo.release === 'function' && photo.release());
+    cutterRef.current = cutter;
     setSceneCutter(cutter);
     setScene(stored);
     return true;
@@ -620,7 +653,32 @@ export default function ScannerScreen({
   function closeScene() {
     setScene(null);
     clearTimeout(thaw.current);
-    thaw.current = setTimeout(() => setFrozen(null), 450);
+    thaw.current = setTimeout(() => {
+      clearFrozen();
+      dropSceneCuts();
+    }, 450);
+  }
+
+  // Наліпки предметів сцени (їх ріже різальник у кеші): сцену закрито, і ті,
+  // що не потрапили в словник, нікому не потрібні. Слово, чия копія в
+  // Documents не вдалась, тримає саме кеш-файл — його лишаємо. Таймер після
+  // закриття (450 мс) дає словнику встигнути оновитись.
+  function dropSceneCuts() {
+    const cutter = cutterRef.current;
+    cutterRef.current = null;
+    if (!cutter) return;
+    cutter.files().then((uris) => {
+      const used = new Set((savedRef.current || []).map((w) => w && w.photo));
+      uris.forEach((uri) => used.has(uri) || dropFile(uri));
+    });
+  }
+
+  // Заморожений кадр іде з екрана, а разом із ним — його файл у кеші, якщо
+  // сцена має свою копію в Documents (див. frozenFile).
+  function clearFrozen() {
+    setFrozen(null);
+    dropFile(frozenFile.current);
+    frozenFile.current = null;
   }
 
   // Скан сцени не вдався: заморожений кадр за ms мс відходить до живого
@@ -630,7 +688,7 @@ export default function ScannerScreen({
   function thawFrozen(ms) {
     Animated.timing(freeze, { toValue: 0, duration: ms, easing: EASE.out, useNativeDriver: true }).start();
     clearTimeout(thaw.current);
-    thaw.current = setTimeout(() => setFrozen(null), ms + 30);
+    thaw.current = setTimeout(clearFrozen, ms + 30);
   }
 
   function allowUpload() {
@@ -648,6 +706,7 @@ export default function ScannerScreen({
 
   function save() {
     if (!result || alreadySaved) return;
+    resultUsed.current = true;
     // App відмовив (стеля безкоштовного словника) і відкрив пейвол. Під цим
     // Modal його не видно — закриваємо аркуш; слово App збереже сам, якщо
     // людина оформить Pro.
@@ -673,15 +732,31 @@ export default function ScannerScreen({
   function share() {
     // аркуш уже їде вниз (Modal тримає знімок), а результату нема
     if (!result) return;
+    resultUsed.current = true;
     haptic('selection');
     setSharing({ kind: 'word', word: resultWord(), backdrop: result.backdrop || null });
   }
 
   function closeResult() {
+    // Слово не зберігали й ним не ділились: файл наліпки нікому не потрібен.
+    // Стираємо його, коли аркуш уже поїхав (onDismiss), а не зараз: Modal ще
+    // ~300 мс малює знімок з наліпкою.
+    if (result?.photo && !resultUsed.current && !strays.current.includes(result.photo)) strays.current.push(result.photo);
     dropFile(backdropRef.current);
     backdropRef.current = null;
     setSharing(null);
     setResult(null);
+  }
+
+  // Аркуш поїхав униз: знімок більше не малюється, і невикористані наліпки
+  // можна стирати
+  function dismissResult() {
+    snap.current = null;
+    flushStrays();
+  }
+
+  function flushStrays() {
+    strays.current.splice(0).forEach(dropFile);
   }
 
   // «Назад» на Android і жест виходу VoiceOver: спершу закривається картка
@@ -730,7 +805,7 @@ export default function ScannerScreen({
   }
 
   // Наліпка останнього слова: обробник стабільний, щоб memo LastWord не
-  // скидалося щипком (він перемальовує сканер на кожен дотик)
+  // скидалося кожним рендером сканера (статус, підказка, помилка)
   const openLastWord = useCallback(
     (id) => {
       track('scan_last_word');
@@ -752,8 +827,8 @@ export default function ScannerScreen({
   // Розкладка рахується для зони під статус-баром і зсувається на bleedTop:
   // відступи від низу (затвор, режими) від цього не змінюються. Мемо, щоб
   // рамка (L.frame) лишалась тим самим обʼєктом, поки екран не повернули чи
-  // режим не змінили: щипок перемальовує сканер на кожен дотик, а Viewfinder
-  // (memo) від зуму не залежить і пропускає ці рендери.
+  // режим не змінили: тоді Viewfinder (memo) пропускає рендери сканера, які
+  // його не стосуються (статус, підказка, помилка).
   const L = useMemo(() => {
     const L0 = scannerLayout({ width: win.width, height: rootH - bleedTop, firstScan, scene: sceneMode });
     return { ...L0, frame: { ...L0.frame, y: L0.frame.y + bleedTop }, hintTop: L0.hintTop + bleedTop };
@@ -839,11 +914,11 @@ export default function ScannerScreen({
           Лише поки видно камеру: екран дозволу камери — на тлі теми. У вкладці
           статус-бар веде App (пейвол над камерою має бути темним). */}
       {firstScan && bleedTop ? <StatusBar style="light" /> : null}
-      <CameraView
+      <ZoomCamera
         ref={cameraRef}
         style={StyleSheet.absoluteFill}
         facing="back"
-        zoom={zoom}
+        store={zoom}
         enableTorch={torch && cameraLive}
         // Сцена закриває екран повністю: камеру під нею зупиняємо — не гріємо
         // телефон і не світимо індикатором камери, поки людина роздивляється фото
@@ -960,12 +1035,12 @@ export default function ScannerScreen({
         </View>
         {frozen ? null : (
           <View style={{ position: 'absolute', left: cx + SIDE_OFFSET - 24, top: (SHUTTER - 48) / 2 }}>
-            <ZoomButton zoom={zoom} onChange={setZoomPreset} t={t} />
+            <ZoomControl store={zoom} onChange={setZoomPreset} t={t} />
           </View>
         )}
       </View>
 
-      <Modal visible={!!result} transparent animationType="slide" onRequestClose={backFromResult} onDismiss={() => (snap.current = null)}>
+      <Modal visible={!!result} transparent animationType="slide" onRequestClose={backFromResult} onDismiss={dismissResult}>
         {/* Тло — лише для пальця; VoiceOver закриває аркуш кнопкою або жестом виходу */}
         <Pressable style={s.modalBackdrop} onPress={tapBackdrop} accessible={false} />
         {/* Від 7/10 під прикладом ще кілька виразів — і на маленькому
@@ -1099,6 +1174,13 @@ export default function ScannerScreen({
     </View>
   );
 }
+
+// ─── Камера із зумом ───────────────────────────────────────────────────────
+// Зум читає тут, а не ScannerScreen: щипок перемальовує лише камеру (і кнопку
+// «1×»), а не весь хром (див. src/scanner/zoomStore.js).
+const ZoomCamera = forwardRef(function ZoomCamera({ store, ...rest }, ref) {
+  return <CameraView ref={ref} zoom={useZoom(store)} {...rest} />;
+});
 
 // ─── Заморожений кадр сцени ────────────────────────────────────────────────
 // Фото стоїть рівно там, де його покаже екран сцени (вписане в екран), тож
