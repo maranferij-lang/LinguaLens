@@ -14,6 +14,7 @@ import * as Haptics from 'expo-haptics';
 import { profileSummary } from '../profile';
 import { IcChevron } from '../icons';
 import { Glass } from '../ui';
+import { layoutNext } from '../motion';
 import { F, R, type } from '../theme';
 import { PRO_WOD_OPTIONS } from '../flags';
 import { hourLabel as formatHour } from '../widgets/format';
@@ -25,6 +26,15 @@ export function hourLabel(h, lang) {
 }
 
 export const HOURS = [8, 10, 12, 18, 20];
+
+// Чипи годин для одного слова. Година може бути не зі списку: онбординг
+// пропонує 10, 14 і 19, а крокер Pro пише будь-яку з 6..23 (і лишає її, коли
+// повертаються до «1»). Без неї жоден чип не світився б, хоч нагадування
+// приходить саме тоді. Поточну додаємо за порядком і не зсуваємо мовчки.
+export function hourChoices(wodHour) {
+  if (!Number.isInteger(wodHour) || HOURS.includes(wodHour)) return HOURS;
+  return [...HOURS, wodHour].sort((a, b) => a - b);
+}
 // Межі годин слів дня: раніше 6:00 сповіщення будило б, пізніше 23:00 — нікуди.
 const EARLIEST = 6;
 const LATEST = 23;
@@ -99,7 +109,16 @@ export default function WodSection({ ctx, extra = {} }) {
   function choose(n) {
     if (n === perDay) return;
     Haptics.selectionAsync();
+    // Рядки годин з'являються й зникають: розгортаємо їх плавно, але лише
+    // коли вибір застосується одразу, а не відкриє пейвол.
+    if (n === 1 || pro) layoutNext();
     extra.onSetWodPerDay(n);
+  }
+
+  // Рядок годин під перемикачем теж з'являється чи зникає: layoutNext до зміни
+  function toggleWod(on) {
+    layoutNext();
+    onToggleWod?.(on);
   }
 
   return (
@@ -134,7 +153,10 @@ export default function WodSection({ ctx, extra = {} }) {
           </View>
           <Switch
             value={wodEnabled}
-            onValueChange={onToggleWod}
+            onValueChange={toggleWod}
+            accessibilityLabel={t('dailyPush')}
+            accessibilityHint={t('dailyPushHint')}
+            testID="wod-enabled"
             trackColor={{ false: C.card3, true: C.accent }}
             thumbColor="#fff"
           />
@@ -146,11 +168,12 @@ export default function WodSection({ ctx, extra = {} }) {
             <View style={s.sepInner} />
             <Text style={s.dimText}>{t('pushTime')}</Text>
             <View style={s.hourRow}>
-              {HOURS.map((h) => {
+              {hourChoices(wodHour).map((h) => {
                 const active = wodHour === h;
                 return (
                   <Pressable
                     key={h}
+                    testID={'wod-hour-' + h}
                     style={[s.hourChip, active && s.hourChipActive]}
                     onPress={() => {
                       Haptics.selectionAsync();

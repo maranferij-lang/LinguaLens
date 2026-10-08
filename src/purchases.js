@@ -22,7 +22,7 @@
 // (див. paywallConfigFrom): так RevenueCat Experiments може порівнювати
 // пейволи, онбординг і ціни без оновлення застосунку.
 import { useEffect, useRef, useState } from 'react';
-import { Linking, Platform } from 'react-native';
+import { AppState, Linking, Platform } from 'react-native';
 import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { IS_DEV, PRO_ENTITLEMENT, REVENUECAT_IOS_KEY } from './config';
@@ -84,12 +84,23 @@ function beforePayment(code) {
   return code != null && BEFORE_PAYMENT.some((name) => codes[name] === code);
 }
 
+// «Вже куплено»: цей Apple ID уже має продукт (інший телефон, гостьовий і
+// акаунтний App User ID). Це не збій і не списання: людині треба не «напиши в
+// підтримку», а «Відновити покупки».
+const ALREADY_OWNED = ['PRODUCT_ALREADY_PURCHASED_ERROR', 'RECEIPT_ALREADY_IN_USE_ERROR'];
+
+function alreadyOwned(code) {
+  const codes = Purchases?.PURCHASES_ERROR_CODE || {};
+  return code != null && ALREADY_OWNED.some((name) => codes[name] === code);
+}
+
 // Пояснення під кнопкою після невдалої покупки — ключ рядка в i18n, або
 // null: успіх чи людина сама скасувала у системному вікні.
 export function purchaseNote(res) {
   if (!res || res.ok || res.cancelled) return null;
   if (res.pending) return 'purchasePending';
   if (res.error === 'UNAVAILABLE') return 'purchasesUnavailable';
+  if (res.owned) return 'purchaseAlreadyOwned';
   return res.uncharged ? 'purchaseFailed' : 'purchaseUnclear';
 }
 
@@ -98,6 +109,18 @@ export function purchaseNote(res) {
 export function restoreNote(res) {
   if (res?.error) return res.error === 'UNAVAILABLE' ? 'purchasesUnavailable' : 'restoreFailed';
   return res?.pro ? 'restoreDone' : 'restoreNothing';
+}
+
+// Короткий жирний заголовок вікна після «Відновити покупки»; саме пояснення
+// (restoreNote) — під ним. Спільне для пейволу й Параметрів.
+const RESTORE_TITLE = {
+  restoreDone: 'restoreTitleOk',
+  restoreNothing: 'restoreTitleNone',
+  restoreFailed: 'restoreTitleFail',
+  purchasesUnavailable: 'restoreTitleFail',
+};
+export function restoreTitle(note) {
+  return RESTORE_TITLE[note] || 'restoreTitleFail';
 }
 
 // ── Стан Pro з CustomerInfo ─────────────────────────────────────────────────
@@ -141,6 +164,10 @@ export function paywallConfigFrom(metadata) {
     ui: pick(m.paywall_ui, ['custom', 'revenuecat'], PAYWALL_DEFAULTS.ui),
   };
 }
+
+// Скільки тарифи з магазину вважаємо свіжими (мс): старіші перечитуються, коли
+// застосунок знову стає активним (usePro).
+export const PLANS_MAX_AGE = 30 * 60 * 1000;
 
 // Остання поточна пропозиція з RevenueCat (її ставить usePro). Одна на весь
 // застосунок, тож і читати її можна будь-звідки, без пропсів.
@@ -290,6 +317,11 @@ export function usePro(appUserID) {
   const [ready, setReady] = useState(MODE === 'simulated');
   const [plansStatus, setPlansStatus] = useState(MODE === 'simulated' ? 'ready' : 'loading');
   const configured = useRef(false);
+  // Коли список тарифів востаннє прийшов із магазину (0 — ще не приходив) і чи
+  // йде тихе оновлення: iOS тримає процес днями, тож право на пробний період
+  // і ціни з запуску могли застаріти (див. PLANS_MAX_AGE).
+  const plansAt = useRef(0);
+  const quietLoading = useRef(false);
 
   // Налаштовуємо SDK один раз. Якщо id пристрою ще немає (сервер не
   // відповів), RevenueCat стартує з анонімним id, а logIn нижче прив'яже
@@ -328,14 +360,26 @@ export function usePro(appUserID) {
   // Пакети з магазину. Якщо перша спроба не вдалась (офлайн при старті),
   // пейвол перепитає їх, коли відкриється, — і ще раз, коли людина натисне
   // «Спробувати ще раз» під повідомленням, що ціни не завантажились.
-  async function loadPlans() {
+  //
+  // { silent: true } — тихе оновлення вже наявного списку (застосунок знову
+  // активний, а список старий): без індикатора, а збій нічого не міняє, бо
+  // людина й далі бачить тарифи, які їй уже показали.
+  async function loadPlans(opts) {
     if (MODE !== 'revenuecat' || !configured.current) return;
-    setPlansStatus('loading');
+    const quiet = opts?.silent === true && plansAt.current > 0;
+    if (quiet) {
+      if (quietLoading.current) return;
+      quietLoading.current = true;
+    } else {
+      setPlansStatus('loading');
+    }
     try {
       const o = await Purchases.getOfferings();
       if (!o.current) {
-        setReady(false);
-        setPlansStatus('failed');
+        if (!quiet) {
+          setReady(false);
+          setPlansStatus('failed');
+        }
         return;
       }
       currentOffering = o.current;
@@ -356,19 +400,40 @@ export function usePro(appUserID) {
       // цього пейвол крутив би індикатор без кінця. Це та сама відмова, що
       // й «магазин не відповів»: повідомлення й «Спробувати ще раз».
       if (!list.length) {
-        setPlans([]);
-        setReady(false);
-        setPlansStatus('failed');
+        if (!quiet) {
+          plansAt.current = 0;
+          setPlans([]);
+          setReady(false);
+          setPlansStatus('failed');
+        }
         return;
       }
+      plansAt.current = Date.now();
       setPlans(list);
       setReady(true);
       setPlansStatus('ready');
     } catch (_) {
-      setReady(false);
-      setPlansStatus('failed');
+      if (!quiet) {
+        setReady(false);
+        setPlansStatus('failed');
+      }
+    } finally {
+      if (quiet) quietLoading.current = false;
     }
   }
+
+  // Повернулись у застосунок, а тарифи старші за пів години — перечитуємо їх
+  // тихо. Пейвол, відкритий після кількох днів у фоні, не обіцяє «7 днів
+  // безкоштовно» тому, хто пробний період уже використав.
+  useEffect(() => {
+    if (MODE !== 'revenuecat') return;
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next === 'active' && configured.current && plansAt.current && Date.now() - plansAt.current > PLANS_MAX_AGE) {
+        loadPlans({ silent: true });
+      }
+    });
+    return () => sub?.remove?.();
+  }, []);
 
   useEffect(() => {
     if (MODE !== 'revenuecat' || !appUserID || !configured.current) return;
@@ -433,7 +498,12 @@ export function usePro(appUserID) {
       if (e?.code === codes.PURCHASE_CANCELLED_ERROR) return { ok: false, cancelled: true };
       // «Попросити купити» (сімейний доступ): чекаємо схвалення батьків.
       if (e?.code === codes.PAYMENT_PENDING_ERROR) return { ok: false, pending: true };
-      return { ok: false, error: e?.code || 'FAILED', uncharged: beforePayment(e?.code) };
+      return {
+        ok: false,
+        error: e?.code || 'FAILED',
+        uncharged: beforePayment(e?.code),
+        ...(alreadyOwned(e?.code) ? { owned: true } : null),
+      };
     }
   }
 

@@ -1,12 +1,12 @@
 // Профіль: аватар-Lingo, колекція слів, стрік, статистика, графік, досягнення.
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Animated, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import Svg, { Path } from 'react-native-svg';
 import { localDayKey } from './storage';
 import { activeDaySet, bestStreak, streakInfo } from './streak';
 import StreakCard from './streak/StreakCard';
-import { cleanName } from './profile';
+import { NAME_MAX, cleanName } from './profile';
 import { flagFor, nameFor } from './speech';
 import { weekdayLabels } from './share/layout';
 import { evaluate, computeMetrics, levelFromWords, unlockedCount } from './achievements';
@@ -15,7 +15,7 @@ import { Mascot, MascotBob } from './Mascot';
 import { AchIcon } from './AchIcons';
 import { Bar, FadeIn, Glass, GradBtn, Press } from './ui';
 import { UNDER_TAB } from './Chrome';
-import { layoutNext } from './motion';
+import { DUR, EASE, layoutNext, useReducedMotionCached } from './motion';
 import { F, R, useTheme } from './theme';
 
 const WEEK = 7 * 24 * 60 * 60 * 1000;
@@ -35,6 +35,127 @@ function Pencil({ size = 12, color }) {
         strokeLinejoin="round"
       />
     </Svg>
+  );
+}
+
+// Графік 7 днів. Стовпчики ростуть знизу з невеликим стагером (по ~40 мс),
+// коли вкладка «Прогрес» з'являється; висота в розкладці одразу остаточна,
+// тож нічого не зсувається, а росте лише transform. Під «Зменшити рух» лишається
+// непрозорість: ні масштабу, ні зсуву.
+const BARS_DELAY = 200;
+const BARS_DUR = 520;
+const BAR_SPAN = DUR.sheet / BARS_DUR;
+
+function ActivityBars({ days, maxVal, labels, s, C }) {
+  const reduced = useReducedMotionCached();
+  const grow = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const anim = Animated.timing(grow, {
+      toValue: 1,
+      duration: BARS_DUR,
+      delay: BARS_DELAY,
+      easing: EASE.out,
+      useNativeDriver: true,
+    });
+    anim.start();
+    return () => anim.stop();
+  }, []);
+  // стовпчик i рухається у своєму вікні [від, до] спільного значення
+  const step = (1 - BAR_SPAN) / Math.max(1, days.length - 1);
+  const win = (i) => [i * step, i * step + BAR_SPAN];
+  return (
+    <View style={s.chart}>
+      {days.map((d, i) => {
+        const opacity = grow.interpolate({ inputRange: win(i), outputRange: [0, 1], extrapolate: 'clamp' });
+        const scaleY = reduced ? 1 : grow.interpolate({ inputRange: win(i), outputRange: [0.4, 1], extrapolate: 'clamp' });
+        return (
+          <View key={d.key} style={s.barCol}>
+            <Animated.Text style={[s.barVal, { opacity }]}>{d.value || ''}</Animated.Text>
+            <Animated.View
+              style={[
+                s.bar,
+                d.value ? { height: 10 + (d.value / maxVal) * 78, backgroundColor: C.accent } : { height: 10, backgroundColor: C.card2 },
+                { opacity, transform: [{ scaleY }], transformOrigin: 'bottom' },
+              ]}
+            />
+            <Text style={s.barLabel} numberOfLines={1}>
+              {labels[d.dow]}
+            </Text>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+// Аркуш «Редагувати профіль». Ім'я тут у власному стані: кожен символ
+// перемальовує лише аркуш, а не весь екран профілю під ним. Аркуш стоїть над
+// клавіатурою (рідний Modal сам її не обходить), а тап повз нього, «Готово» на
+// клавіатурі, «Зберегти» і жест виходу VoiceOver однаково зберігають ім'я.
+function EditSheet({ visible, profile, onSave, onPickAvatar, t, s, C, SHADOW }) {
+  const [draft, setDraft] = useState(profile.name || '');
+  const current = profile.avatar || 'wave';
+  const save = () => onSave(cleanName(draft));
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={save}>
+      {/* Тап повз аркуш зберігає. VoiceOver тло пропускає: для нього є кнопка
+          «Зберегти» й жест виходу. */}
+      <Pressable style={s.backdrop} onPress={save} accessible={false} />
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={s.kav} pointerEvents="box-none">
+        <View style={[s.sheet, SHADOW]} accessibilityViewIsModal onAccessibilityEscape={save}>
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            bounces={false}
+            showsVerticalScrollIndicator={false}
+            style={s.sheetScroll}
+            contentContainerStyle={s.sheetBody}
+          >
+            <Text style={s.sheetTitle} accessibilityRole="header">
+              {t('editProfile')}
+            </Text>
+
+            <Text style={s.label}>{t('yourName')}</Text>
+            <TextInput
+              style={s.input}
+              value={draft}
+              onChangeText={setDraft}
+              placeholder={t('namePlaceholder')}
+              placeholderTextColor={C.dim}
+              accessibilityLabel={t('yourName')}
+              maxLength={NAME_MAX}
+              autoCapitalize="words"
+              autoCorrect={false}
+              textContentType="givenName"
+              selectionColor={C.accent}
+              autoFocus
+              returnKeyType="done"
+              onSubmitEditing={save}
+            />
+
+            <Text style={s.label}>{t('chooseAvatar')}</Text>
+            <View style={s.avatarRow} accessibilityRole="radiogroup" accessibilityLabel={t('chooseAvatar')}>
+              {AVATARS.map((p, i) => {
+                const active = current === p;
+                return (
+                  <Press
+                    key={p}
+                    onPress={() => onPickAvatar(p)}
+                    style={[s.avatarOption, active && s.avatarActive]}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: active, selected: active }}
+                    accessibilityLabel={t('avatarOption', { n: i + 1, total: AVATARS.length })}
+                  >
+                    <Mascot pose={p} size={54} />
+                  </Press>
+                );
+              })}
+            </View>
+
+            <GradBtn title={t('save')} onPress={save} style={{ marginTop: 16 }} />
+          </ScrollView>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
   );
 }
 
@@ -59,7 +180,8 @@ export default function ProfileScreen({
 
   const [tab, setTab] = useState('stats'); // stats | achievements
   const [editing, setEditing] = useState(false);
-  const [draftName, setDraftName] = useState(profile.name || '');
+  // новий аркуш при кожному відкритті: поле починається з поточного імені
+  const [editKey, setEditKey] = useState(0);
 
   // Серія — з src/streak.js, та сама, що в App і віджеті
   const activeDays = useMemo(() => activeDaySet(activity, words), [activity, words]);
@@ -90,11 +212,11 @@ export default function ProfileScreen({
     view.current.ch = e.nativeEvent.layout.height;
     tryFocus();
   }
-  const weekWords = words.filter((w) => Date.now() - (w.addedAt || 0) < WEEK).length;
-  const reviews = words.reduce((sum, w) => sum + (w.srs?.reps || 0), 0);
+  const weekWords = useMemo(() => words.filter((w) => Date.now() - (w.addedAt || 0) < WEEK).length, [words]);
+  const reviews = useMemo(() => words.reduce((sum, w) => sum + (w.srs?.reps || 0), 0), [words]);
 
-  const metrics = computeMetrics({ words, activity, stats, streak });
-  const achievements = evaluate(metrics);
+  // Метрики й досягнення рахуються по всьому словнику: не на кожен рендер
+  const achievements = useMemo(() => evaluate(computeMetrics({ words, activity, stats, streak })), [words, activity, stats, streak]);
   const unlocked = unlockedCount(achievements);
   const lvl = levelFromWords(words.length);
 
@@ -126,19 +248,20 @@ export default function ProfileScreen({
   }
 
   function pickAvatar(pose) {
+    // той самий Lingo: нічого не міняється, тож і вібрації нема
+    if (pose === (profile.avatar || 'wave')) return;
     Haptics.selectionAsync();
     onUpdateProfile({ avatar: pose });
   }
 
   // Профіль живе на телефоні (у v1 немає акаунтів) — редагувати можна завжди.
   function openEditor() {
-    setDraftName(profile.name || '');
+    setEditKey((k) => k + 1);
     setEditing(true);
   }
 
-  function saveName() {
+  function saveName(n) {
     setEditing(false);
-    const n = cleanName(draftName);
     if (n !== (profile.name || '')) onUpdateProfile({ name: n });
   }
 
@@ -175,7 +298,8 @@ export default function ProfileScreen({
               <Pencil size={13} color={C.onAccent} />
             </View>
           </Pressable>
-          <Pressable onPress={openEditor}>
+          {/* Дублює кнопку-аватар, тож для VoiceOver це просто текст з іменем */}
+          <Pressable onPress={openEditor} accessible={false}>
             <Text style={s.name}>{profile.name || t('profileNoName')}</Text>
           </Pressable>
           {profile.name ? null : <Text style={s.email}>{t('profileHint')}</Text>}
@@ -186,7 +310,7 @@ export default function ProfileScreen({
             <Text style={s.levelText}>{t('collStage', { n: lvl.level })}</Text>
             <Text style={s.levelNext}>{t('collWords', { c: lvl.current, n: lvl.nextNeed })}</Text>
           </View>
-          <Bar progress={lvl.progress} color={C.accent} bg={C.card2} />
+          <Bar progress={lvl.progress} color={C.accent} bg={C.card2} accessibilityLabel={t('collStage', { n: lvl.level })} />
         </View>
       </FadeIn>
 
@@ -199,13 +323,16 @@ export default function ProfileScreen({
           ].map((x) => {
             const active = tab === x.k;
             return (
-              <Pressable
+              <Press
                 key={x.k}
                 style={[s.segmentBtn, active && s.segmentBtnActive]}
                 onPress={() => switchTab(x.k)}
+                feedback="dim"
+                accessibilityRole="tab"
+                accessibilityState={{ selected: active }}
               >
                 <Text style={[s.segmentText, active && s.segmentTextActive]}>{x.label}</Text>
-              </Pressable>
+              </Press>
             );
           })}
         </View>
@@ -238,24 +365,7 @@ export default function ProfileScreen({
           <Text style={s.sectionLabel}>{t('activity7')}</Text>
           <FadeIn delay={160}>
             <Glass>
-              <View style={s.chart}>
-                {days.map((d) => (
-                  <View key={d.key} style={s.barCol}>
-                    <Text style={s.barVal}>{d.value || ''}</Text>
-                    <View
-                      style={[
-                        s.bar,
-                        d.value
-                          ? { height: 10 + (d.value / maxVal) * 78, backgroundColor: C.accent }
-                          : { height: 10, backgroundColor: C.card2 },
-                      ]}
-                    />
-                    <Text style={s.barLabel} numberOfLines={1}>
-                      {DAY_LABELS[d.dow]}
-                    </Text>
-                  </View>
-                ))}
-              </View>
+              <ActivityBars days={days} maxVal={maxVal} labels={DAY_LABELS} s={s} C={C} />
               {/* Підсумок тижня як картка для сторіс — головний привід
                   поділитись, коли тиждень вдався. */}
               {onShareWeek && words.length ? (
@@ -318,7 +428,7 @@ export default function ProfileScreen({
                   </View>
                 ) : (
                   <>
-                    <Bar progress={a.progress} color={C.accent} bg={C.card2} height={5} />
+                    <Bar progress={a.progress} color={C.accent} bg={C.card2} height={5} decorative />
                     <Text style={s.achProgress}>
                       {Math.min(a.value, a.goal)}/{a.goal}
                     </Text>
@@ -331,44 +441,17 @@ export default function ProfileScreen({
       )}
 
       {/* Редагування профілю */}
-      <Modal visible={editing} transparent animationType="fade" onRequestClose={() => setEditing(false)}>
-        <Pressable style={s.backdrop} onPress={saveName} />
-        <View style={s.sheetWrap}>
-          <View style={[s.sheet, SHADOW]}>
-            <Text style={s.sheetTitle}>{t('editProfile')}</Text>
-
-            <Text style={s.label}>{t('yourName')}</Text>
-            <TextInput
-              style={s.input}
-              value={draftName}
-              onChangeText={setDraftName}
-              placeholder={t('namePlaceholder')}
-              placeholderTextColor={C.dim}
-              autoFocus
-              returnKeyType="done"
-              onSubmitEditing={saveName}
-            />
-
-            <Text style={s.label}>{t('chooseAvatar')}</Text>
-            <View style={s.avatarRow}>
-              {AVATARS.map((p) => {
-                const active = (profile.avatar || 'wave') === p;
-                return (
-                  <Pressable
-                    key={p}
-                    onPress={() => pickAvatar(p)}
-                    style={[s.avatarOption, active && s.avatarActive]}
-                  >
-                    <Mascot pose={p} size={54} />
-                  </Pressable>
-                );
-              })}
-            </View>
-
-            <GradBtn title={t('save')} onPress={saveName} style={{ marginTop: 16 }} />
-          </View>
-        </View>
-      </Modal>
+      <EditSheet
+        key={editKey}
+        visible={editing}
+        profile={profile}
+        onSave={saveName}
+        onPickAvatar={pickAvatar}
+        t={t}
+        s={s}
+        C={C}
+        SHADOW={SHADOW}
+      />
     </ScrollView>
   );
 }
@@ -460,7 +543,7 @@ const makeStyles = (C) =>
     achIcon: { fontSize: 30 },
     achTitle: { color: C.text, fontSize: 13, fontFamily: F.bold, marginTop: 8, marginBottom: 8, lineHeight: 17 },
     achDone: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-    achDoneText: { color: C.green, fontSize: 12, fontFamily: F.bold },
+    achDoneText: { color: C.greenInk, fontSize: 12, fontFamily: F.bold },
     achProgress: { color: C.dim, fontSize: 11, fontFamily: F.semi, marginTop: 5 },
     achShare: {
       position: 'absolute',
@@ -474,15 +557,19 @@ const makeStyles = (C) =>
       justifyContent: 'center',
     },
 
-    backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)' },
-    sheetWrap: { position: 'absolute', bottom: 0, left: 0, right: 0 },
+    // Тло — на весь екран, аркуш — окремо над клавіатурою (KeyboardAvoidingView
+    // пропускає дотики повз себе до тла: pointerEvents box-none)
+    backdrop: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,0.45)' },
+    kav: { flex: 1, justifyContent: 'flex-end' },
     sheet: {
       backgroundColor: C.sheet,
       borderTopLeftRadius: R.xl,
       borderTopRightRadius: R.xl,
-      padding: 22,
-      paddingBottom: 38,
+      maxHeight: '92%',
     },
+    sheetScroll: { flexGrow: 0 },
+    // клавіатура майже завжди відкрита, тож знизу лише невеликий відступ (як у LangSheet)
+    sheetBody: { padding: 22, paddingBottom: 30 },
     sheetTitle: { color: C.text, fontSize: 20, fontFamily: F.extra, marginBottom: 10 },
     label: {
       color: C.dim,

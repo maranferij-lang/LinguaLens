@@ -63,7 +63,7 @@ function Server({ ctx }) {
 }
 
 export default function DevSection({ ctx, extra = {} }) {
-  const { C, s, props, dev } = ctx;
+  const { t, C, s, props, dev } = ctx;
   const { onDevReset } = props;
   const d = useMemo(() => makeStyles(C), [C]);
 
@@ -71,7 +71,7 @@ export default function DevSection({ ctx, extra = {} }) {
     if (!dev.open) return null;
     return (
       <>
-        <Text style={s.sectionLabel}>Діагностика</Text>
+        <Text style={s.sectionLabel}>{t('diagnostics')}</Text>
         <Glass>
           <Server ctx={ctx} />
         </Glass>

@@ -40,7 +40,7 @@ import { Children, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Linking,
+  Animated,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -52,12 +52,14 @@ import * as Haptics from 'expo-haptics';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { PRO_BENEFITS, COMPARISON, FREE, TRIAL_REMIND_DAYS, topBenefits } from './subscription';
 import { PRIVACY_URL, SUPPORT_EMAIL, TERMS_URL } from './config';
-import { purchaseNote, restoreNote } from './purchases';
+import { purchaseNote, restoreNote, restoreTitle } from './purchases';
+import { openLink, openSupportMail } from './settings/links';
 import { formatDate } from './locale';
 import { ProIcon, PCrown } from './ProIcons';
 import { IcBell, IcCheck, IcClose, IcFlame, IcSpeaker } from './icons';
 import { Mascot, MascotBob } from './Mascot';
 import { FadeIn, GradBtn, Press } from './ui';
+import { DUR, EASE, useAnnounce } from './motion';
 import { CAPS, F, PALETTE_KEYS, PRO_PALETTES, R, THEMES, ipaFont, themeKeyOf, type, useTheme } from './theme';
 
 // Нижче за це (iPhone SE, mini, збільшений шрифт дисплея) — без Lingo і з
@@ -69,13 +71,6 @@ export const SHORT_SCREEN = 740;
 const RENEW_LEGAL = { week: 'renewLegalWeek', month: 'renewLegalMonth', quarter: 'renewLegalQuarter', year: 'renewLegalYear' };
 // Один рядок замість таймлайну, коли пробного періоду в тарифу немає
 const TODAY_LINE = { week: 'pwTodayWeek', month: 'pwTodayMonth', quarter: 'pwTodayQuarter', year: 'pwTodayYear' };
-// Короткий заголовок вікна після «Відновити покупки»; пояснення — під ним
-const RESTORE_TITLE = {
-  restoreDone: 'restoreTitleOk',
-  restoreNothing: 'restoreTitleNone',
-  restoreFailed: 'restoreTitleFail',
-  purchasesUnavailable: 'restoreTitleFail',
-};
 // Причина стіни → рядок таблиці, що її пояснює (його ставимо першим)
 const REASON_ROW = { scans: 'scans', scene: 'scene', langs: 'langs', themes: 'themes', wod_per_day: 'wodn' };
 // Більша ціль для дрібних посилань під кнопкою
@@ -133,6 +128,11 @@ export default function PaywallScreen({
   // «Відновити покупки» вже йде: другий тап не запускає другого відновлення
   const [restoring, setRestoring] = useState(false);
   const restoringRef = useRef(false);
+  // «Спробувати ще раз» для цін: поки йде повторний запит, блок помилки лишається
+  // на екрані зі спінером на кнопці, а не зникає разом із кнопкою, яку щойно
+  // натиснули (sawLoading — запит справді стартував: plansFailed хоч раз скинувся)
+  const [retrying, setRetrying] = useState(false);
+  const sawLoading = useRef(false);
 
   // Ціни могли не завантажитись при старті (офлайн) — перепитуємо магазин.
   useEffect(() => {
@@ -146,6 +146,33 @@ export default function PaywallScreen({
   const intro = reason === 'intro';
   // Магазин не віддав цін — купувати нічого; підвал пояснює й пропонує ще раз
   const failed = !unavailable && !list.length && plansFailed;
+  // Блок помилки тримається й під час повторного запиту (див. retrying)
+  const showFailed = failed || (retrying && !unavailable && !list.length);
+  useEffect(() => {
+    if (!retrying) return;
+    if (list.length) {
+      setRetrying(false);
+      return;
+    }
+    if (!plansFailed) {
+      sawLoading.current = true;
+      return;
+    }
+    if (sawLoading.current) {
+      // Запит закінчився, а цін знову нема: легке попередження в руці. Голосом
+      // це скаже useAnnounce нижче: failed знову став true після порожнього тексту.
+      sawLoading.current = false;
+      setRetrying(false);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    }
+  }, [retrying, plansFailed, list.length]);
+  // Запит міг узагалі не стартувати (немає магазину): не крутимо спінер вічно
+  useEffect(() => {
+    if (!retrying) return;
+    const id = setTimeout(() => setRetrying(false), 10000);
+    return () => clearTimeout(id);
+  }, [retrying]);
+
   // «Спробуй безкоштовно» і таймлайн — лише коли пробний період є саме в
   // обраного тарифу (Apple дає його не всім: хто вже пробував, платить
   // одразу). Обрав місячний без пробного — заголовок не обіцяє «безкоштовно»
@@ -195,7 +222,8 @@ export default function PaywallScreen({
   }
 
   async function buy() {
-    if (!plan || buyingRef.current) return;
+    // покупка й відновлення не йдуть разом: StoreKit і logIn не люблять паралелі
+    if (!plan || buyingRef.current || restoringRef.current) return;
     buyingRef.current = true;
     setBusy(true);
     setNote(null);
@@ -212,11 +240,15 @@ export default function PaywallScreen({
     }
     // Скасування в системному вікні — не помилка, мовчимо. «Гроші не
     // списано» — лише коли це точно так (див. purchaseNote).
-    setNote(purchaseNote(res));
+    const next = purchaseNote(res);
+    setNote(next);
+    // Збій — легке попередження в руці; «чекаємо схвалення» й «вже куплено» не
+    // помилки, а скасування людина зробила сама
+    if (next === 'purchaseFailed' || next === 'purchaseUnclear') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
   }
 
   async function restore() {
-    if (restoringRef.current) return;
+    if (restoringRef.current || buyingRef.current) return;
     restoringRef.current = true;
     setRestoring(true);
     Haptics.selectionAsync();
@@ -231,17 +263,22 @@ export default function PaywallScreen({
     }
     // Короткий жирний заголовок і пояснення під ним, а не речення в заголовку
     const key = restoreNote(next);
-    Alert.alert(t(RESTORE_TITLE[key] || 'restoreTitleFail'), t(key));
+    Alert.alert(t(restoreTitle(key)), t(key));
     if (next?.pro && !next.error) onClose();
-  }
-
-  function open(url) {
-    if (url) Linking.openURL(url).catch(() => {});
   }
 
   function retry() {
     Haptics.selectionAsync();
+    sawLoading.current = false;
+    setRetrying(true);
     if (onRetry) onRetry();
+  }
+
+  // Той самий тариф: нічого не змінилось, тож і вібрації нема
+  function pickPlan(id) {
+    if (id === plan?.id) return;
+    Haptics.selectionAsync();
+    setPicked(id);
   }
 
   // Кружечок палітри: мініекран перефарбовується, App запамʼятовує вибір
@@ -272,36 +309,21 @@ export default function PaywallScreen({
           const save = p.save ? t('saveN', { n: p.save }) : '';
           const label = [t(p.labelKey), p.price, ...parts, p.best ? t('bestValue') : '', save].filter(Boolean).join(', ');
           return (
-            <Press
+            <PlanRow
               key={p.id}
-              onPress={() => {
-                Haptics.selectionAsync();
-                setPicked(p.id);
-              }}
-              style={[s.plan, short && !compact && s.planShort, active && s.planActive, active && SHADOW]}
-              accessibilityRole="radio"
-              accessibilityState={{ checked: active }}
-              accessibilityLabel={label}
-            >
-              <View style={[s.radio, active && s.radioOn]}>{active ? <IcCheck size={13} color={C.onAccent} /> : null}</View>
-
-              <View style={{ flex: 1 }}>
-                <View style={s.planTop}>
-                  <Text style={[s.planName, active && { color: C.text }]}>{t(p.labelKey)}</Text>
-                  {p.best ? (
-                    <View style={s.bestTag}>
-                      <Text style={s.bestTagText}>{t('bestValue')}</Text>
-                    </View>
-                  ) : null}
-                </View>
-                <Text style={s.planPer}>{parts.join(' · ')}</Text>
-              </View>
-
-              <View style={{ alignItems: 'flex-end' }}>
-                <Text style={[s.planPrice, active && { color: C.accent }]}>{p.price}</Text>
-                {save ? <Text style={s.saveText}>{save}</Text> : null}
-              </View>
-            </Press>
+              p={p}
+              active={active}
+              short={short}
+              compact={compact}
+              label={label}
+              parts={parts}
+              save={save}
+              onPick={() => pickPlan(p.id)}
+              s={s}
+              C={C}
+              SHADOW={SHADOW}
+              t={t}
+            />
           );
         })}
       </View>
@@ -331,15 +353,21 @@ export default function PaywallScreen({
   // адреса є, під ним справжнє посилання, а коли нема — і писати нікуди.
   const noteText = unavailable ? t('purchasesUnavailable') : note === 'purchaseUnclear' ? t('pwUnclearNote') : note ? t(note) : '';
 
+  // VoiceOver на iOS не читає accessibilityLiveRegion (це лише Android): збій
+  // чи «чекаємо схвалення» під кнопкою, що з'явилися самі, озвучуємо вголос.
+  // Лише відповідь на дію людини (note), а не «покупки недоступні» зі старту.
+  useAnnounce(note ? noteText : '');
+  useAnnounce(failed ? `${t('pricesFailed')}. ${t('pricesFailedHint')}` : '');
+
   return (
     <View style={s.root}>
       {/* Хрестик — у власній смужці поза прокруткою: ціни під ним не їздять */}
       <View style={[s.topBar, short && s.topBarShort]}>
-        <Pressable style={s.close} onPress={onClose} hitSlop={4} accessibilityRole="button" accessibilityLabel={t('close')}>
+        <Press style={s.close} onPress={onClose} hitSlop={4} minTarget={0} feedback="dim" accessibilityRole="button" accessibilityLabel={t('close')}>
           <View style={s.closeDot}>
             <IcClose size={20} color={C.dim} />
           </View>
-        </Pressable>
+        </Press>
       </View>
 
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false} bounces={false}>
@@ -395,7 +423,7 @@ export default function PaywallScreen({
           <FadeIn delay={70} style={s.table}>
             <View style={s.tableHead}>
               <View style={{ flex: 1 }} />
-              <Text style={s.colFree} numberOfLines={1}>
+              <Text style={s.colFree} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} maxFontSizeMultiplier={1.2}>
                 {t('colFree')}
               </Text>
               <View style={s.colProWrap}>
@@ -466,13 +494,18 @@ export default function PaywallScreen({
 
       {/* Дія притиснута донизу — під великий палець */}
       <View style={[s.footer, SHADOW_LG]}>
-        {failed ? (
+        {showFailed ? (
           // Ціни не завантажились: що сталося, що зробити і кнопка, а не
-          // мовчазна вимкнена «Перейти на Pro»
+          // мовчазна вимкнена «Перейти на Pro». Android читає зміну сам
+          // (liveRegion), iOS чує її з useAnnounce вище.
           <View accessibilityLiveRegion="polite">
-            <Text style={s.failedText}>{t('pricesFailed')}</Text>
-            <Text style={s.failedHint}>{t('pricesFailedHint')}</Text>
-            <GradBtn title={t('pricesRetry')} onPress={retry} style={{ marginTop: 12 }} />
+            <Text style={s.failedText} maxFontSizeMultiplier={1.3}>
+              {t('pricesFailed')}
+            </Text>
+            <Text style={s.failedHint} maxFontSizeMultiplier={1.3}>
+              {t('pricesFailedHint')}
+            </Text>
+            <GradBtn title={t('pricesRetry')} onPress={retry} loading={retrying} style={{ marginTop: 12 }} />
           </View>
         ) : (
           <>
@@ -480,59 +513,155 @@ export default function PaywallScreen({
               title={plan?.trialDays ? t('startTrial') : plan?.lifetime ? t('buyLifetime') : t('subscribe')}
               onPress={buy}
               loading={busy}
-              disabled={!plan || unavailable}
+              disabled={!plan || unavailable || restoring}
             />
             {/* Без магазину кажемо це одразу, а не після марного тапу */}
             {noteText ? (
-              <Text style={[s.note, note === 'purchasePending' && !unavailable && s.notePending]} numberOfLines={2} accessibilityLiveRegion="polite">
+              <Text
+                style={[s.note, note === 'purchasePending' && !unavailable && s.notePending]}
+                numberOfLines={2}
+                maxFontSizeMultiplier={1.3}
+                accessibilityLiveRegion="polite"
+              >
                 {noteText}
               </Text>
             ) : null}
             {note === 'purchaseUnclear' && SUPPORT_EMAIL ? (
-              <Pressable
+              <Press
                 style={s.supportHit}
                 hitSlop={LINK_SLOP}
-                onPress={() => open('mailto:' + SUPPORT_EMAIL)}
+                minTarget={0}
+                feedback="dim"
+                onPress={() => openSupportMail(t)}
                 accessibilityRole="link"
               >
-                <Text style={s.supportLink}>{t('pwContactSupport')}</Text>
-              </Pressable>
+                <Text style={s.supportLink} maxFontSizeMultiplier={1.3}>
+                  {t('pwContactSupport')}
+                </Text>
+              </Press>
             ) : null}
             {/* Умови поруч із кнопкою покупки завжди (App Review 3.1.2) */}
-            <Text style={s.legal}>{legal}</Text>
+            <Text style={s.legal} maxFontSizeMultiplier={1.3}>
+              {legal}
+            </Text>
           </>
         )}
         {/* Вихід без покупки — повноцінна кнопка в один рядок, а не сірий
             дрібний текст, який треба шукати. */}
         {intro ? (
-          <Pressable style={s.freeBtn} onPress={onClose} accessibilityRole="button">
-            <Text style={s.freeBtnText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
+          <Press style={s.freeBtn} onPress={onClose} minTarget={0} accessibilityRole="button">
+            <Text
+              style={s.freeBtnText}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.85}
+              maxFontSizeMultiplier={1.3}
+            >
               {freeLeft > 0 ? t('pwContinueFree', { n: freeLeft }) : t('pwContinueFreeNoScans')}
             </Text>
-          </Pressable>
+          </Press>
         ) : null}
         <View style={s.legalRow}>
-          <Pressable
+          <Press
             style={s.linkHit}
             hitSlop={LINK_SLOP}
+            minTarget={0}
+            feedback="dim"
             onPress={restore}
-            disabled={restoring}
+            busy={restoring}
+            disabled={busy}
             accessibilityRole="button"
-            accessibilityState={{ busy: restoring, disabled: restoring }}
+            accessibilityState={{ busy: restoring, disabled: restoring || busy }}
           >
-            <Text style={s.legalLink}>{restoring ? t('restoreBusy') : t('restore')}</Text>
-          </Pressable>
-          <Pressable style={s.linkHit} hitSlop={LINK_SLOP} onPress={() => open(TERMS_URL)} accessibilityRole="link">
-            <Text style={s.legalLink}>{t('terms')}</Text>
-          </Pressable>
+            <Text style={s.legalLink} maxFontSizeMultiplier={1.3}>
+              {restoring ? t('restoreBusy') : t('restore')}
+            </Text>
+          </Press>
+          <Press style={s.linkHit} hitSlop={LINK_SLOP} minTarget={0} feedback="dim" onPress={() => openLink(TERMS_URL)} accessibilityRole="link">
+            <Text style={s.legalLink} maxFontSizeMultiplier={1.3}>
+              {t('terms')}
+            </Text>
+          </Press>
           {PRIVACY_URL ? (
-            <Pressable style={s.linkHit} hitSlop={LINK_SLOP} onPress={() => open(PRIVACY_URL)} accessibilityRole="link">
-              <Text style={s.legalLink}>{t('privacy')}</Text>
-            </Pressable>
+            <Press style={s.linkHit} hitSlop={LINK_SLOP} minTarget={0} feedback="dim" onPress={() => openLink(PRIVACY_URL)} accessibilityRole="link">
+              <Text style={s.legalLink} maxFontSizeMultiplier={1.3}>
+                {t('privacy')}
+              </Text>
+            </Press>
           ) : null}
         </View>
       </View>
     </View>
+  );
+}
+
+// Рядок тарифу. Вибір показує не рамка, що перемикається за один кадр, а шар,
+// що проявляється: кільце акценту й заливка радіо виходять із 0 за DUR.micro і
+// гаснуть за DUR.press. Це лише непрозорість, тож «Зменшити рух» її лишає.
+// Звичайна рамка в картки прозора й завжди є, тож розміри не міняються.
+function PlanRow({ p, active, short, compact, label, parts, save, onPick, s, C, SHADOW, t }) {
+  const sel = useRef(new Animated.Value(active ? 1 : 0)).current;
+  const seen = useRef(false);
+  useEffect(() => {
+    // перший рендер: вибір уже на місці, анімувати нічого
+    if (!seen.current) {
+      seen.current = true;
+      return;
+    }
+    const anim = Animated.timing(sel, {
+      toValue: active ? 1 : 0,
+      duration: active ? DUR.micro : DUR.press,
+      easing: EASE.soft,
+      useNativeDriver: true,
+    });
+    anim.start();
+    return () => anim.stop();
+  }, [active]);
+
+  return (
+    <Press
+      onPress={onPick}
+      style={[s.plan, short && !compact && s.planShort, active && SHADOW]}
+      accessibilityRole="radio"
+      accessibilityState={{ checked: active }}
+      accessibilityLabel={label}
+    >
+      <Animated.View pointerEvents="none" style={[s.planRing, { opacity: sel }]} />
+      <View style={s.radio}>
+        <Animated.View style={[s.radioFill, { opacity: sel }]}>
+          <IcCheck size={13} color={C.onAccent} />
+        </Animated.View>
+      </View>
+
+      <View style={{ flex: 1 }}>
+        <View style={s.planTop}>
+          <Text style={[s.planName, active && { color: C.text }]} maxFontSizeMultiplier={1.4}>
+            {t(p.labelKey)}
+          </Text>
+          {p.best ? (
+            <View style={s.bestTag}>
+              <Text style={s.bestTagText} maxFontSizeMultiplier={1.3}>
+                {t('bestValue')}
+              </Text>
+            </View>
+          ) : null}
+        </View>
+        <Text style={s.planPer} maxFontSizeMultiplier={1.4}>
+          {parts.join(' · ')}
+        </Text>
+      </View>
+
+      <View style={{ alignItems: 'flex-end' }}>
+        <Text style={[s.planPrice, active && { color: C.accent }]} maxFontSizeMultiplier={1.4}>
+          {p.price}
+        </Text>
+        {save ? (
+          <Text style={s.saveText} maxFontSizeMultiplier={1.3}>
+            {save}
+          </Text>
+        ) : null}
+      </View>
+    </Press>
   );
 }
 
@@ -919,7 +1048,17 @@ const makeStyles = (C) =>
     // на SE тарифи трохи нижчі, щоб обраний лишався над підвалом навіть з
     // помилкою покупки (рядок однаково вищий за 44 pt)
     planShort: { paddingVertical: 12 },
-    planActive: { borderColor: C.accent },
+    // кільце вибору лежить поверх прозорої рамки картки (-2 = її товщина)
+    planRing: {
+      position: 'absolute',
+      top: -2,
+      left: -2,
+      right: -2,
+      bottom: -2,
+      borderRadius: R.lg,
+      borderWidth: 2,
+      borderColor: C.accent,
+    },
     radio: {
       width: 22,
       height: 22,
@@ -929,13 +1068,24 @@ const makeStyles = (C) =>
       alignItems: 'center',
       justifyContent: 'center',
     },
-    radioOn: { backgroundColor: C.accent, borderColor: C.accent },
-    planTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    // заливка з галочкою накриває рамку радіо (-2) і проявляється разом з кільцем
+    radioFill: {
+      position: 'absolute',
+      top: -2,
+      left: -2,
+      width: 22,
+      height: 22,
+      borderRadius: 11,
+      backgroundColor: C.accent,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    planTop: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 8, rowGap: 2 },
     planName: { color: C.dim, ...type(16, F.bold, { noLead: true }) },
     // dim, а не faint: «7 днів безкоштовно» — частина умов, ≥ 4.5:1
     planPer: { color: C.dim, ...type(13, F.reg, { noLead: true }), marginTop: 3 },
     planPrice: { color: C.text, ...type(18, F.extra, { noLead: true }) },
-    saveText: { color: C.green, ...CAPS, marginTop: 3 },
+    saveText: { color: C.greenInk, ...CAPS, marginTop: 3 },
 
     bestTag: {
       backgroundColor: C.accentSoft,
@@ -975,7 +1125,7 @@ const makeStyles = (C) =>
       textAlign: 'center',
       marginTop: 8,
     },
-    note: { color: C.red, ...type(13, F.semi), textAlign: 'center', marginTop: 8 },
+    note: { color: C.redInk, ...type(13, F.semi), textAlign: 'center', marginTop: 8 },
     notePending: { color: C.dim },
     supportHit: { alignSelf: 'center', minHeight: 44, justifyContent: 'center', paddingVertical: 10, marginTop: -6, marginBottom: -10 },
     supportLink: { color: C.accent, ...type(13, F.bold, { noLead: true }) },

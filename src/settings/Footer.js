@@ -13,12 +13,20 @@ import { version as APP_VERSION } from '../../package.json';
 import { F, type } from '../theme';
 
 export const DEV_TAPS = 7;
+// Дотики мають іти один за одним: сім випадкових дотиків за хвилину
+// діагностику не відкривають
+export const DEV_TAP_GAP = 1500;
 
 export default function Footer({ ctx }) {
   const { t, C, dev } = ctx;
   const taps = useRef(0);
+  const last = useRef(0);
 
   function tap() {
+    const now = Date.now();
+    // пауза довша за DEV_TAP_GAP: лічимо наново
+    if (now - last.current > DEV_TAP_GAP) taps.current = 0;
+    last.current = now;
     const n = taps.current + 1;
     taps.current = n;
     if (n >= DEV_TAPS) {

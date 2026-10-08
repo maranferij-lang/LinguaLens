@@ -10,7 +10,7 @@ import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { IS_DEV } from '../config';
-import { IcChevron } from '../icons';
+import TurnChevron from './Chevron';
 import { Glass } from '../ui';
 import { layoutNext } from '../motion';
 import { setFastClock, useWidgetClock } from '../widgets/clock';
@@ -62,9 +62,7 @@ export default function WidgetsSection({ ctx, extra = {} }) {
           testID="widget-howto-row"
         >
           <Text style={[s.switchTitle, { flex: 1, marginBottom: 0 }]}>{t('settingsHowWidget')}</Text>
-          <View style={{ transform: [{ rotate: howOpen ? '180deg' : '0deg' }] }}>
-            <IcChevron color={C.faint} />
-          </View>
+          <TurnChevron open={howOpen} color={C.faint} />
         </Pressable>
         {howOpen ? <WidgetHowTo t={t} compact style={st.how} /> : null}
         {IS_DEV ? (

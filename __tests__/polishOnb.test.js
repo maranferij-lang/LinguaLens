@@ -311,7 +311,7 @@ describe('paywall footer', () => {
     await tap(tree, t('startTrial'));
     const note = hosts(tree, (n) => n.props.children === t('purchaseFailed'))[0];
     expect(note.props.numberOfLines).toBe(2);
-    expect(style(note).color).toBe(THEMES.light.C.red);
+    expect(style(note).color).toBe(THEMES.light.C.redInk);
     const all = strings(tree);
     expect(all.indexOf(t('purchaseFailed'))).toBeLessThan(all.findIndex((s) => s.startsWith('Free until')));
   });

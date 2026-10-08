@@ -12,10 +12,11 @@
 // Це окремий нативний Modal. Двох Modal одночасно тут не буває: аркуш
 // з'являється ДО зйомки, коли аркуш результату скану закритий.
 import { useMemo } from 'react';
-import { Linking, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { PRIVACY_URL } from './config';
 import { Mascot } from './Mascot';
-import { FadeIn, GradBtn, SecBtn } from './ui';
+import { FadeIn, GradBtn, Press, SecBtn } from './ui';
+import { openLink } from './settings/links';
 import { F, R, type, useTheme } from './theme';
 
 export default function ConsentSheet({ visible, onAllow, onClose, t }) {
@@ -34,13 +35,9 @@ export default function ConsentSheet({ visible, onAllow, onClose, t }) {
           <Text style={s.title}>{t('aiConsentTitle')}</Text>
           <Text style={s.text}>{t('aiConsentText')}</Text>
           {PRIVACY_URL ? (
-            <Pressable
-              hitSlop={10}
-              accessibilityRole="link"
-              onPress={() => Linking.openURL(PRIVACY_URL).catch(() => {})}
-            >
+            <Press hitSlop={10} feedback="dim" accessibilityRole="link" onPress={() => openLink(PRIVACY_URL)}>
               <Text style={s.link}>{t('privacy')}</Text>
-            </Pressable>
+            </Press>
           ) : null}
         </FadeIn>
         <FadeIn delay={60} style={s.btns}>

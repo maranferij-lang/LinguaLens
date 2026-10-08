@@ -34,7 +34,7 @@ import * as Haptics from 'expo-haptics';
 import { accountErrorKey, syncErrorKey } from './account';
 import { PRIVACY_URL, SUPPORT_EMAIL, TERMS_URL } from './config';
 import { formatDate } from './locale';
-import { restoreNote } from './purchases';
+import { restoreNote, restoreTitle } from './purchases';
 import { LANGS, flagFor, nameFor } from './speech';
 import { expandOptions, optionKey, parseOption } from './langVariants';
 import { IcCheck, IcChevron, IcCloud } from './icons';
@@ -42,7 +42,7 @@ import { PCrown } from './ProIcons';
 import { Mascot } from './Mascot';
 import { FadeIn, Glass, Press } from './ui';
 import { UNDER_TAB } from './Chrome';
-import { layoutNext } from './motion';
+import { announce, layoutNext } from './motion';
 import { F, R, type, useTheme } from './theme';
 import WodSection from './settings/WodSection';
 import StreakSection from './settings/StreakSection';
@@ -50,6 +50,8 @@ import WidgetsSection from './settings/WidgetsSection';
 import ThemeSection from './settings/ThemeSection';
 import DevSection from './settings/DevSection';
 import Footer from './settings/Footer';
+import TurnChevron from './settings/Chevron';
+import { openLink, openSupportMail } from './settings/links';
 
 // Підпис години — тепер у WodSection; звідси — для наявних імпортів.
 export { hourLabel } from './settings/WodSection';
@@ -73,6 +75,13 @@ function LangPicker({ label, hint, value, variant = null, variants = false, onCh
     setOpen(!open);
   }
   function select(key) {
+    // Той самий вибір (природний спосіб закрити список): нічого не змінилось,
+    // тож ні зміни, ні вібрації, ні запиту слова дня на сервер
+    if (key === current) {
+      layoutNext();
+      setOpen(false);
+      return;
+    }
     Haptics.selectionAsync();
     const { code, variant: v } = parseOption(key);
     if (v) onChange(code, v);
@@ -85,16 +94,23 @@ function LangPicker({ label, hint, value, variant = null, variants = false, onCh
     <>
       <Text style={s.sectionLabel}>{label}</Text>
       <Glass style={{ padding: 0, overflow: 'hidden' }}>
-        <Pressable style={s.pickerHead} onPress={toggle}>
+        <Press
+          style={s.pickerHead}
+          onPress={toggle}
+          feedback="dim"
+          minTarget={0}
+          accessibilityRole="button"
+          accessibilityLabel={`${label}: ${nameFor(head.code, head.variant)}`}
+          accessibilityHint={hint}
+          accessibilityState={{ expanded: open }}
+        >
           <Text style={{ fontSize: 22 }}>{flagFor(head.code, head.variant || undefined)}</Text>
           <View style={{ flex: 1 }}>
             <Text style={s.pickerValue}>{nameFor(head.code, head.variant)}</Text>
             <Text style={s.pickerHint}>{hint}</Text>
           </View>
-          <View style={open ? { transform: [{ rotate: '180deg' }] } : null}>
-            <IcChevron color={C.dim} />
-          </View>
-        </Pressable>
+          <TurnChevron open={open} color={C.dim} />
+        </Press>
 
         {open ? (
           <ScrollView style={s.list} nestedScrollEnabled showsVerticalScrollIndicator>
@@ -203,6 +219,8 @@ function AccountCard({ account, sync, pro, onSignIn, onSignOut, onSyncNow, lang,
   // оголошує її сам: рядок з'являється не там, де зараз фокус.
   function fail(key) {
     const msg = key ? t(key) : null;
+    // рядок помилки з'являється під кнопкою: картка розтягується плавно
+    if (msg) layoutNext();
     setError(msg);
     if (msg) AccessibilityInfo.announceForAccessibility?.(msg);
   }
@@ -388,6 +406,21 @@ export default function SettingsScreen(props) {
   // Діагностику відкривають сім дотиків по футеру (Footer → DevSection)
   const [devOpen, setDevOpen] = useState(false);
 
+  // «Стерти все» і «Відновити покупки» ходять у мережу секунди: поки вони
+  // йдуть, рядок зайнятий, а другий дотик нічого не запускає (ref працює вже
+  // до перерендеру). alive — екран міг зникнути, поки тривав запит.
+  const [erasing, setErasing] = useState(false);
+  const [restoring, setRestoring] = useState(false);
+  const erasingRef = useRef(false);
+  const restoringRef = useRef(false);
+  const alive = useRef(true);
+  useEffect(
+    () => () => {
+      alive.current = false;
+    },
+    []
+  );
+
   // Спільне для всіх секцій src/settings/* (див. шапку файлу). Без
   // openPaywall від App пейвол відкриває наявний onOpenPaywall (причина info).
   const ctx = {
@@ -419,34 +452,58 @@ export default function SettingsScreen(props) {
   // Стерти все — незворотне, тож два кроки: діалог і лише потім запит.
   // Сервер має бути досяжний: інакше людина думала б, що її дані стерто.
   function confirmErase() {
+    if (erasingRef.current) return;
     Alert.alert(t('eraseTitle'), t(synced ? 'eraseMsgAccount' : 'eraseMsg'), [
       { text: t('cancel'), style: 'cancel' },
       {
         text: t('eraseConfirm'),
         style: 'destructive',
         onPress: async () => {
+          if (erasingRef.current) return;
+          erasingRef.current = true;
+          setErasing(true);
+          announce(t('eraseBusy'));
           try {
             await onEraseEverything();
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            // Видалення даних — те, що перевіряє App Review (5.1.1(v)); словом
+            // кажемо, що воно сталося, а не лишаємо лише лічильник слів на нулі.
+            Alert.alert(t('eraseDone'), t('eraseDoneText'));
           } catch (e) {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
             // «Немає зв'язку» — лише коли його справді немає; інакше сервер
             // відповів помилкою, і порада перевірити інтернет збивала б з пантелику.
             const offline = e?.code === 'OFFLINE' || e?.code === 'TIMEOUT';
             Alert.alert(offline ? t('eraseFail') : t('eraseServerFail'));
+          } finally {
+            erasingRef.current = false;
+            if (alive.current) setErasing(false);
           }
         },
       },
     ]);
   }
 
+  // Відновлення: 1-5 с мережі (інколи ще й пароль Apple ID). Так само, як на
+  // пейволі: один запуск за раз, збій не кидає виняток, а вікно має короткий
+  // заголовок і пояснення під ним.
   async function restore() {
+    if (restoringRef.current) return;
+    restoringRef.current = true;
+    setRestoring(true);
     Haptics.selectionAsync();
-    const next = await onRestore();
-    Alert.alert(t(restoreNote(next)));
-  }
-
-  function openUrl(url) {
-    if (url) Linking.openURL(url).catch(() => {});
+    let next;
+    try {
+      next = await onRestore();
+    } catch (_) {
+      next = { error: 'FAILED' };
+    } finally {
+      restoringRef.current = false;
+      if (alive.current) setRestoring(false);
+    }
+    const key = restoreNote(next);
+    if (next?.pro && !next.error) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    Alert.alert(t(restoreTitle(key)), t(key));
   }
 
   return (
@@ -549,53 +606,67 @@ export default function SettingsScreen(props) {
         {/* Про застосунок */}
         <Text style={s.sectionLabel}>{t('about')}</Text>
         <Glass style={{ padding: 0, overflow: 'hidden' }}>
-          <Pressable style={s.linkRow} onPress={onReplayOnb}>
+          <Press style={s.linkRow} onPress={onReplayOnb} feedback="dim" minTarget={0} accessibilityRole="button">
             <Mascot pose="wave" size={34} />
             <Text style={[s.linkText, { flex: 1 }]}>{t('replayOnb')}</Text>
             <View style={{ transform: [{ rotate: '-90deg' }] }}>
               <IcChevron color={C.faint} />
             </View>
-          </Pressable>
+          </Press>
           {/* Відновлення — для тих, у кого Pro ще немає (новий телефон,
               перевстановлення). З Pro воно є в Customer Center. */}
           {sub?.pro ? null : (
             <>
               <View style={s.sep} />
-              <Pressable style={s.linkRow} onPress={restore}>
+              <Press
+                style={s.linkRow}
+                onPress={restore}
+                busy={restoring}
+                feedback="dim"
+                minTarget={0}
+                accessibilityRole="button"
+                accessibilityLabel={t('restore')}
+                accessibilityState={{ busy: restoring, disabled: restoring }}
+              >
                 <Text style={[s.linkText, { flex: 1 }]}>{t('restore')}</Text>
-                <View style={{ transform: [{ rotate: '-90deg' }] }}>
-                  <IcChevron color={C.faint} />
-                </View>
-              </Pressable>
+                {/* Спінер на місці стрілки: рядок не міняє розміру */}
+                {restoring ? (
+                  <ActivityIndicator color={C.dim} size="small" />
+                ) : (
+                  <View style={{ transform: [{ rotate: '-90deg' }] }}>
+                    <IcChevron color={C.faint} />
+                  </View>
+                )}
+              </Press>
             </>
           )}
           {PRIVACY_URL ? (
             <>
               <View style={s.sep} />
-              <Pressable style={s.linkRow} onPress={() => openUrl(PRIVACY_URL)}>
+              <Press style={s.linkRow} onPress={() => openLink(PRIVACY_URL)} feedback="dim" minTarget={0} accessibilityRole="link">
                 <Text style={[s.linkText, { flex: 1 }]}>{t('privacy')}</Text>
                 <View style={{ transform: [{ rotate: '-90deg' }] }}>
                   <IcChevron color={C.faint} />
                 </View>
-              </Pressable>
+              </Press>
             </>
           ) : null}
           <View style={s.sep} />
-          <Pressable style={s.linkRow} onPress={() => openUrl(TERMS_URL)}>
+          <Press style={s.linkRow} onPress={() => openLink(TERMS_URL)} feedback="dim" minTarget={0} accessibilityRole="link">
             <Text style={[s.linkText, { flex: 1 }]}>{t('terms')}</Text>
             <View style={{ transform: [{ rotate: '-90deg' }] }}>
               <IcChevron color={C.faint} />
             </View>
-          </Pressable>
+          </Press>
           {SUPPORT_EMAIL ? (
             <>
               <View style={s.sep} />
-              <Pressable style={s.linkRow} onPress={() => openUrl('mailto:' + SUPPORT_EMAIL)}>
+              <Press style={s.linkRow} onPress={() => openSupportMail(t)} feedback="dim" minTarget={0} accessibilityRole="link">
                 <Text style={[s.linkText, { flex: 1 }]}>{t('support')}</Text>
                 <View style={{ transform: [{ rotate: '-90deg' }] }}>
                   <IcChevron color={C.faint} />
                 </View>
-              </Pressable>
+              </Press>
             </>
           ) : null}
         </Glass>
@@ -627,14 +698,22 @@ export default function SettingsScreen(props) {
           <Press
             style={[s.dangerBtn, !wordsCount && { opacity: 0.4 }]}
             onPress={confirmClear}
-            disabled={!wordsCount}
+            disabled={!wordsCount || erasing}
           >
             <Text style={s.dangerText}>{t('clearDict')}</Text>
           </Press>
           <View style={s.sepInner} />
           <Text style={s.dimText}>{t(synced ? 'eraseHintAccount' : 'eraseHint')}</Text>
-          <Press style={s.dangerBtn} onPress={confirmErase}>
-            <Text style={[s.dangerText, { color: C.dim }]}>{t('eraseAll')}</Text>
+          {/* Стирання йде до 20 с: спінер на місці підпису (висота та сама, рядок
+              не стрибає), друге натискання нічого не запускає. */}
+          <Press
+            style={s.dangerBtn}
+            onPress={confirmErase}
+            busy={erasing}
+            accessibilityLabel={t('eraseAll')}
+            accessibilityState={{ busy: erasing, disabled: erasing }}
+          >
+            {erasing ? <ActivityIndicator color={C.dim} size="small" /> : <Text style={[s.dangerText, { color: C.dim }]}>{t('eraseAll')}</Text>}
           </Press>
         </Glass>
 
@@ -742,10 +821,11 @@ const makeStyles = (C) =>
     },
     checkBtn: { backgroundColor: C.accent, borderRadius: R.md, paddingVertical: 12, alignItems: 'center', marginTop: 12 },
     checkBtnText: { color: C.onAccent, fontSize: 15, fontFamily: F.bold },
-    okText: { color: C.green, fontSize: 13, marginTop: 10, fontFamily: F.bold },
-    badText: { color: C.red, fontSize: 13, marginTop: 10, lineHeight: 19, fontFamily: F.semi },
+    okText: { color: C.greenInk, fontSize: 13, marginTop: 10, fontFamily: F.bold },
+    badText: { color: C.redInk, fontSize: 13, marginTop: 10, lineHeight: 19, fontFamily: F.semi },
 
-    dangerBtn: { marginTop: 10, paddingVertical: 10, alignItems: 'center' },
+    // 44 pt: і з підписом, і зі спінером на його місці висота однакова
+    dangerBtn: { marginTop: 10, paddingVertical: 10, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
 
     acctHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 13 },
     acctIcon: {
@@ -760,7 +840,7 @@ const makeStyles = (C) =>
     // Колір і радіус задаються її власними пропсами, не стилем.
     appleBtn: { width: '100%', height: 50, marginTop: 16 },
     appleBusy: { alignItems: 'center', justifyContent: 'center' },
-    acctError: { color: C.red, ...type(13, F.semi), marginTop: 10 },
+    acctError: { color: C.redInk, ...type(13, F.semi), marginTop: 10 },
     syncNote: { color: C.dim, ...type(13, F.bold), marginTop: 3 },
     syncBtn: {
       backgroundColor: C.card2,
@@ -773,5 +853,5 @@ const makeStyles = (C) =>
     },
     syncBtnText: { color: C.text, ...type(15, F.bold, { noLead: true }) },
     signOutBtn: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
-    dangerText: { color: C.red, fontSize: 16, letterSpacing: -0.1, fontFamily: F.semi },
+    dangerText: { color: C.redInk, fontSize: 16, letterSpacing: -0.1, fontFamily: F.semi },
   });
