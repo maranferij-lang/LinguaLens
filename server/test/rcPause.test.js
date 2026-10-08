@@ -24,10 +24,15 @@ const realFetch = global.fetch;
 const realTimeout = AbortSignal.timeout;
 // mode: ok | 500 | 429 | hang
 const rc = { calls: 0, mode: 'ok', ent: new Map(), timeouts: [] };
+// Таймаут, з яким створено сигнал (див. тест «waits for RevenueCat 4 s»).
+// Пишемо лише сигнали запитів до RevenueCat: з емулятором Firestore сховище
+// теж ставить свої таймаути, і загальний список змішав би їх.
+const timeoutOf = new WeakMap();
 global.fetch = async (url, opts) => {
   const m = String(url).match(/^https:\/\/api\.revenuecat\.com\/v1\/subscribers\/(.+)$/);
   if (!m) return realFetch(url, opts);
   rc.calls++;
+  if (timeoutOf.has(opts.signal)) rc.timeouts.push(timeoutOf.get(opts.signal));
   if (rc.mode === 'hang') {
     return new Promise((_, reject) => opts.signal.addEventListener('abort', () => reject(opts.signal.reason)));
   }
@@ -168,10 +173,14 @@ test('a success ends the pause, so the next failure is asked about again', async
 
 test('the check on /me and a scan waits for RevenueCat 4 s, a refresh and a webhook 8 s', async () => {
   calm();
-  const asked = [];
+  const asked = rc.timeouts;
+  asked.length = 0;
+  // Справжні 4 і 8 с скорочуємо до 40 мс, таймаути сховища лишаємо як є:
+  // Firestore-емулятор за 40 мс не відповідає.
   AbortSignal.timeout = (n) => {
-    asked.push(n);
-    return realTimeout.call(AbortSignal, 40);
+    const signal = realTimeout.call(AbortSignal, n === 4000 || n === 8000 ? 40 : n);
+    timeoutOf.set(signal, n);
+    return signal;
   };
   try {
     rc.mode = 'hang';

@@ -515,17 +515,31 @@ test('word of the day: failed words are left out, never sent blank, and the answ
   assert.ok(before > 0);
 });
 
+// Англійське поняття, яке сервер перекладає «на сьогодні» для цього пристрою:
+// пробний запит на іншій новій парі мов, де все вдається. Валити треба саме
+// його, а не «виклик моделі №0»: з емулятором Firestore пошук у кеші слів має
+// різну затримку, і першим до моделі може дійти будь-який із 8 паралельних днів.
+const conceptOf = (c) => c.body.contents[0].parts[0].text.match(/English concept "([^"]+)"/)[1];
+async function todayConcept(ask) {
+  reset(wordAnswer);
+  const r = await ask(freshPair());
+  assert.equal(r.status, 200);
+  return r.data.words[0].source;
+}
+const failToday = (today) => (opts, c) => (conceptOf(c) === today ? failing(400)() : wordAnswer(opts, c));
+
 test('word of the day: when today fails it is 503 AI_BUSY with Retry-After, whatever else worked', async () => {
   const { token } = await newDevice();
-  reset((opts, c) => (c.n === 0 ? failing(400)() : wordAnswer(opts, c)));
-  const r = await wod(token, freshPair());
+  const post = (p) => wod(token, p);
+  reset(failToday(await todayConcept(post)));
+  const r = await post(freshPair());
   assert.equal(r.status, 503);
   assert.deepEqual(r.data, { error: 'AI_BUSY' });
   assert.equal(r.headers.get('retry-after'), '5');
   // GET (старі версії) — так само
-  reset((opts, c) => (c.n === 0 ? failing(400)() : wordAnswer(opts, c)));
-  const p = freshPair();
-  const g = await call('GET', `/word-of-day?days=7&lang=${p.lang}&native=${p.native}`, { token });
+  const get = (p) => call('GET', `/word-of-day?days=7&lang=${p.lang}&native=${p.native}`, { token });
+  reset(failToday(await todayConcept(get)));
+  const g = await get(freshPair());
   assert.equal(g.status, 503);
   assert.equal(g.headers.get('retry-after'), '5');
 });
