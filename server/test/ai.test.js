@@ -40,7 +40,7 @@ test('a scene asks Anthropic for a long answer; a single scan keeps the short li
 
   reply = '{"word":"mug"}';
   await ai.recognize('BASE64', 'en', 'uk');
-  assert.equal(requests.at(-1).body.max_tokens, 600);
+  assert.equal(requests.at(-1).body.max_tokens, 1000);
 });
 
 test('the scene prompt carries the selection rules', () => {
@@ -130,13 +130,13 @@ test('scan prompt by level: none and 4–6 exactly as before, up to 3 short and 
 
   reply = '{"word":"mug"}';
   await ai.recognize('BASE64', 'en', 'uk', 8);
-  assert.equal(requests.at(-1).body.max_tokens, 800);
+  assert.equal(requests.at(-1).body.max_tokens, 1200);
   assert.equal(requests.at(-1).body.messages[0].content[1].text, ai.buildScanPrompt('en', 'uk', 8));
   await ai.recognize('BASE64', 'en', 'uk', 6);
-  assert.equal(requests.at(-1).body.max_tokens, 600);
+  assert.equal(requests.at(-1).body.max_tokens, 1000);
   assert.equal(requests.at(-1).body.messages[0].content[1].text, base);
   await ai.recognize('BASE64', 'en', 'uk', 2);
-  assert.equal(requests.at(-1).body.max_tokens, 600);
+  assert.equal(requests.at(-1).body.max_tokens, 1000);
   assert.equal(requests.at(-1).body.messages[0].content[1].text, ai.buildScanPrompt('en', 'uk', 2));
 });
 
@@ -407,4 +407,48 @@ test('the word of the day for a variant: own cache entry; the default variant re
   // а британська — свій переклад
   await ai.translateWord(old, 'en', 'uk', { variant: 'gb' });
   assert.equal(requests.length, m + 1);
+});
+
+// ---------- повтори й відмови (Anthropic) ----------
+test('Anthropic: 529 (overloaded) is retried silently; a refusal is "no object" and is not asked twice', async () => {
+  const stub = global.fetch;
+  const steps = [];
+  let n = 0;
+  global.fetch = async (url, opts) => {
+    if (String(url) !== 'https://api.anthropic.com/v1/messages') return stub(url, opts);
+    n++;
+    return steps.shift()();
+  };
+  const ok = (text, extra = {}) => () => new Response(JSON.stringify({ content: [{ type: 'text', text }], ...extra }), { status: 200 });
+  const full = JSON.stringify({ word: 'mug', translation: 'кружка', example: 'x', box: [0, 0, 500, 500] });
+  const rand = Math.random;
+  Math.random = () => 0;
+  try {
+    steps.push(() => new Response('{"type":"error"}', { status: 529 }), ok(full));
+    assert.equal((await ai.recognize('B64', 'en', 'uk')).word, 'mug');
+    assert.equal(n, 2);
+
+    // 400 — не повторюємо
+    n = 0;
+    steps.push(() => new Response('{"type":"error"}', { status: 400 }), ok(full));
+    await assert.rejects(() => ai.recognize('B64', 'en', 'uk'), /Anthropic 400/);
+    assert.equal(n, 1);
+    steps.length = 0;
+
+    // відмова за політикою: stop_reason refusal без тексту
+    n = 0;
+    steps.push(() => new Response(JSON.stringify({ content: [], stop_reason: 'refusal' }), { status: 200 }), ok(full));
+    assert.deepEqual(await ai.recognize('B64', 'en', 'uk'), { word: 'unknown' });
+    assert.equal(n, 1);
+    steps.length = 0;
+
+    // не JSON — одне повторне запитання
+    n = 0;
+    steps.push(ok('Sorry, I cannot do that.'), ok(full));
+    assert.equal((await ai.recognize('B64', 'en', 'uk')).word, 'mug');
+    assert.equal(n, 2);
+  } finally {
+    Math.random = rand;
+    global.fetch = stub;
+  }
 });

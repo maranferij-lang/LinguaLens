@@ -363,74 +363,186 @@ const SCENE_BUDGET_MS = 34000;
 const TEXT_BUDGET_MS = 40000;
 
 // Стеля довжини відповіді Anthropic. Один предмет із контуром — це ~400
-// токенів, вісім — до ~3200. Зі стелею одиночного скану сцена обривалась
-// би на півслові й не розбиралась як JSON.
-const SCAN_MAX_TOKENS = 600;
+// токенів, а для тайської чи хінді з прикладом рівня 7+ і виразами — до
+// ~750: стеля з запасом, бо оплата йде за вироблені токени, а не за стелю.
+// Вісім предметів сцени — до ~3200. Зі стелею одиночного скану сцена
+// обривалась би на півслові й не розбиралась як JSON.
+const SCAN_MAX_TOKENS = 1000;
 // Вирази для просунутих і довший приклад — ще ~150 токенів.
-const SCAN_EXTRAS_MAX_TOKENS = 800;
+const SCAN_EXTRAS_MAX_TOKENS = 1200;
 const SCENE_MAX_TOKENS = 3500;
 
-// fetch у межах дедлайну і з одним повтором при 503 (перевантаження AI),
-// якщо на повтор ще лишається час
+// Тимчасові відмови провайдера: 429 (ліміт запитів Gemini), 500/502/503/504 і
+// 529 (перевантаження Anthropic). Решту 4xx (поганий ключ, поганий запит)
+// повтором не вилікувати, і таймаут теж: час вичерпано.
+const RETRY_STATUS = new Set([429, 500, 502, 503, 504, 529]);
+const AI_ATTEMPTS = 3;
+// Повтор має сенс, лише якщо після паузи лишається час на саму відповідь:
+// здоровий скан займає 1,5–2 с, тож тиха друга спроба людина не помічає.
+const RETRY_MIN_LEFT_MS = 8000;
+const RETRY_BASE_MS = 300;
+const RETRY_CAP_MS = 1500;
+// Retry-After довший за це — провайдер просить чекати, повтор лише збільшить
+// навантаження: віддаємо відмову як є.
+const RETRY_AFTER_MAX_MS = 3000;
+
+// Retry-After у секундах або датою → мс, або null
+function retryAfterMs(res) {
+  const v = res && res.headers && typeof res.headers.get === 'function' ? res.headers.get('retry-after') : null;
+  if (!v) return null;
+  const sec = Number(v);
+  if (Number.isFinite(sec) && sec >= 0) return sec * 1000;
+  const at = Date.parse(v);
+  return Number.isFinite(at) ? Math.max(0, at - Date.now()) : null;
+}
+
+// Збій мережі (обрив, скидання з'єднання), а не таймаут чи скасування.
+function isNetworkError(e) {
+  if (!e || e.name === 'AbortError' || e.name === 'TimeoutError') return false;
+  return e instanceof TypeError || e.code === 'ECONNRESET' || (e.cause && e.cause.code === 'ECONNRESET');
+}
+
+// Скільки чекати перед наступною спробою, або null, якщо пробувати не варто.
+// Повна випадковість у межах min(1500, 300·2^n): паралельні запити не
+// б'ються в провайдера хвилею.
+function retryWait(attempt, res, deadline) {
+  if (attempt >= AI_ATTEMPTS) return null;
+  let wait = Math.random() * Math.min(RETRY_CAP_MS, RETRY_BASE_MS * 2 ** attempt);
+  const after = retryAfterMs(res);
+  if (after !== null) {
+    if (after > RETRY_AFTER_MAX_MS) return null;
+    wait = Math.max(wait, after);
+  }
+  return deadline - Date.now() - wait > RETRY_MIN_LEFT_MS ? Math.round(wait) : null;
+}
+
+// fetch у межах дедлайну: до трьох спроб при тимчасових відмовах (див.
+// RETRY_STATUS) і збоях мережі, якщо на повтор ще лишається час. Відкинуту
+// відповідь закриваємо, інакше її з'єднання висить до збирача сміття.
 async function fetchAI(url, options, budgetMs) {
   const deadline = Date.now() + budgetMs;
   for (let attempt = 1; ; attempt++) {
     const left = Math.max(1000, deadline - Date.now());
-    const res = await fetch(url, { ...options, signal: AbortSignal.timeout(left) });
-    if (res.status === 503 && attempt === 1 && deadline - Date.now() > 8000) {
-      console.log('  503 від AI, повтор через 2с…');
-      await new Promise((r) => setTimeout(r, 2000));
+    let res;
+    try {
+      res = await fetch(url, { ...options, signal: AbortSignal.timeout(left) });
+    } catch (e) {
+      const wait = isNetworkError(e) ? retryWait(attempt, null, deadline) : null;
+      if (wait === null) throw e;
+      console.log(`  збій мережі до AI (${e.cause?.code || e.message}), повтор через ${wait} мс…`);
+      await new Promise((r) => setTimeout(r, wait));
       continue;
     }
-    return res;
+    const wait = RETRY_STATUS.has(res.status) ? retryWait(attempt, res, deadline) : null;
+    if (wait === null) return res;
+    console.log(`  ${res.status} від AI, повтор через ${wait} мс…`);
+    try {
+      await res.body?.cancel();
+    } catch (_) {}
+    await new Promise((r) => setTimeout(r, wait));
   }
 }
 
-async function callAnthropic(content, budgetMs, maxTokens = SCAN_MAX_TOKENS) {
-  if (!ANTHROPIC_API_KEY) throw new Error('ANTHROPIC_API_KEY не заданий у .env');
-  const res = await fetchAI('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      'x-api-key': ANTHROPIC_API_KEY,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model: ANTHROPIC_MODEL,
-      max_tokens: maxTokens,
-      messages: [{ role: 'user', content }],
-    }),
-  }, budgetMs);
-  if (!res.ok) {
-    const body = await res.text().catch(() => '');
-    throw new Error('Anthropic ' + res.status + ': ' + body.slice(0, 300));
+// Відповідь, яку модель відмовилась давати через політику безпеки (фото
+// людей чи чутливого змісту): для цього кадру вона буде такою щоразу, тож
+// «спробуй ще раз» марне. Віддаємо як «не бачу предмета» (422), а не як
+// нерозбірливу відповідь (502), і не перепитуємо.
+const BLOCKED = Object.freeze({ word: 'unknown' });
+
+const GEMINI_BLOCKED_FINISH = new Set(['SAFETY', 'BLOCKLIST', 'PROHIBITED_CONTENT', 'SPII', 'IMAGE_SAFETY', 'IMAGE_PROHIBITED_CONTENT']);
+
+function geminiBlocked(data) {
+  const reason = data && data.promptFeedback && data.promptFeedback.blockReason;
+  if (reason && reason !== 'BLOCK_REASON_UNSPECIFIED') return true;
+  return GEMINI_BLOCKED_FINISH.has(data && data.candidates && data.candidates[0] && data.candidates[0].finishReason);
+}
+
+// Тіло відповіді як JSON; порожнє чи обірване тіло — null (нерозбірливо), а
+// таймаут під час читання лишається помилкою (504).
+async function readJsonBody(res) {
+  try {
+    return await res.json();
+  } catch (e) {
+    if (e && e.name === 'SyntaxError') return null;
+    throw e;
   }
-  const data = await res.json();
-  return parseModelJson(data?.content?.[0]?.text);
+}
+
+// Модель інколи відповідає не JSON-ом (flash-lite) або без обов'язкових
+// полів; друга спроба майже завжди вдається. Одне повторне запитання, лише
+// якщо лишається час, і ніколи — після відмови за політикою безпеки.
+// once(мс) → розібрана відповідь, null або BLOCKED; accept(відповідь) каже,
+// чи годиться вона для показу. Не вийшло вдруге — віддаємо кращу з двох.
+async function askModel(once, budgetMs, accept = (p) => p !== null) {
+  const deadline = Date.now() + budgetMs;
+  const first = await once(budgetMs);
+  if (first === BLOCKED || accept(first)) return first;
+  const left = deadline - Date.now();
+  if (left <= RETRY_MIN_LEFT_MS) return first;
+  console.log('  відповідь AI не годиться, перепитую…');
+  const again = await once(left);
+  return again !== null ? again : first;
+}
+
+async function callAnthropic(content, budgetMs, maxTokens = SCAN_MAX_TOKENS, accept) {
+  if (!ANTHROPIC_API_KEY) throw new Error('ANTHROPIC_API_KEY не заданий у .env');
+  return askModel(async (left) => {
+    const res = await fetchAI('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: ANTHROPIC_MODEL,
+        max_tokens: maxTokens,
+        messages: [{ role: 'user', content }],
+      }),
+    }, left);
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      throw new Error('Anthropic ' + res.status + ': ' + body.slice(0, 300));
+    }
+    const data = await readJsonBody(res);
+    const parsed = parseModelJson(data?.content?.[0]?.text);
+    if (parsed === null && data?.stop_reason === 'refusal') {
+      console.log('  Anthropic відмовився відповідати (refusal)');
+      return BLOCKED;
+    }
+    return parsed;
+  }, budgetMs, accept);
 }
 
 // Ключ іде заголовком, а не в ?key= — URL з ключем осідає в логах проксі.
-async function callGemini(parts, budgetMs) {
+async function callGemini(parts, budgetMs, accept) {
   if (!GEMINI_API_KEY) throw new Error('GEMINI_API_KEY не заданий у .env');
   const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + GEMINI_MODEL + ':generateContent';
-  const res = await fetchAI(url, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-goog-api-key': GEMINI_API_KEY },
-    body: JSON.stringify({
-      contents: [{ parts }],
-      generationConfig: {
-        response_mime_type: 'application/json',
-        // без цього модель "думає" 40-180с; minimal = майже миттєво
-        thinkingConfig: { thinkingLevel: 'minimal' },
-      },
-    }),
-  }, budgetMs);
-  if (!res.ok) {
-    const body = await res.text().catch(() => '');
-    throw new Error('Gemini ' + res.status + ': ' + body.slice(0, 300));
-  }
-  const data = await res.json();
-  return parseModelJson(data?.candidates?.[0]?.content?.parts?.[0]?.text);
+  return askModel(async (left) => {
+    const res = await fetchAI(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-goog-api-key': GEMINI_API_KEY },
+      body: JSON.stringify({
+        contents: [{ parts }],
+        generationConfig: {
+          response_mime_type: 'application/json',
+          // без цього модель "думає" 40-180с; minimal = майже миттєво
+          thinkingConfig: { thinkingLevel: 'minimal' },
+        },
+      }),
+    }, left);
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      throw new Error('Gemini ' + res.status + ': ' + body.slice(0, 300));
+    }
+    const data = await readJsonBody(res);
+    const parsed = parseModelJson(data?.candidates?.[0]?.content?.parts?.[0]?.text);
+    if (parsed === null && geminiBlocked(data)) {
+      console.log('  Gemini заблокував відповідь (політика безпеки)');
+      return BLOCKED;
+    }
+    return parsed;
+  }, budgetMs, accept);
 }
 
 // ---------- MOCK ----------
@@ -586,59 +698,127 @@ function mockTranslate(enWord, lang, nativeLang, { variant = null, nativeVariant
 async function recognize(base64, lang, nativeLang, level = null, vars = {}) {
   if (PROVIDER === 'mock') return mockScan(lang, nativeLang, level, vars);
   const prompt = buildScanPrompt(lang, nativeLang, level, vars);
+  const accept = (p) => scanComplete(p, lang, nativeLang);
   if (PROVIDER === 'anthropic') {
     return callAnthropic([
       { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: base64 } },
       { type: 'text', text: prompt },
-    ], SCAN_BUDGET_MS, wantsExtras(level) ? SCAN_EXTRAS_MAX_TOKENS : SCAN_MAX_TOKENS);
+    ], SCAN_BUDGET_MS, wantsExtras(level) ? SCAN_EXTRAS_MAX_TOKENS : SCAN_MAX_TOKENS, accept);
   }
-  return callGemini([{ inline_data: { mime_type: 'image/jpeg', data: base64 } }, { text: prompt }], SCAN_BUDGET_MS);
+  return callGemini([{ inline_data: { mime_type: 'image/jpeg', data: base64 } }, { text: prompt }], SCAN_BUDGET_MS, accept);
 }
 
 // Сирий JSON моделі для сцени; розбирає й чистить його cleanScene.
 async function recognizeScene(base64, lang, nativeLang, level = null, vars = {}) {
   if (PROVIDER === 'mock') return mockScene(lang, nativeLang, vars);
   const prompt = buildScenePrompt(lang, nativeLang, level, vars);
+  const accept = (p) => sceneComplete(p, lang, nativeLang);
   if (PROVIDER === 'anthropic') {
     return callAnthropic([
       { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: base64 } },
       { type: 'text', text: prompt },
-    ], SCENE_BUDGET_MS, SCENE_MAX_TOKENS);
+    ], SCENE_BUDGET_MS, SCENE_MAX_TOKENS, accept);
   }
-  return callGemini([{ inline_data: { mime_type: 'image/jpeg', data: base64 } }, { text: prompt }], SCENE_BUDGET_MS);
+  return callGemini([{ inline_data: { mime_type: 'image/jpeg', data: base64 } }, { text: prompt }], SCENE_BUDGET_MS, accept);
 }
 
-async function callText(prompt) {
-  if (PROVIDER === 'anthropic') return callAnthropic([{ type: 'text', text: prompt }], TEXT_BUDGET_MS);
-  return callGemini([{ text: prompt }], TEXT_BUDGET_MS);
+// Придатність відповіді моделі до показу. Переклад обов'язковий (без нього
+// наліпка порожня, а скан змарновано), приклад ні. Мова навчання збігається
+// з рідною — переклад може бути порожнім, перевірку пропускаємо. Тут, а не в
+// cleanWord/cleanScene: ті приймають і мінімальні об'єкти.
+function hasTranslation(item, lang, nativeLang) {
+  return !!(item && item.translation) || lang === nativeLang;
 }
+
+// Одиночний скан: «unknown» (предмета немає) — повна відповідь; решта має
+// слово і переклад.
+function scanComplete(parsed, lang, nativeLang) {
+  if (!parsed || typeof parsed !== 'object') return false;
+  if (String(parsed.word == null ? '' : parsed.word).toLowerCase() === 'unknown') return true;
+  const item = cleanWord(parsed);
+  return !!item.word && hasTranslation(item, lang, nativeLang);
+}
+
+// Сцена: порожня (предметів немає) — повна відповідь; інакше хоч один
+// предмет має переклад.
+function sceneComplete(parsed, lang, nativeLang) {
+  const objects = cleanScene(parsed);
+  if (objects === null) return false;
+  return !objects.length || objects.some((o) => hasTranslation(o, lang, nativeLang));
+}
+
+// budgetMs — скільки часу лишилось (слово дня має спільний дедлайн, див.
+// WOD_DEADLINE_MS у server.js); за замовчуванням повний бюджет тексту.
+async function callText(prompt, budgetMs = TEXT_BUDGET_MS) {
+  const accept = (p) => wordComplete(p && typeof p === 'object' ? cleanWord(p) : null);
+  if (PROVIDER === 'anthropic') return callAnthropic([{ type: 'text', text: prompt }], budgetMs, SCAN_MAX_TOKENS, accept);
+  return callGemini([{ text: prompt }], budgetMs, accept);
+}
+
+// Картка слова дня годиться, лише коли є слово, переклад і приклад (IPA та
+// переклад прикладу можуть бути порожні). Кеш спільний для всіх людей і без
+// строку дії: один поганий запис показувався б усім, хто отримує це слово.
+function wordComplete(o) {
+  return !!(o && o.word && o.translation && o.example);
+}
+
+// Переклади, що зараз виконуються, за ключем кешу: однакове слово, якого
+// ще немає в кеші, просять багато людей одночасно, і кожен викликав би AI.
+// Невдачі не запам'ятовуємо: запис зникає, щойно завдання завершилось.
+const translating = new Map();
 
 // Переклад слова дня з кешем (щоб не витрачати квоту на однакові пари).
 // topic і hint — з тематичного списку (wordplan.js); без них — загальне
 // слово, як у GET /word-of-day. variant / nativeVariant — варіанти мов.
-async function translateWord(enWord, lang, nativeLang, { topic, hint, variant = null, nativeVariant = null } = {}) {
+// deadline — момент (мс), до якого відповідь ще потрібна: після нього AI не
+// викликаємо, а поточному виклику дається лише решта часу. Неповна відповідь
+// моделі — помилка: у кеш вона не потрапляє.
+async function translateWord(enWord, lang, nativeLang, { topic, hint, variant = null, nativeVariant = null, deadline } = {}) {
   const vars = { variant: variantOr(lang, variant), nativeVariant: variantOr(nativeLang, nativeVariant) };
   const key = wordCacheKey(enWord, lang, nativeLang, topic, vars);
+  let job = translating.get(key);
+  if (!job) {
+    job = translateUncached(enWord, lang, nativeLang, key, { topic, hint, vars, deadline }).finally(() => translating.delete(key));
+    translating.set(key, job);
+  }
+  return { ...(await job) };
+}
+
+async function translateUncached(enWord, lang, nativeLang, key, { topic, hint, vars, deadline }) {
   const cached = await store.get('wordCache', key);
   // Запис кешу з часів до правила «без тире» чистимо на льоту, тож
   // PROMPT_VERSION заради нього не піднімаємо: усе вже перекладене не
-  // перекладається вдруге.
-  if (cached && cached.word) return { ...cached, ...cleanWord(cached) };
+  // перекладається вдруге. Неповний запис (колись модель відповіла лише
+  // словом) ігноруємо й перекладаємо наново: добра відповідь його замінить.
+  if (cached && cached.word) {
+    const fixed = { ...cached, ...cleanWord(cached) };
+    if (wordComplete(fixed)) return fixed;
+  }
 
-  const parsed =
-    PROVIDER === 'mock'
-      ? mockTranslate(enWord, lang, nativeLang, vars)
-      : await callText(buildTranslatePrompt(enWord, lang, nativeLang, { topic, hint, ...vars }));
-  if (!parsed || !parsed.word) throw new Error('bad translation');
-  const out = { ...cleanWord(parsed), source: enWord };
+  let parsed;
+  if (PROVIDER === 'mock') {
+    parsed = mockTranslate(enWord, lang, nativeLang, vars);
+  } else {
+    const left = deadline === undefined ? TEXT_BUDGET_MS : Math.min(TEXT_BUDGET_MS, deadline - Date.now());
+    if (left < 500) throw new Error('немає часу на переклад');
+    parsed = await callText(buildTranslatePrompt(enWord, lang, nativeLang, { topic, hint, ...vars }), left);
+  }
+  const out = parsed && typeof parsed === 'object' ? { ...cleanWord(parsed), source: enWord } : null;
+  if (!wordComplete(out)) throw new Error('bad translation');
   if (PROVIDER !== 'mock') await store.put('wordCache', key, out);
   return out;
 }
 
+// Керівні символи (переноси рядків, табуляція, \u0000…) у полі картки зайві.
+const CONTROL_CHARS = /[\u0000-\u001f\u007f-\u009f]+/g;
+
 // Відповідь моделі — недовірений текст: обрізаємо довжину, щоб випадковий
-// «роман» у полі не розвалив картку в застосунку.
+// «роман» у полі не розвалив картку в застосунку. Лише рядок чи число:
+// об'єкт чи масив дали б «[object Object]» або «x,y» просто на картці.
+// Обрізка посеред емодзі лишила б самотню половину пари: її прибираємо.
 function clean(v, max) {
-  return String(v == null ? '' : v).trim().slice(0, max);
+  if (typeof v !== 'string' && !(typeof v === 'number' && Number.isFinite(v))) return '';
+  return String(v).replace(CONTROL_CHARS, ' ').trim().slice(0, max).replace(/[\uD800-\uDBFF]$/, '').trimEnd();
 }
 
 // Довге тире, яке модель усе ж поставила (правило власника: у тексті його
@@ -788,6 +968,9 @@ module.exports = {
   recognize,
   recognizeScene,
   translateWord,
+  wordComplete,
+  hasTranslation,
+  scanComplete,
   wantsExtras,
   clean,
   cleanWord,

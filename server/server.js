@@ -5,6 +5,7 @@
 const http = require('http');
 const os = require('os');
 const fs = require('fs');
+const net = require('net');
 const path = require('path');
 const zlib = require('zlib');
 const { promisify } = require('util');
@@ -56,7 +57,9 @@ const PAGES = { '/privacy': loadPage('privacy.html'), '/support': loadPage('supp
 // Це захист «від випадкових»: токен лежить у бінарнику. Основний захист —
 // ліміти на id пристрою й на IP.
 const APP_TOKEN = process.env.APP_TOKEN || '';
-const RATE_PER_MIN = Number(process.env.RATE_PER_MIN || 20);
+// Не Number(...): опечатка (RATE_PER_MIN=abc → NaN) мовчки вимкнула б ліміт,
+// а 0 — відхиляла б усіх. Погане значення — попередження в лозі й 20.
+const RATE_PER_MIN = envPositiveInt('RATE_PER_MIN', 20);
 
 // ---------- ліміти частоти ----------
 // Ковзне вікно в пам'яті. Мапа самоочищується, щоб не стати вектором
@@ -127,16 +130,63 @@ const syncUserLimited = limiter(60, 60000);
 // IP клієнта для лімітів. Перший запис у X-Forwarded-For пише сам клієнт —
 // його можна підробити. Довіряємо лише запису, який додав наш проксі:
 // Cloud Run (GFE) дописує справжню адресу в кінець. Якщо попереду ще й
-// балансувальник — TRUST_PROXY_HOPS=2.
-const TRUST_PROXY_HOPS = Math.max(1, Number(process.env.TRUST_PROXY_HOPS || 1));
+// балансувальник — TRUST_PROXY_HOPS=2. Опечатка в значенні (abc → NaN)
+// зламала б вибір запису, і всі клієнти за Cloud Run ділили б одну адресу
+// проксі, тож через envPositiveInt: погане значення — попередження й 1.
+const TRUST_PROXY_HOPS = envPositiveInt('TRUST_PROXY_HOPS', 1);
+
+// Розгортає IPv6 у вісім чисел (16 біт кожне) або null, якщо запис не розібрати.
+function ipv6Groups(ip) {
+  const halves = ip.split('::');
+  if (halves.length > 2) return null;
+  const groups = (s) => {
+    if (!s) return [];
+    const parts = s.split(':');
+    const last = parts[parts.length - 1];
+    if (last.includes('.')) {
+      // IPv4 у хвості (::ffff:1.2.3.4) — це ще дві групи
+      const o = last.split('.').map(Number);
+      if (o.length !== 4 || o.some((n) => !(n >= 0 && n <= 255))) return null;
+      parts.splice(-1, 1, ((o[0] << 8) | o[1]).toString(16), ((o[2] << 8) | o[3]).toString(16));
+    }
+    const nums = parts.map((p) => parseInt(p, 16));
+    return nums.some((n) => !Number.isInteger(n)) ? null : nums;
+  };
+  const head = groups(halves[0]);
+  const tail = halves.length === 2 ? groups(halves[1]) : [];
+  if (!head || !tail) return null;
+  if (halves.length === 1) return head.length === 8 ? head : null;
+  const fill = 8 - head.length - tail.length;
+  return fill < 1 ? null : [...head, ...Array(fill).fill(0), ...tail];
+}
+
+// Ключ ліміту з адреси клієнта. IPv4 лишається як є, ::ffff:a.b.c.d — це
+// ту саму IPv4. Одне домашнє чи мобільне IPv6-підключення дістає цілу мережу
+// /64 (2^64 адрес), тож для IPv6 ключ — її перші чотири групи: інакше
+// достатньо міняти адресу всередині мережі, щоб обійти ліміти нових
+// пристроїв (кожен дає безкоштовний скан) і сканів.
+function ipKey(raw) {
+  let ip = String(raw == null ? '' : raw).trim();
+  if (ip.startsWith('[')) ip = ip.slice(1).split(']')[0];
+  else if (/^\d+\.\d+\.\d+\.\d+:\d+$/.test(ip)) ip = ip.split(':')[0];
+  ip = ip.split('%')[0]; // зона інтерфейсу (fe80::1%eth0)
+  if (!net.isIPv6(ip)) return ip;
+  const g = ipv6Groups(ip);
+  if (!g) return ip;
+  if (g.slice(0, 5).every((n) => n === 0) && g[5] === 0xffff) {
+    return [g[6] >> 8, g[6] & 255, g[7] >> 8, g[7] & 255].join('.');
+  }
+  return g.slice(0, 4).map((n) => n.toString(16)).join(':') + '::/64';
+}
+
 function clientIp(req) {
   const xff = req.headers['x-forwarded-for'];
   if (xff) {
     const hops = String(xff).split(',').map((s) => s.trim()).filter(Boolean);
     const ip = hops[Math.max(0, hops.length - TRUST_PROXY_HOPS)];
-    if (ip) return ip;
+    if (ip) return ipKey(ip);
   }
-  return req.socket.remoteAddress || 'unknown';
+  return ipKey(req.socket.remoteAddress) || 'unknown';
 }
 
 // Мова з запиту, лише якщо ми її знаємо. Object.hasOwn, а не LANG_NAMES[x]:
@@ -167,8 +217,10 @@ function pairTag(lang, nativeLang, vars) {
 // булеві прапорці в /health (самих значень там немає й не буде).
 // Ключ AI — для обраного PROVIDER (будь-що, крім anthropic, іде в Gemini,
 // як у ai.js); mock ключа не потребує.
+// mock на Cloud Run (K_SERVICE ставить сам Cloud Run) — помилка налаштування:
+// кожен скан віддавав би заготовлену чашку, а ключ «на місці».
 function aiKeyConfigured() {
-  if (ai.PROVIDER === 'mock') return true;
+  if (ai.PROVIDER === 'mock') return !process.env.K_SERVICE;
   const name = ai.PROVIDER === 'anthropic' ? 'ANTHROPIC_API_KEY' : 'GEMINI_API_KEY';
   return !!String(process.env[name] || '').trim();
 }
@@ -182,13 +234,18 @@ function configFlags() {
     webhookAuth: billing.webhookConfigured(),
     supportEmail: !!SUPPORT_EMAIL,
     appleRevoke: apple.configured(),
+    appToken: !!APP_TOKEN,
   };
 }
 
 // Рядки попереджень, по одному на кожну відсутню настройку. Для mock
-// (локальна розробка й тести) їх немає.
+// (локальна розробка й тести) їх немає, крім mock на Cloud Run.
 function configWarnings() {
-  if (ai.PROVIDER === 'mock') return [];
+  if (ai.PROVIDER === 'mock') {
+    return process.env.K_SERVICE
+      ? ['PROVIDER=mock на Cloud Run: скани й слово дня віддають заглушку, а не справжній AI. Постав PROVIDER=gemini або anthropic']
+      : [];
+  }
   const flags = configFlags();
   const out = [];
   if (!flags.ai) {
@@ -222,24 +279,43 @@ function configWarnings() {
         : 'ключ Sign in with Apple (APPLE_PRIVATE_KEY) не розібрався: вхід через Apple не відкликатиметься'
     );
   }
+  if (!flags.appToken) {
+    out.push('APP_TOKEN не заданий (рекомендовано): сервер приймає запити від будь-кого, хто знає адресу, а не лише від збірки застосунку');
+  }
   return out;
 }
 
 // ---------- HTTP-утиліти ----------
+// Скільки тіла, що перевищило ліміт, ми ще проковтнемо (без збереження), щоб
+// відповідь 413 встигла дійти. Закрити сокет одразу — означає скидання
+// з'єднання: клієнт бачить обрив («немає зв'язку»), а не 413. Далі за це —
+// обрив.
+const DRAIN_MAX = 16 * 1024 * 1024;
+
 function readBody(req, limit) {
   return new Promise((resolve, reject) => {
     let size = 0;
+    let over = false;
     const chunks = [];
+    const tooLarge = () => {
+      over = true;
+      chunks.length = 0;
+      reject(new Error('TOO_LARGE'));
+    };
+    // Розмір відомий із заголовка — відмовляємо, не прочитавши жодного байта.
+    if (Number(req.headers['content-length']) > limit) tooLarge();
     req.on('data', (c) => {
       size += c.length;
-      if (size > limit) {
-        reject(new Error('TOO_LARGE'));
-        req.destroy();
+      if (over) {
+        if (size > DRAIN_MAX) req.destroy();
         return;
       }
+      if (size > limit) return tooLarge();
       chunks.push(c);
     });
-    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+    req.on('end', () => {
+      if (!over) resolve(Buffer.concat(chunks).toString('utf8'));
+    });
     req.on('error', reject);
   });
 }
@@ -271,8 +347,8 @@ const JSON_HEADERS = {
   'Access-Control-Allow-Origin': '*',
 };
 
-function json(res, status, obj) {
-  res.writeHead(status, JSON_HEADERS);
+function json(res, status, obj, headers) {
+  res.writeHead(status, headers ? { ...JSON_HEADERS, ...headers } : JSON_HEADERS);
   res.end(JSON.stringify(obj));
 }
 
@@ -307,6 +383,13 @@ function appTokenOk(req) {
 }
 
 // ---------- обробники ----------
+const BASE64_RE = /^[A-Za-z0-9+/]+={0,2}$/;
+function cleanImage(raw) {
+  if (typeof raw !== 'string') return null;
+  const s = raw.replace(/^data:image\/[a-z0-9.+-]+;base64,/i, '').replace(/\s+/g, '');
+  return BASE64_RE.test(s) ? s : null;
+}
+
 async function handleScan(req, res, user) {
   const t0 = Date.now();
   if (scanLimited(clientIp(req))) {
@@ -321,9 +404,12 @@ async function handleScan(req, res, user) {
   // Апка надсилає кадр 1024px/JPEG ≈ 150–400 КБ у base64. 4 МБ із запасом.
   const body = await readJson(req, 4 * 1024 * 1024);
   if (!body) return json(res, 400, { error: 'Некоректний JSON' });
-  if (!body.image || typeof body.image !== 'string') {
-    return json(res, 400, { error: 'Поле "image" (base64 JPEG) обовʼязкове' });
-  }
+  // Кадр — чистий base64 JPEG. Префікс data:image/…;base64, знімаємо; все, що
+  // не base64, відхиляємо ДО слота: провайдер відповів би помилкою, а людина
+  // побачила б «AI недоступний».
+  const image = cleanImage(body.image);
+  if (!image) return json(res, 400, { error: 'Поле "image" (base64 JPEG) обовʼязкове' });
+  body.image = image;
   // Сцена (кілька предметів з одного кадру) коштує один скан із FREE_SCANS
   // довічних, а без Pro ще й одну з FREE_SCENES довічних проб. Відсутній чи
   // невідомий mode — звичайний скан: старі версії застосунку цього поля не
@@ -388,11 +474,19 @@ async function scanWithSlot(req, body, scene, user, day, slot, t0) {
     const objects = ai.cleanScene(parsed);
     if (!objects) return UNREADABLE;
     if (!objects.length) return NOTHING_SEEN;
-    result = { mode: 'scene', objects };
+    // Предмет без перекладу — порожня наліпка. Лишаємо тільки з перекладом;
+    // не лишилось жодного — відповідь марна, скан людині не рахуємо.
+    const usable = objects.filter((o) => ai.hasTranslation(o, lang, nativeLang));
+    if (!usable.length) return UNREADABLE;
+    result = { mode: 'scene', objects: usable };
   } else {
     if (!parsed || !parsed.word) return UNREADABLE;
     if (String(parsed.word).toLowerCase() === 'unknown') return NOTHING_SEEN;
-    result = { ...ai.cleanWord(parsed), box: ai.cleanBox(parsed.box), outline: ai.cleanOutline(parsed.outline) };
+    // Слово й переклад обов'язкові (приклад ні): інакше єдиний безкоштовний
+    // скан витрачено на порожню наліпку, а слот звільняється лише для не-200.
+    const item = ai.cleanWord(parsed);
+    if (!item.word || !ai.hasTranslation(item, lang, nativeLang)) return UNREADABLE;
+    result = { ...item, box: ai.cleanBox(parsed.box), outline: ai.cleanOutline(parsed.outline) };
     if (ai.wantsExtras(level)) {
       const extras = ai.cleanExtras(parsed.extras, result.word);
       if (extras.length) result.extras = extras;
@@ -482,7 +576,7 @@ async function handleSync(req, res, user) {
 async function handleWordOfDay(req, res, user) {
   if (wodLimited(clientIp(req))) return json(res, 429, { error: 'Забагато запитів.' });
   const url = new URL(req.url, 'http://x');
-  const days = Math.min(Math.max(Number(url.searchParams.get('days') || 7), 1), 14);
+  const days = wodDays(url.searchParams.get('days'));
   const lang = langOr(url.searchParams.get('lang'), 'en');
   const native = langOr(url.searchParams.get('native'), 'uk');
   const vars = variantsOf(url.searchParams, lang, native);
@@ -492,22 +586,16 @@ async function handleWordOfDay(req, res, user) {
   const list = words.shuffledFor(user.seed || user.id);
   const base = billing.dayIndexOf(today);
 
-  // Дні перекладаються паралельно: на холодному кеші це 7 викликів AI,
-  // і послідовно людина чекала б 10+ секунд.
-  const out = await Promise.all(
-    Array.from({ length: days }, async (_, i) => {
-      const date = billing.addDays(today, i);
-      const en = words.wordFor(list, base + i);
-      try {
-        return { date, ...(await ai.translateWord(en, lang, native, vars)) };
-      } catch (_) {
-        // якщо AI недоступний — віддаємо принаймні англійське слово
-        return { date, word: en, ipa: '', translation: '', example: '', example_translation: '', source: en };
-      }
-    })
+  // Дні перекладаються паралельно (як у POST: не більше WOD_PARALLEL разом, під
+  // спільним дедлайном): на холодному кеші це 7 викликів AI, і послідовно
+  // людина чекала б 10+ секунд.
+  const plan = Array.from({ length: days }, (_, i) => ({ date: billing.addDays(today, i), en: words.wordFor(list, base + i) }));
+  const done = await translatePlan(plan, ({ date, en }, deadline) =>
+    ai.translateWord(en, lang, native, { ...vars, deadline }).then((w) => ({ date, ...w }))
   );
-  console.log(new Date().toISOString(), 'word-of-day', pairTag(lang, native, vars), out.length + 'д');
-  return json(res, 200, { words: out });
+  if (!done.words.length || !done.results[0]) return wodBusy(res);
+  console.log(new Date().toISOString(), 'word-of-day', pairTag(lang, native, vars), done.words.length + 'д');
+  return json(res, 200, { words: done.words, ...(done.words.length < plan.length ? { partial: true } : null) });
 }
 
 // Скільки днів віддати: 1–14, без числа — 7, як у GET.
@@ -540,18 +628,67 @@ const WOD_MAX_WORDS = 42;
 // це 429 від провайдера. Кеш слів спільний для всіх, тож платимо раз за слово.
 const WOD_PARALLEL = 8;
 
-// map з обмеженою паралельністю; порядок результатів — як у list.
-async function mapLimit(list, limit, fn) {
+// Спільний дедлайн слова дня. Клієнт чекає 45 с (src/api.js), Cloud Run
+// обриває запит на 60 с (DEPLOY.md): краще віддати те, що встигли, ніж
+// працювати над відповіддю, якої вже ніхто не чекає. Без нього 42 слова при
+// 8 паралельних і 40 с на виклик — це 240 с роботи сервера на запит.
+const WOD_DEADLINE_MS = Math.min(envPositiveInt('WOD_DEADLINE_MS', 35000), 40000);
+
+// map з обмеженою паралельністю; порядок результатів — як у list. Після
+// deadline нові виклики не починаються (їхні місця лишаються undefined).
+async function mapLimit(list, limit, fn, deadline = Infinity) {
   const out = new Array(list.length);
   let next = 0;
   async function worker() {
-    while (next < list.length) {
+    while (next < list.length && Date.now() < deadline) {
       const i = next++;
       out[i] = await fn(list[i], i);
     }
   }
   await Promise.all(Array.from({ length: Math.min(limit, list.length) }, worker));
   return out;
+}
+
+// Переклад плану слів дня (GET і POST однаково). make(елемент, дедлайн) →
+// готовий запис або виняток. Невдале слово НЕ віддаємо порожнім: клієнт
+// кешує відповідь на тиждень, і порожня картка (англійське слово без
+// перекладу й прикладу) висіла б там до наступного оновлення. Відсутнє слово
+// він бачить і перепитує, а переклад сервер дістане з кешу слів.
+// → { results, words, firstError }: results за порядком плану (null чи
+// undefined — слово не вийшло), words — лише готові.
+async function translatePlan(plan, make) {
+  const deadline = Date.now() + WOD_DEADLINE_MS;
+  let firstError = null;
+  const results = await mapLimit(
+    plan,
+    WOD_PARALLEL,
+    async (item) => {
+      try {
+        return await make(item, deadline);
+      } catch (e) {
+        firstError = firstError || (e && e.message) || String(e);
+        return null;
+      }
+    },
+    deadline
+  );
+  const words = results.filter(Boolean);
+  if (words.length < plan.length) {
+    console.error(
+      new Date().toISOString(),
+      `AI ERROR: слово дня, не перекладено ${plan.length - words.length} з ${plan.length}:`,
+      firstError || 'не вистачило часу'
+    );
+  }
+  return { results, words, firstError };
+}
+
+// Слова на сьогодні немає (або жодного не вийшло): часткова відповідь гірша
+// за відмову. Картка, віджет і пуш показують саме сьогоднішнє слово; клієнт
+// на 503 лишає старий кеш (src/api.js повертається до GET лише на 404/405) і
+// пробує знову за кілька секунд, коли решта слів уже в кеші сервера.
+function wodBusy(res) {
+  return json(res, 503, { error: 'AI_BUSY' }, { 'Retry-After': '5' });
 }
 
 // POST — персональне слово дня: теми й рівень з профілю, без слів, на які
@@ -580,19 +717,21 @@ async function handleWordOfDayPost(req, res, user) {
     perDay,
   });
 
-  // Невдалий переклад не валить решту — слово лишається хоча б англійським.
-  const out = await mapLimit(plan, WOD_PARALLEL, async ({ date, slot, en, topic, hint }) => {
-    try {
-      return { date, slot, ...(await ai.translateWord(en, lang, native, { topic, hint, ...vars })), source: en, topic };
-    } catch (_) {
-      return { date, slot, word: en, ipa: '', translation: '', example: '', example_translation: '', source: en, topic };
-    }
-  });
+  // Невдалий переклад не валить решту, але й порожнім не віддається (див.
+  // translatePlan): слово просто відсутнє, а клієнт перепитає.
+  const done = await translatePlan(plan, async ({ date, slot, en, topic, hint }, deadline) => ({
+    date,
+    slot,
+    ...(await ai.translateWord(en, lang, native, { topic, hint, ...vars, deadline })),
+    source: en,
+    topic,
+  }));
+  if (!done.words.length || !done.results[0]) return wodBusy(res);
   const topics = {};
-  for (const w of out) topics[w.topic] = (topics[w.topic] || 0) + 1;
+  for (const w of done.words) topics[w.topic] = (topics[w.topic] || 0) + 1;
   const mix = Object.entries(topics).map(([k, n]) => k + '×' + n).join(' ');
   console.log(new Date().toISOString(), 'word-of-day', pairTag(lang, native, vars), days + 'д×' + perDay, mix);
-  return json(res, 200, { words: out, perDay });
+  return json(res, 200, { words: done.words, perDay, ...(done.words.length < plan.length ? { partial: true } : null) });
 }
 
 // Відповіді онбордингу — у запис пристрою (users/<id>.profile), щоб
@@ -756,6 +895,14 @@ function createServer() {
         if (!res.headersSent) json(res, 413, { error: scan ? 'Фото завелике' : 'TOO_LARGE' });
         return;
       }
+      // Клієнт обірвав завантаження (застосунок у фоні, тунель, людина пішла
+      // з екрана): телефони на мобільній мережі роблять це постійно. Це не
+      // помилка сервера, і відповідати вже нікому: один короткий рядок без
+      // стека й без UNHANDLED, за яким власник налаштовує сповіщення.
+      if (e && (e.message === 'aborted' || (e.code === 'ECONNRESET' && req.socket.destroyed))) {
+        console.log(new Date().toISOString(), 'client aborted', req.method, req.url.split('?')[0]);
+        return;
+      }
       console.error(new Date().toISOString(), 'UNHANDLED:', e && e.stack ? e.stack : e);
       if (!res.headersSent) {
         try {
@@ -766,8 +913,33 @@ function createServer() {
   });
 }
 
+// Cloud Run перед зупинкою інстансу (передеплой, зменшення кількості)
+// шле SIGTERM і дає ~10 с. Node без обробника обривав би запити, що
+// виконуються: скан, який людина вже оплатила своїм єдиним безкоштовним
+// сканом, зникав би (лічильник повертається лише в тому ж процесі), а синхронізація й
+// відкликання Apple стали б напівзаписаними. Тож: нових з'єднань не
+// приймаємо, запити, що виконуються, доробляємо, вільні (keep-alive) з'єднання
+// закриваємо, і виходимо одразу, як усе завершилось. Запобіжник на 8 с — під
+// межею Cloud Run, щоб довгий скан не дочекався SIGKILL.
+const SHUTDOWN_GRACE_MS = 8000;
+function drainOnSigterm(server) {
+  let stopping = false;
+  process.on('SIGTERM', () => {
+    if (stopping) return;
+    stopping = true;
+    console.log(new Date().toISOString(), 'SIGTERM: доробляю запити, що виконуються, і виходжу');
+    server.close(() => process.exit(0));
+    // close() закриває лише вільні з'єднання на мить виклику; з'єднання, на
+    // якому щойно відповіли, стає вільним пізніше
+    setInterval(() => server.closeIdleConnections(), 200).unref();
+    setTimeout(() => process.exit(0), SHUTDOWN_GRACE_MS).unref();
+  });
+}
+
 if (require.main === module) {
-  createServer().listen(PORT, '0.0.0.0', () => {
+  const server = createServer();
+  drainOnSigterm(server);
+  server.listen(PORT, '0.0.0.0', () => {
     console.log('LinguaLens server запущено. Провайдер: ' + ai.PROVIDER);
     // Не зупиняємо старт: поганий старт у Cloud Run — це недоступний сервіс
     // за кілька днів до релізу, а прапорці в /health і рядки в лозі дають
@@ -785,4 +957,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { createServer, configFlags, configWarnings };
+module.exports = { createServer, configFlags, configWarnings, ipKey };

@@ -162,6 +162,7 @@ test('webhook: when RevenueCat REST is unreachable, BILLING_ISSUE with grace kee
     assert.equal((await store.get('users', user.id)).proUntil, now + 15 * DAY - 1000);
   } finally {
     rc.down = false;
+    billing.resetRevenueCatPause(); // пауза після збою діє 45 с: RevenueCat «ожив»
   }
   // дата закінчення настала, RevenueCat знову відповідає й entitlement не бачить
   await store.update('users', user.id, { proUntil: now - 1000, proCheckedAt: 0 });
@@ -235,6 +236,7 @@ test('RevenueCat down during the daily re-check: Pro stays, and the retry waits 
     assert.equal(rc.calls, before + 2);
   } finally {
     rc.down = false;
+    billing.resetRevenueCatPause();
   }
   // RevenueCat ожив: звірка проходить, Pro підтверджено
   await withClock(30 * 60 * 1000, async () => {

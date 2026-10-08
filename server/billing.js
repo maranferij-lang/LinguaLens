@@ -116,10 +116,30 @@ function entitlementUntil(ent) {
   return dates.length ? Math.max(...dates) : null;
 }
 
-async function fetchRevenueCatUntil(userId) {
+// Скільки чекаємо RevenueCat: 8 с для вебхука й явного ?refresh=1 (людина
+// щойно заплатила, і їх мало), 4 с для звичайної перевірки під час /me і
+// скану (вона стоїть на шляху запиту: RevenueCat у нормі відповідає за
+// соті частки секунди, а скан після неї ще має вкластись у 25 с застосунку).
+const RC_TIMEOUT_MS = 8000;
+const RC_PASSIVE_TIMEOUT_MS = 4000;
+
+// Пауза після збою RevenueCat. Поки він повільний чи віддає 429/5xx, кожен
+// /me і кожне рішення «пейвол чи скан» чекало б свої 4–8 с і добивало б API,
+// яке й так лежить. Тож після збою на RC_BREAK_MS не питаємо його знову, а
+// працюємо з тим, що знаємо про людину (кеш, пільговий запас). Лише в пам'яті
+// інстансу, без запису у Firestore. Вебхук і ?refresh=1 паузу ігнорують.
+const RC_BREAK_MS = 45 * 1000;
+let rcPausedUntil = 0;
+
+// Для тестів: забути паузу.
+function resetRevenueCatPause() {
+  rcPausedUntil = 0;
+}
+
+async function fetchRevenueCatUntil(userId, timeoutMs = RC_TIMEOUT_MS) {
   const res = await fetch('https://api.revenuecat.com/v1/subscribers/' + encodeURIComponent(userId), {
     headers: { authorization: 'Bearer ' + RC_SECRET, 'content-type': 'application/json' },
-    signal: AbortSignal.timeout(8000),
+    signal: AbortSignal.timeout(timeoutMs),
   });
   if (res.status === 404) return null;
   if (!res.ok) throw new Error('revenuecat ' + res.status);
@@ -149,22 +169,29 @@ async function proStatus(user, { refresh = false } = {}) {
   // має з'їсти перепитування після оплати.
   const canRefresh = refresh && !(user.proRefreshedAt && now - user.proRefreshedAt < REFRESH_MIN_MS);
   if (RC_SECRET && (canRefresh || stale)) {
+    // Пауза після збою: не питаємо, але поводимось так само, як при збої
+    const paused = !canRefresh && now < rcPausedUntil;
     try {
-      until = await fetchRevenueCatUntil(user.id);
+      if (paused) throw new Error('пауза після збою');
+      until = await fetchRevenueCatUntil(user.id, canRefresh ? RC_TIMEOUT_MS : RC_PASSIVE_TIMEOUT_MS);
+      rcPausedUntil = 0;
       user.proUntil = until;
       user.proCheckedAt = now;
       const fields = { proUntil: until, proCheckedAt: now };
       if (canRefresh) fields.proRefreshedAt = user.proRefreshedAt = now;
       await store.update('users', user.id, fields);
     } catch (e) {
-      console.error('revenuecat check failed:', e.message);
+      if (!paused) {
+        console.error('revenuecat check failed:', e.message);
+        rcPausedUntil = Date.now() + RC_BREAK_MS;
+      }
       if (recheck) {
         // RevenueCat не відповів, а Pro за кешем ще дійсний: лишаємо його і
         // відкладаємо наступну спробу на RC_CACHE_MS, а не пробуємо на кожен
         // скан (кожна спроба — до 8 с очікування).
         const retryAt = now - PRO_RECHECK_MS + RC_CACHE_MS;
         user.proCheckedAt = retryAt;
-        await store.update('users', user.id, { proCheckedAt: retryAt }).catch(() => {});
+        if (!paused) await store.update('users', user.id, { proCheckedAt: retryAt }).catch(() => {});
         return { active: true, until: user.proUntil };
       }
       if (user.proUntil && now - user.proUntil < GRACE_MS) return { active: true, until: user.proUntil };
@@ -408,4 +435,5 @@ module.exports = {
   untilFromEvent,
   configured,
   webhookConfigured,
+  resetRevenueCatPause,
 };

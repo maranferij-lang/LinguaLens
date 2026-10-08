@@ -53,20 +53,60 @@ function writeFile() {
 }
 
 // ---------- FIRESTORE ----------
-let tokenCache = { value: '', exp: 0 };
+// Кожен виклик Firestore і metadata-сервера має таймаут: без нього зависле
+// з'єднання тримало б запит до 60 с Cloud Run (типовий таймаут Node — 300 с).
+// Читання в нормі займає десятки мілісекунд, запис — трохи більше (синхронізація
+// шле до пів мегабайта).
+const FS_READ_TIMEOUT_MS = 5000;
+const FS_WRITE_TIMEOUT_MS = 10000;
+const FS_RETRY_STATUS = new Set([429, 500, 502, 503, 504]);
 
-async function accessToken() {
-  if (EMULATOR) return 'owner';
-  const now = Date.now();
-  if (tokenCache.value && now < tokenCache.exp) return tokenCache.value;
-  const res = await fetch(
+// fetch з таймаутом і одним повтором. kind 'read' — читання й видалення
+// (повтор нічого не псує): повторюємо збій мережі, таймаут і 429/5xx. kind
+// 'write' — умовні записи: повторюємо ЛИШЕ 429, коли Firestore відмовив до
+// виконання. Після таймауту чи обриву запис міг дійти, і повтор з умовою
+// версії дав би хибний конфлікт, а лічильник сканів — подвійний +1.
+async function fsFetch(url, options, kind = 'read') {
+  const write = kind === 'write';
+  for (let attempt = 1; ; attempt++) {
+    let res;
+    try {
+      res = await fetch(url, { ...options, signal: AbortSignal.timeout(write ? FS_WRITE_TIMEOUT_MS : FS_READ_TIMEOUT_MS) });
+    } catch (e) {
+      if (write || attempt >= 2) throw e;
+      await new Promise((r) => setTimeout(r, 100 + Math.random() * 200));
+      continue;
+    }
+    const again = attempt < 2 && (write ? res.status === 429 : FS_RETRY_STATUS.has(res.status));
+    if (!again) return res;
+    try {
+      await res.body?.cancel();
+    } catch (_) {}
+    await new Promise((r) => setTimeout(r, 100 + Math.random() * 200));
+  }
+}
+
+let tokenCache = { value: '', exp: 0 };
+// Токен, який зараз запитується: холодний інстанс отримує багато запитів
+// одразу, і кожен ходив би до metadata-сервера по свій токен.
+let tokenPending = null;
+
+async function fetchToken() {
+  const res = await fsFetch(
     'http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token',
     { headers: { 'Metadata-Flavor': 'Google' } }
   );
   if (!res.ok) throw new Error('metadata token ' + res.status);
   const d = await res.json();
-  tokenCache = { value: d.access_token, exp: now + (d.expires_in - 60) * 1000 };
+  tokenCache = { value: d.access_token, exp: Date.now() + (d.expires_in - 60) * 1000 };
   return tokenCache.value;
+}
+
+async function accessToken() {
+  if (EMULATOR) return 'owner';
+  if (tokenCache.value && Date.now() < tokenCache.exp) return tokenCache.value;
+  if (!tokenPending) tokenPending = fetchToken().finally(() => (tokenPending = null));
+  return tokenPending;
 }
 
 const FS_BASE = () =>
@@ -110,7 +150,7 @@ function withVersion(obj, version) {
 
 async function fsGet(coll, id) {
   const t = await accessToken();
-  const res = await fetch(`${FS_BASE()}/${coll}/${encodeURIComponent(id)}`, {
+  const res = await fsFetch(`${FS_BASE()}/${coll}/${encodeURIComponent(id)}`, {
     headers: { authorization: 'Bearer ' + t },
   });
   if (res.status === 404) return null;
@@ -134,11 +174,11 @@ async function fsUpdate(coll, id, fields, version) {
     updateMask: { fieldPaths: Object.keys(fields) },
     currentDocument: version ? { updateTime: version } : { exists: true },
   };
-  const res = await fetch(`${FS_BASE()}:commit`, {
+  const res = await fsFetch(`${FS_BASE()}:commit`, {
     method: 'POST',
     headers: { authorization: 'Bearer ' + t, 'content-type': 'application/json' },
     body: JSON.stringify({ writes: [write] }),
-  });
+  }, 'write');
   if (res.ok) return { ok: true, version: (await res.json()).writeResults?.[0]?.updateTime };
   const text = await res.text().catch(() => '');
   if (res.status === 404) return { ok: false, reason: 'missing' };
@@ -159,11 +199,11 @@ async function fsCreate(coll, id, obj) {
     },
     currentDocument: { exists: false },
   };
-  const res = await fetch(`${FS_BASE()}:commit`, {
+  const res = await fsFetch(`${FS_BASE()}:commit`, {
     method: 'POST',
     headers: { authorization: 'Bearer ' + t, 'content-type': 'application/json' },
     body: JSON.stringify({ writes: [write] }),
-  });
+  }, 'write');
   if (res.ok) return { ok: true, version: (await res.json()).writeResults?.[0]?.updateTime };
   const text = await res.text().catch(() => '');
   if (/ALREADY_EXISTS/.test(text)) return { ok: false, reason: 'exists' };
@@ -174,18 +214,19 @@ async function fsCreate(coll, id, obj) {
 async function fsPut(coll, id, obj) {
   const t = await accessToken();
   const fields = Object.fromEntries(Object.entries(obj).map(([k, v]) => [k, toFs(v)]));
-  const res = await fetch(`${FS_BASE()}/${coll}/${encodeURIComponent(id)}`, {
+  const res = await fsFetch(`${FS_BASE()}/${coll}/${encodeURIComponent(id)}`, {
     method: 'PATCH',
     headers: { authorization: 'Bearer ' + t, 'content-type': 'application/json' },
     body: JSON.stringify({ fields }),
-  });
+  }, 'write');
   if (!res.ok) throw new Error('firestore put ' + res.status + ' ' + (await res.text()).slice(0, 200));
   return true;
 }
 
 async function fsDel(coll, id) {
   const t = await accessToken();
-  const res = await fetch(`${FS_BASE()}/${coll}/${encodeURIComponent(id)}`, {
+  // DELETE повторювати можна: другий раз це 404, а він для видалення успіх
+  const res = await fsFetch(`${FS_BASE()}/${coll}/${encodeURIComponent(id)}`, {
     method: 'DELETE',
     headers: { authorization: 'Bearer ' + t },
   });
@@ -205,7 +246,7 @@ async function fsFindBy(coll, field, value) {
       limit: 1,
     },
   };
-  const res = await fetch(`${FS_BASE()}:runQuery`, {
+  const res = await fsFetch(`${FS_BASE()}:runQuery`, {
     method: 'POST',
     headers: { authorization: 'Bearer ' + t, 'content-type': 'application/json' },
     body: JSON.stringify(body),

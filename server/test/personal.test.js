@@ -164,7 +164,7 @@ test('POST /word-of-day refuses bodies it cannot read', async () => {
   assert.equal((await call('POST', '/word-of-day', { token, body: [1, 2] })).status, 400);
   assert.equal((await call('POST', '/word-of-day', { token, body: 'null' })).status, 400);
   assert.equal((await call('POST', '/word-of-day', { body: {} })).status, 401);
-  const huge = await call('POST', '/word-of-day', { token, body: { known: Array(3000).fill('x'.repeat(40)) } }).catch(() => ({ status: 413 }));
+  const huge = await call('POST', '/word-of-day', { token, body: { known: Array(3000).fill('x'.repeat(40)) } });
   assert.equal(huge.status, 413);
 });
 
@@ -240,7 +240,7 @@ test('POST /me/profile refuses bad bodies and is rate limited', async () => {
   assert.equal((await call('POST', '/me/profile', { token, body: '{oops' })).status, 400);
   assert.equal((await call('POST', '/me/profile', { token, body: ['work'] })).status, 400);
   assert.equal((await call('GET', '/me/profile', { token })).status, 404);
-  const big = await call('POST', '/me/profile', { token, body: { goals: Array(1000).fill('work') } }).catch(() => ({ status: 413 }));
+  const big = await call('POST', '/me/profile', { token, body: { goals: Array(1000).fill('work') } });
   assert.equal(big.status, 413);
 
   // на пристрій — 10 за хвилину, хоч з якої IP (новий пристрій: відмови

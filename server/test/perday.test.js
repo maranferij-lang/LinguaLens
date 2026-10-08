@@ -289,7 +289,7 @@ test('no more than 8 translations run at once, and the order survives', async ()
   }
 });
 
-test('a failed translation keeps its slot and the English word', async () => {
+test('a failed translation is left out, not sent blank: the rest keep their slots and the answer says partial', async () => {
   const { token, user } = await newDevice();
   const real = ai.translateWord;
   let n = 0;
@@ -299,13 +299,79 @@ test('a failed translation keeps its slot and the English word', async () => {
   };
   try {
     const r = await asPro(user.id, () => wod(token, { perDay: 3, days: 2 }));
-    assert.equal(r.data.words.length, 6);
-    const failed = r.data.words.filter((w) => w.translation === '');
-    assert.ok(failed.length >= 1);
-    for (const w of failed) {
-      assert.equal(w.word, w.source);
-      assert.ok([0, 1, 2].includes(w.slot));
+    assert.equal(r.status, 200);
+    assert.equal(r.data.partial, true);
+    // 6 слів у плані, невдалі: індекси 1 і 4 (слот 1 обох днів)
+    assert.equal(r.data.words.length, 4);
+    for (const w of r.data.words) {
+      assert.notEqual(w.translation, '');
+      assert.notEqual(w.example, '');
+      assert.ok([0, 2].includes(w.slot), 'слот ' + w.slot);
     }
+  } finally {
+    ai.translateWord = real;
+  }
+});
+
+test('when the word for today fails the answer is 503 AI_BUSY with Retry-After, so the phone keeps its old cache', async () => {
+  const { token } = await newDevice();
+  const real = ai.translateWord;
+  let n = 0;
+  ai.translateWord = async (...args) => {
+    if (n++ === 0) throw new Error('AI is busy'); // слот 0 сьогодні
+    return real(...args);
+  };
+  try {
+    const r = await wod(token, { days: 3 });
+    assert.equal(r.status, 503);
+    assert.deepEqual(r.data, { error: 'AI_BUSY' });
+    assert.equal(r.headers.get('retry-after'), '5');
+  } finally {
+    ai.translateWord = real;
+  }
+  // і коли не вийшло жодного слова
+  ai.translateWord = async () => {
+    throw new Error('AI is down');
+  };
+  try {
+    assert.equal((await wod(token, { days: 3 })).status, 503);
+    assert.equal((await call('GET', `/word-of-day?days=3&today=${today()}`, { token })).status, 503);
+  } finally {
+    ai.translateWord = real;
+  }
+  // AI ожив: звичайна повна відповідь без partial
+  const ok = await wod(token, { days: 3 });
+  assert.equal(ok.status, 200);
+  assert.equal(ok.data.partial, undefined);
+  assert.equal(ok.data.words.length, 3);
+});
+
+test('legacy GET /word-of-day: same days parsing as POST, parallel limit, partial answer, no blank entries', async () => {
+  const { token } = await newDevice();
+  // days=abc — 7 слів, як у POST, а не порожній список
+  const odd = await call('GET', `/word-of-day?days=abc&today=${today()}`, { token });
+  assert.equal(odd.data.words.length, 7);
+  assert.equal(odd.data.partial, undefined);
+
+  const real = ai.translateWord;
+  let running = 0;
+  let peak = 0;
+  let n = 0;
+  ai.translateWord = async (...args) => {
+    running++;
+    peak = Math.max(peak, running);
+    await new Promise((r) => setTimeout(r, 10));
+    running--;
+    if (n++ === 3) throw new Error('AI is busy'); // четвертий день
+    return real(...args);
+  };
+  try {
+    const r = await call('GET', `/word-of-day?days=14&today=${today()}`, { token });
+    assert.equal(r.status, 200);
+    assert.equal(r.data.partial, true);
+    assert.equal(r.data.words.length, 13);
+    assert.ok(r.data.words.every((w) => w.translation !== '' && w.example !== ''));
+    assert.ok(peak <= 8, `одночасно: ${peak}`);
   } finally {
     ai.translateWord = real;
   }

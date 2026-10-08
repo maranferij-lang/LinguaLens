@@ -68,13 +68,14 @@ test('health reports production config as booleans, never as values', async () =
   const r = await call('GET', '/health');
   assert.deepEqual(Object.keys(r.data), ['ok', 'provider', 'store', 'config']);
   assert.deepEqual(Object.keys(r.data.config), [
-    'ai', 'authSecret', 'firestore', 'revenuecat', 'webhookAuth', 'supportEmail', 'appleRevoke',
+    'ai', 'authSecret', 'firestore', 'revenuecat', 'webhookAuth', 'supportEmail', 'appleRevoke', 'appToken',
   ]);
   for (const v of Object.values(r.data.config)) assert.equal(typeof v, 'boolean');
   assert.equal(r.data.config.ai, true); // mock не потребує ключа
   assert.equal(r.data.config.authSecret, false); // 'test-secret' коротший за 32 символи
   assert.equal(r.data.config.webhookAuth, true);
   assert.equal(r.data.config.revenuecat, false);
+  assert.equal(r.data.config.appToken, Boolean(process.env.APP_TOKEN));
   // Залежить від режиму сховища: у CI цей самий файл ганяють і з емулятором
   // Firestore (FIRESTORE_PROJECT задано), тоді прапорець має бути true.
   assert.equal(r.data.config.firestore, r.data.store === 'firestore');
@@ -319,8 +320,9 @@ test('bad JSON and oversize bodies do not crash the server', async () => {
   const { token } = await newDevice('198.51.100.1');
   const bad = await call('POST', '/scan', { token, body: '{oops' });
   assert.equal(bad.status, 400);
-  const big = await call('POST', '/scan', { token, body: JSON.stringify({ image: 'x'.repeat(5 * 1024 * 1024) }) }).catch(() => ({ status: 413 }));
+  const big = await call('POST', '/scan', { token, body: JSON.stringify({ image: 'x'.repeat(5 * 1024 * 1024) }) });
   assert.equal(big.status, 413);
+  assert.deepEqual(big.data, { error: 'Фото завелике' });
   assert.equal((await call('GET', '/health')).status, 200);
 });
 

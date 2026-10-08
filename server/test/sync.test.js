@@ -486,8 +486,6 @@ test('sync is rate limited per IP', async () => {
 
 test('a body over 1 MB is refused with 413', async () => {
   const acc = await account();
-  const r = await call('POST', '/sync', { token: acc.a, body: JSON.stringify({ since: 0, pad: 'x'.repeat(1100 * 1024) }) }).catch(() => ({
-    status: 413,
-  }));
+  const r = await call('POST', '/sync', { token: acc.a, body: JSON.stringify({ since: 0, pad: 'x'.repeat(1100 * 1024) }) });
   assert.equal(r.status, 413);
 });
