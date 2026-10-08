@@ -3,6 +3,7 @@
 // Без зовнішніх залежностей — потрібен лише Node 20+.
 
 const http = require('http');
+const crypto = require('crypto');
 const os = require('os');
 const fs = require('fs');
 const net = require('net');
@@ -99,8 +100,14 @@ const wodUserLimited = limiter(RATE_PER_MIN, 60000);
 // Профіль з онбордингу: людина зберігає його раз, потім зрідка в Параметрах.
 const profileLimited = limiter(20, 60000);
 const profileUserLimited = limiter(10, 60000);
-// /me: застосунок питає його при запуску й після покупки — кілька разів на день
-const meLimited = limiter(RATE_PER_MIN, 60000);
+// /me: застосунок питає його при запуску й після покупки — кілька разів на
+// день. Це лише читання, тож стеля з IP втричі вища за RATE_PER_MIN: мобільні
+// оператори тримають тисячі телефонів за кількома адресами, і двадцять
+// запусків на хвилину з однієї з них лишили б «Pro невідомий» (429). Скани й
+// слово дня лишаються на RATE_PER_MIN, а перепитування RevenueCat після
+// покупки окремо стримує REFRESH_MIN_MS (billing.js) на пристрій.
+const ME_RATE_FACTOR = 3;
+const meLimited = limiter(RATE_PER_MIN * ME_RATE_FACTOR, 60000);
 // Нові пристрої: справжня людина створює один за все життя установки.
 // Двадцять на годину з IP — запас для гуртожитку чи офісу за одним NAT,
 // але не для скрипта, що фармить безкоштовні скани. У день запуску за одним
@@ -378,8 +385,13 @@ async function jsonCompressed(req, res, status, obj) {
   res.end(body);
 }
 
+// Порівняння за сталий час (як у billing.webhookAuthorized): токен лежить у
+// бінарнику, тож це гігієна, а не захист, але нічого не коштує.
 function appTokenOk(req) {
-  return !APP_TOKEN || req.headers['x-app-token'] === APP_TOKEN;
+  if (!APP_TOKEN) return true;
+  const got = Buffer.from(String(req.headers['x-app-token'] || ''));
+  const want = Buffer.from(APP_TOKEN);
+  return got.length === want.length && crypto.timingSafeEqual(got, want);
 }
 
 // ---------- обробники ----------
@@ -797,12 +809,19 @@ async function handle(req, res) {
     });
     return res.end();
   }
-  if (req.method === 'GET' && route === '/health') {
-    return json(res, 200, { ok: true, provider: ai.PROVIDER, store: store.MODE, config: configFlags() });
-  }
-  if (req.method === 'GET' && Object.hasOwn(PAGES, route) && PAGES[route]) {
-    res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', ...SECURITY_HEADERS, 'Cache-Control': 'public, max-age=3600' });
-    return res.end(PAGES[route]);
+  // /health і юридичні сторінки: GET, а для перевірок доступності й посилань у
+  // App Store Connect ще й HEAD (лише заголовки: Node сам не шле тіло на HEAD).
+  // Кінцевий слеш прощаємо: «/privacy/» у формі чи браузері не має давати 404.
+  // Лише для цих маршрутів, API лишається з точним збігом.
+  if (req.method === 'GET' || req.method === 'HEAD') {
+    const page = route.replace(/\/+$/, '');
+    if (page === '/health') {
+      return json(res, 200, { ok: true, provider: ai.PROVIDER, store: store.MODE, config: configFlags() });
+    }
+    if (Object.hasOwn(PAGES, page) && PAGES[page]) {
+      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', ...SECURITY_HEADERS, 'Cache-Control': 'public, max-age=3600' });
+      return res.end(PAGES[page]);
+    }
   }
 
   // Вебхук RevenueCat має власний секрет у заголовку Authorization.

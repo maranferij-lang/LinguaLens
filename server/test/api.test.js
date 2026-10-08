@@ -199,13 +199,13 @@ test('writes after DELETE /me do not resurrect the device', async () => {
   assert.equal(await store.get('users', user.id), null);
 });
 
-test('GET /me is rate limited per IP', async () => {
+test('GET /me is rate limited per IP, at three times RATE_PER_MIN (20)', async () => {
   const { token } = await newDevice();
-  let last;
-  for (let i = 0; i < 25; i++) {
-    last = await call('GET', '/me', { token, headers: { 'x-forwarded-for': '198.51.100.50' } });
+  const statuses = [];
+  for (let i = 0; i < 63; i++) {
+    statuses.push((await call('GET', '/me', { token, headers: { 'x-forwarded-for': '198.51.100.50' } })).status);
   }
-  assert.equal(last.status, 429);
+  assert.deepEqual(statuses, [...Array(60).fill(200), 429, 429, 429]);
 });
 
 test('RevenueCat webhook grants Pro and lifts the limit', async () => {
@@ -333,6 +333,27 @@ test('privacy policy and support pages are served as public pages', async () => 
     assert.match(res.headers.get('content-type'), /text\/html/);
     assert.match(await res.text(), title);
   }
+});
+
+test('/health and the legal pages also answer HEAD (headers only) and forgive trailing slashes', async () => {
+  for (const route of ['/health', '/health/', '/privacy', '/privacy/', '/privacy//', '/support', '/support/', '/privacy/?x=1']) {
+    const get = await fetch(base + route);
+    assert.equal(get.status, 200, 'GET ' + route);
+    const head = await fetch(base + route, { method: 'HEAD' });
+    assert.equal(head.status, 200, 'HEAD ' + route);
+    assert.equal(head.headers.get('content-type'), get.headers.get('content-type'), route);
+    assert.equal(head.headers.get('x-content-type-options'), 'nosniff', route);
+    assert.equal(await head.text(), '', 'HEAD has no body: ' + route);
+    assert.notEqual(await get.text(), '', 'GET has a body: ' + route);
+  }
+  // слеш прощаємо лише цим маршрутам: API лишається з точним збігом
+  assert.equal((await call('GET', '/me/')).status, 404);
+  assert.equal((await call('GET', '/privacy/extra')).status, 404);
+  assert.equal((await call('GET', '/privacyx')).status, 404);
+  assert.equal((await call('POST', '/privacy')).status, 404);
+  assert.equal((await call('POST', '/health')).status, 404);
+  assert.equal((await call('HEAD', '/me')).status, 404);
+  assert.equal((await call('HEAD', '/nope')).status, 404);
 });
 
 test('removed email endpoints answer 404', async () => {

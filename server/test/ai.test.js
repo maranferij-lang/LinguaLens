@@ -240,6 +240,39 @@ test('every prompt tells the model not to use dashes and has none itself', () =>
   }
 });
 
+// ---------- німецька підказка про регістр лише для німецької ----------
+test('the German capitalisation hint is sent only when the learner studies German', () => {
+  const HINT = 'German nouns are always capitalised';
+  // німецька: підказка на місці, разом із артиклем
+  for (const p of [
+    ai.buildScanPrompt('de', 'uk'),
+    ai.buildScanPrompt('de', 'uk', 9),
+    ai.buildScenePrompt('de', 'uk'),
+    ai.buildTranslatePrompt('mug', 'de', 'uk'),
+    ai.buildTranslatePrompt('ledger', 'de', 'uk', { topic: 'finance', hint: 'accounting book' }),
+  ]) {
+    assert.ok(p.includes(`requires a capital letter (${HINT}).`), p.slice(0, 80));
+    assert.ok(p.includes('Include the definite article, e.g. "die Tasse"'));
+  }
+  // решта мов, у тому числі німецька як МОВА ПЕРЕКЛАДУ: жодного німецького правила
+  for (const p of [
+    ai.buildScanPrompt('en', 'uk'),
+    ai.buildScanPrompt('en', 'de'),
+    ai.buildScanPrompt('es', 'uk', null, { variant: 'latam' }),
+    ai.buildScanPrompt('uk', 'en', 8),
+    ai.buildScenePrompt('es', 'de'),
+    ai.buildTranslatePrompt('mug', 'en', 'de'),
+    ai.buildTranslatePrompt('mug', 'fr', 'uk', { topic: 'finance', hint: 'a cup' }),
+  ]) {
+    assert.ok(!p.includes(HINT), p.slice(0, 80));
+    assert.ok(!p.includes('(German'), p.slice(0, 80));
+    // правило про слово лишилось цілим, з крапкою після нього
+    assert.match(p, /lowercase unless [A-Za-z ]+ spelling requires a capital letter\./);
+  }
+  // артикль для іспанської не зник разом з німецькою приміткою
+  assert.ok(ai.buildScanPrompt('es', 'uk').includes('Include the definite article, e.g. "la taza"'));
+});
+
 test('undash turns a dash into a comma and leaves everything else alone', () => {
   for (const [from, to] of [
     ['I love it — really.', 'I love it, really.'],

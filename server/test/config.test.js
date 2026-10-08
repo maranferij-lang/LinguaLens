@@ -75,6 +75,11 @@ async function startServer(env) {
       const res = await fetch(base + route, { headers: { authorization: 'Bearer ' + token, ...headers } });
       return res.status;
     },
+    // Будь-який метод із довільними заголовками: статус, заголовки й текст.
+    async request(method, route, headers = {}) {
+      const res = await fetch(base + route, { method, headers });
+      return { status: res.status, headers: res.headers, text: await res.text() };
+    },
     async token(ip = '203.0.113.5') {
       const res = await fetch(base + '/auth/device', {
         method: 'POST',
@@ -262,18 +267,28 @@ const statusesOf = async (srv, route, token, n, headers) => {
   return out;
 };
 
+// /me має стелю втричі вищу за RATE_PER_MIN (оператор за спільною IP), тож
+// межа 429 на /me — це ME_FACTOR × RATE_PER_MIN.
+const ME_FACTOR = 3;
+
 test('RATE_PER_MIN: a good value is taken; a bad one warns and falls back to 20 instead of switching the limit off or on', async () => {
   await withServer({ PROVIDER: 'mock', RATE_PER_MIN: '5' }, async (srv) => {
     const token = await srv.token('203.0.113.30');
-    assert.deepEqual(await statusesOf(srv, '/me', token, 7, { 'x-forwarded-for': '198.51.100.30' }), [...Array(5).fill(200), 429, 429]);
+    assert.deepEqual(
+      await statusesOf(srv, '/me', token, 5 * ME_FACTOR + 2, { 'x-forwarded-for': '198.51.100.30' }),
+      [...Array(5 * ME_FACTOR).fill(200), 429, 429]
+    );
+    // слово дня тримається на самому RATE_PER_MIN, без множника
+    const wod = await statusesOf(srv, '/word-of-day?days=1', token, 7, { 'x-forwarded-for': '198.51.100.33' });
+    assert.deepEqual(wod, [...Array(5).fill(200), 429, 429]);
     assert.equal(srv.out.includes('RATE_PER_MIN'), false);
   });
   for (const bad of ['abc', '0', '-3', '2.5', 'Infinity']) {
     await withServer({ PROVIDER: 'mock', RATE_PER_MIN: bad }, async (srv) => {
       assert.match(srv.out, new RegExp('server: RATE_PER_MIN=' + bad.replace('.', '\\.') + ' '), bad);
       const token = await srv.token('203.0.113.31');
-      const statuses = await statusesOf(srv, '/me', token, 22, { 'x-forwarded-for': '198.51.100.31' });
-      assert.deepEqual(statuses, [...Array(20).fill(200), 429, 429], bad);
+      const statuses = await statusesOf(srv, '/me', token, 20 * ME_FACTOR + 2, { 'x-forwarded-for': '198.51.100.31' });
+      assert.deepEqual(statuses, [...Array(20 * ME_FACTOR).fill(200), 429, 429], bad);
     });
   }
   // порожнє й відсутнє — мовчки 20
@@ -281,21 +296,22 @@ test('RATE_PER_MIN: a good value is taken; a bad one warns and falls back to 20 
     await withServer({ PROVIDER: 'mock', ...env }, async (srv) => {
       assert.equal(srv.out.includes('RATE_PER_MIN'), false);
       const token = await srv.token('203.0.113.32');
-      assert.equal((await statusesOf(srv, '/me', token, 21, { 'x-forwarded-for': '198.51.100.32' })).at(-1), 429);
+      assert.equal((await statusesOf(srv, '/me', token, 20 * ME_FACTOR + 1, { 'x-forwarded-for': '198.51.100.32' })).at(-1), 429);
     });
   }
 });
 
 test('TRUST_PROXY_HOPS: a bad value warns and means 1; 2 skips one more proxy entry', async () => {
+  const CEILING = 20 * ME_FACTOR; // межа /me, з якої рахуємо
   for (const bad of ['abc', '0', '-1', '1.5']) {
     await withServer({ PROVIDER: 'mock', TRUST_PROXY_HOPS: bad }, async (srv) => {
       assert.match(srv.out, /server: TRUST_PROXY_HOPS=/, bad);
       const token = await srv.token('203.0.113.40');
       // кожен запит — з іншої справжньої адреси (останній запис): ліміт не спільний
-      const statuses = await statusesOf(srv, '/me', token, 25, (i) => ({ 'x-forwarded-for': `10.1.0.${i + 1}` }));
-      assert.deepEqual(statuses, Array(25).fill(200), bad);
+      const statuses = await statusesOf(srv, '/me', token, CEILING + 5, (i) => ({ 'x-forwarded-for': `10.1.0.${i + 1}` }));
+      assert.deepEqual(statuses, Array(CEILING + 5).fill(200), bad);
       // а підроблений перший запис не рятує від ліміту: рахується останній
-      const same = await statusesOf(srv, '/me', token, 21, (i) => ({ 'x-forwarded-for': `10.2.0.${i + 1}, 198.51.100.40` }));
+      const same = await statusesOf(srv, '/me', token, CEILING + 1, (i) => ({ 'x-forwarded-for': `10.2.0.${i + 1}, 198.51.100.40` }));
       assert.equal(same.at(-1), 429, bad);
     });
   }
@@ -303,8 +319,8 @@ test('TRUST_PROXY_HOPS: a bad value warns and means 1; 2 skips one more proxy en
     assert.equal(srv.out.includes('TRUST_PROXY_HOPS'), false);
     const token = await srv.token('203.0.113.41');
     // клієнт — передостанній запис; останній — наш балансувальник
-    const statuses = await statusesOf(srv, '/me', token, 21, (i) => ({ 'x-forwarded-for': `10.3.0.${i + 1}, 198.51.100.41, 10.9.9.9` }));
-    assert.deepEqual(statuses, [...Array(20).fill(200), 429]);
+    const statuses = await statusesOf(srv, '/me', token, CEILING + 1, (i) => ({ 'x-forwarded-for': `10.3.0.${i + 1}, 198.51.100.41, 10.9.9.9` }));
+    assert.deepEqual(statuses, [...Array(CEILING).fill(200), 429]);
   });
 });
 
@@ -330,5 +346,24 @@ test('APP_TOKEN is only a recommendation: one warning when missing, the flag is 
     const h = await srv.health();
     assert.equal(h.data.config.appToken, true);
     assert.equal(JSON.stringify(h.data).includes('app-token-must-not-leak'), false);
+  });
+});
+
+test('APP_TOKEN is enforced with a constant-time compare: only the exact value passes; /health, the legal pages and the webhook stay open', async () => {
+  await withServer({ PROVIDER: 'mock', APP_TOKEN: 'app-token-123' }, async (srv) => {
+    const dev = (token) => srv.request('POST', '/auth/device', { 'content-type': 'application/json', ...(token === undefined ? {} : { 'x-app-token': token }) });
+    assert.equal((await dev('app-token-123')).status, 200);
+    // немає заголовка, порожній, коротший, довший, такої самої довжини, але інший, інший регістр
+    for (const bad of [undefined, '', 'app-token-12', 'app-token-1234', 'app-token-124', 'APP-TOKEN-123']) {
+      const r = await dev(bad);
+      assert.equal(r.status, 403, JSON.stringify(bad));
+      assert.deepEqual(JSON.parse(r.text), { error: 'APP_TOKEN' });
+    }
+    // Відкриті без токена: перевірка доступності, сторінки для App Store, вебхук
+    assert.equal((await srv.request('GET', '/health')).status, 200);
+    assert.equal((await srv.request('HEAD', '/health')).status, 200);
+    assert.equal((await srv.request('GET', '/privacy/')).status, 200);
+    assert.equal((await srv.request('HEAD', '/support')).status, 200);
+    assert.equal((await srv.request('POST', '/webhooks/revenuecat')).status, 401);
   });
 });

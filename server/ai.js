@@ -210,7 +210,10 @@ function wordRules(lang, variant = null) {
   const article = ARTICLE_EXAMPLES[lang]
     ? ` Include the definite article, e.g. "${ARTICLE_EXAMPLES[lang]}".`
     : '';
-  return `Write "word" in dictionary form: lowercase unless ${L} spelling requires a capital letter (German nouns are always capitalised).${article}`;
+  // Підказка про німецькі іменники лише для німецької: в іспанській чи
+  // англійській вона зайва і може підштовхнути модель до великої літери.
+  const caps = lang === 'de' ? ' (German nouns are always capitalised)' : '';
+  return `Write "word" in dictionary form: lowercase unless ${L} spelling requires a capital letter${caps}.${article}`;
 }
 
 // vars — { variant, nativeVariant } з запиту (src/langVariants.js).
