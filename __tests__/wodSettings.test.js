@@ -392,6 +392,34 @@ describe('WordOfDayCard with several words a day', () => {
 describe('useWodSlots', () => {
   afterEach(() => jest.useRealTimers());
 
+  // «Збережено» — слово тієї самої мови: pasta в італійському словнику не
+  // робить мертвою кнопку «Зберегти» під pasta зі слова дня іспанською
+  test('a word saved in another language does not count as saved', () => {
+    jest.useFakeTimers({ now: new Date(2026, 9, 8, 15, 30), doNotFake: ['nextTick', 'setImmediate'] });
+    const date = localDayKey(new Date());
+    const cache = {
+      lang: 'es',
+      native: 'uk',
+      perDay: 3,
+      words: [0, 1, 2].map((s) => ({ date, slot: s, word: s === 0 ? 'Pasta' : 'w' + s, translation: 't' })),
+    };
+    let out = null;
+    const Probe = ({ words }) => {
+      out = useWodSlots({ wod: cache, hours: [10, 16, 21], words, ui: 'uk' });
+      return null;
+    };
+    let tree;
+    act(() => {
+      tree = create(<Probe words={[{ word: 'pasta', lang: 'it' }]} />);
+    });
+    expect(out.list[0].saved).toBe(false);
+    act(() => {
+      tree.update(<Probe words={[{ word: 'pasta', lang: 'it' }, { word: 'pasta', lang: 'es' }]} />);
+    });
+    expect(out.list[0].saved).toBe(true);
+    act(() => tree.unmount());
+  });
+
   test('opens the next word at its hour without leaving the screen', async () => {
     jest.useFakeTimers({ now: new Date(2026, 9, 8, 15, 30), doNotFake: ['nextTick', 'setImmediate'] });
     const date = localDayKey(new Date());

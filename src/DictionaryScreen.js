@@ -22,7 +22,7 @@ import {
   View,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { flagFor, speak } from './speech';
+import { flagFor, nameFor, speak } from './speech';
 import { IcClose, IcCloud, IcSearch, IcShare, IcSpeaker } from './icons';
 import { MascotBob } from './Mascot';
 import { Sticker } from './Sticker';
@@ -38,17 +38,29 @@ import { CAPS, F, R, type, useTheme } from './theme';
 
 // ─── Чисті помічники (покриті тестами) ─────────────────────────────────────
 
+// Рядок для пошуку: малі літери й без діакритики, щоб «cafe» знаходило «café»,
+// «uber» — «über», «espanol» — «español», «strasse» — «Straße», а «е» — «ё».
+// Знак стираємо лише після некириличної літери: «й» і «ї» в українській чи
+// російській — окремі літери, і «мои» не має знаходити «мой». Після стирання
+// складаємо назад (NFC), щоб «й» лишилась однією літерою. ASCII (більшість
+// англійських слів) пропускаємо без нормалізації.
+export function fold(value) {
+  const s = String(value ?? '').toLowerCase();
+  if (/^[\x00-\x7f]*$/.test(s) || typeof s.normalize !== 'function') return s;
+  return s
+    .replace(/ё/g, 'е')
+    .replace(/ß/g, 'ss')
+    .normalize('NFD')
+    .replace(/([^\u0400-\u04FF])[\u0300-\u036f]+/g, '$1')
+    .normalize('NFC');
+}
+
 // Фільтр мови + пошук по слову й перекладу, найновіші — першими.
 export function filterWords(words, query, lang) {
-  const q = String(query || '').trim().toLowerCase();
+  const q = fold(String(query || '').trim());
   return words
     .filter((w) => !lang || (w.lang || 'en') === lang)
-    .filter(
-      (w) =>
-        !q ||
-        String(w.word || '').toLowerCase().includes(q) ||
-        String(w.translation || '').toLowerCase().includes(q)
-    )
+    .filter((w) => !q || fold(w.word).includes(q) || fold(w.translation).includes(q))
     .sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0));
 }
 
@@ -147,8 +159,8 @@ export default function DictionaryScreen({
 
   // Колбеки рядків мають бути стабільними, інакше memo-рядки
   // перемальовуються на кожен рендер App. Свіжі пропси беремо з ref.
-  const latest = useRef({ onDelete, onShare });
-  latest.current = { onDelete, onShare };
+  const latest = useRef({ onDelete, onShare, onDeleteScene });
+  latest.current = { onDelete, onShare, onDeleteScene };
   const canShare = !!onShare;
 
   const removeWord = useCallback((id) => {
@@ -164,10 +176,9 @@ export default function DictionaryScreen({
     layoutNext();
     setOpenId((cur) => (cur === id ? null : id));
   }, []);
-  const openSheet = useCallback((item) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setSheetWord(item);
-  }, []);
+  // Без хаптики: відкриття аркуша й так видно, а стрічка з буззом на кожну
+  // наліпку при гортанні альбому дратує
+  const openSheet = useCallback((item) => setSheetWord(item), []);
   const closeSheet = useCallback(() => setSheetWord(null), []);
 
   useEffect(() => {
@@ -192,26 +203,28 @@ export default function DictionaryScreen({
     setLangFilter(next);
   }
 
-  function openSceneView(sc) {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setSceneId(sc.id);
-  }
+  // Колбеки стрічки сцен стабільні (і SceneStrip у memo): інакше кожна літера
+  // в пошуку перемальовувала б до 40 мініатюр.
+  const openSceneView = useCallback((sc) => setSceneId(sc.id), []);
 
   // Видалити сцену — лише фото з підписами; збережені з неї слова лишаються.
-  function askDeleteScene(sc) {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    Alert.alert(t('sceneDelTitle'), t('sceneDelMsg'), [
-      { text: t('cancel'), style: 'cancel' },
-      {
-        text: t('delete'),
-        style: 'destructive',
-        onPress: () => {
-          layoutNext();
-          onDeleteScene?.(sc.id);
+  const askDeleteScene = useCallback(
+    (sc) => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      Alert.alert(t('sceneDelTitle'), t('sceneDelMsg'), [
+        { text: t('cancel'), style: 'cancel' },
+        {
+          text: t('delete'),
+          style: 'destructive',
+          onPress: () => {
+            layoutNext();
+            latest.current.onDeleteScene?.(sc.id);
+          },
         },
-      },
-    ]);
-  }
+      ]);
+    },
+    [t]
+  );
 
   const sceneStrip = scenes.length ? (
     <SceneStrip scenes={scenes} onOpen={openSceneView} onLongPress={askDeleteScene} s={s} t={t} />
@@ -334,6 +347,7 @@ export default function DictionaryScreen({
             style={[s.filterChip, !lang && s.filterChipActive]}
             onPress={() => pickLang(null)}
             hitSlop={{ top: 7, bottom: 7 }}
+            accessibilityRole="button"
             accessibilityState={{ selected: !lang }}
           >
             <Text style={[s.filterText, !lang && { color: C.text }]}>{t('all')}</Text>
@@ -344,6 +358,9 @@ export default function DictionaryScreen({
               style={[s.filterChip, lang === l && s.filterChipActive]}
               onPress={() => pickLang(lang === l ? null : l)}
               hitSlop={{ top: 7, bottom: 7 }}
+              // у чипі лише прапорець: VoiceOver читає назву мови
+              accessibilityRole="button"
+              accessibilityLabel={nameFor(l)}
               accessibilityState={{ selected: lang === l }}
             >
               <Text style={s.filterText}>{flagFor(l)}</Text>
@@ -394,7 +411,11 @@ export default function DictionaryScreen({
   );
 }
 
-const keyOfItem = (item) => (Array.isArray(item) ? 'row-' + item[0].id : item.id);
+// Рядок альбому тримає ключ за місцем (індексом), а не за першою наліпкою:
+// інакше додане чи видалене слово чи кожна літера пошуку зсувала б перші id і
+// перемонтовувала всі рядки нижче разом з SVG-наліпками (висота рядка стала,
+// тож зсув вмісту на місці дешевий — пропси оновлюються без монтування).
+const keyOfItem = (item, index) => (Array.isArray(item) ? 'row-' + index : item.id);
 
 // ─── Підказка про резервну копію ───────────────────────────────────────────
 // Тиха картка, а не діалог: вхід необов'язковий, і людина, яка не хоче
@@ -433,7 +454,7 @@ function SyncNudge({ n, onOpen, onHide, s, C, t }) {
 // дією VoiceOver).
 const SCENE_THUMB = { w: 60, h: 106 };
 
-function SceneStrip({ scenes, onOpen, onLongPress, s, t }) {
+const SceneStrip = memo(function SceneStrip({ scenes, onOpen, onLongPress, s, t }) {
   const locale = safeLocale(t('shareLocale'));
   return (
     <View style={s.scenes}>
@@ -464,7 +485,7 @@ function SceneStrip({ scenes, onOpen, onLongPress, s, t }) {
       </ScrollView>
     </View>
   );
-}
+});
 
 // ─── Перемикач Список / Колекція ───────────────────────────────────────────
 // Стиль той самий, що в Профілі, але біла «пігулка» не стрибає, а
@@ -495,6 +516,8 @@ function Segment({ value, options, onChange, s }) {
             key={o.k}
             style={s.segmentBtn}
             onPress={() => onChange(o.k)}
+            // ~35 pt на вигляд, 45 для пальця (поле над і під тримають відступи)
+            hitSlop={{ top: 5, bottom: 5 }}
             accessibilityRole="tab"
             accessibilityState={{ selected: active }}
           >
@@ -510,8 +533,8 @@ function Segment({ value, options, onChange, s }) {
 const GridRow = memo(function GridRow({ items, tile, row, onOpen, s }) {
   return (
     <View style={s.gridRow}>
-      {items.map((item) => (
-        <GridTile key={item.id} item={item} tile={tile} row={row} onOpen={onOpen} s={s} />
+      {items.map((item, slot) => (
+        <GridTile key={slot} item={item} tile={tile} row={row} onOpen={onOpen} s={s} />
       ))}
     </View>
   );
@@ -542,6 +565,9 @@ const GridTile = memo(function GridTile({ item, tile, row, onOpen, s }) {
 });
 
 // ─── Рядок списку ──────────────────────────────────────────────────────────
+// «Поділитись» і «Видалити»: ~25 pt на вигляд, 45 для пальця (проміжок між
+// ними 22, тож бічні зони не перекриваються)
+const ACTION_SLOP = { top: 10, bottom: 10, left: 8, right: 8 };
 const ListRow = memo(function ListRow({ item, open, flag, onToggle, onAskDelete, onShare, s, C, t }) {
   const uri = photoUri(item.photo);
   const lang = item.lang || 'en';
@@ -549,7 +575,7 @@ const ListRow = memo(function ListRow({ item, open, flag, onToggle, onAskDelete,
     // Уся картка — ціль для пальця, але не для VoiceOver: доступний Pressable
     // злив би вкладені «Слухати», «Поділитись» і «Видалити» в один елемент,
     // і до них було б не дістатись. Розгортає рядок блок зі словом.
-    <Pressable style={s.card} onPress={() => onToggle(item.id)} accessible={false}>
+    <Press style={s.card} onPress={() => onToggle(item.id)} accessible={false} feedback="dim" minTarget={0} hitSlop={0}>
       <View style={s.rowTop}>
         <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
           {uri ? (
@@ -580,7 +606,12 @@ const ListRow = memo(function ListRow({ item, open, flag, onToggle, onAskDelete,
         <View style={s.details}>
           {item.ipa ? <Text style={s.ipa}>{item.ipa}</Text> : null}
           {item.example ? (
-            <Pressable onPress={() => speak(item.example, lang)} style={{ paddingRight: 24 }}>
+            <Pressable
+              onPress={() => speak(item.example, lang)}
+              style={{ paddingRight: 24 }}
+              accessibilityRole="button"
+              accessibilityHint={t('listen')}
+            >
               <View style={s.exampleSpeaker}>
                 <IcSpeaker size={14} color={C.dim} />
               </View>
@@ -590,18 +621,18 @@ const ListRow = memo(function ListRow({ item, open, flag, onToggle, onAskDelete,
           ) : null}
           <View style={s.actions}>
             {onShare ? (
-              <Pressable style={s.action} onPress={() => onShare(item)} hitSlop={8} accessibilityRole="button">
+              <Pressable style={s.action} onPress={() => onShare(item)} hitSlop={ACTION_SLOP} accessibilityRole="button">
                 <IcShare size={16} color={C.accent} />
                 <Text style={s.shareText}>{t('share')}</Text>
               </Pressable>
             ) : null}
-            <Pressable style={s.action} onPress={() => onAskDelete(item)} hitSlop={8} accessibilityRole="button">
+            <Pressable style={s.action} onPress={() => onAskDelete(item)} hitSlop={ACTION_SLOP} accessibilityRole="button">
               <Text style={s.deleteText}>{t('delete')}</Text>
             </Pressable>
           </View>
         </View>
       ) : null}
-    </Pressable>
+    </Press>
   );
 });
 
@@ -748,7 +779,7 @@ const makeStyles = (C, SHADOW_SM) =>
     actions: { flexDirection: 'row', alignItems: 'center', gap: 22, marginTop: 4 },
     action: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 4 },
     shareText: { color: C.accent, ...type(14, F.semi, { noLead: true }) },
-    deleteText: { color: C.red, ...type(14, F.semi, { noLead: true }) },
+    deleteText: { color: C.redInk, ...type(14, F.semi, { noLead: true }) },
     empty: { flex: 1, backgroundColor: C.bg, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 34 },
     emptyTitle: { color: C.text, ...type(20, F.bold), marginTop: 12 },
     emptyText: { color: C.dim, ...type(14, F.reg), textAlign: 'center', marginTop: 8 },

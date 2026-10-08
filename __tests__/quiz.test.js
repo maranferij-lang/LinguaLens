@@ -1,5 +1,5 @@
 import { act, create } from 'react-test-renderer';
-import QuizScreen, { QUIZ_MIN, buildQuestions, isQuizReady } from '../src/QuizScreen';
+import QuizScreen, { Q_PAUSE, Q_PAUSE_MISS, QUIZ_MIN, buildQuestions, isQuizReady } from '../src/QuizScreen';
 import { makeT } from '../src/i18n';
 
 // Озвучка тягне expo-audio, якому в jest бракує нативного модуля. Логіка квізу
@@ -128,15 +128,16 @@ describe('QuizScreen', () => {
       tree = create(<QuizScreen words={deck} t={makeT('en')} onExit={() => {}} onQuizDone={onQuizDone} onMiss={onMiss} />);
     });
     const shown = () => deck.find((x) => tree.root.findAll((n) => n.props.children === x.word).length);
-    const tap = async (text) => {
+    // після хибної відповіді пауза довша: треба встигнути прочитати правильну
+    const tap = async (text, pause) => {
       const hit = tree.root.findAll((n) => typeof n.props.onPress === 'function' && n.findAll((c) => c.props.children === text).length);
       await act(async () => hit.at(-1).props.onPress());
-      await act(async () => jest.advanceTimersByTime(900));
+      await act(async () => jest.advanceTimersByTime(pause));
     };
     for (let i = 0; i < deck.length; i++) {
       const q = shown();
       // перше питання — навмисна помилка, решта — правильно
-      await tap(i === 0 ? deck.find((x) => x !== q).translation : q.translation);
+      await tap(i === 0 ? deck.find((x) => x !== q).translation : q.translation, i === 0 ? Q_PAUSE_MISS : Q_PAUSE);
     }
     expect(onMiss).toHaveBeenCalledTimes(1);
     expect(onQuizDone).toHaveBeenCalledTimes(1);

@@ -8,9 +8,9 @@
 // «Відкрито!» — рівно один раз (unlockSeen у налаштуваннях). У шапці — чип
 // серії, з 18:00 згори — банер «серія під загрозою».
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { AccessibilityInfo, Animated, AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { dueWords, nextDueText, practiceWords } from './srs';
+import { dueSession, dueWords, nextDueText, practiceWords } from './srs';
 import { speak } from './speech';
 import { track } from './analytics';
 import QuizScreen, { SessionClose, quizProgress } from './QuizScreen';
@@ -27,12 +27,18 @@ import { Bar, FadeIn, GradBtn, Pill, Press } from './ui';
 import { UNDER_TAB } from './Chrome';
 
 import { F, R, type, useTheme } from './theme';
-import { DUR, EASE, useReducedMotion } from './motion';
+import { DUR, EASE, announce, useReducedMotion } from './motion';
 import { quote } from './share/layout';
 
 // Скільки видно ярлик «Відкрито!» і скільки світиться підказаний блок
 export const UNLOCK_MS = 2000;
 export const GLOW_MS = 1200;
+// Подвійний дотик на «Показати відповідь» чи «Знаю»: кнопки відповіді
+// з'являються в тому самому місці, і другий дотик влучив би в «Ще вчу» чи
+// «Знаю» ще до того, як людина побачила переклад. Стільки мс після перевороту
+// чи відповіді відповіді не приймаються (це швидше за реакцію, повільніше за
+// дабл-тап).
+export const TAP_GUARD_MS = 250;
 
 // Останні два слова рядка тримаються разом (нерозривний пробіл): підпис
 // картки на SE не лишає одне слово сиротою в другому рядку.
@@ -103,7 +109,29 @@ export default function FlashcardsScreen({
   const [flipped, setFlipped] = useState(false);
   const flipAnim = useRef(new Animated.Value(0)).current;
 
-  const due = useMemo(() => dueWords(words), [words]);
+  // «Зараз» для хаба: слово з нульової коробки (10 хв) чи вчорашнє дозріває,
+  // поки екран відкритий, а мемо за words цього не бачить. Тік додаємо, коли
+  // застосунок повертається на передній план і коли настає час найближчого
+  // слова: підказка («Потренуватись») і лічильник не відстають від дії.
+  const [clock, setClock] = useState(0);
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (st) => st === 'active' && setClock((c) => c + 1));
+    return () => sub?.remove?.();
+  }, []);
+  const due = useMemo(() => dueWords(words), [words, clock]);
+  useEffect(() => {
+    if (mode !== 'hub') return undefined;
+    const now = Date.now();
+    let next = Infinity;
+    for (const w of words) {
+      const at = w.srs?.due;
+      if (Number.isFinite(at) && at > now && at < next) next = at;
+    }
+    if (next === Infinity) return undefined;
+    // 2^31 − 1 мс — стеля setTimeout
+    const id = setTimeout(() => setClock((c) => c + 1), Math.min(next - now + 250, 2147483647));
+    return () => clearTimeout(id);
+  }, [words, clock, mode]);
   // Стан «Навчання» (core.md B.1): 0 — слів немає, 1 — картки є, квізу ще
   // бракує різних перекладів, 2 — відкрито все
   const progress = useMemo(() => quizProgress(words), [words]);
@@ -183,18 +211,6 @@ export default function FlashcardsScreen({
   // відкриває пейвол, — це сюрприз
   const canScan = isPro || scansLeft === undefined || scansLeft === null || scansLeft > 0;
 
-  function doFlip(to) {
-    setFlipped(to);
-    Haptics.selectionAsync();
-    Animated.timing(flipAnim, {
-      toValue: to ? 1 : 0,
-      // без обертання лишається коротка зміна непрозорості
-      duration: reduced ? DUR.micro : DUR.panel,
-      easing: EASE.inOut,
-      useNativeDriver: true,
-    }).start();
-  }
-
   // practice — сесія зі слів, чий час ще не настав. Відповіді в ній не мають
   // зсувати розклад уперед (див. applyPractice у srs.js).
   function start(list, practice) {
@@ -207,18 +223,22 @@ export default function FlashcardsScreen({
 
   // «На часі» рахуємо в момент натиску, а не беремо з мемо: хаб міг простояти
   // відкритим пів години, і слово з нульової коробки (10 хв) вже чекає.
+  // Після двох тижнів перерви на часі може бути сто п'ятдесят слів: сесія
+  // бере найпростроченіші (до SESSION_SIZE), решта чекає наступного дотику, а
+  // хаб показує скільки лишилось.
   function startCards() {
-    const fresh = dueWords(words);
+    const fresh = dueSession(words);
     if (fresh.length) start(fresh, false);
     else start(practiceWords(words), true);
   }
 
   // «Повторити 1 картку» з вечірнього банера — рівно одна, як і обіцяє
-  // кнопка: найнагальніше слово, а як нічого не на часі — тренування.
+  // кнопка: найпростроченіше слово, а як нічого не на часі — тренування.
   function startOne() {
-    const fresh = dueWords(words);
-    const list = fresh.length ? fresh : practiceWords(words);
-    if (list.length) start([list[0]], !fresh.length);
+    const [first] = dueSession(words, Date.now(), 1);
+    if (first) return start([first], false);
+    const [pick] = practiceWords(words, 1);
+    if (pick) start([pick], true);
   }
 
   // Вихід без підтвердження: кожна відповідь уже збережена в onReview.
@@ -231,14 +251,57 @@ export default function FlashcardsScreen({
     ? session.ids.findIndex((id, i) => i >= session.index && words.some((w) => w.id === id))
     : -1;
 
+  const current = nextIdx === -1 ? null : words.find((w) => w.id === session.ids[nextIdx]);
+
+  // Короткий «щит» від подвійного дотику (див. TAP_GUARD_MS): стан, а не
+  // перевірка в обробнику, — VoiceOver і прямі виклики onPress він не чіпає.
+  const [hold, setHold] = useState(false);
+  const holdTimer = useRef(null);
+  useEffect(
+    () => () => {
+      clearTimeout(holdTimer.current);
+      flipAnim.stopAnimation();
+    },
+    []
+  );
+  function holdTaps() {
+    setHold(true);
+    clearTimeout(holdTimer.current);
+    holdTimer.current = setTimeout(() => setHold(false), TAP_GUARD_MS);
+  }
+
+  function doFlip(to) {
+    setFlipped(to);
+    holdTaps();
+    Haptics.selectionAsync();
+    // На зворот переходимо — VoiceOver зачитує переклад: той, на кому стояв
+    // курсор, щойно зник, а нові кнопки відповіді він не оголосить сам
+    if (to && current?.translation) announce(current.translation);
+    Animated.timing(flipAnim, {
+      toValue: to ? 1 : 0,
+      // без обертання лишається коротка зміна непрозорості
+      duration: reduced ? DUR.micro : DUR.panel,
+      easing: EASE.inOut,
+      useNativeDriver: true,
+    }).start();
+  }
+
   function answer(known) {
     if (nextIdx === -1) return;
     // Третій аргумент — режим тренування: App.js обирає applyPractice замість applyReview.
     onReview(session.ids[nextIdx], known, session.practice);
-    Haptics.impactAsync(known ? Haptics.ImpactFeedbackStyle.Light : Haptics.ImpactFeedbackStyle.Heavy);
+    // Остання картка: якщо підсумок добрий (≥ 60 %), замість дрібного відгуку
+    // — «успіх»; сам підсумок з'являється одразу, і це мить винагороди.
+    // «Ще вчу» — найлегший тик: важкий удар читався б як покарання.
+    const correct = session.correct + (known ? 1 : 0);
+    const lastCard = !session.ids.some((id, i) => i > nextIdx && words.some((w) => w.id === id));
+    if (lastCard && correct / session.ids.length >= 0.6) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    else if (known) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    else Haptics.selectionAsync();
+    holdTaps();
     flipAnim.setValue(0);
     setFlipped(false);
-    setSession({ ...session, index: nextIdx + 1, correct: session.correct + (known ? 1 : 0) });
+    setSession({ ...session, index: nextIdx + 1, correct });
   }
 
   if (mode === 'quiz') {
@@ -412,7 +475,6 @@ export default function FlashcardsScreen({
     );
   }
 
-  const current = words.find((w) => w.id === session.ids[nextIdx]);
   const frontRotate = flipAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '180deg'] });
   const backRotate = flipAnim.interpolate({ inputRange: [0, 1], outputRange: ['180deg', '360deg'] });
   // 0.5 — момент, коли картка стоїть ребром. Саме там міняємо, хто видимий.
@@ -438,7 +500,8 @@ export default function FlashcardsScreen({
         <SessionClose onPress={close} label={t('close')} />
         {/* Bar з ui.js: scaleX від лівого краю на нативному драйвері, без перерахунку лейауту */}
         <View style={{ flex: 1 }}>
-          <Bar progress={nextIdx / session.ids.length} color={C.accent} bg={C.card2} height={6} />
+          {/* «3 / 10» стоїть поруч текстом: смужку VoiceOver не читає вдруге */}
+          <Bar progress={nextIdx / session.ids.length} color={C.accent} bg={C.card2} height={6} decorative />
         </View>
         <Text style={s.progress}>
           {nextIdx + 1} / {session.ids.length}
@@ -448,7 +511,15 @@ export default function FlashcardsScreen({
 
       {/* key — кожна нова картка м'яко з'являється, а не підміняється миттєво */}
       <FadeIn key={current.id} style={s.cardWrap} dy={10}>
-        <Animated.View style={[s.card, SHADOW, frontStyle]} pointerEvents={flipped ? 'none' : 'auto'}>
+        {/* Невидима сторона не лишається в дереві доступності: інакше VoiceOver
+            дочитав би зворот ще до перевороту, а після нього курсор лишився б
+            на картці, яка зникла. */}
+        <Animated.View
+          style={[s.card, SHADOW, frontStyle]}
+          pointerEvents={flipped || hold ? 'none' : 'auto'}
+          accessibilityElementsHidden={flipped}
+          importantForAccessibility={flipped ? 'no-hide-descendants' : 'auto'}
+        >
           {/* Динамік вкладений у картку, а VoiceOver зливає вкладені кнопки в
               одну — тож «Слухати» тут окрема дія картки (свайп угору/вниз). */}
           <Press
@@ -468,7 +539,12 @@ export default function FlashcardsScreen({
           </Press>
         </Animated.View>
 
-        <Animated.View style={[s.card, SHADOW, backStyle]} pointerEvents={flipped ? 'auto' : 'none'}>
+        <Animated.View
+          style={[s.card, SHADOW, backStyle]}
+          pointerEvents={flipped && !hold ? 'auto' : 'none'}
+          accessibilityElementsHidden={!flipped}
+          importantForAccessibility={flipped ? 'auto' : 'no-hide-descendants'}
+        >
           {/* На звороті — і саме слово (дрібно, з динаміком) над перекладом:
               оцінюючи себе, людина бачить слово й значення разом. */}
           <Press
@@ -511,17 +587,19 @@ export default function FlashcardsScreen({
         </Animated.View>
       </FadeIn>
 
+      {/* hold: перші TAP_GUARD_MS після перевороту чи відповіді ряд не ловить
+          дотики — подвійний тап не відповідає на картку, якої ще не видно */}
       {flipped ? (
-        <View style={s.answerRow}>
+        <View style={s.answerRow} pointerEvents={hold ? 'none' : 'auto'} testID="fc-answers">
           <Press style={[s.answerBtn, { backgroundColor: C.redSoft }]} onPress={() => answer(false)}>
-            <Text style={[s.answerText, { color: C.red }]}>{t('stillLearning')}</Text>
+            <Text style={[s.answerText, { color: C.redInk }]}>{t('stillLearning')}</Text>
           </Press>
           <Press style={[s.answerBtn, { backgroundColor: C.greenSoft }]} onPress={() => answer(true)}>
-            <Text style={[s.answerText, { color: C.green }]}>{t('know')}</Text>
+            <Text style={[s.answerText, { color: C.greenInk }]}>{t('know')}</Text>
           </Press>
         </View>
       ) : (
-        <View style={s.answerRow}>
+        <View style={s.answerRow} pointerEvents={hold ? 'none' : 'auto'} testID="fc-answers">
           <Press style={[s.answerBtn, { backgroundColor: C.card2 }]} onPress={() => doFlip(true)}>
             <Text style={s.answerText}>{t('showAnswer')}</Text>
           </Press>
@@ -566,13 +644,17 @@ function HubCard({ Icon, title, hint, locked, unlocking, badge = 0, progress, on
   const tint = flying ? fly : locked ? 0 : 1;
   return (
     <Animated.View style={{ transform: [{ translateX: shake }] }}>
-      <Pressable
+      {/* Press: стиснення на пружині (під «Менше руху» — легке притемнення),
+          а закрита картка відгукується лише хитанням */}
+      <Press
         onPress={locked ? onLocked : onPress}
-        accessibilityRole="button"
         accessibilityLabel={`${title}. ${hint}`}
         accessibilityState={{ disabled: !!locked }}
         testID={testID}
-        style={({ pressed }) => [{ transform: [{ scale: pressed && !locked && !reduced ? 0.98 : 1 }] }]}
+        scaleTo={0.98}
+        feedback={locked ? 'none' : 'scale'}
+        hitSlop={0}
+        minTarget={0}
       >
         <View style={[s.hubCard, SHADOW, unlocking && s.hubCardOpen]}>
           <View style={s.hubIconWrap}>
@@ -627,7 +709,7 @@ function HubCard({ Icon, title, hint, locked, unlocking, badge = 0, progress, on
             </FadeIn>
           ) : null}
         </View>
-      </Pressable>
+      </Press>
     </Animated.View>
   );
 }

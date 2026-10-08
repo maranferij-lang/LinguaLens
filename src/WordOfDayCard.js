@@ -19,20 +19,19 @@
 // працює, хоч між App і карткою стоїть екран «Навчання» (FlashcardsScreen),
 // який про слоти не знає.
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { ActivityIndicator, AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Animated, AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { speak } from './speech';
 import { IcCheck, IcChevron, IcLock, IcSpeaker } from './icons';
 import { Mascot } from './Mascot';
 import { FadeIn, Press } from './ui';
-import { layoutNext, useReducedMotion } from './motion';
+import { DUR, EASE, layoutNext, useAnnounce, useReducedMotion } from './motion';
 import { cefrFor } from './profile';
 import { todaySlots } from './wordOfDay';
+import { hasWord } from './scene/scenes';
 import { hourLabel } from './widgets/format';
 import { CAPS, F, R, ipaFont, type, useTheme } from './theme';
 import { quote } from './share/layout';
-
-const same = (a, b) => String(a || '').toLowerCase() === String(b || '').toLowerCase();
 
 // Спільне сховище слотів: пише useWodSlots (App), читає картка. null — одне
 // слово на день (без Pro, без кешу на сьогодні, App не змонтовано).
@@ -85,17 +84,39 @@ export function useWodSlots({ wod, hours, words, ui, focus = null, onSave, onKno
     if (day.n < 2 || !day.open.length) return null;
     return {
       n: day.n,
-      list: day.open.map((w) => ({ ...w, saved: (words || []).some((x) => same(x.word, w.word)) })),
+      // «Збережено» — те саме слово тією самою мовою: співзвучне слово іншої
+      // мови (la pasta і pasta) не робить кнопку «Зберегти» мертвою
+      list: day.open.map((w) => ({ ...w, saved: hasWord(words, { word: w.word, lang: wod?.lang }) })),
       next: day.next ? { hour: day.next.hour, label: hourLabel(day.next.hour, ui) } : null,
       focus,
       onSave: (w) => handlers.current.onSave?.(w),
       onKnow: (w) => handlers.current.onKnow?.(w),
     };
-  }, [day, words, ui, focus]);
+  }, [day, words, ui, focus, wod?.lang]);
   // картці — через спільне сховище; App зник — слотів немає
   useEffect(() => publish(value), [value]);
   useEffect(() => () => publish(null), []);
   return value;
+}
+
+// Стрілка розгортання: повертається разом із блоком, а не стрибає. Під «Менше
+// руху» перемикається одразу.
+function TurnChevron({ open, color, reduced }) {
+  const a = useRef(new Animated.Value(open ? 1 : 0)).current;
+  useEffect(() => {
+    if (reduced) {
+      a.setValue(open ? 1 : 0);
+      return undefined;
+    }
+    const anim = Animated.timing(a, { toValue: open ? 1 : 0, duration: DUR.panel, easing: EASE.out, useNativeDriver: true });
+    anim.start();
+    return () => anim.stop();
+  }, [open, reduced]);
+  return (
+    <Animated.View style={{ transform: [{ rotate: a.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '180deg'] }) }] }}>
+      <IcChevron color={color} size={18} />
+    </Animated.View>
+  );
 }
 
 // topic — назва теми ('' — загальні слова); onKnow — «Знаю» (App шукає нове
@@ -135,6 +156,9 @@ export default function WordOfDayCard({
   const [busy, setBusy] = useState(false);
   const pager = useRef(null);
   const lastLen = useRef(multi ? list.length : 0);
+  // «Знаю» запамʼятали, а нового слова немає (офлайн): liveRegion на iOS не
+  // озвучується, тож пояснення для VoiceOver оголошуємо самі
+  useAnnounce(knowNote);
 
   // Відкрився новий слот — показуємо його.
   useEffect(() => {
@@ -200,6 +224,7 @@ export default function WordOfDayCard({
   function pick(i) {
     if (i === index) return;
     Haptics.selectionAsync();
+    layoutNext(); // довга крапка переїжджає, а не стрибає
     setIndex(i);
   }
 
@@ -244,8 +269,8 @@ export default function WordOfDayCard({
             </View>
             <View style={{ flex: 1 }} />
             {canOpen ? (
-              <View style={[{ marginLeft: 8 }, open ? { transform: [{ rotate: '180deg' }] } : null]}>
-                <IcChevron color={C.faint} size={18} />
+              <View style={{ marginLeft: 8 }}>
+                <TurnChevron open={open} color={C.faint} reduced={reduce} />
               </View>
             ) : null}
           </View>
@@ -264,6 +289,7 @@ export default function WordOfDayCard({
                     const i = Math.round(e.nativeEvent.contentOffset.x / width);
                     if (i !== index && i >= 0 && i < list.length) {
                       Haptics.selectionAsync();
+                      layoutNext();
                       setIndex(i);
                     }
                   }}
@@ -328,7 +354,7 @@ export default function WordOfDayCard({
                   <IcSpeaker size={14} color={C.dim} />
                 </View>
                 <Text style={s.example}>{quote(cur.example, lang)}</Text>
-                <Text style={s.exampleTr}>{cur.example_translation}</Text>
+                {cur.example_translation ? <Text style={s.exampleTr}>{cur.example_translation}</Text> : null}
               </Press>
             </View>
           ) : null}
@@ -361,17 +387,21 @@ export default function WordOfDayCard({
               // «У словнику» з галочкою — найдовший підпис ряду: на SE він
               // ледве влазить у третину, тож тісніший відступ і, на iOS,
               // трохи менший кегль замість «У словни…»
-              <View style={[s.actionBtn, s.savedBtn, { backgroundColor: C.greenSoft }]}>
-                <IcCheck size={15} color={C.green} />
-                <Text
-                  style={[s.actionText, { color: C.green, flexShrink: 1 }]}
-                  numberOfLines={1}
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.8}
-                >
-                  {t('saved')}
-                </Text>
-              </View>
+              // З'являється за непрозорістю (без зсуву): збереження слова дня —
+              // щоденна дія, і колірний стрибок за один кадр її не підтверджував
+              <FadeIn dy={0} style={s.savedWrap}>
+                <View style={[s.actionBtn, s.savedBtn, { backgroundColor: C.greenSoft }]}>
+                  <IcCheck size={15} color={C.green} />
+                  <Text
+                    style={[s.actionText, { color: C.greenInk, flexShrink: 1 }]}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.8}
+                  >
+                    {t('saved')}
+                  </Text>
+                </View>
+              </FadeIn>
             ) : (
               <Press style={[s.actionBtn, s.saveBtn]} onPress={save}>
                 <Text style={[s.actionText, { color: C.onAccent }]} numberOfLines={1}>
@@ -475,6 +505,7 @@ const makeStyles = (C) =>
     },
     saveBtn: { backgroundColor: C.accent },
     savedBtn: { gap: 4, paddingHorizontal: 6 },
+    savedWrap: { flex: 1 },
     actionText: { color: C.text, fontSize: 15, fontFamily: F.bold },
     note: { color: C.dim, ...type(13, F.semi), marginTop: 10, textAlign: 'center' },
 

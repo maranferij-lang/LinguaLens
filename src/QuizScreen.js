@@ -1,13 +1,13 @@
 // Квіз: вгадай переклад із 4 варіантів, таймер 10с, серія правильних
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Animated, AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { speak } from './speech';
-import { IcClock, IcClose, IcFlame, IcSpeaker } from './icons';
+import { IcCheck, IcClock, IcClose, IcFlame, IcSpeaker } from './icons';
 import { MascotBob } from './Mascot';
 import { Bar, FadeIn, Glass, GradBtn, Press } from './ui';
 import { UNDER_TAB } from './Chrome';
-import { EASE, SPRING, isReducedMotion } from './motion';
+import { DUR, EASE, SPRING, announce, isReducedMotion, useScreenReader } from './motion';
 import { F, R, type, useTheme } from './theme';
 
 const Q_TIME = 10000;
@@ -15,6 +15,10 @@ const Q_COUNT = 10;
 // Пауза між відповіддю й наступним питанням. Час вийшов — так само: людина
 // встигає прочитати «Час вийшов» і побачити правильну відповідь.
 export const Q_PAUSE = 900;
+// Хибна відповідь: людині треба прочитати правильний переклад — це те, чого
+// квіз вчить, — тож пауза довша. Час вийшов лишається коротким: варіанти
+// людина вже роздивлялась усі десять секунд.
+export const Q_PAUSE_MISS = 1400;
 const OPTIONS = 4;
 // Квіз має сенс лише тоді, коли є з чого вибирати: правильна відповідь
 // і три РІЗНІ хибні. Інакше варіантів буде 2–3 і вгадати можна навмання.
@@ -146,6 +150,9 @@ export default function QuizScreen({ words, t, onExit, onQuizDone, onMiss }) {
   const [score, setScore] = useState(0);
   const [streak, setStreak] = useState(0);
   const [finished, setFinished] = useState(false);
+  // З VoiceOver відліку немає: десяти секунд не вистачає, щоб почути чотири
+  // варіанти й двічі торкнутись (WCAG 2.2.1), а пауза після відповіді лишається.
+  const reader = useScreenReader();
 
   const timer = useRef(new Animated.Value(1)).current;
   const timeout = useRef(null);
@@ -158,22 +165,63 @@ export default function QuizScreen({ words, t, onExit, onQuizDone, onMiss }) {
 
   const q = questions[idx];
 
-  useEffect(() => {
-    if (finished) return;
+  // Таймер викликає найсвіжіший pick: відлік можуть перезапустити з іншого
+  // рендеру (застосунок повернувся на передній план), і застаріле замикання
+  // знало б не той стан.
+  const pickRef = useRef(null);
+  const readerRef = useRef(false);
+  readerRef.current = reader;
+
+  // Відлік питання: повна смужка й 10 с. Викликається на початку питання, коли
+  // застосунок повертається на передній план і коли вимкнули VoiceOver.
+  // Таймер — єдиний випадок, де linear доречний: він показує рівний плин часу.
+  // Масштабуємо по X замість width, щоб не перераховувати лейаут щокадру.
+  function runClock() {
+    clearTimeout(timeout.current);
+    timer.stopAnimation();
     timer.setValue(1);
-    // Таймер — єдиний випадок, де linear доречний: він показує рівний плин часу.
-    // Масштабуємо по X замість width, щоб не перераховувати лейаут щокадру.
+    if (readerRef.current) return;
     Animated.timing(timer, {
       toValue: 0,
       duration: Q_TIME,
       easing: EASE.linear,
       useNativeDriver: true,
     }).start();
+    timeout.current = setTimeout(() => pickRef.current?.(-1), Q_TIME);
+  }
+
+  useEffect(() => {
+    if (finished || !q) return;
     answered.current = false;
-    clearTimeout(timeout.current);
-    timeout.current = setTimeout(() => pick(-1), Q_TIME);
+    runClock();
     return () => clearTimeout(timeout.current);
   }, [idx, finished]);
+
+  // VoiceOver увімкнули чи вимкнули посеред питання
+  const prevReader = useRef(reader);
+  useEffect(() => {
+    if (prevReader.current === reader) return;
+    prevReader.current = reader;
+    if (!finished && q && !answered.current) runClock();
+  }, [reader]);
+
+  // Дзвінок, Face ID, перемикання застосунків, шторка: JS-таймери iOS на фоні
+  // не йдуть, а прострочені спрацьовують при поверненні — питання, якого
+  // людина не бачила, рахувалося б «час вийшов», а слово з 4-ї коробки
+  // скидалось би в нульову. Тож на фоні відлік стоїть, а при поверненні
+  // питання починається з повних 10 с (чесніше, ніж лишок).
+  useEffect(() => {
+    if (finished) return undefined;
+    const sub = AppState.addEventListener('change', (state) => {
+      if (answered.current) return;
+      if (state === 'active') runClock();
+      else {
+        clearTimeout(timeout.current);
+        timer.stopAnimation();
+      }
+    });
+    return () => sub?.remove?.();
+  }, [finished]);
 
   useEffect(
     () => () => {
@@ -183,13 +231,21 @@ export default function QuizScreen({ words, t, onExit, onQuizDone, onMiss }) {
     []
   );
 
+  // Питань немає (слова зникли після синхронізації) — повертаємось у хаб
+  useEffect(() => {
+    if (!q && !finished) onExit?.();
+  }, [q, finished]);
+
   function pick(i) {
-    if (picked !== null || answered.current) return;
+    if (!q || picked !== null || answered.current) return;
     answered.current = true;
     clearTimeout(timeout.current);
     timer.stopAnimation();
     setPicked(i);
     const correct = i === q.answer;
+    // Колір і галочка — для очей; VoiceOver чує те саме словами
+    const right = q.options[q.answer];
+    announce(correct ? t('quizCorrectA11y') : t(i === -1 ? 'quizTimeUpA11y' : 'quizWrongA11y', { a: right }));
     if (correct) {
       setScore((v) => v + 1);
       setStreak((v) => v + 1);
@@ -210,11 +266,18 @@ export default function QuizScreen({ words, t, onExit, onQuizDone, onMiss }) {
         setFinished(true);
         if (onQuizDone) onQuizDone(finalScore === questions.length, finalScore);
       } else setIdx(idx + 1);
-    }, Q_PAUSE);
+    }, correct || i === -1 ? Q_PAUSE : Q_PAUSE_MISS);
   }
+  pickRef.current = pick;
 
   function restart() {
-    setQuestions(buildQuestions(words));
+    // слова могли змінитись між раундами (синхронізація): без питань грати нема
+    const next = buildQuestions(words);
+    if (!next.length) {
+      onExit?.();
+      return;
+    }
+    setQuestions(next);
     setIdx(0);
     setScore(0);
     setStreak(0);
@@ -240,6 +303,8 @@ export default function QuizScreen({ words, t, onExit, onQuizDone, onMiss }) {
     );
   }
 
+  if (!q) return null;
+
   return (
     // ScrollView — запас на великий шрифт (Dynamic Type) і довгі переклади:
     // на звичайному екрані все влазить і нічого не прокручується.
@@ -253,7 +318,8 @@ export default function QuizScreen({ words, t, onExit, onQuizDone, onMiss }) {
       <View style={s.top}>
         <SessionClose onPress={onExit} label={t('close')} />
         <View style={{ flex: 1 }}>
-          <Bar progress={idx / questions.length} color={C.accent} bg={C.card2} height={6} />
+          {/* «3 / 10» стоїть поруч текстом: смужку VoiceOver не читає вдруге */}
+          <Bar progress={idx / questions.length} color={C.accent} bg={C.card2} height={6} decorative />
         </View>
         <Text style={s.meta}>{t('quizQ', { i: idx + 1, n: questions.length })}</Text>
       </View>
@@ -267,61 +333,93 @@ export default function QuizScreen({ words, t, onExit, onQuizDone, onMiss }) {
         ) : null}
       </View>
 
-      <Glass style={s.qCard}>
-        <View style={s.qRow}>
-          <Text style={s.qWord}>{q.word.word}</Text>
-          <Press style={s.speakBtn} onPress={() => speak(q.word.word, q.word.lang)} accessibilityLabel={t('listen')}>
-            <IcSpeaker size={18} color={C.accent} />
-          </Press>
-        </View>
-        {q.word.ipa ? <Text style={s.qIpa}>{q.word.ipa}</Text> : null}
-      </Glass>
-
-      {/* Таймер — не прогрес: тонка бурштинова смужка під питанням, що
-          тане до нуля. Час вийшов — так і кажемо, перш ніж іти далі. */}
-      <View style={s.timerSlot}>
-        {picked === -1 ? (
-          <View style={s.timeUp}>
-            <IcClock size={15} color={C.warm} />
-            <Text style={s.timeUpText} accessibilityLiveRegion="polite">
-              {t('quizTimeUp')}
-            </Text>
-          </View>
-        ) : (
-          <View style={s.timerTrack} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-            <Animated.View style={[s.timerFill, { transform: [{ scaleX: timer }], transformOrigin: 'left' }]} />
-          </View>
-        )}
-      </View>
-
-      <View style={{ gap: 10, marginTop: 4 }}>
-        {q.options.map((opt, i) => {
-          const isCorrect = i === q.answer;
-          const show = picked !== null;
-          return (
-            <Press
-              key={i}
-              style={[
-                s.option,
-                show && isCorrect && { backgroundColor: C.greenSoft },
-                show && picked === i && !isCorrect && { backgroundColor: C.redSoft },
-              ]}
-              onPress={() => pick(i)}
-            >
-              <Text
-                style={[
-                  s.optionText,
-                  show && isCorrect && { color: C.green, fontFamily: F.bold },
-                  show && picked === i && !isCorrect && { color: C.red },
-                ]}
-              >
-                {opt}
-              </Text>
+      {/* key — нове питання мʼяко проявляється, а не підмінюється різким
+          стрибком (без руху під «Менше руху»: лише непрозорість) */}
+      <FadeIn key={idx} dy={8}>
+        <Glass style={s.qCard}>
+          <View style={s.qRow}>
+            <Text style={s.qWord}>{q.word.word}</Text>
+            <Press style={s.speakBtn} onPress={() => speak(q.word.word, q.word.lang)} accessibilityLabel={t('listen')}>
+              <IcSpeaker size={18} color={C.accent} />
             </Press>
-          );
-        })}
-      </View>
+          </View>
+          {q.word.ipa ? <Text style={s.qIpa}>{q.word.ipa}</Text> : null}
+        </Glass>
+
+        {/* Таймер — не прогрес: тонка бурштинова смужка під питанням, що
+            тане до нуля. Час вийшов — так і кажемо, перш ніж іти далі. З
+            VoiceOver відліку немає, тож і смужки теж. */}
+        <View style={s.timerSlot}>
+          {picked === -1 ? (
+            <View style={s.timeUp}>
+              <IcClock size={15} color={C.warm} />
+              <Text style={s.timeUpText} accessibilityLiveRegion="polite">
+                {t('quizTimeUp')}
+              </Text>
+            </View>
+          ) : reader ? null : (
+            <View style={s.timerTrack} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+              <Animated.View style={[s.timerFill, { transform: [{ scaleX: timer }], transformOrigin: 'left' }]} />
+            </View>
+          )}
+        </View>
+
+        <View style={{ gap: 10, marginTop: 4 }}>
+          {q.options.map((opt, i) => {
+            const isCorrect = i === q.answer;
+            const show = picked !== null;
+            const wrongPick = show && picked === i && !isCorrect;
+            return (
+              <Press
+                key={i}
+                style={[
+                  s.option,
+                  show && isCorrect && { backgroundColor: C.greenSoft },
+                  wrongPick && { backgroundColor: C.redSoft },
+                ]}
+                onPress={() => pick(i)}
+                accessibilityState={{ selected: picked === i }}
+              >
+                <Text
+                  style={[
+                    s.optionText,
+                    show && isCorrect && { color: C.greenInk, fontFamily: F.bold },
+                    wrongPick && { color: C.redInk },
+                  ]}
+                >
+                  {opt}
+                </Text>
+                {/* Галочка й хрестик: правильне й хибне видно не лише за кольором */}
+                {show && isCorrect ? <OptionMark ok color={C.greenInk} /> : null}
+                {wrongPick ? <OptionMark color={C.redInk} /> : null}
+              </Press>
+            );
+          })}
+        </View>
+      </FadeIn>
     </ScrollView>
+  );
+}
+
+// Позначка відповіді праворуч у варіанті. Абсолютна, тож рядок не стрибає;
+// з'являється за непрозорістю (без руху, тож і «Менше руху» її не чіпає).
+// VoiceOver її ховаємо: те саме він чує з оголошення відповіді.
+function OptionMark({ ok = false, color }) {
+  const a = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(a, { toValue: 1, duration: DUR.micro, easing: EASE.out, useNativeDriver: true }).start();
+    return () => a.stopAnimation();
+  }, []);
+  const Icon = ok ? IcCheck : IcClose;
+  return (
+    <Animated.View
+      pointerEvents="none"
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      style={{ position: 'absolute', right: 10, top: 0, bottom: 0, justifyContent: 'center', opacity: a }}
+    >
+      <Icon size={18} color={color} />
+    </Animated.View>
   );
 }
 
@@ -381,5 +479,7 @@ const makeStyles = (C) =>
     },
     qIpa: { color: C.dim, ...type(15, F.ipa), fontWeight: '500', marginTop: 6 },
     option: { backgroundColor: C.card, borderRadius: R.md, paddingVertical: 15, paddingHorizontal: 16 },
-    optionText: { color: C.text, ...type(16, F.semi), textAlign: 'center' },
+    // боковий відступ — місце під позначку відповіді, щоб довгий переклад під
+    // неї не заходив і не перезавертався, коли вона з'являється
+    optionText: { color: C.text, ...type(16, F.semi), textAlign: 'center', paddingHorizontal: 20 },
   });

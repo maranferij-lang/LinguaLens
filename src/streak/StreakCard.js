@@ -76,7 +76,8 @@ export default function StreakCard({ activeDays, best = 0, now = new Date(), wee
             <Text style={{ color: C.text, ...type(13, F.bold) }}>{t('streakProgressOf', { n, m: next.m })}</Text>
             <Text style={{ color: C.dim, ...type(13, F.semi) }}>{milestoneName(next.m, t)}</Text>
           </View>
-          <Bar progress={next.progress} color={C.flame} bg={C.card2} height={7} />
+          {/* до віхи: VoiceOver читає «Тиждень, 71%», а «5 з 7» стоїть текстом поруч */}
+          <Bar progress={next.progress} color={C.flame} bg={C.card2} height={7} accessibilityLabel={milestoneName(next.m, t)} />
         </View>
       ) : null}
 
