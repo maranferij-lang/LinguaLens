@@ -15,6 +15,7 @@ import StreakChip, { atRisk } from '../src/streak/StreakChip';
 import RiskBanner, { msToMidnight } from '../src/streak/RiskBanner';
 import { flameForm, streakInfo } from '../src/streak';
 import { formatLeft } from '../src/locale';
+import { Press } from '../src/ui';
 import { makeT } from '../src/i18n';
 import { localDayKey } from '../src/storage';
 import { ACHIEVEMENTS } from '../src/achievements';
@@ -168,6 +169,43 @@ describe('the chip on Learn', () => {
     expect(ids(tree.root, 'streak-chip-dot')).toHaveLength(0);
     const chip = tree.root.findAll((n) => n.props.testID === 'streak-chip' && typeof n.props.onPress === 'function')[0];
     expect(chip.props.accessibilityLabel).toBe('Streak: 4 days. Not yet today: one word');
+    await act(async () => tree.unmount());
+  });
+
+  test('the chip answers a touch like the other chips (shared Press, dim), without a haptic', async () => {
+    const haptics = require('expo-haptics');
+    const selection = jest.spyOn(haptics, 'selectionAsync');
+    const impact = jest.spyOn(haptics, 'impactAsync');
+    const notify = jest.spyOn(haptics, 'notificationAsync');
+    const onPress = jest.fn();
+    const tree = await render(<StreakChip info={{ n: 4, doneToday: false, phase: 'day' }} onPress={onPress} t={t} />);
+    const press = tree.root.findByType(Press);
+    expect(press.props).toMatchObject({ feedback: 'dim', testID: 'streak-chip', accessibilityRole: 'button' });
+    // зона дотику не змінилась проти сирого Pressable: 34 + 5 + 5 = 44 pt по висоті
+    expect(press.props.hitSlop).toEqual({ top: 5, bottom: 5 });
+    expect(press.props.disabled).toBeUndefined();
+    expect(press.props.accessibilityState).toBeUndefined();
+    const host = tree.root.findAll((n) => n.props.testID === 'streak-chip' && typeof n.props.onPressIn === 'function')[0];
+    await act(async () => {
+      host.props.onPressIn({ nativeEvent: {} });
+      host.props.onPressOut({ nativeEvent: {} });
+      host.props.onPress();
+    });
+    expect(onPress).toHaveBeenCalledTimes(1);
+    expect(selection).not.toHaveBeenCalled();
+    expect(impact).not.toHaveBeenCalled();
+    expect(notify).not.toHaveBeenCalled();
+    await act(async () => tree.unmount());
+  });
+
+  test('a chip with no destination is not dimmed to 0.45 like a disabled button, but VoiceOver hears it as unavailable', async () => {
+    const tree = await render(<StreakChip info={{ n: 4, doneToday: false, phase: 'day' }} t={t} />);
+    const press = tree.root.findByType(Press);
+    expect(press.props.feedback).toBe('none');
+    expect(press.props.disabled).toBeUndefined();
+    expect(press.props.accessibilityState).toEqual({ disabled: true });
+    const flat = Object.assign({}, ...[].concat(press.props.style).flat(Infinity).filter(Boolean));
+    expect(flat.opacity).toBeUndefined();
     await act(async () => tree.unmount());
   });
 

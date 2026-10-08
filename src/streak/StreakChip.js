@@ -3,10 +3,14 @@
 // вогник блідий. Ввечері під загрозою (з 18:00, серія є, сьогодні ще нічого)
 // — пунктирна рамка кольору вогника й червона крапка. Тап — Профіль, «Прогрес»,
 // де картка серії (аркуш серії — v1.3.1).
-import { Pressable, Text, View } from 'react-native';
+//
+// Відгук на дотик — спільний Press з feedback="dim" (рецепт чипа): чип є
+// навігацією, і мертвим він не має виглядати. Без haptic: це не результат дії.
+import { Text, View } from 'react-native';
 import Flame from './Flame';
 import { streakMessage } from '../streak';
 import { F, R, useTheme } from '../theme';
+import { Press } from '../ui';
 
 const H = 34;
 
@@ -21,9 +25,12 @@ export default function StreakChip({ info, onPress, t, style }) {
   const risk = atRisk(info);
   const label = t('streakChipA11y', { n, s: streakMessage(info, t, { short: true }) });
   return (
-    <Pressable
+    <Press
       onPress={onPress}
-      disabled={!onPress}
+      // Без onPress чип не натискається, але й не блякне до 0.45, як disabled
+      // у Press: лишаємо VoiceOver стан «недоступно», а відгуку на дотик не даємо.
+      feedback={onPress ? 'dim' : 'none'}
+      accessibilityState={onPress ? undefined : { disabled: true }}
       hitSlop={{ top: 5, bottom: 5 }}
       accessibilityRole="button"
       accessibilityLabel={label}
@@ -61,6 +68,6 @@ export default function StreakChip({ info, onPress, t, style }) {
           style={{ position: 'absolute', top: -2, right: -2, width: 10, height: 10, borderRadius: 5, backgroundColor: C.red, borderWidth: 2, borderColor: C.bg }}
         />
       ) : null}
-    </Pressable>
+    </Press>
   );
 }

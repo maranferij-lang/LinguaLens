@@ -25,7 +25,7 @@ import { speak } from './speech';
 import { IcCheck, IcChevron, IcLock, IcSpeaker } from './icons';
 import { Mascot } from './Mascot';
 import { FadeIn, Press } from './ui';
-import { DUR, EASE, layoutNext, useAnnounce, useReducedMotion } from './motion';
+import { DUR, EASE, announce, layoutNext, useAnnounce, useReducedMotion } from './motion';
 import { cefrFor } from './profile';
 import { todaySlots } from './wordOfDay';
 import { hasWord } from './scene/scenes';
@@ -219,6 +219,11 @@ export default function WordOfDayCard({
   function save() {
     if (multi) slots.onSave(cur);
     else onSave?.();
+    // «Зберегти» зникає з-під фокуса VoiceOver, а «У словнику» — звичайний
+    // View: без оголошення людина не дізнається, що слово збережено. Лише тут,
+    // у дії людини, а не в ефекті на curSaved: той спрацював би й коли гортаєш
+    // до вже збереженого слота.
+    announce(t('saved'));
   }
 
   function pick(i) {

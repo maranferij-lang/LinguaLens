@@ -209,6 +209,60 @@ describe('the card', () => {
     spy.mockRestore();
   });
 
+  // Кнопка «Зберегти»: найглибший вузол з onPress, у якому є її підпис
+  const saveBtn = (tree) =>
+    tree.root
+      .findAll(
+        (n) =>
+          typeof n.props.onPress === 'function' &&
+          n.findAll((x) => x.type === 'Text' && [].concat(x.props.children).join('') === t('saveWord')).length > 0
+      )
+      .at(-1);
+
+  test('saving is spoken for VoiceOver: the focused “Save” is replaced by a plain “Saved”', async () => {
+    const spy = jest.spyOn(AccessibilityInfo, 'announceForAccessibility').mockImplementation(() => {});
+    spy.mockClear();
+    const onSave = jest.fn();
+    const tree = await render({ onSave });
+    mounted.push(tree);
+    // сама поява картки нічого не оголошує
+    expect(spy).not.toHaveBeenCalled();
+    await act(async () => saveBtn(tree).props.onPress());
+    expect(onSave).toHaveBeenCalledTimes(1);
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy).toHaveBeenCalledWith(t('saved'));
+    spy.mockRestore();
+  });
+
+  test('a card that is already saved, or paging to a saved slot, stays silent: only the tap speaks', async () => {
+    const spy = jest.spyOn(AccessibilityInfo, 'announceForAccessibility').mockImplementation(() => {});
+    spy.mockClear();
+    const tree = await render({ saved: true });
+    mounted.push(tree);
+    await act(async () => tree.update(<WordOfDayCard word={{ word: 'la manzana', translation: 'apple' }} lang="es" saved={false} onSave={() => {}} onKnow={() => {}} t={t} />));
+    await act(async () => tree.update(<WordOfDayCard word={{ word: 'la manzana', translation: 'apple' }} lang="es" saved onSave={() => {}} onKnow={() => {}} t={t} />));
+    // зберегли не тут (скажімо, зі слота Pro) — картка лише показує «Збережено»
+    expect(spy).not.toHaveBeenCalled();
+
+    const W = (slot, word, extra = {}) => ({ date: '2026-10-08', slot, hour: [10, 16, 21][slot], word, ipa: '', translation: word + '-tr', example: '', example_translation: '', ...extra });
+    const onSlotSave = jest.fn();
+    const pro = await render({
+      slots: { n: 3, list: [W(0, 'harbour', { saved: true }), W(1, 'anchor')], next: { hour: 21, label: '21:00' }, focus: null, onSave: onSlotSave, onKnow: jest.fn(async () => {}) },
+    });
+    mounted.push(pro);
+    const dot = (i) => pro.root.findAll((n) => n.props.accessibilityLabel === t('wodSlotOf', { i, n: 3 }) && n.props.onPress)[0];
+    // гортаємо до вже збереженого слота: «Збережено» без оголошення
+    await act(async () => dot(1).props.onPress());
+    expect(spy).not.toHaveBeenCalled();
+    // назад до слова, що ще не збережене: тап за ним і говорить
+    await act(async () => dot(2).props.onPress());
+    await act(async () => saveBtn(pro).props.onPress());
+    expect(onSlotSave).toHaveBeenCalledWith(expect.objectContaining({ slot: 1, word: 'anchor' }));
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy).toHaveBeenCalledWith(t('saved'));
+    spy.mockRestore();
+  });
+
   test('“Saved” fades in instead of snapping, and reads in the ink colour of the theme', async () => {
     const tree = await render({ saved: false });
     mounted.push(tree);
