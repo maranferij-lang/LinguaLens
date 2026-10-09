@@ -1,5 +1,5 @@
-// Іконки для пейволу — власні вектори в стилі решти набору.
-// Сітка 24, штрих 1.8, круглі кінці. Жодних готових картинок ззовні.
+// Icons for the paywall: our own vectors in the style of the rest of the set.
+// A 24 grid, 1.8 stroke, round caps. No ready-made pictures from outside.
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 
 const S = (c, w = 1.8) => ({
@@ -12,7 +12,7 @@ const S = (c, w = 1.8) => ({
 
 const box = (n) => ({ width: n, height: n, viewBox: '0 0 24 24' });
 
-// Нескінченні скани — видошукач із безкінечністю всередині.
+// Unlimited scans: a viewfinder with an infinity sign inside.
 const PScan = ({ size, color }) => (
   <Svg {...box(size)}>
     <Path d="M3 8.5V6a3 3 0 0 1 3-3h2.5M15.5 3H18a3 3 0 0 1 3 3v2.5M21 15.5V18a3 3 0 0 1-3 3h-2.5M8.5 21H6a3 3 0 0 1-3-3v-2.5" {...S(color)} />
@@ -21,7 +21,7 @@ const PScan = ({ size, color }) => (
   </Svg>
 );
 
-// Словник без стелі — книга з висхідною стрілкою.
+// A dictionary without a ceiling: a book with an upward arrow.
 const PBook = ({ size, color }) => (
   <Svg {...box(size)}>
     <Path d="M4 5.2A1.2 1.2 0 0 1 5.2 4H13a2 2 0 0 1 2 2v10H6a2 2 0 0 0-2 2z" {...S(color)} />
@@ -30,7 +30,7 @@ const PBook = ({ size, color }) => (
   </Svg>
 );
 
-// Усі мови — глобус із меридіанами.
+// All languages: a globe with meridians.
 const PGlobe = ({ size, color }) => (
   <Svg {...box(size)}>
     <Circle cx="12" cy="12" r="8.4" {...S(color)} />
@@ -38,7 +38,7 @@ const PGlobe = ({ size, color }) => (
   </Svg>
 );
 
-// Наліпки — предмет у колі з обводкою.
+// Stickers: an object in a circle with an outline.
 const PSticker = ({ size, color }) => (
   <Svg {...box(size)}>
     <Circle cx="12" cy="12" r="8.4" {...S(color)} />
@@ -47,7 +47,7 @@ const PSticker = ({ size, color }) => (
   </Svg>
 );
 
-// Експорт — аркуш зі стрілкою назовні.
+// Export: a sheet with an arrow pointing out.
 const PExport = ({ size, color }) => (
   <Svg {...box(size)}>
     <Path d="M14 3.5H7.5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V12" {...S(color)} />
@@ -55,14 +55,14 @@ const PExport = ({ size, color }) => (
   </Svg>
 );
 
-// Підтримати розробку — серце.
+// Support the development: a heart.
 const PHeart = ({ size, color }) => (
   <Svg {...box(size)}>
     <Path d="M12 20.4S3.6 15.6 3.6 9.7A4.3 4.3 0 0 1 12 8a4.3 4.3 0 0 1 8.4 1.7c0 5.9-8.4 10.7-8.4 10.7z" {...S(color)} />
   </Svg>
 );
 
-// Корона для заголовка Pro.
+// A crown for the Pro title.
 export const PCrown = ({ size = 28, color }) => (
   <Svg width={size} height={size} viewBox="0 0 28 28">
     <Path d="M5 19 3.6 8.4l5.4 3.8L14 6l5 6.2 5.4-3.8L23 19z" {...S(color, 2)} />

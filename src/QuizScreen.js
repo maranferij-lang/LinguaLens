@@ -1,4 +1,4 @@
-// Квіз: вгадай переклад із 4 варіантів, таймер 10с, серія правильних
+// Quiz: guess the translation from 4 options, 10 s timer, a streak of correct answers
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
@@ -50,8 +50,8 @@ export default function QuizScreen({ words, t, onExit, onQuizDone }) {
   useEffect(() => {
     if (finished) return;
     timer.setValue(1);
-    // Таймер — єдиний випадок, де linear доречний: він показує рівний плин часу.
-    // Масштабуємо по X замість width, щоб не перераховувати лейаут щокадру.
+    // The timer is the only case where linear fits: it shows an even flow of time.
+    // We scale along X instead of width so as not to recalculate the layout every frame.
     Animated.timing(timer, {
       toValue: 0,
       duration: Q_TIME,

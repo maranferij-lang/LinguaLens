@@ -1,11 +1,11 @@
-// Авторизація: реєстрація, вхід, токени сесії.
-// Без зовнішніх залежностей — тільки вбудований crypto.
-//   пароль  -> scrypt (сіль + 64 байти)
-//   сесія   -> власний підписаний токен:  base64url(payload).hmacSHA256
+// Authorization: sign-up, sign-in, session tokens.
+// No external dependencies: only the built-in crypto.
+//   password -> scrypt (salt + 64 bytes)
+//   session  -> our own signed token:  base64url(payload).hmacSHA256
 const crypto = require('crypto');
 const store = require('./store');
 
-// Секрет для підпису токенів. У проді ОБОВ'ЯЗКОВО задати AUTH_SECRET.
+// The secret for signing tokens. In production AUTH_SECRET MUST be set.
 const SECRET =
   process.env.AUTH_SECRET ||
   (() => {
@@ -15,7 +15,7 @@ const SECRET =
 
 const TOKEN_DAYS = 180;
 
-// ---------- паролі ----------
+// ---------- passwords ----------
 function hashPassword(password) {
   const salt = crypto.randomBytes(16).toString('hex');
   const hash = crypto.scryptSync(password, salt, 64).toString('hex');
@@ -31,7 +31,7 @@ function verifyPassword(password, stored) {
   }
 }
 
-// ---------- токени ----------
+// ---------- tokens ----------
 function sign(payload) {
   const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
   const sig = crypto.createHmac('sha256', SECRET).update(body).digest('base64url');
@@ -59,7 +59,7 @@ function makeToken(userId) {
   return sign({ uid: userId, exp: Date.now() + TOKEN_DAYS * 86400000 });
 }
 
-// ---------- користувачі ----------
+// ---------- users ----------
 const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 function publicUser(u) {
@@ -78,9 +78,9 @@ async function register({ email, password, name }) {
   name = String(name || '').trim().slice(0, 40);
 
   if (!emailRe.test(email)) return { error: 'INVALID_EMAIL', status: 400 };
-  // Вісім символів — мінімум, за яким перебір перестає бути тривіальним.
-  // Шість давало ~2 млрд варіантів; scrypt їх сповільнює, але не робить
-  // неможливими на витоку бази.
+  // Eight characters is the minimum at which brute force stops being trivial.
+  // Six gave ~2 billion variants; scrypt slows them down, but does not make them
+  // impossible after a database leak.
   if (typeof password !== 'string' || password.length < 8) {
     return { error: 'WEAK_PASSWORD', status: 400 };
   }
@@ -96,7 +96,7 @@ async function register({ email, password, name }) {
     name: name || email.split('@')[0],
     avatar: 'wave',
     pass: hashPassword(password),
-    // seed визначає УНІКАЛЬНИЙ для кожного юзера порядок слів дня
+    // the seed defines a word-of-the-day order that is UNIQUE for each user
     seed: crypto.randomBytes(8).toString('hex'),
     createdAt: Date.now(),
   };
@@ -113,7 +113,7 @@ async function login({ email, password }) {
   return { user: publicUser(user), token: makeToken(user.id) };
 }
 
-// Витягує користувача з заголовка Authorization: Bearer <token>
+// Extracts the user from the Authorization: Bearer <token> header
 async function userFromRequest(req) {
   const h = req.headers.authorization || '';
   const token = h.startsWith('Bearer ') ? h.slice(7) : '';

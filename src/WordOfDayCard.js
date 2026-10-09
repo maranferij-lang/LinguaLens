@@ -1,4 +1,4 @@
-// Картка «Слово дня» — розгортається дотиком, озвучується, зберігається у словник.
+// "Word of the Day" card: expands on tap, is spoken aloud, is saved to the dictionary.
 import { useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
@@ -14,7 +14,7 @@ export default function WordOfDayCard({ word, lang, saved, onSave, onSignIn, t }
   const s = useMemo(() => makeStyles(C), [C]);
   const [open, setOpen] = useState(false);
 
-  // гість ще не має акаунта — показуємо запрошення, а не порожнечу
+  // the guest has no account yet: we show an invitation, not emptiness
   if (!word) {
     if (!onSignIn) return null;
     return (

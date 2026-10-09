@@ -1,10 +1,10 @@
-// Безпечна зона.
+// Safe area.
 //
-// `react-native-safe-area-context` дає точні відступи під вирізи й смужку
-// home indicator, але це окремий пакет. Якщо його ще не встановлено —
-// не валимо застосунок, а падаємо на ручні відступи для iPhone без кнопки.
-// Той самий підхід, що з expo-blur / notifications / secure-store: нова
-// залежність ніколи не має ламати запуск.
+// `react-native-safe-area-context` gives exact insets for notches and the home indicator
+// strip, but it is a separate package. If it is not installed yet,
+// we do not crash the app but fall back to manual insets for iPhones without a home button.
+// The same approach as with expo-blur / notifications / secure-store: a new
+// dependency must never break the launch.
 import { Platform, View } from 'react-native';
 
 let lib = null;
@@ -15,8 +15,8 @@ try {
 
 export const SAFE_AREA_NATIVE = !!lib;
 
-// Резервні відступи: типові значення для айфонів із вирізом.
-// Точності бракує, але контент гарантовано не залізе під чубчик.
+// Fallback insets: typical values for iPhones with a notch.
+// Not precise, but the content is guaranteed not to creep under the notch.
 const FALLBACK = Platform.OS === 'ios' ? { top: 47, bottom: 34 } : { top: 24, bottom: 0 };
 
 export const SafeAreaProvider = lib

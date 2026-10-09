@@ -1,181 +1,181 @@
-# Реліз LinguaLens в App Store
+# Releasing LinguaLens on the App Store
 
-Усе робиться з Windows — Mac не потрібен. EAS збирає на своїх macOS-машинах
-у хмарі й сам завантажує білд в App Store Connect.
+Everything is done from Windows, no Mac needed. EAS builds on its own macOS machines
+in the cloud and uploads the build to App Store Connect by itself.
 
 ---
 
-## Що коштує грошей
+## What costs money
 
-| | Ціна | Навіщо |
+| | Price | Why |
 |---|---|---|
-| **Apple Developer Program** | **$99/рік** | Без нього в App Store не потрапити взагалі. Це єдина обов'язкова витрата. |
-| EAS Build | безкоштовний тариф є | На free-плані черга довша (збірка може чекати 20–40 хв). Платний старту з $19/міс, якщо набридне чекати. |
-| Google Cloud Run | ~$0 | Безкоштовного ліміту (2 млн запитів/міс) вистачить надовго. |
-| Gemini API | ~$0 | Безкоштовний ключ дає ~250 сканів/день. |
+| **Apple Developer Program** | **$99/year** | You cannot get into the App Store without it. This is the only mandatory expense. |
+| EAS Build | a free tier exists | On the free plan the queue is longer (a build may wait 20-40 min). The paid plan starts at $19/month if waiting gets annoying. |
+| Google Cloud Run | ~$0 | The free limit (2 million requests/month) will last a long time. |
+| Gemini API | ~$0 | A free key gives ~250 scans/day. |
 
 ---
 
-## Крок 0. Два блокери, які треба закрити першими
+## Step 0. Two blockers to clear first
 
-### 0.1. Сервер має бути в хмарі, не в твоїй Wi-Fi
+### 0.1. The server must be in the cloud, not on your Wi-Fi
 
-Зараз у `src/api.js`:
+Currently in `src/api.js`:
 
 ```js
 export const SERVER_URL = 'http://192.168.0.102:3000';
 ```
 
-Це адреса твого комп'ютера. У користувача з Америки апка просто не достукається.
-Спочатку виконай **`DEPLOY.md`** (деплой у Google Cloud Run), отримай URL виду
-`https://lingualens-server-xxxxx-lm.a.run.app` і встав його сюди.
+This is your computer's address. For a user in America the app simply cannot reach it.
+First follow **`DEPLOY.md`** (deploying to Google Cloud Run), get a URL like
+`https://lingualens-server-xxxxx-lm.a.run.app` and paste it here.
 
-> iOS блокує звичайний `http://` (App Transport Security). Cloud Run віддає
-> `https://` з коробки, тож проблеми не буде — але локальну адресу лишати не можна.
+> iOS blocks plain `http://` (App Transport Security). Cloud Run serves
+> `https://` out of the box, so this will not be a problem, but the local address cannot be left in.
 
-### 0.2. Політика приватності — обов'язкова
+### 0.2. A privacy policy is required
 
-Оскільки апка має **акаунти** (email + пароль), Apple вимагає URL політики
-приватності. Без нього запис у App Store Connect не збережеться.
+Since the app has **accounts** (email + password), Apple requires a privacy policy
+URL. Without it, the App Store Connect record will not save.
 
-Найшвидший спосіб: створити сторінку на GitHub Pages або Notion і дати публічне
-посилання. Що має бути в тексті:
+The fastest way: create a page on GitHub Pages or Notion and give a public
+link. What the text should contain:
 
-- які дані збираються: email, ім'я, збережені слова, статистика навчання;
-- навіщо: щоб синхронізувати прогрес між пристроями;
-- що фото з камери **не зберігаються** — кадр іде в AI на розпізнавання і одразу
-  зникає (це правда, сервер його не пише на диск);
-- третя сторона: Google Gemini обробляє зображення для розпізнавання;
-- як видалити акаунт (Apple вимагає цю можливість в апці — див. «Що ще треба
-  доробити» нижче).
+- what data is collected: email, name, saved words, learning statistics;
+- why: to sync progress between devices;
+- that camera photos are **not stored**: the frame goes to the AI for recognition and
+  disappears immediately (this is true, the server does not write it to disk);
+- the third party: Google Gemini processes the image for recognition;
+- how to delete an account (Apple requires this ability in the app; see "What still
+  needs to be done before submission" below).
 
 ---
 
-## Крок 1. Обліковий запис Apple
+## Step 1. Apple account
 
-1. Зареєструйся: https://developer.apple.com/programs/enroll/ — $99, оплата карткою.
-   Перевірка особи займає від кількох годин до 2 діб.
-2. Після схвалення візьми **Team ID**: https://developer.apple.com/account →
-   Membership details. Виглядає як `A1B2C3D4E5`.
+1. Sign up: https://developer.apple.com/programs/enroll/ ($99, paid by card).
+   Identity verification takes from a few hours to 2 days.
+2. After approval, get your **Team ID**: https://developer.apple.com/account →
+   Membership details. It looks like `A1B2C3D4E5`.
 
-## Крок 2. Запис застосунку в App Store Connect
+## Step 2. Create the app record in App Store Connect
 
 1. https://appstoreconnect.apple.com → My Apps → **+** → New App
-2. Заповни:
+2. Fill in:
    - Platform: **iOS**
-   - Name: **LinguaLens** (має бути унікальним у всьому App Store)
-   - Primary Language: **Ukrainian** (або English)
-   - Bundle ID: **com.marik.lingualens** — вибери зі списку; якщо його там нема,
-     створи на developer.apple.com → Identifiers
-   - SKU: будь-який, напр. `lingualens-001`
-3. Після створення візьми **Apple ID застосунку** — це число з 10 цифр угорі
-   сторінки (не твоя пошта). Це `ascAppId`.
+   - Name: **LinguaLens** (must be unique across the whole App Store)
+   - Primary Language: **Ukrainian** (or English)
+   - Bundle ID: **com.marik.lingualens** - choose it from the list; if it is not there,
+     create it at developer.apple.com → Identifiers
+   - SKU: anything, e.g. `lingualens-001`
+3. After creating it, get the **Apple ID of the app**: a 10-digit number at the top
+   of the page (not your email). This is the `ascAppId`.
 
-## Крок 3. Заповнити eas.json
+## Step 3. Fill in eas.json
 
-Відкрий `eas.json` і заміни два плейсхолдери:
+Open `eas.json` and replace the two placeholders:
 
 ```json
 "ios": {
   "appleId": "maranferij@gmail.com",
-  "ascAppId": "6740000000",        ← число з кроку 2
-  "appleTeamId": "A1B2C3D4E5"      ← Team ID з кроку 1
+  "ascAppId": "6740000000",        ← number from step 2
+  "appleTeamId": "A1B2C3D4E5"      ← Team ID from step 1
 }
 ```
 
-## Крок 4. Збірка
+## Step 4. Build
 
 ```powershell
 cd "$HOME\Documents\LinguaLens"
 npm install
 npm install -g eas-cli
-eas login                 # акаунт Expo, безкоштовний
-eas init                  # створить projectId і впише його в app.json
+eas login                 # Expo account, free
+eas init                  # creates the projectId and writes it into app.json
 eas build --platform ios --profile production
 ```
 
-Перший запуск запитає про сертифікати — відповідай **Yes**, EAS згенерує й
-збереже їх сам. Знадобиться пароль від Apple ID і код двофакторки.
+The first run asks about certificates: answer **Yes**, and EAS will generate and
+store them itself. You will need your Apple ID password and the two-factor code.
 
-Збірка триває 15–40 хвилин. Прогрес видно за посиланням, яке дасть команда.
+The build takes 15-40 minutes. Progress is visible at the link the command prints.
 
-> Перед першою збіркою корисно прогнати `npm run doctor` — expo-doctor знаходить
-> розбіжності версій пакетів.
+> Before the first build it is worth running `npm run doctor`: expo-doctor finds
+> package version mismatches.
 
-## Крок 5. Відправка
+## Step 5. Submit
 
 ```powershell
 eas submit --platform ios --profile production
 ```
 
-Через 10–15 хвилин білд з'явиться в App Store Connect → TestFlight.
-Постав його собі на телефон через застосунок TestFlight і **проклацай усе**:
-скан, збереження слова, флешкартки, квіз, реєстрацію, пуш слова дня.
+After 10-15 minutes the build appears in App Store Connect → TestFlight.
+Install it on your phone through the TestFlight app and **click through everything**:
+scan, saving a word, flashcards, quiz, registration, the Word of the Day push.
 
-## Крок 6. Матеріали для сторінки
+## Step 6. Store page materials
 
-Треба підготувати заздалегідь:
+Prepare these in advance:
 
-| Що | Вимога |
+| What | Requirement |
 |---|---|
-| Скріншоти 6.9" | 1320×2868 або 1290×2796, від 3 до 10 штук. Знімай на симуляторі iPhone 16 Pro Max або зроби з макетів у Фігмі. |
-| Опис | до 4000 символів |
-| Ключові слова | до 100 символів через кому: `англійська,слова,камера,переклад,вимова,вивчення мов` |
-| Промо-текст | до 170 символів, можна міняти без нової збірки |
-| Іконка | 1024×1024 **без альфа-каналу** — уже виправлено, лежить в `assets/icon.png` |
-| Вікова категорія | 4+ |
-| Категорія | Education (основна), Reference (додаткова) |
+| 6.9" screenshots | 1320×2868 or 1290×2796, from 3 to 10 of them. Capture them on the iPhone 16 Pro Max simulator or make them from the Figma mockups. |
+| Description | up to 4000 characters |
+| Keywords | up to 100 characters, comma-separated: `англійська,слова,камера,переклад,вимова,вивчення мов` (English, words, camera, translation, pronunciation, language learning) |
+| Promotional text | up to 170 characters, can be changed without a new build |
+| Icon | 1024×1024 **without an alpha channel**: already fixed, it is in `assets/icon.png` |
+| Age rating | 4+ |
+| Category | Education (primary), Reference (secondary) |
 
-### App Privacy — що вказати
+### App Privacy: what to declare
 
-У розділі App Privacy чесно відзнач:
+In the App Privacy section, honestly check:
 
-- **Contact Info → Email Address** — Linked to user, для функціональності застосунку
-- **User Content → Photos or Videos** — NOT linked, для функціональності
-  (кадр іде в AI і не зберігається)
-- **Identifiers → User ID** — Linked to user
-- **Usage Data** — якщо не додаватимеш аналітику, нічого не відзначай
+- **Contact Info → Email Address** - Linked to user, for app functionality
+- **User Content → Photos or Videos** - NOT linked, for app functionality
+  (the frame goes to the AI and is not stored)
+- **Identifiers → User ID** - Linked to user
+- **Usage Data** - if you will not add analytics, check nothing
 
-Питання «Does your app use tracking?» → **No**.
-
----
-
-## Що ще треба доробити перед подачею
-
-Це не забаганки, а те, через що Apple реально відхиляє:
-
-- [ ] **Видалення акаунта в апці.** Guideline 5.1.1(v): якщо є реєстрація —
-      має бути й кнопка видалення акаунта, не лише «вийти». Зараз є тільки вихід.
-      Треба додати `DELETE /me` на сервері й пункт у налаштуваннях.
-- [ ] **Екран без інтернету.** Зараз при мертвому сервері юзер бачить помилку
-      сканування. Рецензент часто перевіряє в авіарежимі.
-- [ ] **Текст при відмові від камери.** Якщо натиснути «Не дозволяти», екран має
-      пояснити, як увімкнути дозвіл у Налаштуваннях, а не просто впасти в порожнечу.
-- [ ] **Перевірити пуші на реальному пристрої.** В Expo Go локальні сповіщення
-      працюють, але в продакшн-збірці варто переконатись ще раз.
+The question "Does your app use tracking?" → **No**.
 
 ---
 
-## Скільки чекати
+## What still needs to be done before submission
 
-| Етап | Час |
+These are not whims; they are what Apple actually rejects apps for:
+
+- [ ] **Account deletion in the app.** Guideline 5.1.1(v): if there is registration,
+      there must also be a delete-account button, not only "sign out". Currently there is only sign out.
+      You need to add `DELETE /me` on the server and an item in settings.
+- [ ] **A no-internet screen.** Right now, when the server is down, the user sees a scan
+      error. The reviewer often tests in airplane mode.
+- [ ] **Text for a denied camera permission.** If the user taps "Don't Allow", the screen must
+      explain how to enable the permission in Settings, not just fall into emptiness.
+- [ ] **Check pushes on a real device.** In Expo Go local notifications
+      work, but it is worth confirming again in a production build.
+
+---
+
+## How long to wait
+
+| Stage | Time |
 |---|---|
-| Перевірка Apple Developer Program | від годин до 2 діб |
-| Збірка EAS | 15–40 хв |
-| Обробка в App Store Connect | 10–15 хв |
-| **Рецензія Apple** | зазвичай 24–48 годин |
+| Apple Developer Program verification | from hours to 2 days |
+| EAS build | 15-40 min |
+| Processing in App Store Connect | 10-15 min |
+| **Apple review** | usually 24-48 hours |
 
-Перша подача часто повертається з зауваженням — це нормально. Найчастіші причини
-для такої апки: немає видалення акаунта, зламане посилання на політику
-приватності, скріншоти не відповідають реальному вигляду.
+The first submission often comes back with a remark, and that is normal. The most common reasons
+for an app like this: no account deletion, a broken link to the privacy
+policy, screenshots that do not match the real appearance.
 
 ---
 
-## Швидка шпаргалка
+## Quick cheat sheet
 
 ```powershell
-npm run doctor          # перевірка проєкту
-npm run build:preview   # тестова збірка для себе
-npm run build:ios       # продакшн-збірка
-npm run submit:ios      # відправити в App Store Connect
+npm run doctor          # project check
+npm run build:preview   # test build for yourself
+npm run build:ios       # production build
+npm run submit:ios      # submit to App Store Connect
 ```

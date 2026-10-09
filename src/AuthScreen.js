@@ -1,4 +1,4 @@
-// Екран входу / реєстрації. Lingo вітає, форма плавно перемикає режими.
+// Sign-in / sign-up screen. Lingo greets, the form smoothly switches modes.
 import { useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
@@ -32,9 +32,9 @@ export default function AuthScreen({ t, onDone }) {
     setMode(next);
   }
 
-  // Помилка входу: коротке тремтіння форми. Кожен наступний крок слабший —
-  // так рух згасає, як реальний предмет, а не смикається рівними ривками.
-  // При «менше руху» лишається тільки хаптика: тремтіння викликає нудоту.
+  // Sign-in error: a short shake of the form. Each next step is weaker,
+  // so the motion fades out like a real object instead of jerking in even pulses.
+  // With "reduce motion" only the haptics remain: shaking causes nausea.
   function shakeForm() {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     if (reduced) return;
@@ -88,7 +88,7 @@ export default function AuthScreen({ t, onDone }) {
 
         <Animated.View style={{ transform: [{ translateX }] }}>
           <FadeIn delay={45}>
-            {/* Перемикач Вхід / Реєстрація */}
+            {/* Sign in / Sign up toggle */}
             <View style={s.segment}>
               {['login', 'register'].map((m) => {
                 const active = mode === m;

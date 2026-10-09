@@ -1,9 +1,9 @@
-// Іконки досягнень — власна геометрія, нічого готового ззовні.
+// Achievement icons: our own geometry, nothing ready-made from outside.
 //
-// Правило набору: сітка 28, штрих 1.8, круглі кінці, м'яке коло-підкладка.
-// Головне — кожне досягнення має ВЛАСНИЙ силует. Раніше вони відрізнялись
-// лише кількістю однакових кружечків, і з відстані виглядали як один значок.
-// Тепер силует читається навіть у сірому: зерно, книга, вежа, корона, комета.
+// Set rule: a 28 grid, 1.8 stroke, round caps, a soft circular backing.
+// The main thing: every achievement has its OWN silhouette. Before, they differed
+// only by the number of identical dots, and from a distance looked like one badge.
+// Now the silhouette reads even in gray: a seed, a book, a tower, a crown, a comet.
 import Svg, { Circle, Path, Rect, Polygon } from 'react-native-svg';
 
 const S = (c, w = 1.8) => ({
@@ -16,7 +16,7 @@ const S = (c, w = 1.8) => ({
 const FILL = (c) => ({ fill: c, stroke: 'none' });
 const SOFT = (c) => ({ fill: c, fillOpacity: 0.14, stroke: 'none' });
 
-// Підкладка спільна — вона тримає набір разом, силует усередині різний.
+// The backing is shared: it holds the set together, the silhouette inside differs.
 const Base = ({ size, color, children }) => (
   <Svg width={size} height={size} viewBox="0 0 28 28">
     <Circle cx="14" cy="14" r="12.4" {...SOFT(color)} />
@@ -24,9 +24,9 @@ const Base = ({ size, color, children }) => (
   </Svg>
 );
 
-// ─── СЛОВА: від зерна до бібліотеки ─────────────────────────────────────────
+// ─── WORDS: from a seed to a library ────────────────────────────────────────
 
-// Перше слово — паросток.
+// The first word is a sprout.
 export const AchFirstWord = ({ size, color }) => (
   <Base size={size} color={color}>
     <Path d="M14 21v-6.5" {...S(color)} />
@@ -35,7 +35,7 @@ export const AchFirstWord = ({ size, color }) => (
   </Base>
 );
 
-// 10 слів — відкрита книга.
+// 10 words: an open book.
 export const AchWords10 = ({ size, color }) => (
   <Base size={size} color={color}>
     <Path d="M14 9.5C12 8 9.5 7.6 7 8v11c2.5-.4 5 0 7 1.5 2-1.5 4.5-1.9 7-1.5V8c-2.5-.4-5 0-7 1.5z" {...S(color)} />
@@ -43,7 +43,7 @@ export const AchWords10 = ({ size, color }) => (
   </Base>
 );
 
-// 25 слів — стос книжок.
+// 25 words: a stack of books.
 export const AchWords25 = ({ size, color }) => (
   <Base size={size} color={color}>
     <Rect x="6.5" y="17" width="15" height="3.6" rx="1.2" {...S(color)} />
@@ -52,7 +52,7 @@ export const AchWords25 = ({ size, color }) => (
   </Base>
 );
 
-// 50 слів — полиця з корінцями.
+// 50 words: a shelf with spines.
 export const AchWords50 = ({ size, color }) => (
   <Base size={size} color={color}>
     <Path d="M6.5 20.5h15" {...S(color)} />
@@ -62,7 +62,7 @@ export const AchWords50 = ({ size, color }) => (
   </Base>
 );
 
-// 100 слів — храм знання.
+// 100 words: a temple of knowledge.
 export const AchWords100 = ({ size, color }) => (
   <Base size={size} color={color}>
     <Path d="M14 6.5 22 11H6z" {...S(color)} />
@@ -71,7 +71,7 @@ export const AchWords100 = ({ size, color }) => (
   </Base>
 );
 
-// 250 слів — корона.
+// 250 words: a crown.
 export const AchWords250 = ({ size, color }) => (
   <Base size={size} color={color}>
     <Path d="M6.5 18.5 5.5 9l4.6 3.4L14 7l3.9 5.4L22.5 9l-1 9.5z" {...S(color)} />
@@ -79,7 +79,7 @@ export const AchWords250 = ({ size, color }) => (
   </Base>
 );
 
-// 500 слів — кристал.
+// 500 words: a crystal.
 export const AchWords500 = ({ size, color }) => (
   <Base size={size} color={color}>
     <Path d="M14 5.5 21 12l-7 10.5L7 12z" {...S(color)} />
@@ -87,9 +87,9 @@ export const AchWords500 = ({ size, color }) => (
   </Base>
 );
 
-// ─── СЕРІЯ: від іскри до сузір'я ────────────────────────────────────────────
+// ─── STREAK: from a spark to a constellation ────────────────────────────────
 
-// 3 дні — іскра.
+// 3 days: a spark.
 export const AchStreak3 = ({ size, color }) => (
   <Base size={size} color={color}>
     <Path d="M14 6v4M14 18v4M6 14h4M18 14h4M8.8 8.8l2.8 2.8M16.4 16.4l2.8 2.8M19.2 8.8l-2.8 2.8M11.6 16.4l-2.8 2.8" {...S(color)} />
@@ -97,14 +97,14 @@ export const AchStreak3 = ({ size, color }) => (
   </Base>
 );
 
-// 7 днів — полум'я.
+// 7 days: a flame.
 export const AchStreak7 = ({ size, color }) => (
   <Base size={size} color={color}>
     <Path d="M14 6s5 4.2 5 8.6a5 5 0 0 1-10 0c0-1.6.7-3 1.6-4 .3 1.2 1 2 1.8 2 1.5 0 1.3-3.8 1.6-6.6z" {...S(color)} />
   </Base>
 );
 
-// 14 днів — смолоскип.
+// 14 days: a torch.
 export const AchStreak14 = ({ size, color }) => (
   <Base size={size} color={color}>
     <Path d="M14 5.5s3.4 2.8 3.4 5.6a3.4 3.4 0 0 1-6.8 0c0-1.1.5-2 1.1-2.7.2.8.7 1.3 1.2 1.3 1 0 .9-2.5 1.1-4.2z" {...S(color)} />
@@ -112,7 +112,7 @@ export const AchStreak14 = ({ size, color }) => (
   </Base>
 );
 
-// 30 днів — місяць із зірками.
+// 30 days: a moon with stars.
 export const AchStreak30 = ({ size, color }) => (
   <Base size={size} color={color}>
     <Path d="M17.6 6.6a7 7 0 1 0 4.2 8.6 5.6 5.6 0 0 1-4.2-8.6z" {...S(color)} />
@@ -121,7 +121,7 @@ export const AchStreak30 = ({ size, color }) => (
   </Base>
 );
 
-// 100 днів — комета.
+// 100 days: a comet.
 export const AchStreak100 = ({ size, color }) => (
   <Base size={size} color={color}>
     <Circle cx="17.5" cy="10.5" r="4" {...S(color)} />
@@ -129,7 +129,7 @@ export const AchStreak100 = ({ size, color }) => (
   </Base>
 );
 
-// ─── ПОВТОРЕННЯ: цикл ───────────────────────────────────────────────────────
+// ─── REVIEWS: a cycle ───────────────────────────────────────────────────────
 
 export const AchReviews25 = ({ size, color }) => (
   <Base size={size} color={color}>
@@ -146,7 +146,7 @@ export const AchReviews100 = ({ size, color }) => (
   </Base>
 );
 
-// 500 повторень — пісочний годинник: час, вкладений у пам'ять.
+// 500 reviews: an hourglass, time laid into memory.
 export const AchReviews500 = ({ size, color }) => (
   <Base size={size} color={color}>
     <Path d="M9 6h10M9 22h10" {...S(color)} />
@@ -154,7 +154,7 @@ export const AchReviews500 = ({ size, color }) => (
   </Base>
 );
 
-// ─── МОВИ: глобус, що росте ─────────────────────────────────────────────────
+// ─── LANGUAGES: a growing globe ─────────────────────────────────────────────
 
 export const AchLangs2 = ({ size, color }) => (
   <Base size={size} color={color}>
@@ -178,9 +178,9 @@ export const AchLangs5 = ({ size, color }) => (
   </Base>
 );
 
-// ─── КВІЗ ───────────────────────────────────────────────────────────────────
+// ─── QUIZ ───────────────────────────────────────────────────────────────────
 
-// Перший квіз — прапорець старту.
+// The first quiz: a start flag.
 export const AchQuizFirst = ({ size, color }) => (
   <Base size={size} color={color}>
     <Path d="M9 22V6" {...S(color)} />
@@ -188,7 +188,7 @@ export const AchQuizFirst = ({ size, color }) => (
   </Base>
 );
 
-// Ідеальний результат — стріла в яблучко.
+// A perfect result: an arrow in the bullseye.
 export const AchQuizPerfect = ({ size, color }) => (
   <Base size={size} color={color}>
     <Circle cx="14" cy="14" r="7.6" {...S(color)} />
@@ -198,7 +198,7 @@ export const AchQuizPerfect = ({ size, color }) => (
   </Base>
 );
 
-// 10 квізів — медаль на стрічці.
+// 10 quizzes: a medal on a ribbon.
 export const AchQuiz10 = ({ size, color }) => (
   <Base size={size} color={color}>
     <Circle cx="14" cy="16" r="5.4" {...S(color)} />
@@ -206,7 +206,7 @@ export const AchQuiz10 = ({ size, color }) => (
   </Base>
 );
 
-// 5 ідеальних — кубок.
+// 5 perfect ones: a trophy.
 export const AchQuizPerfect5 = ({ size, color }) => (
   <Base size={size} color={color}>
     <Path d="M9 6h10v4.5a5 5 0 0 1-10 0z" {...S(color)} />
@@ -215,9 +215,9 @@ export const AchQuizPerfect5 = ({ size, color }) => (
   </Base>
 );
 
-// ─── СЛОВО ДНЯ ──────────────────────────────────────────────────────────────
+// ─── WORD OF THE DAY ────────────────────────────────────────────────────────
 
-// Тиждень — календар із відмітками.
+// A week: a calendar with marks.
 export const AchWod7 = ({ size, color }) => (
   <Base size={size} color={color}>
     <Rect x="6" y="8" width="16" height="14" rx="3" {...S(color)} />
@@ -228,7 +228,7 @@ export const AchWod7 = ({ size, color }) => (
   </Base>
 );
 
-// Місяць — сонце над обрієм: щоденний ритуал.
+// A month: the sun over the horizon, a daily ritual.
 export const AchWod30 = ({ size, color }) => (
   <Base size={size} color={color}>
     <Circle cx="14" cy="15" r="4.2" {...S(color)} />
@@ -237,9 +237,9 @@ export const AchWod30 = ({ size, color }) => (
   </Base>
 );
 
-// ─── ОСОБЛИВІ ───────────────────────────────────────────────────────────────
+// ─── SPECIAL ────────────────────────────────────────────────────────────────
 
-// 10 слів із фото — знімок із загнутим кутом.
+// 10 words with a photo: a snapshot with a folded corner.
 export const AchPhoto10 = ({ size, color }) => (
   <Base size={size} color={color}>
     <Rect x="6.5" y="8" width="15" height="12.5" rx="2.6" {...S(color)} />
@@ -248,7 +248,7 @@ export const AchPhoto10 = ({ size, color }) => (
   </Base>
 );
 
-// Нічна сова — місяць і закриті очі.
+// Night owl: a moon and closed eyes.
 export const AchNightOwl = ({ size, color }) => (
   <Base size={size} color={color}>
     <Path d="M20.5 16.4a7.4 7.4 0 1 1-8.9-9.8 6 6 0 0 0 8.9 9.8z" {...S(color)} />
@@ -257,7 +257,7 @@ export const AchNightOwl = ({ size, color }) => (
   </Base>
 );
 
-// Ранній птах — пташка на світанку.
+// Early bird: a little bird at dawn.
 export const AchEarlyBird = ({ size, color }) => (
   <Base size={size} color={color}>
     <Path d="M5.5 20h17" {...S(color)} />

@@ -1,117 +1,117 @@
-# Монетизація LinguaLens
+# LinguaLens Monetization
 
-Реалізовано в `src/subscription.js`, `src/PaywallScreen.js`, `src/ProIcons.js`.
-Еквайринг (StoreKit) ще не підключений — покупка активується локально, щоб
-можна було проходити всі сценарії й перевіряти ліміти.
+Implemented in `src/subscription.js`, `src/PaywallScreen.js`, `src/ProIcons.js`.
+Payment processing (StoreKit) is not connected yet. A purchase is activated locally so
+that all scenarios can be walked through and the limits can be checked.
 
 ---
 
-## Тарифи
+## Pricing
 
-| План | Ціна | У перерахунку на рік | Множник до річного |
+| Plan | Price | Per year | Multiple of the yearly price |
 |---|---|---|---|
-| Тиждень | **$4.99** | $259 | ×7.4 |
-| Місяць | **$6.99** | $84 | ×2.4 |
-| 3 місяці | **$16.99** | $68 | ×1.9 |
-| **Рік** | **$34.99** | $35 | ×1.0 ← 7 днів безкоштовно |
+| Week | **$4.99** | $259 | ×7.4 |
+| Month | **$6.99** | $84 | ×2.4 |
+| 3 months | **$16.99** | $68 | ×1.9 |
+| **Year** | **$34.99** | $35 | ×1.0 ← 7 days free |
 
-**Чому саме так.** Тижневий тариф існує не для того, щоб на ньому сиділи —
-він якір. Поруч із $4.99 за тиждень річний за $34.99 читається як очевидний
-вибір, і саме тому в пейволі він виділений і обраний за замовчуванням.
-Різниця між тижнем і роком у 7.4 раза — достатньо різка, щоб рішення було
-однозначним, але не настільки, щоб тижневий виглядав як обман.
+**Why it is set up this way.** The weekly plan does not exist for people to stay on it.
+It is an anchor. Next to $4.99 per week, the yearly plan at $34.99 reads as the obvious
+choice, which is why it is highlighted and selected by default on the paywall.
+A 7.4x difference between the week and the year is sharp enough to make the decision
+clear, but not so sharp that the weekly plan looks like a trick.
 
-Річний іде з **7-денним пробним періодом**. Це головний драйвер конверсії:
-людина встигає накопичити слова, і словник стає тим, що вона не хоче втратити.
+The yearly plan comes with a **7-day free trial**. This is the main conversion driver:
+the person has time to build up words, and the dictionary becomes something they do not want to lose.
 
-**Контекст ринку.** CapWords (лауреат Apple Design Award, 4.6★) тримає
-$5.99/міс і $29.99/рік. Ми в тому ж полі, але з відчутнішою річною економією
-у показі (−58% проти тижневого).
+**Market context.** CapWords (an Apple Design Award winner, 4.6★) charges
+$5.99/month and $29.99/year. We are in the same field, but with a more noticeable yearly
+saving in the display (−58% versus the weekly plan).
 
 ---
 
-## Обмеження безкоштовного рівня
+## Free tier limits
 
-Логіка проста: обмежуємо те, що **коштує нам грошей** (виклики AI), і те, що
-**показує цінність накопичення** (розмір словника). Не обмежуємо те, що
-повертає людину щодня.
+The logic is simple: we limit what **costs us money** (AI calls) and what
+**shows the value of accumulation** (dictionary size). We do not limit what
+brings the person back every day.
 
-| | Безкоштовно | Pro |
+| | Free | Pro |
 |---|---|---|
-| Сканів на день | **5** | без обмежень |
-| Слів у словнику | **100** | без обмежень |
-| Мов одночасно | **1** | усі 29 |
-| Слово дня + пуш | ✅ | ✅ |
-| Флешкартки, SRS, квіз | ✅ | ✅ |
-| Вимова | ✅ | ✅ |
-| Наліпки предметів | ✅ | ✅ |
-| Експорт словника | — | ✅ |
+| Scans per day | **5** | unlimited |
+| Words in the dictionary | **100** | unlimited |
+| Languages at once | **1** | all 29 |
+| Word of the Day + push | ✅ | ✅ |
+| Flashcards, SRS, quiz | ✅ | ✅ |
+| Pronunciation | ✅ | ✅ |
+| Object stickers | ✅ | ✅ |
+| Dictionary export | - | ✅ |
 
-**Чого ми свідомо НЕ обмежуємо.** Слово дня, повторення й вимова лишаються
-безкоштовними назавжди. Це те, що формує звичку і вертає людину в застосунок.
-Задушити retention, щоб продати підписку, — найдорожча помилка в цій категорії:
-без щоденного повернення нікому нічого не продаси.
+**What we deliberately do NOT limit.** Word of the Day, review and pronunciation stay
+free forever. These are what build the habit and bring the person back to the app.
+Choking retention to sell a subscription is the most expensive mistake in this category:
+without a daily return you cannot sell anyone anything.
 
-**Чому 5 сканів, а не 3.** Три — це менше, ніж потрібно, щоб зрозуміти
-цінність. За п'ять людина встигає відсканувати щось своє, зберегти й
-побачити слово у флешкартках. Стіна має приходити тоді, коли вже шкода
-зупинятись.
+**Why 5 scans, not 3.** Three is less than it takes to understand the
+value. With five, the person has time to scan something of their own, save it and
+see the word in the flashcards. The wall should come when it is already a pity
+to stop.
 
-**Чому 100 слів.** Це приблизно два тижні активного користування. Достатньо,
-щоб словник став своїм, і замало, щоб перестати його наповнювати.
+**Why 100 words.** This is roughly two weeks of active use. It is enough for
+the dictionary to become the user's own, and too little to stop filling it.
 
 ---
 
-## Як працює пейвол
+## How the paywall works
 
-Він не один — текст підлаштовується під те, у що людина вперлась:
+There is not just one: the text adapts to what the person ran into.
 
-| Причина | Заголовок |
+| Reason | Title |
 |---|---|
-| `scans` | «На сьогодні скани закінчились» |
-| `words` | «Словник заповнений» |
-| `langs` | «Друга мова — у Pro» |
-| `info` | «Знімай обмеження» (відкрито з налаштувань) |
+| `scans` | «На сьогодні скани закінчились» (Today's scans are used up) |
+| `words` | «Словник заповнений» (The dictionary is full) |
+| `langs` | «Друга мова - у Pro» (The second language is in Pro) |
+| `info` | «Знімай обмеження» (Remove the limits; opened from settings) |
 
-Принципи, за якими він зроблений:
+The principles it is built on:
 
-- **Ліміт перевіряється ДО зйомки.** Витратити виклик AI і показати відмову
-  після нього — це виглядає як обман.
-- **Хрестик великий і на своєму місці.** Пейвол, з якого важко вийти, псує
-  оцінку в App Store сильніше, ніж дає виторгу.
-- **Лічильник сканів показується лише коли лишилось ≤3.** Постійний рахунок
-  над камерою тисне і псує враження від головного екрана.
-- **Річний обраний за замовчуванням, а не найдорожчий.** Передвибраний дорогий
-  варіант повертається відписками й одиничками.
-
----
-
-## Що лишилось зробити
-
-- [ ] **StoreKit.** Створити 4 продукти-підписки в App Store Connect з
-      ідентифікаторами з `PLANS[].productId`, додати `expo-in-app-purchases`
-      або `react-native-iap`, замінити `activatePlan()` на реальну покупку.
-- [ ] **Валідація чека на сервері.** Зараз стан локальний — його можна
-      підробити. Перед релізом: перевірка чека через App Store Server API і
-      зберігання статусу в Firestore біля користувача.
-- [ ] **Відновлення покупок.** Кнопка в пейволі вже є, обробник — ні.
-      Apple вимагає працюючий «Restore».
-- [ ] **Сторінки Terms і Privacy.** Посилання в пейволі мають вести на
-      реальні URL, інакше рецензія завернe.
-- [ ] **Екран керування підпискою.** Зараз картка в налаштуваннях веде на
-      пейвол; для активної підписки треба вести в налаштування Apple ID.
+- **The limit is checked BEFORE the shot.** Spending an AI call and showing a refusal
+  after it looks like a trick.
+- **The close button is big and in its usual place.** A paywall that is hard to leave hurts
+  the App Store rating more than it brings in revenue.
+- **The scan counter is shown only when 3 or fewer are left.** A constant count
+  above the camera pressures the user and spoils the impression of the main screen.
+- **Yearly is selected by default, not the most expensive.** A pre-selected expensive
+  option comes back as cancellations and one-star reviews.
 
 ---
 
-## Ідеї для наступних версій
+## What is left to do
 
-Те, що можна продавати додатково, коли база виросте:
+- [ ] **StoreKit.** Create 4 subscription products in App Store Connect with
+      the identifiers from `PLANS[].productId`, add `expo-in-app-purchases`
+      or `react-native-iap`, and replace `activatePlan()` with a real purchase.
+- [ ] **Server-side receipt validation.** Right now the state is local, so it can be
+      forged. Before release: check the receipt via the App Store Server API and
+      store the status in Firestore next to the user.
+- [ ] **Restore purchases.** The button on the paywall already exists, the handler does not.
+      Apple requires a working "Restore".
+- [ ] **Terms and Privacy pages.** The links on the paywall must lead to
+      real URLs, otherwise the review will be rejected.
+- [ ] **Subscription management screen.** Currently the card in settings leads to the
+      paywall; for an active subscription it should lead to the Apple ID settings.
 
-- **Кілька слів з одного кадру.** Модель уже повертає рамку одного предмета;
-  попросити список — питання промпту. Сильна фішка: один скан = 3-5 слів.
-- **Розмовна практика зі збережених слів.** Те, чим CapWords 2.0 вийшов у
-  нову категорію. Найдорожча в реалізації і найцінніша.
-- **Автогрупування слів** за темами (їжа, одяг, дім) — модель може віддавати
-  категорію разом зі словом.
-- **Спільні набори слів** — поділитись колекцією з другом.
-- **Віджет на екран блокування** зі словом дня.
+---
+
+## Ideas for future versions
+
+Things that can be sold additionally once the user base grows:
+
+- **Several words from one frame.** The model already returns a bounding box for a single object;
+  asking for a list is a matter of the prompt. A strong feature: one scan = 3-5 words.
+- **Conversation practice from saved words.** What CapWords 2.0 used to enter a
+  new category. The most expensive to build and the most valuable.
+- **Automatic word grouping** by topic (food, clothing, home): the model can return
+  the category together with the word.
+- **Shared word sets**: share a collection with a friend.
+- **A lock screen widget** with the Word of the Day.

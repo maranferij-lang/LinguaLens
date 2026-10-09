@@ -1,4 +1,4 @@
-// Налаштування: акаунт, мови, слово дня, тема, сервер, дані.
+// Settings: account, languages, word of the day, theme, server, data.
 import { useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
@@ -14,7 +14,7 @@ import { UNDER_TAB } from './Chrome';
 import { layoutNext } from './motion';
 import { CAPS, F, R, THEME_DEFS, type, useTheme } from './theme';
 
-// Тогл-лист вибору мови: розгортається на ~4 рядки, далі скрол
+// Language picker toggle list: expands to ~4 rows, then scrolls
 function LangPicker({ label, hint, value, onChange, C, s }) {
   const [open, setOpen] = useState(false);
 
@@ -132,8 +132,8 @@ export default function SettingsScreen({
       <Text style={s.title}>{t('setTitle')}</Text>
 
       <FadeIn>
-        {/* Pro — перший блок. Не тому, що ми жадібні, а тому що це єдине
-            місце, де людина може дізнатись про межі й керувати підпискою. */}
+        {/* Pro is the first block. Not because we are greedy, but because it is the only
+            place where a person can learn about the limits and manage the subscription. */}
         {sub?.pro ? (
           <Press style={s.proCard} onPress={onOpenPaywall}>
             <View style={s.proIconWrap}>
@@ -162,7 +162,7 @@ export default function SettingsScreen({
           </Press>
         )}
 
-        {/* Акаунт */}
+        {/* Account */}
         <Text style={s.sectionLabel}>{t('account')}</Text>
         <Glass style={{ padding: 0, overflow: 'hidden' }}>
           {user ? (
@@ -193,7 +193,7 @@ export default function SettingsScreen({
           )}
         </Glass>
 
-        {/* Мови */}
+        {/* Languages */}
         <LangPicker
           label={t('learnLang')}
           hint={t('learnLangHint')}
@@ -211,7 +211,7 @@ export default function SettingsScreen({
           s={s}
         />
 
-        {/* Слово дня */}
+        {/* Word of the day */}
         <Text style={s.sectionLabel}>{t('wordOfDay')}</Text>
         <Glass>
           <View style={s.switchRow}>
@@ -254,10 +254,10 @@ export default function SettingsScreen({
           ) : null}
         </Glass>
 
-        {/* Тема */}
+        {/* Theme */}
         <Text style={s.sectionLabel}>{t('themeLabel')}</Text>
-        {/* Три варіанти замість галереї з восьми. Менше вибору — менше рішень
-            для юзера, і кожна тема доведена до ладу, а не «ще один відтінок». */}
+        {/* Three options instead of a gallery of eight. Less choice means fewer decisions
+            for the user, and every theme is polished, not "just another shade". */}
         <View style={s.themeRow}>
           {[{ key: 'system', name: t('themeAuto') }, ...THEME_DEFS].map((th) => {
             const active = themeMode === th.key;
@@ -278,7 +278,7 @@ export default function SettingsScreen({
                     active && { borderColor: C.accent, borderWidth: 2.5 },
                   ]}
                 >
-                  {/* «Авто» — половина плитки темна: світло й темрява разом */}
+                  {/* "Auto": half of the tile is dark, light and darkness together */}
                   {isAuto ? <View style={s.swatchHalf} /> : null}
                   <View
                     style={[
@@ -298,7 +298,7 @@ export default function SettingsScreen({
           })}
         </View>
 
-        {/* Про застосунок */}
+        {/* About the app */}
         <Text style={s.sectionLabel}>{t('about')}</Text>
         <Glass style={{ padding: 0, overflow: 'hidden' }}>
           <Pressable style={s.linkRow} onPress={onReplayOnb}>
@@ -310,7 +310,7 @@ export default function SettingsScreen({
           </Pressable>
         </Glass>
 
-        {/* Дані */}
+        {/* Data */}
         <Text style={s.sectionLabel}>{t('data')}</Text>
         <Glass>
           <Text style={s.dimText}>{t('inDict', { n: wordsCount })}</Text>
@@ -323,9 +323,9 @@ export default function SettingsScreen({
           </Press>
         </Glass>
 
-        {/* Технічна панель. Звичайний користувач її не бачить і не має бачити:
-            адреса сервера — наша кухня, а не його справа. Відкривається сімома
-            дотиками по логотипу — класичний прихований жест для діагностики. */}
+        {/* Technical panel. A regular user does not see it and should not:
+            the server address is our kitchen, not their business. It opens with seven
+            taps on the logo, a classic hidden gesture for diagnostics. */}
         {devOpen ? (
           <>
             <Text style={s.sectionLabel}>Діагностика</Text>
@@ -459,7 +459,7 @@ const makeStyles = (C) =>
     },
     swatchDot: { width: 26, height: 26, borderRadius: 13 },
     swatchLine: { height: 3, width: 30, borderRadius: 2, alignSelf: 'center' },
-    // права половина «авто»-свотча темна — світло/темрява в одній плитці
+    // the right half of the "auto" swatch is dark: light/darkness in one tile
     swatchHalf: {
       position: 'absolute',
       right: 0,

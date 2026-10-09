@@ -1,10 +1,10 @@
-// Клієнтська авторизація: зберігання сесії, вхід/реєстрація/вихід.
-// Токен лежить у SecureStore (захищене сховище iOS), профіль — в AsyncStorage.
+// Client-side authorization: session storage, sign in / sign up / sign out.
+// The token lives in SecureStore (the protected iOS storage), the profile is in AsyncStorage.
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiLogin, apiMe, apiRegister, apiUpdateProfile, setSessionToken } from './api';
 
-// SecureStore = Keychain на iOS. Якщо пакет ще не встановлено (`npx expo install
-// expo-secure-store`) — не падаємо, а тимчасово тримаємо токен в AsyncStorage.
+// SecureStore = Keychain on iOS. If the package is not installed yet (`npx expo install
+// expo-secure-store`), we do not crash but temporarily keep the token in AsyncStorage.
 let SecureStore;
 try {
   SecureStore = require('expo-secure-store');
@@ -46,7 +46,7 @@ async function saveSession(token, user) {
   } catch (_) {}
 }
 
-// Перетворює технічні коди помилок на зрозумілі повідомлення
+// Turns technical error codes into understandable messages
 export function authErrorText(err, t) {
   const code = err?.code || err?.message || '';
   const map = {
@@ -77,7 +77,7 @@ export async function logout() {
   await saveSession('', null);
 }
 
-// Оновити профіль (ім'я / аватар) — і локально, і на сервері
+// Update the profile (name / avatar), both locally and on the server
 export async function updateProfile(patch, currentUser) {
   const optimistic = { ...currentUser, ...patch };
   await AsyncStorage.setItem(USER_KEY, JSON.stringify(optimistic)).catch(() => {});
@@ -86,11 +86,11 @@ export async function updateProfile(patch, currentUser) {
     await AsyncStorage.setItem(USER_KEY, JSON.stringify(d.user)).catch(() => {});
     return d.user;
   } catch (_) {
-    return optimistic; // офлайн — лишаємо локальну зміну
+    return optimistic; // offline: keep the local change
   }
 }
 
-// Перевірити, чи сесія ще жива (тихо, без помилок для юзера)
+// Check whether the session is still alive (quietly, with no errors shown to the user)
 export async function refreshUser() {
   try {
     const d = await apiMe();
@@ -101,6 +101,6 @@ export async function refreshUser() {
       await saveSession('', null);
       return null;
     }
-    return undefined; // офлайн — лишаємо як було
+    return undefined; // offline: leave things as they were
   }
 }

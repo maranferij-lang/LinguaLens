@@ -1,5 +1,5 @@
-// Мови + озвучка нативними голосами iOS
-// Кожна мова має перевірену iOS TTS-локаль. Щоб прибрати мову — видали рядок.
+// Languages + speech with native iOS voices
+// Every language has a verified iOS TTS locale. To remove a language, delete its row.
 import * as Speech from 'expo-speech';
 import { setAudioModeAsync } from 'expo-audio';
 
@@ -39,7 +39,7 @@ function langOf(code) {
   return LANGS.find((l) => l.code === code) || LANGS[0];
 }
 
-// Дозволяє звуку грати навіть коли iPhone у беззвучному режимі.
+// Lets the sound play even when the iPhone is in silent mode.
 export async function initAudio() {
   try {
     await setAudioModeAsync({ playsInSilentMode: true });

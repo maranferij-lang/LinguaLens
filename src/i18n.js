@@ -1,6 +1,6 @@
-// Локалізація UI. Мова інтерфейсу = «моя мова» користувача.
-// en і uk — повні; de, es — повні; решта мов поки падають на англійську.
-// Додати мову = скопіювати блок і перекласти.
+// UI localization. The interface language = the user's "native language".
+// en and uk are complete; de and es are complete; the remaining languages fall back to English for now.
+// To add a language, copy a block and translate it.
 
 const STRINGS = {
   en: {
@@ -63,7 +63,7 @@ const STRINGS = {
     ob2t: 'Get the word instantly', ob2d: 'AI names the object in the language you learn — with transcription, translation and a live example.',
     ob3t: 'Make words stick', ob3d: 'Save words, review them with flashcards and quizzes, keep your daily streak alive.',
     obNext: 'Next', obStart: 'Let\'s go', obSkip: 'Skip',
-    // авторизація
+    // authorization
     tabProfile: 'Profile', tabSettings: 'Settings',
     authTagline: 'Point your camera at the world\nand take its words with you.',
     signIn: 'Sign in', signUp: 'Sign up', createAccount: 'Create account',
@@ -78,13 +78,13 @@ const STRINGS = {
     errOffline: 'No connection to the server. Check your internet.',
     errTimeout: 'The server is taking too long. Try again.',
     errGeneric: 'Something went wrong. Try again.',
-    // профіль
+    // profile
     guest: 'Guest', guestHint: 'Guest',
     level: 'Level {n}', achievements: 'Achievements', unlocked: 'Unlocked',
     editProfile: 'Edit profile', chooseAvatar: 'Choose your Lingo', save: 'Save',
     account: 'ACCOUNT', signInHint: 'So your words don’t get lost',
     logout: 'Log out', logoutTitle: 'Log out?', logoutMsg: 'Your words stay on this device.',
-    // слово дня
+    // word of the day
     wordOfDay: 'WORD OF THE DAY', listen: 'Listen', saveWord: 'Save',
     dailyPush: 'Word of the day', dailyPushHint: 'Learn a new word every day',
     pushTime: 'At what time',
@@ -101,9 +101,9 @@ const STRINGS = {
     scanErrEmpty: 'Can’t see the object. Move closer',
     wodLockedTitle: 'Your daily word is waiting',
     wodLockedText: 'Sign in to get a new word every day',
-    // досягнення
+    // achievements
 
-    // досягнення
+    // achievements
     ach_first_word: 'First word',
     ach_words_10: 'Ten words',
     ach_words_25: 'Twenty five',
@@ -141,7 +141,7 @@ const STRINGS = {
     trialEndTitle: 'Пробний період закінчується',
     trialEndBody: 'Через 2 дні почнеться платна підписка. Скасувати можна в налаштуваннях Apple ID.',
     proNudge: 'Без обмежень', proNudgeTap: 'Дізнатись',
-    // ── підписка ──
+    // ── subscription ──
     planWeek: 'Тиждень', planMonth: 'Місяць', planQuarter: '3 місяці', planYear: 'Рік',
     bestValue: 'найвигідніше', perMonth: '{p} на місяць', trialDays: '{n} днів безкоштовно',
     save19: '−19%', save58: '−58%',
@@ -203,7 +203,7 @@ const STRINGS = {
     ob2t: 'Слово — миттєво', ob2d: 'AI називає предмет мовою, яку ти вчиш: транскрипція, переклад і живий приклад.',
     ob3t: 'Закріплюй знання', ob3d: 'Зберігай слова, повторюй їх картками і квізами, тримай щоденний стрік.',
     obNext: 'Далі', obStart: 'Почати', obSkip: 'Пропустити',
-    // авторизація
+    // authorization
     tabProfile: 'Профіль', tabSettings: 'Налаштування',
     authTagline: 'Наводь камеру на світ\nі забирай його слова собі.',
     signIn: 'Увійти', signUp: 'Реєстрація', createAccount: 'Створити акаунт',
@@ -218,22 +218,22 @@ const STRINGS = {
     errOffline: 'Немає зв\'язку з сервером. Перевір інтернет.',
     errTimeout: 'Сервер довго відповідає. Спробуй ще раз.',
     errGeneric: 'Щось пішло не так. Спробуй ще раз.',
-    // профіль
+    // profile
     guest: 'Гість', guestHint: 'Гість',
     level: 'Рівень {n}', achievements: 'Досягнення', unlocked: 'Відкрито',
     editProfile: 'Редагувати профіль', chooseAvatar: 'Обери свого Lingo', save: 'Зберегти',
     account: 'АКАУНТ', signInHint: 'Щоб слова не загубились',
     logout: 'Вийти', logoutTitle: 'Вийти з акаунта?', logoutMsg: 'Слова лишаться на цьому пристрої.',
-    // слово дня
+    // word of the day
     wordOfDay: 'СЛОВО ДНЯ', listen: 'Прослухати', saveWord: 'Зберегти',
     dailyPush: 'Слово дня', dailyPushHint: 'Вивчай щодня нове слово',
     pushTime: 'О котрій',
     dowLetters: 'НПВСЧПС', themeAuto: 'Авто', scanFirstWord: 'Сканувати перше слово',
     wodLockedTitle: 'Слово дня чекає',
     wodLockedText: 'Увійди — і отримуй нове слово щодня',
-    // досягнення
+    // achievements
 
-    // досягнення
+    // achievements
     ach_first_word: 'Перше слово',
     ach_words_10: 'Десяток',
     ach_words_25: 'Чверть сотні',

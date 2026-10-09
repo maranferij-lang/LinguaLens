@@ -1,15 +1,15 @@
-// Мережевий шар: розпізнавання, авторизація, слово дня.
-// Ключі AI живуть ТІЛЬКИ на сервері.
+// Network layer: recognition, authorization, word of the day.
+// AI keys live ONLY on the server.
 import Constants from 'expo-constants';
 
-// ── Адреса сервера ──────────────────────────────────────────────────────────
-// РЕЛІЗ: публічний https-URL з Cloud Run. Саме він піде в App Store.
+// ── Server address ──────────────────────────────────────────────────────────
+// RELEASE: the public https URL from Cloud Run. This is the one that goes to the App Store.
 const PRODUCTION_URL = 'https://lingualens-server-xxxxx-lm.a.run.app';
 
-// РОЗРОБКА: адресу НЕ треба вписувати руками. Metro вже знає IP компа —
-// беремо його з hostUri (там 192.168.x.x:8081) і міняємо порт на серверний.
-// Це прибирає найчастішу причину «скан не працює»: IP змінився після
-// перепідключення до Wi-Fi, а в коді лишився старий.
+// DEVELOPMENT: you do NOT need to type the address by hand. Metro already knows the computer's IP:
+// we take it from hostUri (it is 192.168.x.x:8081 there) and swap the port for the server one.
+// This removes the most common cause of "the scan does not work": the IP changed after
+// reconnecting to Wi-Fi, and the old one stayed in the code.
 const DEV_PORT = 3000;
 
 function devServerUrl() {
@@ -19,8 +19,8 @@ function devServerUrl() {
     Constants.manifest2?.extra?.expoGo?.debuggerHost ||
     '';
   const ip = String(host).split(':')[0];
-  // тунель (exp.direct) не дає доступу до локального сервера — там потрібен
-  // або справжній LAN, або вже задеплоєний хмарний сервер
+  // the tunnel (exp.direct) does not give access to the local server: it needs
+  // either a real LAN or an already deployed cloud server
   if (!ip || ip.includes('exp.direct') || ip === 'localhost') return null;
   return `http://${ip}:${DEV_PORT}`;
 }
@@ -28,13 +28,13 @@ function devServerUrl() {
 export const SERVER_URL =
   typeof __DEV__ !== 'undefined' && __DEV__ ? devServerUrl() || PRODUCTION_URL : PRODUCTION_URL;
 
-// Чи вдалось визначити адресу автоматично — показуємо в діагностиці
+// Whether the address was detected automatically: shown in diagnostics
 export const SERVER_AUTO = typeof __DEV__ !== 'undefined' && __DEV__ && !!devServerUrl();
 
-// Спільний секрет апки (див. DEPLOY.md). Локально можна лишити порожнім.
+// The app's shared secret (see DEPLOY.md). Locally it can be left empty.
 export const APP_TOKEN = '';
 
-// Токен сесії користувача — ставиться після входу (див. auth.js)
+// The user's session token: set after sign-in (see auth.js)
 let sessionToken = '';
 export function setSessionToken(t) {
   sessionToken = t || '';
@@ -80,10 +80,10 @@ async function request(path, { method = 'GET', body, timeout = 20000 } = {}) {
   return data;
 }
 
-// ---------- РОЗПІЗНАВАННЯ ----------
-// Здорове розпізнавання займає 1.5–2 с. Якщо не вклалось у 25 — щось не так,
-// і краще чесно сказати про це, ніж тримати людину перед мертвим екраном
-// цілу хвилину.
+// ---------- RECOGNITION ----------
+// Healthy recognition takes 1.5-2 s. If it did not finish in 25, something is wrong,
+// and it is better to say so honestly than to keep the person in front of a dead screen
+// for a whole minute.
 const SCAN_TIMEOUT = 25000;
 
 export async function recognizeImage(base64Jpeg, lang = 'en', nativeLang = 'uk') {
@@ -126,7 +126,7 @@ export async function recognizeImage(base64Jpeg, lang = 'en', nativeLang = 'uk')
   };
 }
 
-// ---------- АВТОРИЗАЦІЯ ----------
+// ---------- AUTHORIZATION ----------
 export function apiRegister(email, password, name) {
   return request('/auth/register', { method: 'POST', body: { email, password, name } });
 }
@@ -140,12 +140,12 @@ export function apiUpdateProfile(patch) {
   return request('/me', { method: 'PATCH', body: patch });
 }
 
-// ---------- СЛОВО ДНЯ ----------
+// ---------- WORD OF THE DAY ----------
 export function apiWordOfDay(days, lang, native) {
   return request(`/word-of-day?days=${days}&lang=${lang}&native=${native}`, { timeout: 45000 });
 }
 
-// ---------- ПЕРЕВІРКА ЗВ'ЯЗКУ ----------
+// ---------- CONNECTION CHECK ----------
 export async function checkServer() {
   try {
     const d = await request('/health', { timeout: 6000 });

@@ -1,12 +1,12 @@
-// Спільна «шапка» для кожного виклику use_figma у файлі c5DX8UXHJUdO58fwjIRTFq.
-// Контекст між викликами не зберігається, тож цей блок іде на початок кожного скрипта.
-// Вставляти цілком, далі — код конкретних екранів.
+// A shared "preamble" for every use_figma call in the file c5DX8UXHJUdO58fwjIRTFq.
+// Context is not kept between calls, so this block goes at the start of every script.
+// Paste it in full, then the code of the specific screens.
 
 const page = figma.root.children.find(p => p.name === 'Screens · Light');
 await figma.setCurrentPageAsync(page);
 
 const cols = await figma.variables.getLocalVariableCollectionsAsync();
-const LC = cols.find(c => c.name === 'Color · Light');   // для темних екранів → 'Color · Dark'
+const LC = cols.find(c => c.name === 'Color · Light');   // for dark screens → 'Color · Dark'
 const vars = await figma.variables.getLocalVariablesAsync('COLOR');
 const V = n => vars.find(v => v.variableCollectionId === LC.id && v.name === n);
 const fill = n => [figma.variables.setBoundVariableForPaint(
@@ -33,7 +33,7 @@ async function lingo(pose, size) {
   return i;
 }
 
-// Іконка потрібного кольору. Штрих перефарбовуємо на всіх векторах усередині.
+// An icon of the needed color. We recolor the stroke on all vectors inside.
 async function icon(name, token, size = 24) {
   const i = (await figma.getNodeByIdAsync(ICON[name])).createInstance();
   if (size !== 24) i.resize(size, size);
@@ -41,7 +41,7 @@ async function icon(name, token, size = 24) {
   return i;
 }
 
-// Текст. o.w вмикає перенос: без FIXED-ширини вузол схлопується в нитку.
+// Text. o.w turns on wrapping: without a FIXED width the node collapses into a thread.
 async function T(str, style, token, o = {}) {
   const t = figma.createText();
   await t.setTextStyleIdAsync(TS(style).id);
@@ -63,7 +63,7 @@ function R(gap, p = {}) {
   return f;
 }
 
-// Плаваюча картка. Радіус 28 — м'який, але не таблетка.
+// A floating card. A radius of 28 is soft, but not a pill.
 async function card(pad = 18, token = 'surface', shadow = 'Shadow/md') {
   const f = C(0, { name: 'Card' });
   f.paddingLeft = f.paddingRight = f.paddingTop = f.paddingBottom = pad;
@@ -73,7 +73,7 @@ async function card(pad = 18, token = 'surface', shadow = 'Shadow/md') {
   return f;
 }
 
-// Статус-бар. Гліфи SF Symbols у Фігмі не рендеряться — малюємо формами.
+// Status bar. SF Symbols glyphs do not render in Figma, so we draw with shapes.
 async function statusBar(f, token = 'text') {
   const sb = R(0, { name: 'Status bar', primaryAxisAlignItems: 'SPACE_BETWEEN' });
   f.appendChild(sb);
@@ -106,8 +106,8 @@ async function screen(name, x, bgToken = 'bg', sbToken = 'text') {
   return f;
 }
 
-// Нижня панель. Активна вкладка — м'яка пігулка під іконкою, не підкреслення:
-// підкреслення на матовій поверхні губиться.
+// Bottom bar. The active tab is a soft pill under the icon, not an underline:
+// an underline gets lost on a frosted surface.
 async function tabBar(f, activeIndex) {
   const bar = R(0, { name: 'Tab bar' });
   f.appendChild(bar);
@@ -144,20 +144,20 @@ async function tabBar(f, activeIndex) {
   return bar;
 }
 
-// ── Пам'ятки, на яких уже спіткнулись ────────────────────────────────────────
-// • layoutSizingHorizontal='FILL' ставити ТІЛЬКИ після appendChild.
-// • Ellipse не має cornerRadius — для пігулок брати Rectangle.
-// • createPage кидає помилку: Starter дозволяє лише 3 сторінки.
-// • addMode кидає помилку: Starter дозволяє лише 1 мод на колекцію.
-// • Помилка в скрипті = скрипт не виконався взагалі, файл не зачеплено.
-// • FRAME не має властивості padding — тільки paddingLeft/Right/Top/Bottom.
-// • appendChild() нічого не повертає: `parent.appendChild(x).rotation` впаде.
-// • createNodeFromSvg загортає вектори у FRAME, який теж має strokes.
-//   Перефарбовувати лише те, що ВЖЕ має штрих: x.strokes.length > 0.
-// • Вміст іконки треба ставити на constraints SCALE, інакше при resize
-//   інстансу вектор лишається 24px і вилазить за рамку.
-// • Дитина автолейауту з фіксованим розміром: після appendChild виставити
-//   layoutSizingHorizontal='FIXED' І layoutSizingVertical='FIXED', інакше
-//   батько стисне її в нитку (так сплющило бейдж-лічильник).
-// • Шукати вузли за структурою обережно: «FRAME, у якого перша дитина TEXT» —
-//   це і бейдж, і текстова колонка. Додавати ще одну ознаку (cornerRadius).
+// ── Notes on pitfalls we already stumbled on ─────────────────────────────────
+// • Set layoutSizingHorizontal='FILL' ONLY after appendChild.
+// • Ellipse has no cornerRadius: use Rectangle for pills.
+// • createPage throws an error: Starter allows only 3 pages.
+// • addMode throws an error: Starter allows only 1 mode per collection.
+// • An error in a script = the script did not run at all, the file is untouched.
+// • FRAME has no padding property, only paddingLeft/Right/Top/Bottom.
+// • appendChild() returns nothing: `parent.appendChild(x).rotation` will crash.
+// • createNodeFromSvg wraps vectors in a FRAME, which also has strokes.
+//   Recolor only what ALREADY has a stroke: x.strokes.length > 0.
+// • The icon content must be set to SCALE constraints, otherwise on resize of the
+//   instance the vector stays 24px and sticks out of the frame.
+// • An auto-layout child with a fixed size: after appendChild set
+//   layoutSizingHorizontal='FIXED' AND layoutSizingVertical='FIXED', otherwise
+//   the parent will squeeze it into a thread (this is how the badge counter got flattened).
+// • Search for nodes by structure carefully: "a FRAME whose first child is TEXT"
+//   is both a badge and a text column. Add one more criterion (cornerRadius).

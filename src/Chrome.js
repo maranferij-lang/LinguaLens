@@ -1,10 +1,10 @@
-// Напівпрозорий «хром» застосунку.
+// The app's translucent "chrome".
 //
-// Правило Apple: панелі — це плаваючий матеріал, а не суцільна смуга, що з'їдає
-// екран. Контент має проїжджати під ним. Замість жорсткої лінії-роздільника —
-// м'який край, який проявляється лише там, де контент реально перекривається.
+// Apple's rule: bars are a floating material, not a solid strip that eats
+// the screen. Content should scroll under it. Instead of a hard divider line,
+// a soft edge that appears only where the content really overlaps.
 //
-// expo-blur може бути ще не встановлений — тоді тихо падаємо на суцільний фон.
+// expo-blur may not be installed yet, in which case we quietly fall back to a solid background.
 import { StyleSheet, View } from 'react-native';
 import { useTheme } from './theme';
 
@@ -15,12 +15,12 @@ try {
 
 export const BLUR_AVAILABLE = !!BlurView;
 
-// Висота таб-бара. Екрани додають її знизу до контенту, щоб останній рядок
-// не ховався під панеллю, але при цьому проїжджав під нею на скролі.
+// Tab bar height. Screens add it to the bottom of the content so that the last row
+// does not hide under the bar, but still scrolls under it.
 export const TAB_H = 62;
 export const UNDER_TAB = TAB_H + 16;
 
-// Матеріал під панель. Велика поверхня → сильніше розмиття (правило «більше = товще»).
+// The material for the bar. A large surface → stronger blur (the "bigger = thicker" rule).
 export function Material({ children, style, intensity = 42 }) {
   const { C, isDark } = useTheme();
 
@@ -39,8 +39,8 @@ export function Material({ children, style, intensity = 42 }) {
   );
 }
 
-// Верхній край панелі: замість hairline-бордюра — тонка світла лінія, наче
-// матеріал ловить світло згори. У темних темах вона біла й ледь помітна.
+// Top edge of the bar: instead of a hairline border, a thin light line, as if
+// the material catches light from above. In dark themes it is white and barely visible.
 export function MaterialEdge() {
   const { isDark } = useTheme();
   return (

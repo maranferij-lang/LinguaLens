@@ -1,15 +1,15 @@
-// Лінійні іконки LinguaLens — один-в-один із набором Icon у Figma.
+// LinguaLens line icons: identical to the Icon set in Figma.
 //
-// Правила набору: сітка 24, товщина штриха 1.75, круглі кінці й стики,
-// жодних заливок. Геометрія спрощена до впізнаваного мінімуму — на 24px
-// зайва деталь перетворюється на пляму. Колір задається зверху.
+// Set rules: a 24 grid, a 1.75 stroke width, round caps and joins,
+// no fills. The geometry is simplified to a recognizable minimum: at 24px
+// an extra detail turns into a smudge. The color is set from above.
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import { C } from './theme';
 
 const DIM = C.dim;
 
-// Спільні атрибути штриха. Товщина не масштабується разом із розміром:
-// на 18px тонший штрих виглядав би вицвілим, на 30px — товстіший грубим.
+// Shared stroke attributes. The width does not scale with the size:
+// at 18px a thinner stroke would look washed out, at 30px a thicker one would look coarse.
 const S = (color, w = 1.75) => ({
   fill: 'none',
   stroke: color,
@@ -20,10 +20,10 @@ const S = (color, w = 1.75) => ({
 
 const box = (size) => ({ width: size, height: size, viewBox: '0 0 24 24' });
 
-// ─── Навігація ──────────────────────────────────────────────────────────────
+// ─── Navigation ─────────────────────────────────────────────────────────────
 
-// Сканер: кути видошукача + об'єктив. Рамка з чотирьох кутів, а не суцільна,
-// бо суцільна на екрані камери перекриває предмет.
+// Scanner: viewfinder corners + a lens. A frame of four corners, not a solid one,
+// because a solid one covers the object on the camera screen.
 export function IcScan({ size = 24, color = DIM }) {
   return (
     <Svg {...box(size)}>
@@ -46,7 +46,7 @@ export function IcBook({ size = 24, color = DIM }) {
   );
 }
 
-// Флешкартки: дві картки стосом, задня трохи повернута.
+// Flashcards: two cards in a stack, the back one slightly rotated.
 export function IcCards({ size = 24, color = DIM }) {
   return (
     <Svg {...box(size)}>
@@ -65,7 +65,7 @@ export function IcUser({ size = 24, color = DIM }) {
   );
 }
 
-// Налаштування — повзунки, не шестерня: на 24px шестерня читається як сонце.
+// Settings: sliders, not a gear: at 24px a gear reads as a sun.
 export function IcSliders({ size = 24, color = DIM }) {
   return (
     <Svg {...box(size)}>
@@ -75,9 +75,9 @@ export function IcSliders({ size = 24, color = DIM }) {
     </Svg>
   );
 }
-export const IcGear = IcSliders; // старе ім'я, щоб не ламати імпорти
+export const IcGear = IcSliders; // the old name, so as not to break imports
 
-// ─── Дії ────────────────────────────────────────────────────────────────────
+// ─── Actions ────────────────────────────────────────────────────────────────
 
 export function IcSpeaker({ size = 24, color = DIM }) {
   return (
@@ -129,7 +129,7 @@ export function IcPlus({ size = 22, color = DIM }) {
   );
 }
 
-// Око з перекресленням — показати/сховати пароль.
+// An eye with a slash: show/hide the password.
 export function IcEye({ size = 20, color = DIM, off = false }) {
   return (
     <Svg {...box(size)}>
@@ -140,9 +140,9 @@ export function IcEye({ size = 20, color = DIM, off = false }) {
   );
 }
 
-// ─── Статуси ────────────────────────────────────────────────────────────────
+// ─── Statuses ───────────────────────────────────────────────────────────────
 
-// Полум'я серії: гострий язик із внутрішнім завитком.
+// Streak flame: a sharp tongue with an inner curl.
 export function IcFlame({ size = 24, color = DIM }) {
   return (
     <Svg {...box(size)}>
@@ -154,7 +154,7 @@ export function IcFlame({ size = 24, color = DIM }) {
   );
 }
 
-// Досягнення: медаль-коло зі стрічкою.
+// Achievements: a medal circle with a ribbon.
 export function IcMedal({ size = 24, color = DIM }) {
   return (
     <Svg {...box(size)}>
@@ -164,7 +164,7 @@ export function IcMedal({ size = 24, color = DIM }) {
   );
 }
 
-// Статистика: три стовпчики різної висоти.
+// Statistics: three bars of different heights.
 export function IcChart({ size = 24, color = DIM }) {
   return (
     <Svg {...box(size)}>

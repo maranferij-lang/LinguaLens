@@ -1,30 +1,30 @@
-// Спільні UI-компоненти. Рух — за src/motion.js.
+// Shared UI components. Motion follows src/motion.js.
 import { useEffect, useRef } from 'react';
 import { Animated, Pressable, Text, View } from 'react-native';
 import { DUR, EASE, SPRING, travel } from './motion';
 import { CAPS, F, R, type, useTheme } from './theme';
 
-// Натискний елемент.
-// Правило Apple №1: відгук на press-IN, не на відпускання. Мить, коли з'являється
-// затримка, вбиває відчуття прямої дії. Стиснення subtle — 0.97, не менше.
+// A pressable element.
+// Apple rule no. 1: respond to press-IN, not to the release. The moment a
+// delay appears, it kills the feeling of direct action. The squeeze is subtle: 0.97, no less.
 //
-// ВАЖЛИВО: анімований саме Pressable, а не вкладений у нього View. Стара версія
-// віддавала style внутрішньому View, і той лишався всередині Pressable без
-// розмірів — будь-який flex: 1 схлопувався. Саме через це флешкартка
-// показувалась порожнім прямокутником.
+// IMPORTANT: it is the Pressable itself that is animated, not a View nested in it. The old version
+// gave the style to the inner View, and it stayed inside the Pressable with no
+// size, so any flex: 1 collapsed. This is exactly why the flashcard
+// showed up as an empty rectangle.
 const APressable = Animated.createAnimatedComponent(Pressable);
 
 export function Press({ children, style, onPress, onLongPress, disabled, scaleTo = 0.97, hitSlop = 6 }) {
   const scale = useRef(new Animated.Value(1)).current;
   const press = (to, cfg) => Animated.spring(scale, { toValue: to, ...cfg }).start();
 
+  // Press in is fast and sharp (the system heard), press out is a bit calmer.
   return (
     <APressable
       onPress={onPress}
       onLongPress={onLongPress}
       disabled={disabled}
       hitSlop={hitSlop}
-      // вниз — швидко й різко (система почула), вгору — трохи спокійніше
       onPressIn={() => press(scaleTo, SPRING.snappy)}
       onPressOut={() => press(1, SPRING.ui)}
       style={[style, { transform: [{ scale }] }, disabled && { opacity: 0.45 }]}
@@ -34,7 +34,7 @@ export function Press({ children, style, onPress, onLongPress, disabled, scaleTo
   );
 }
 
-// Плаваюча картка: великий радіус, м'яка тінь, без рамок
+// A floating card: a large radius, a soft shadow, no borders
 export function Glass({ children, style, flat, big }) {
   const { C, SHADOW, SHADOW_LG } = useTheme();
   return (
@@ -50,7 +50,7 @@ export function Glass({ children, style, flat, big }) {
   );
 }
 
-// Кольоровий піл-бейдж: м'який фон + насичений текст
+// A colored pill badge: a soft background + saturated text
 export function Pill({ text, color, soft, style, size = 13 }) {
   return (
     <View
@@ -70,13 +70,13 @@ export function Pill({ text, color, soft, style, size = 13 }) {
   );
 }
 
-// Дрібні розрядкові кепси — «СЛОВО ДНЯ», «АКАУНТ»
+// Small letter-spaced caps: "WORD OF THE DAY", "ACCOUNT"
 export function Caps({ children, style }) {
   const { C } = useTheme();
   return <Text style={[{ color: C.faint }, CAPS, style]}>{children}</Text>;
 }
 
-// Головна кнопка
+// The primary button
 export function GradBtn({ title, onPress, disabled, style, small }) {
   const { C, SHADOW } = useTheme();
   return (
@@ -100,7 +100,7 @@ export function GradBtn({ title, onPress, disabled, style, small }) {
   );
 }
 
-// Другорядна кнопка
+// The secondary button
 export function SecBtn({ title, onPress, style }) {
   const { C } = useTheme();
   return (
@@ -116,9 +116,9 @@ export function SecBtn({ title, onPress, style }) {
   );
 }
 
-// Поява елемента.
-// Без перельоту: елемент просто з'явився, його ніхто не кидав. Зсув маленький —
-// 12 px достатньо, щоб око зчитало напрямок. При reduced motion зсуву немає.
+// Element appearance.
+// No overshoot: the element simply appeared, nobody threw it. The shift is small:
+// 12 px is enough for the eye to read the direction. With reduced motion there is no shift.
 export function FadeIn({ children, style, delay = 0, dy = 12 }) {
   const a = useRef(new Animated.Value(0)).current;
   const shift = travel(dy);
@@ -150,8 +150,8 @@ export function FadeIn({ children, style, delay = 0, dy = 12 }) {
   );
 }
 
-// Смужка прогресу. Масштабуємо по X, а не міняємо width: transform іде
-// на GPU, width щоразу перераховує лейаут.
+// A progress strip. We scale along X instead of changing width: the transform goes
+// to the GPU, while width recalculates the layout every time.
 export function Bar({ progress, color, bg, height = 8, radius, duration = DUR.sheet }) {
   const a = useRef(new Animated.Value(0)).current;
   useEffect(() => {
@@ -173,7 +173,7 @@ export function Bar({ progress, color, bg, height = 8, radius, duration = DUR.sh
           backgroundColor: color,
           width: '100%',
           transform: [{ scaleX: a }],
-          // масштабуємо від лівого краю, а не від центру
+          // scale from the left edge, not from the center
           transformOrigin: 'left',
         }}
       />

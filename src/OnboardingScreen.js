@@ -1,4 +1,4 @@
-// Онбординг: 3 свайп-екрани при першому запуску
+// Onboarding: 3 swipe screens on the first launch
 import { useMemo, useRef, useState } from 'react';
 import {
   Dimensions,
@@ -35,8 +35,8 @@ export default function OnboardingScreen({ t, onDone }) {
     if (page + 1 < SLIDES.length) {
       listRef.current?.scrollToIndex({ index: page + 1, animated: true });
     } else {
-      // Дозвіл питаємо в кінці онбордингу, коли людина вже знає, за що платить
-      // увагою. Системний діалог одразу на старті майже завжди отримує «ні».
+      // We ask for the permission at the end of onboarding, when the person already knows what they are paying
+      // attention for. A system dialog right at the start almost always gets a "no".
       setAskPush(true);
     }
   }
@@ -48,7 +48,7 @@ export default function OnboardingScreen({ t, onDone }) {
     onDone({ wodEnabled: granted });
   }
 
-  // ── Крок дозволу на сповіщення ───────────────────────────────────────────
+  // ── Notification permission step ─────────────────────────────────────────
   if (askPush) {
     return (
       <View style={[s.root, s.pushRoot]}>

@@ -1,32 +1,34 @@
-# Як потестувати LinguaLens зараз
+# How to test LinguaLens right now
 
-Два вікна PowerShell: в одному сервер, у другому Expo. Телефон і комп'ютер —
-в одній Wi-Fi мережі.
+Two PowerShell windows: the server in one, Expo in the other. The phone and the computer
+must be on the same Wi-Fi network.
 
 ---
 
-## Вікно 1 — сервер
+## Window 1: the server
 
 ```powershell
 cd "$HOME\Documents\LinguaLens\server"
 node server.js
 ```
 
-Має написати щось таке:
+It should print something like this:
 
 ```
 LinguaLens server запущено. Провайдер: gemini
   → у Wi-Fi мережі: http://192.168.0.102:3000
 ```
 
-**Запиши цю адресу** — вона могла змінитись з минулого разу.
-Перевір у браузері: `http://localhost:3000/health` → `{"ok":true,...}`
+(The Ukrainian text is the server's startup log: "LinguaLens server started. Provider: gemini" and "on the Wi-Fi network".)
 
-Якщо Windows спитає про доступ до мережі — дозволь, інакше телефон не достукається.
+**Write this address down.** It may have changed since last time.
+Check it in the browser: `http://localhost:3000/health` → `{"ok":true,...}`
+
+If Windows asks about network access, allow it, otherwise the phone cannot reach the server.
 
 ---
 
-## Вікно 2 — застосунок
+## Window 2: the app
 
 ```powershell
 cd "$HOME\Documents\LinguaLens"
@@ -34,117 +36,117 @@ npm install
 npx expo start
 ```
 
-`npm install` цього разу обов'язковий — додалось чотири пакети
+This time `npm install` is mandatory, because four packages were added
 (`expo-notifications`, `expo-secure-store`, `expo-blur`, `expo-splash-screen`).
-Займе хвилину-дві.
+It takes a minute or two.
 
-Далі скануй QR камерою iPhone → відкриється в Expo Go.
+Then scan the QR code with the iPhone camera and it opens in Expo Go.
 
-### Якщо адреса сервера змінилась
+### If the server address changed
 
-Відкрий `src/api.js`, рядок 8, встав нову:
+Open `src/api.js`, line 8, and paste the new one:
 
 ```js
 export const SERVER_URL = 'http://192.168.0.102:3000';
 ```
 
-Потім у вікні Expo натисни `r` — застосунок перезавантажиться.
+Then press `r` in the Expo window and the app will reload.
 
-### Якщо не підключається
+### If it does not connect
 
-У тебе стоять UrbanVPN / Grass / TAP-адаптери — вони плутають Expo, який може
-віддати телефону адресу віртуального адаптера замість Wi-Fi. Лікується так:
+You have UrbanVPN / Grass / TAP adapters installed. They confuse Expo, which may
+give the phone the address of a virtual adapter instead of the Wi-Fi one. The fix:
 
 ```powershell
 npx expo start --tunnel
 ```
 
-Тунель повільніший, але обходить VPN і фаєрвол.
+The tunnel is slower, but it bypasses the VPN and the firewall.
 
 ---
 
-## Що перевірити — за 10 хвилин
+## What to check: 10 minutes
 
-Порядок не випадковий: кожен наступний пункт спирається на попередній.
+The order is deliberate: each next item builds on the previous one.
 
-### Перше враження
+### First impression
 
-- [ ] Онбординг: три екрани, кнопка «Почати» **внизу**, під великим пальцем
-- [ ] Тло — тепла крейда, не чисто-біле. Кнопки — фіолет Lingo, не зелень
-- [ ] Lingo не смикається, а плавно «дихає»
+- [ ] Onboarding: three screens, the «Почати» (Start) button is **at the bottom**, under the thumb
+- [ ] The background is warm chalk, not pure white. The buttons are Lingo violet, not green
+- [ ] Lingo does not twitch, but smoothly "breathes"
 
-### Акаунт
+### Account
 
-- [ ] Зареєструйся будь-якою поштою, пароль від 6 символів
-- [ ] Око біля пароля показує/ховає текст
-- [ ] Введи неправильний пароль → форма має **коротко тремтнути** і дати вібрацію
-- [ ] Закрий застосунок і відкрий знову → ти досі залогінений
+- [ ] Sign up with any email, a password of at least 6 characters
+- [ ] The eye next to the password shows/hides the text
+- [ ] Enter a wrong password → the form should **shake briefly** and give a vibration
+- [ ] Close the app and open it again → you are still logged in
 
-### Сканування — головне
+### Scanning: the main thing
 
-- [ ] Наведи на предмет, натисни велике біле коло
-- [ ] Відповідь має прийти за **1.5–2 секунди**. Якщо 20+ — щось із мережею
-- [ ] У картці: слово, транскрипція, переклад, приклад
-- [ ] «Прослухати» → чути вимову. **Перевір із вимкненим звуком на боковому
-      перемикачі** — має все одно звучати
-- [ ] «Зберегти» → слово з'явилось у Словнику
+- [ ] Point at an object, tap the big white circle
+- [ ] The answer should arrive in **1.5-2 seconds**. If it takes 20+, something is wrong with the network
+- [ ] On the card: the word, transcription, translation, example
+- [ ] «Прослухати» (Listen) → the pronunciation is audible. **Check with the sound off on the
+      side switch**: it should still play
+- [ ] «Зберегти» (Save) → the word appears in the Dictionary
 
-### Словник
+### Dictionary
 
-- [ ] Рядки — плаваючі картки з тінню, без ліній-роздільників
-- [ ] Пошук із іконкою лупи, фільтрує по слову й перекладу
-- [ ] Тап по картці розгортає приклад
-- [ ] Видали всі слова → порожній стан із Lingo і кнопкою «Сканувати перше слово»,
-      яка **перекидає на камеру**
+- [ ] The rows are floating cards with a shadow, without divider lines
+- [ ] Search with a magnifier icon, filters by word and translation
+- [ ] Tapping a card expands the example
+- [ ] Delete all words → an empty state with Lingo and the button «Сканувати перше слово» (Scan the first word),
+      which **switches to the camera**
 
-### Навчання
+### Learning
 
-- [ ] Картка «Слово дня» вгорі, розгортається дотиком
-- [ ] Флешкартки: картка перевертається з легким перельотом (це єдине місце,
-      де переліт дозволений — картка ж фізичний предмет)
-- [ ] Квіз: таймер їде рівно, правильна відповідь підсвічується бірюзою
+- [ ] The "Word of the Day" card at the top, expands on tap
+- [ ] Flashcards: the card flips with a slight overshoot (this is the only place
+      where overshoot is allowed, since a card is a physical object)
+- [ ] Quiz: the timer runs evenly, the correct answer is highlighted in turquoise
 
-### Профіль і налаштування
+### Profile and settings
 
-- [ ] Рівень, серія, три цифри, графік за тиждень
-- [ ] Зміни аватар Lingo — має зберегтись після перезапуску
-- [ ] **Тема**: три плитки — Авто / Світла / Темна. Перемкни на Темну — весь
-      застосунок має стати теплим графітом, а не синім
-- [ ] Перемкни мову навчання на іспанську → скануй → слово має бути іспанською
+- [ ] Level, streak, three numbers, the weekly chart
+- [ ] Change the Lingo avatar → it should persist after a restart
+- [ ] **Theme**: three tiles, Auto / Light / Dark. Switch to Dark and the whole
+      app should become warm graphite, not blue
+- [ ] Switch the learning language to Spanish → scan → the word should be in Spanish
 
-### Слово дня і пуші
+### Word of the Day and pushes
 
-- [ ] Увімкни «Щоденне сповіщення», дозволь сповіщення
-- [ ] Постав годину, найближчу до поточної (напр. якщо зараз 17:40 — постав 18:00)
-- [ ] Згорни застосунок і дочекайся — має прийти пуш зі словом
+- [ ] Turn on "Daily notification" and allow notifications
+- [ ] Set the hour closest to the current one (e.g. if it is 17:40 now, set 18:00)
+- [ ] Minimize the app and wait: a push with the word should arrive
 
 ---
 
-## Що НЕ вийде перевірити в Expo Go
+## What you CANNOT check in Expo Go
 
-| | Чому | Де перевіриться |
+| | Why | Where it can be checked |
 |---|---|---|
-| Матове скло таб-бара | `expo-blur` потребує нативної збірки | у білді EAS |
-| Сплеш-екран | те саме | у білді EAS |
-| Іконка застосунку | Expo Go показує свою | у білді EAS |
+| Frosted glass tab bar | `expo-blur` needs a native build | in the EAS build |
+| Splash screen | same | in the EAS build |
+| App icon | Expo Go shows its own | in the EAS build |
 
-Це нормально — перевіриш на кроці TestFlight.
+This is normal: you will check it at the TestFlight step.
 
 ---
 
-## Якщо щось пішло не так
+## If something went wrong
 
-| Симптом | Причина | Що робити |
+| Symptom | Cause | What to do |
 |---|---|---|
-| `running scripts is disabled on this system` | PowerShell блокує `.ps1`, а `npm`/`npx` — саме вони | або дописуй `.cmd` (`npm.cmd install`), або раз виконай `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` |
-| `Illegal characters in path` | апостроф у `Мар'ян` ламає розбір шляху | шлях у лапках або через `"$HOME\Documents\LinguaLens"` |
-| Замість команди зʼявився `>>` | вставлено кілька рядків разом — PowerShell чекає продовження | `Ctrl+C` і вводь по одному рядку |
-| «Час очікування вичерпано» | сервер не запущено або інша IP | перевір вікно 1 і `src/api.js` |
-| Скан дає 401 | зламався токен сесії | вийди й увійди знову |
-| «Project is incompatible with this version of Expo Go» | Expo Go оновився | `npx expo install --fix` |
-| Порожній екран після QR | VPN плутає адресу | `npx expo start --tunnel` |
-| Немає звуку вимови | мова не підтримується системою | спробуй англійську |
-| Пуш не приходить | не дав дозвіл або година вже минула | Налаштування iOS → LinguaLens → Сповіщення |
+| `running scripts is disabled on this system` | PowerShell blocks `.ps1`, and `npm`/`npx` are exactly those | either append `.cmd` (`npm.cmd install`), or run `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` once |
+| `Illegal characters in path` | the apostrophe in `Мар'ян` (a Ukrainian first name) breaks path parsing | quote the path or use `"$HOME\Documents\LinguaLens"` |
+| `>>` appeared instead of a prompt | several lines were pasted together, and PowerShell is waiting for a continuation | `Ctrl+C` and enter one line at a time |
+| «Час очікування вичерпано» (Timed out) | the server is not running or the IP is different | check window 1 and `src/api.js` |
+| The scan returns 401 | the session token broke | sign out and sign in again |
+| «Project is incompatible with this version of Expo Go» | Expo Go was updated | `npx expo install --fix` |
+| A blank screen after the QR code | the VPN confuses the address | `npx expo start --tunnel` |
+| No pronunciation sound | the language is not supported by the system | try English |
+| The push does not arrive | permission was not granted or the hour has already passed | iOS Settings → LinguaLens → Notifications |
 
-Логи сервера в першому вікні показують кожен запит — там видно, чи дійшов скан
-і скільки він тривав.
+The server logs in the first window show every request, so you can see whether the scan arrived
+and how long it took.

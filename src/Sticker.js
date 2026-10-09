@@ -1,28 +1,28 @@
-// Наліпка з предметом — справжнє вирізання по силуету.
+// A sticker with an object: a real cut-out along the silhouette.
 //
-// Чому не круглий кроп: круг — це той самий скріншот, просто в іншій рамці.
-// Тло всередині лишається, форма однакова для всього, і відчуття колекції
-// не виникає. Тут предмет вирізається по СВОЄМУ контуру: модель віддає
-// полігон силуету (10–24 точки), а SVG-маска показує тільки те, що всередині.
+// Why not a round crop: a circle is the same screenshot, just in a different frame.
+// The background inside stays, the shape is the same for everything, and the feeling of a collection
+// does not arise. Here the object is cut out along ITS OWN outline: the model returns
+// a silhouette polygon (10-24 points), and an SVG mask shows only what is inside.
 //
-// Механіка: <Mask> з білим полігоном → все за межами полігона прозоре.
-// Обводка малюється тим самим полігоном, тож вона йде точно по краю предмета,
-// а не по колу навколо нього.
+// Mechanics: <Mask> with a white polygon → everything outside the polygon is transparent.
+// The outline is drawn with the same polygon, so it follows the edge of the object exactly,
+// not a circle around it.
 //
-// Якщо контуру немає (модель не дала або дала сміття) — падаємо на круглу
-// маску. Це помітно гірше, але ніколи не порожньо.
+// If there is no outline (the model did not provide one or gave garbage), we fall back to a round
+// mask. It is noticeably worse, but never empty.
 import { useMemo } from 'react';
 import { Image, View } from 'react-native';
 import Svg, { ClipPath, Defs, Image as SvgImage, Path, Polygon } from 'react-native-svg';
 import { useTheme } from './theme';
 
-// Полігон у координатах 0–1000 (y,x) → шлях у координатах наліпки.
-// Точки приходять для ЦІЛОГО кадру, а наліпка вже обрізана по рамці предмета,
-// тож перераховуємо їх у локальні координати вирізаного квадрата.
+// Polygon in 0-1000 coordinates (y,x) → a path in sticker coordinates.
+// The points come for the WHOLE frame, while the sticker is already cropped to the object's box,
+// so we recalculate them into the local coordinates of the cropped square.
 function outlineToPath(outline, box, size) {
   if (!outline || !box) return null;
   const [y1, x1, y2, x2] = box;
-  // рамка з тим самим запасом, що й у кропі сканера
+  // box with the same margin as in the scanner crop
   const pad = 0.06;
   const bw = (x2 - x1) / 1000 + pad * 2;
   const bh = (y2 - y1) / 1000 + pad * 2;
@@ -36,7 +36,7 @@ function outlineToPath(outline, box, size) {
       const ly = ((y / 1000) - oy) / side;
       return [lx * size, ly * size];
     })
-    // точки, що вилетіли далеко за межі, — ознака галюцинації
+    // points that flew far out of bounds are a sign of hallucination
     .filter(([px, py]) => px > -size && px < size * 2 && py > -size && py < size * 2);
 
   if (pts.length < 6) return null;
@@ -47,7 +47,7 @@ function Cut({ uri, outline, box, size, ringColor, ringWidth }) {
   const path = useMemo(() => outlineToPath(outline, box, size), [outline, box, size]);
   const id = useMemo(() => 'cut' + Math.random().toString(36).slice(2, 8), []);
 
-  // немає контуру — круг
+  // no outline: a circle
   if (!path) {
     return (
       <View style={{ width: size, height: size, borderRadius: size / 2, overflow: 'hidden' }}>
@@ -72,13 +72,13 @@ function Cut({ uri, outline, box, size, ringColor, ringWidth }) {
         preserveAspectRatio="xMidYMid slice"
         clipPath={`url(#${id})`}
       />
-      {/* Обводка по самому силуету, а не по колу навколо нього */}
+      {/* Outline along the silhouette itself, not a circle around it */}
       <Path d={path} fill="none" stroke={ringColor} strokeWidth={ringWidth} strokeLinejoin="round" />
     </Svg>
   );
 }
 
-// Дрібна наліпка для рядка словника.
+// A small sticker for a dictionary row.
 export function Sticker({ uri, outline, box, size = 48, style }) {
   const { C } = useTheme();
   if (!uri) return null;
@@ -89,9 +89,9 @@ export function Sticker({ uri, outline, box, size = 48, style }) {
   );
 }
 
-// Велика наліпка для картки результату і зворотної сторони флешкартки.
-// Під нею м'яка акцентна пляма — вона дає предмету «землю» й тримає
-// композицію, коли силует вузький.
+// A large sticker for the result card and the back of the flashcard.
+// Under it is a soft accent spot: it gives the object "ground" and holds
+// the composition when the silhouette is narrow.
 export function StickerLarge({ uri, outline, box, size = 132, style }) {
   const { C } = useTheme();
   if (!uri) return null;

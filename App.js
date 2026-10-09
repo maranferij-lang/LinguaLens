@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
-// SafeAreaView з react-native застарів. Наша обгортка бере контекстну версію,
-// якщо пакет встановлений, і падає на ручні відступи, якщо ні.
+// SafeAreaView from react-native is deprecated. Our wrapper uses the context version
+// if the package is installed, and falls back to manual insets if not.
 import { SafeAreaView } from './src/SafeArea';
 import { StatusBar } from 'expo-status-bar';
 import * as Haptics from 'expo-haptics';
@@ -36,9 +36,9 @@ import {
   canScan, canSaveWord, scansLeft,
 } from './src/subscription';
 
-// Порядок вкладок зафіксований і не обговорюється:
-// сканер — по центру, бо це головна дія застосунку і найзручніша точка для
-// великого пальця; профіль — крайній лівий, налаштування — крайні праві.
+// The tab order is fixed and not up for discussion:
+// the scanner is in the center because it is the app's main action and the most convenient spot for
+// the thumb; profile is far left, settings is far right.
 const TABS = [
   { key: 'profile', Icon: IcUser, label: 'tabProfile' },
   { key: 'dict', Icon: IcBook, label: 'tabDict' },
@@ -75,13 +75,13 @@ export default function App() {
   const [seenAch, setSeenAch] = useState([]);
   const [wod, setWod] = useState(null);
   const [toastAch, setToastAch] = useState(null);
-  // Підписка й денний облік сканів. Поки еквайринг не підключений, стан
-  // локальний; форма даних уже така, як буде з чеком App Store.
+  // Subscription and daily scan accounting. Until payment processing is connected, the state
+  // is local; the data shape is already what it will be with an App Store receipt.
   const [sub, setSub] = useState({ pro: false });
   const [usage, setUsage] = useState({ scans: 0 });
   const [paywall, setPaywall] = useState(null); // null | 'scans' | 'words' | 'langs'
 
-  // ---------- СТАРТ ----------
+  // ---------- START ----------
   useEffect(() => {
     initAudio();
     (async () => {
@@ -113,11 +113,11 @@ export default function App() {
       setWod(wodCache);
       setUser(session.user);
       setOnboarded(ob);
-      // якщо ще не онбордився і не має акаунта — спершу онбординг, потім вхід
+      // if not onboarded yet and has no account: onboarding first, then sign-in
       if (ob && !session.user) setShowAuth(false);
       setReady(true);
 
-      // тихо оновлюємо профіль і слово дня у фоні
+      // quietly refresh the profile and the word of the day in the background
       if (session.token) {
         refreshUser().then((u) => {
           if (u === null) setUser(null);
@@ -139,7 +139,7 @@ export default function App() {
   const t = useMemo(() => makeT(settings.nativeLang), [settings.nativeLang]);
   const s = useMemo(() => makeStyles(C), [C]);
 
-  // ---------- ДОСЯГНЕННЯ ----------
+  // ---------- ACHIEVEMENTS ----------
   const activeDays = useMemo(() => {
     const set = new Set([
       ...Object.keys(activity),
@@ -160,7 +160,7 @@ export default function App() {
     return n;
   }, [activeDays]);
 
-  // перевіряємо нові досягнення після кожної зміни даних
+  // check for new achievements after every data change
   useEffect(() => {
     if (!ready) return;
     const metrics = computeMetrics({ words, activity, stats, streak });
@@ -170,12 +170,12 @@ export default function App() {
       const ids = [...seenAch, ...fresh.map((a) => a.id)];
       setSeenAch(ids);
       persistSeenAchievements(ids);
-      setToastAch(fresh[0]); // показуємо перше, решта лишаться в профілі
+      setToastAch(fresh[0]); // show the first one, the rest stay in the profile
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
   }, [words, activity, stats, streak, ready]);
 
-  // ---------- ДАНІ ----------
+  // ---------- DATA ----------
   function logActivity() {
     const k = localDayKey();
     setActivity((prev) => {
@@ -190,8 +190,8 @@ export default function App() {
     persistWords(next);
   }
 
-  // Воротар сканера. Викликається ДО зйомки: краще сказати «ні» одразу,
-  // ніж витратити виклик AI і показати відмову після нього.
+  // Scanner gatekeeper. Called BEFORE the shot: better to say "no" right away
+  // than to spend an AI call and show a refusal after it.
   function guardScan() {
     const deny = canScan({ pro: sub.pro, usage });
     if (deny) {
@@ -207,8 +207,8 @@ export default function App() {
   }
 
   function addWord(result) {
-    // Стеля словника. Перевіряємо тут, а не в сканері: слово може прийти
-    // ще й зі «слова дня», і ліміт має діяти однаково.
+    // Dictionary ceiling. Checked here, not in the scanner: a word can also come
+    // from the "word of the day", and the limit must apply equally.
     const deny = canSaveWord({ pro: sub.pro, wordCount: words.length });
     if (deny) {
       setPaywall(deny);
@@ -222,14 +222,14 @@ export default function App() {
     };
     updateWords([...words, item]);
     logActivity();
-    // «Нічна сова» і «Ранній птах» — досягнення не про кількість, а про звичку.
-    // Позначаємо одноразово, коли слово збережено в характерний час.
+    // The "Night Owl" and "Early Bird" achievements are about habit, not quantity.
+    // Marked once, when a word is saved at the characteristic time.
     const h = new Date().getHours();
     if (h >= 23 || h < 5) bumpStatOnce('nightScan');
     else if (h >= 5 && h < 8) bumpStatOnce('morningScan');
   }
 
-  // Ставить прапорець один раз — повторні виклики нічого не міняють.
+  // Sets the flag once; repeated calls change nothing.
   function bumpStatOnce(key) {
     setStats((prev) => {
       if (prev[key]) return prev;
@@ -264,7 +264,7 @@ export default function App() {
     const next = { ...settings, ...patch };
     setSettings(next);
     persistSettings(next);
-    // мови змінились — перезавантажуємо слово дня
+    // languages changed: reload the word of the day
     if (patch.targetLang || patch.nativeLang) {
       syncWordOfDay({
         lang: next.targetLang,
@@ -279,7 +279,7 @@ export default function App() {
   async function toggleWod(value) {
     if (value) {
       const granted = await requestPermission();
-      if (!granted) return; // користувач відмовив — лишаємо вимкненим
+      if (!granted) return; // the user declined: leave it turned off
     } else {
       await cancelAll();
     }
@@ -306,7 +306,7 @@ export default function App() {
     }).then((c) => c && setWod(c));
   }
 
-  // ---------- СЛОВО ДНЯ ----------
+  // ---------- WORD OF THE DAY ----------
   const todayWord = useMemo(() => todayFrom(wod), [wod]);
   const wodSaved = useMemo(
     () => !!todayWord && words.some((w) => w.word?.toLowerCase() === todayWord.word?.toLowerCase()),
@@ -328,7 +328,7 @@ export default function App() {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }
 
-  // ---------- АКАУНТ ----------
+  // ---------- ACCOUNT ----------
   async function handleAuthDone(u) {
     setShowAuth(false);
     if (u) {
@@ -345,8 +345,8 @@ export default function App() {
   }
 
   async function purchasePlan(planId) {
-    // Тут з'явиться виклик StoreKit. Наразі активуємо локально, щоб можна
-    // було проходити всі сценарії й перевіряти ліміти.
+    // The StoreKit call will go here. For now we activate locally so that all
+    // scenarios can be walked through and the limits checked.
     const next = await activatePlan(planId);
     setSub(next);
     setPaywall(null);
@@ -373,14 +373,14 @@ export default function App() {
   function finishOnboarding(result) {
     setOnboarded(true);
     persistOnboarded();
-    // Онбординг уже спитав про сповіщення — зберігаємо відповідь, щоб не
-    // питати вдруге і щоб перемикач у налаштуваннях показував правду.
+    // Onboarding already asked about notifications: save the answer so we do not
+    // ask a second time and so the toggle in settings shows the truth.
     if (result && typeof result.wodEnabled === 'boolean') {
       const next = { ...settings, wodEnabled: result.wodEnabled };
       setSettings(next);
       persistSettings(next);
     }
-    if (!user) setShowAuth(true); // після онбордингу пропонуємо акаунт
+    if (!user) setShowAuth(true); // after onboarding, offer an account
   }
 
   function replayOnboarding() {
@@ -390,7 +390,7 @@ export default function App() {
 
   const dueCount = useMemo(() => dueWords(words).length, [words, tab]);
 
-  // ---------- РЕНДЕР ----------
+  // ---------- RENDER ----------
   if (!ready || !fontsLoaded) {
     return (
       <View style={s.loader}>
@@ -509,7 +509,7 @@ export default function App() {
           ) : null}
         </View>
 
-        {/* Таб-бар — напівпрозорий матеріал, контент проїжджає під ним */}
+        {/* Tab bar is a translucent material, content slides under it */}
         <Material style={s.tabbar}>
           <MaterialEdge />
           {TABS.map((tb) => (
@@ -526,8 +526,8 @@ export default function App() {
           ))}
         </Material>
 
-        {/* Пейвол поверх усього. Modal тут не потрібен: власний шар дає
-            повний контроль над анімацією і не конфліктує з таб-баром. */}
+        {/* Paywall on top of everything. A Modal is not needed here: our own layer gives
+            full control over the animation and does not conflict with the tab bar. */}
         {paywall ? (
           <View style={StyleSheet.absoluteFill}>
             <PaywallScreen
@@ -539,17 +539,17 @@ export default function App() {
           </View>
         ) : null}
 
-        {/* Спливаюче вітання з новим досягненням */}
+        {/* Pop-up greeting with a new achievement */}
         <AchievementToast achievement={toastAch} onHide={() => setToastAch(null)} t={t} />
       </SafeAreaView>
     </ThemeProvider>
   );
 }
 
-// Кнопка таб-бара.
-// Перемикання вкладок — дія, яку роблять десятки разів на день, тож рух тут
-// мінімальний і швидкий: «пігулка» проявляється, іконка ледь підростає.
-// Жодного перельоту — інакше на кожен тап екран підстрибує.
+// Tab bar button.
+// Switching tabs is an action done dozens of times a day, so the motion here is
+// minimal and fast: the "pill" fades in, the icon grows slightly.
+// No overshoot, otherwise the screen bounces on every tap.
 function TabButton({ tb, active, badge, onPress, C, s, t }) {
   const a = useRef(new Animated.Value(active ? 1 : 0)).current;
   const press = useRef(new Animated.Value(1)).current;
@@ -569,7 +569,7 @@ function TabButton({ tb, active, badge, onPress, C, s, t }) {
       onPress={onPress}
       accessibilityRole="tab"
       accessibilityState={{ selected: active }}
-      // відгук на натиск, а не на відпускання
+      // respond to the press, not to the release
       onPressIn={() => Animated.spring(press, { toValue: 0.92, ...SPRING.snappy }).start()}
       onPressOut={() => Animated.spring(press, { toValue: 1, ...SPRING.ui }).start()}
     >
@@ -580,7 +580,7 @@ function TabButton({ tb, active, badge, onPress, C, s, t }) {
             {
               backgroundColor: C.accentSoft,
               opacity: a,
-              // пігулка не виникає з нуля — стартує з 0.85
+              // the pill does not appear from nothing: it starts from 0.85
               transform: [{ scale: a.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1] }) }],
             },
           ]}

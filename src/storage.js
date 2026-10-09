@@ -1,4 +1,4 @@
-// Збереження слів і налаштувань (AsyncStorage)
+// Saving words and settings (AsyncStorage)
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const WORDS_KEY = 'll_words_v1';
@@ -9,7 +9,7 @@ const STATS_KEY = 'll_stats_v1';
 const SEEN_ACH_KEY = 'll_seen_ach_v1';
 const WOD_KEY = 'll_wod_v1';
 
-// ---- лічильники для досягнень (квізи, слово дня тощо) ----
+// ---- counters for achievements (quizzes, word of the day, etc.) ----
 export async function loadStats() {
   try {
     const raw = await AsyncStorage.getItem(STATS_KEY);
@@ -24,7 +24,7 @@ export async function persistStats(stats) {
   } catch (_) {}
 }
 
-// ---- вже показані досягнення (щоб не святкувати двічі) ----
+// ---- achievements already shown (so we do not celebrate twice) ----
 export async function loadSeenAchievements() {
   try {
     const raw = await AsyncStorage.getItem(SEEN_ACH_KEY);
@@ -39,7 +39,7 @@ export async function persistSeenAchievements(ids) {
   } catch (_) {}
 }
 
-// ---- кеш «слова дня» на кілька днів наперед ----
+// ---- cache of the "word of the day" for several days ahead ----
 export async function loadWod() {
   try {
     const raw = await AsyncStorage.getItem(WOD_KEY);
@@ -68,7 +68,7 @@ export async function persistOnboarded() {
   } catch (_) {}
 }
 
-// Локальна дата у форматі 2026-07-21 (для стріка і графіка)
+// Local date in the format 2026-07-21 (for the streak and the chart)
 export function localDayKey(d = new Date()) {
   return (
     d.getFullYear() +

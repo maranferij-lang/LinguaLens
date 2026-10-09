@@ -40,8 +40,8 @@ export default function ScannerScreen({ targetLang, nativeLang, onSaveWord, save
   const [justSaved, setJustSaved] = useState(false);
   const [zoom, setZoom] = useState(0);
 
-  // Промінь розгортки: рівномірний хід згори вниз. Тут linear доречний —
-  // він читається як робота приладу, а не як «оживлення» інтерфейсу.
+  // Sweep beam: an even top-to-bottom pass. Linear fits here:
+  // it reads as an instrument at work, not as "bringing the interface to life".
   const sweep = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     if (!loading) { sweep.stopAnimation(); sweep.setValue(0); return; }
@@ -102,8 +102,8 @@ export default function ScannerScreen({ targetLang, nativeLang, onSaveWord, save
 
   async function scan() {
     if (!cameraRef.current || loading) return;
-    // Ліміт перевіряємо до зйомки: інакше витратимо виклик AI і покажемо
-    // відмову вже після нього — це виглядає як обман.
+    // We check the limit before the shot: otherwise we spend an AI call and show
+    // the refusal only after it, which looks like a trick.
     if (onGuardScan && !onGuardScan()) return;
     setError('');
     try {
@@ -117,16 +117,16 @@ export default function ScannerScreen({ targetLang, nativeLang, onSaveWord, save
       );
       const res = await recognizeImage(small.base64, targetLang, nativeLang);
       if (onCountScan) await onCountScan();
-      // Вирізаємо САМ предмет по рамці від моделі, а не весь кадр.
-      // Скріншот екрана з обрізаними краями виглядає випадковим і губить стиль;
-      // вирізаний предмет читається як наліпка, яку ти зловив.
+      // Cut out the OBJECT itself using the box from the model, not the whole frame.
+      // A screenshot with cropped edges looks accidental and loses the style;
+      // a cut-out object reads as a sticker you caught.
       const cut = await cropToObject(photo, res.box);
       setResult({ ...res, photo: cut });
       setJustSaved(false);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) {
-      // Коди з api.js перетворюємо на людські фрази. Кожна каже, ЩО робити,
-      // а не просто констатує поломку.
+      // Turn the codes from api.js into human phrases. Each one says WHAT to do,
+      // not just states the breakage.
       const MAP = {
         SCAN_TIMEOUT: 'scanErrSlow',
         SCAN_OFFLINE: 'scanErrOffline',
@@ -142,8 +142,8 @@ export default function ScannerScreen({ targetLang, nativeLang, onSaveWord, save
     }
   }
 
-  // Ріже кадр по рамці 0–1000 (y1,x1,y2,x2) і повертає квадратну мініатюру.
-  // Квадрат — щоб предмет однаково добре сидів і в словнику, і на картці.
+  // Crops the frame by the 0-1000 box (y1,x1,y2,x2) and returns a square thumbnail.
+  // A square so that the object sits equally well in the dictionary and on the card.
   async function cropToObject(photo, box) {
     try {
       if (!box) {
@@ -156,13 +156,13 @@ export default function ScannerScreen({ targetLang, nativeLang, onSaveWord, save
       const [y1, x1, y2, x2] = box;
       const W = photo.width;
       const H = photo.height;
-      // Трохи повітря навколо предмета, щоб маска не зрізала контур.
+      // A bit of air around the object so that the mask does not cut off the outline.
       const pad = 0.06;
       let left = (x1 / 1000 - pad) * W;
       let top = (y1 / 1000 - pad) * H;
       let w = ((x2 - x1) / 1000 + pad * 2) * W;
       let h = ((y2 - y1) / 1000 + pad * 2) * H;
-      // Доводимо до квадрата по довшій стороні, тримаючи центр предмета.
+      // Bring it to a square by the longer side, keeping the center of the object.
       const side = Math.min(Math.max(w, h), Math.min(W, H));
       const cx = left + w / 2;
       const cy = top + h / 2;
@@ -215,9 +215,9 @@ export default function ScannerScreen({ targetLang, nativeLang, onSaveWord, save
 
       <View style={StyleSheet.absoluteFill} {...pan.panHandlers} />
 
-      {/* Видошукач: чотири кути + промінь, що проходить кадр під час розпізнавання.
-          Маскот тут не зʼявляється — стрибаючий персонаж посеред камери
-          перекриває саме той предмет, який людина наводить. */}
+      {/* Viewfinder: four corners + a beam that passes over the frame during recognition.
+          The mascot does not appear here: a jumping character in the middle of the camera
+          covers exactly the object the person is pointing at. */}
       <Animated.View pointerEvents="none" style={[s.frameWrap, { opacity: frameOpacity }]}>
         <View style={[s.corner, s.tl, loading && s.cornerActive]} />
         <View style={[s.corner, s.tr, loading && s.cornerActive]} />
@@ -241,14 +241,14 @@ export default function ScannerScreen({ targetLang, nativeLang, onSaveWord, save
 
       <View pointerEvents="none" style={s.hintWrap}>
         <Text style={s.hint}>{loading ? t('scanning') : t('hint')}</Text>
-        {/* Скільки сканів лишилось. Показуємо лише коли реально мало —
-            постійний лічильник над камерою тисне і псує враження. */}
+        {/* How many scans are left. Shown only when there are really few:
+            a constant counter over the camera pressures the user and spoils the impression. */}
         {Number.isFinite(scansLeft) && scansLeft <= 3 ? (
           <Text style={s.scansLeft}>{t('scansLeftN', { n: scansLeft })}</Text>
         ) : null}
       </View>
 
-      {/* Зум */}
+      {/* Zoom */}
       <View style={s.zoomRow}>
         {ZOOM_PRESETS.map((p) => {
           const active = Math.abs(zoom - p.value) < 0.015;
@@ -265,7 +265,7 @@ export default function ScannerScreen({ targetLang, nativeLang, onSaveWord, save
         <Text style={s.zoomValueText}>{zoomLabel(zoom)}</Text>
       </View>
 
-      {/* Затвор як в Apple Camera: біле кільце + біле коло */}
+      {/* Shutter like Apple Camera: a white ring + a white circle */}
       <View style={s.shutterWrap}>
         <Press onPress={scan} disabled={loading}>
           <View style={s.shutterRing}>
@@ -353,7 +353,7 @@ const makeStyles = (C) =>
     bl: { bottom: 0, left: 0, borderBottomWidth: 2, borderLeftWidth: 2, borderBottomLeftRadius: 6 },
     br: { bottom: 0, right: 0, borderBottomWidth: 2, borderRightWidth: 2, borderBottomRightRadius: 6 },
 
-    // під час скану кути наливаються акцентом — видно, що прилад працює
+    // during a scan the corners fill with the accent: it is visible that the instrument is working
     cornerActive: { borderColor: '#9B8FFF' },
     scansLeft: {
       color: '#fff',
@@ -467,7 +467,7 @@ const makeStyles = (C) =>
       alignItems: 'center',
       justifyContent: 'center',
     },
-    // транскрипція як кольоровий піл-бейдж (стиль Airy)
+    // transcription as a colored pill badge (Airy style)
     ipa: {
       color: C.accent,
       fontSize: 15,

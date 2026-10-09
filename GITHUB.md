@@ -1,14 +1,14 @@
-# Залити проєкт у приватний GitHub
+# Pushing the project to a private GitHub repository
 
-Я не зміг закомітити зі свого боку: git не тримає індекс через мережеве
-монтування Windows-диска. З PowerShell це працює нормально — команди нижче
-я вже підготував і перевірив, що секрети в коміт не потраплять.
+I could not commit from my side: git cannot hold the index because of the network
+mount of the Windows drive. From PowerShell this works fine. I have already prepared the commands below
+and checked that no secrets will end up in the commit.
 
-**Вводь по одному рядку.**
+**Enter one line at a time.**
 
 ---
 
-## Крок 1. Перевірити, що секрети захищені
+## Step 1. Check that secrets are protected
 
 ```powershell
 cd "$HOME\Documents\LinguaLens"
@@ -17,12 +17,12 @@ cd "$HOME\Documents\LinguaLens"
 git status --short
 ```
 
-У списку **не має бути**: `server/.env`, `server/data.json`, `node_modules/`.
-Якщо вони там є — стоп, напиши мені.
+The list **must not contain**: `server/.env`, `server/data.json`, `node_modules/`.
+If they are there, stop and write to me.
 
 ---
 
-## Крок 2. Перший коміт
+## Step 2. First commit
 
 ```powershell
 git add -A
@@ -31,11 +31,13 @@ git add -A
 git commit -m "LinguaLens — AI-сканер предметів для вивчення мов"
 ```
 
+(The commit message is Ukrainian for "LinguaLens: an AI object scanner for language learning". You may write it in English instead.)
+
 ---
 
-## Крок 3. Створити приватний репозиторій
+## Step 3. Create a private repository
 
-### Якщо є GitHub CLI
+### If you have the GitHub CLI
 
 ```powershell
 gh auth login
@@ -44,18 +46,18 @@ gh auth login
 gh repo create LinguaLens --private --source=. --remote=origin --push
 ```
 
-Готово, можна не читати далі.
+Done, you can skip the rest.
 
-### Якщо `gh` немає
+### If you do not have `gh`
 
-1. Відкрий https://github.com/new
+1. Open https://github.com/new
 2. Repository name: **LinguaLens**
-3. Visibility: **Private** ← обов'язково
-4. **НЕ** став галочки «Add a README», «Add .gitignore», «Choose a license» —
-   вони створять конфлікт із тим, що вже є
+3. Visibility: **Private** ← required
+4. Do **NOT** check "Add a README", "Add .gitignore", "Choose a license":
+   they would create a conflict with what already exists
 5. Create repository
 
-Далі скопіюй URL і виконай:
+Then copy the URL and run:
 
 ```powershell
 git remote add origin https://github.com/ТВІЙ_НІК/LinguaLens.git
@@ -67,13 +69,15 @@ git branch -M main
 git push -u origin main
 ```
 
-GitHub попросить логін. Пароль **не підійде** — потрібен Personal Access
+(`ТВІЙ_НІК` means "YOUR_USERNAME".)
+
+GitHub will ask for a login. A password **will not work**: you need a Personal Access
 Token: https://github.com/settings/tokens → Generate new token (classic) →
-scope `repo` → скопіювати й вставити замість пароля.
+scope `repo` → copy it and paste it instead of the password.
 
 ---
 
-## Далі — щоразу після змін
+## Next: every time after changes
 
 ```powershell
 git add -A
@@ -85,24 +89,26 @@ git commit -m "коротко що зробив"
 git push
 ```
 
+(The commit message here means "briefly what you did".)
+
 ---
 
-## Що лежить у репозиторії
+## What is in the repository
 
 ```
-App.js                  головний компонент, 5 вкладок, стан
-index.js                точка входу + межа помилок + SafeAreaProvider
+App.js                  main component, 5 tabs, state
+index.js                entry point + error boundary + SafeAreaProvider
 
 src/
-  api.js                мережевий шар, автовизначення IP у розробці
-  auth.js               сесія на пристрої
-  subscription.js       тарифи, ліміти, воротар
-  theme.js              дизайн-система: кольори, типографіка, тіні
-  motion.js             ядро руху: криві, тривалості, пружини
-  icons.js              17 іконок інтерфейсу
-  AchIcons.js           27 іконок досягнень
-  ProIcons.js           7 іконок пейволу
-  Sticker.js            вирізання предмета по силуету
+  api.js                network layer, IP auto-detection in development
+  auth.js               on-device session
+  subscription.js       plans, limits, gatekeeper
+  theme.js              design system: colors, typography, shadows
+  motion.js             motion core: curves, durations, springs
+  icons.js              17 interface icons
+  AchIcons.js           27 achievement icons
+  ProIcons.js           7 paywall icons
+  Sticker.js            cutting an object out by its silhouette
   Mascot.js  Logo.js  ui.js  Chrome.js  SafeArea.js
   ScannerScreen.js  DictionaryScreen.js  FlashcardsScreen.js
   QuizScreen.js  ProfileScreen.js  SettingsScreen.js
@@ -111,20 +117,20 @@ src/
   achievements.js  srs.js  speech.js  storage.js  wordOfDay.js  i18n.js
 
 server/
-  server.js             проксі до AI, авторизація, слово дня
+  server.js             AI proxy, authorization, word of the day
   auth.js               scrypt + HMAC
-  store.js              Firestore або файл
-  words.js              320 курованих слів
-  .env                  ключі — НЕ в git
+  store.js              Firestore or file
+  words.js              320 curated words
+  .env                  keys, NOT in git
 
-figma/                  стан макетів, ID компонентів, шапка скриптів
-assets/                 маскот, іконки, онбординг
+figma/                  mockup state, component IDs, script preamble
+assets/                 mascot, icons, onboarding
 
-README.md               опис і запуск
-TESTING.md              як тестувати, чеклист на 10 хв
-DEPLOY.md               сервер у Google Cloud Run
-APPSTORE.md             реліз в App Store
-MONETIZATION.md         тарифи, ліміти, що лишилось для StoreKit
-SECURITY.md             що закрито, що відкрито, що критично
-GITHUB.md               цей файл
+README.md               description and setup
+TESTING.md              how to test, a 10-minute checklist
+DEPLOY.md               the server on Google Cloud Run
+APPSTORE.md             App Store release
+MONETIZATION.md         plans, limits, what is left for StoreKit
+SECURITY.md             what is closed, what is open, what is critical
+GITHUB.md               this file
 ```

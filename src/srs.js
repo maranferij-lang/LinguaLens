@@ -1,5 +1,5 @@
-// Просте інтервальне повторення (spaced repetition)
-// box 0..5 → інтервал до наступного повторення
+// Simple spaced repetition
+// box 0..5 → interval until the next review
 const DAY = 24 * 60 * 60 * 1000;
 const INTERVALS = [10 * 60 * 1000, 1 * DAY, 2 * DAY, 4 * DAY, 8 * DAY, 16 * DAY];
 
@@ -29,7 +29,7 @@ export function applyReview(item, known) {
   };
 }
 
-// Коли наступне повторення: рядок формується через i18n (t)
+// When the next review is: the string is built via i18n (t)
 export function nextDueText(words, t) {
   if (!words.length) return '';
   const next = Math.min(...words.map((w) => w.srs?.due ?? 0));

@@ -1,17 +1,17 @@
-// Дизайн-система LinguaLens — перенесена з Figma
-// (файл c5DX8UXHJUdO58fwjIRTFq, сторінка Foundations).
+// The LinguaLens design system, ported from Figma
+// (file c5DX8UXHJUdO58fwjIRTFq, the Foundations page).
 //
-// Напрям: ТЕПЛА КРЕЙДА + ОДИН АКЦЕНТ.
-// Тло ніколи не чисто-біле — крейдяне #FAF8F4. Акцент узятий піпеткою зі шкіри
-// маскота Lingo (#6C6CCC / #8484E4) і поглиблений до #5B4FD6 заради контрасту
-// 5.6:1 на цьому тлі. Це ЄДИНИЙ насичений колір інтерфейсу:
-//   • бірюза з черевця Lingo — тільки стани успіху («Знаю», правильна відповідь)
-//   • бурштин — тільки серія днів
-//   • червоний — тільки помилка й видалення
-// Тіні теплі, а не сірі: сіра тінь на теплому тлі виглядає брудно.
+// Direction: WARM CHALK + ONE ACCENT.
+// The background is never pure white: chalk #FAF8F4. The accent was picked with an eyedropper from the skin of
+// the Lingo mascot (#6C6CCC / #8484E4) and deepened to #5B4FD6 for a contrast of
+// 5.6:1 on this background. It is the ONLY saturated color of the interface:
+//   • turquoise from Lingo's belly: only success states ("I know it", the correct answer)
+//   • amber: only the day streak
+//   • red: only errors and deletion
+// Shadows are warm, not gray: a gray shadow on a warm background looks dirty.
 import { createContext, useContext } from 'react';
 
-// Радіуси з макета: картка 28, рядок 22, поле 16, чип-пігулка 999.
+// Radii from the mockup: card 28, row 22, field 16, pill chip 999.
 export const R = { xl: 28, lg: 22, md: 16, sm: 12, pill: 999 };
 export const SP = { xs: 8, sm: 12, md: 16, lg: 20, xl: 24, xxl: 32 };
 
@@ -22,9 +22,9 @@ export const F = {
   extra: 'Nunito_800ExtraBold',
 };
 
-// ===== ТИПОГРАФІКА =====
-// Правило Apple: трекінг і інтерліньяж залежать від кегля, одне значення на всі
-// розміри завжди десь неправильне.
+// ===== TYPOGRAPHY =====
+// Apple's rule: tracking and leading depend on the font size, a single value for all
+// sizes is always wrong somewhere.
 
 export function track(size) {
   if (size >= 30) return -size * 0.022; // 34 → −0.75
@@ -48,7 +48,7 @@ export function type(size, family = F.reg, opts = {}) {
   };
 }
 
-// Дрібні розрядкові кепси — «СЛОВО ДНЯ», «АКАУНТ», підписи під цифрами.
+// Small letter-spaced caps: "WORD OF THE DAY", "ACCOUNT", captions under numbers.
 export const CAPS = {
   fontSize: 11,
   fontFamily: F.extra,
@@ -65,9 +65,9 @@ function tint(hex, a) {
   return `rgba(${r},${g},${b},${a})`;
 }
 
-// ===== ДВІ ТЕМИ =====
-// Замість галереї з восьми напівпродуманих — одна фірмова, доведена до ладу,
-// у світлому й темному варіанті. Значення один-в-один із токенами Figma.
+// ===== TWO THEMES =====
+// Instead of a gallery of eight half-baked ones, there is one signature theme, polished,
+// in a light and a dark variant. The values match the Figma tokens one to one.
 export const THEME_DEFS = [
   {
     key: 'light',
@@ -138,8 +138,8 @@ function buildTheme(def) {
     sheet: p.card,
     input: p.card2,
     tabbar: p.card,
-    // Напівпрозорий шар під blur: контент має просвічувати, але текст
-    // лишатись читабельним. Прозоріше — і підпис під іконкою «попливе».
+    // A translucent layer under the blur: the content should show through, but the text
+    // should stay readable. More transparent, and the caption under an icon would "float away".
     chrome: tint(p.card, dark ? 0.62 : 0.7),
   };
 
@@ -163,8 +163,8 @@ function buildTheme(def) {
       word: { color: p.text, ...type(40, F.extra) },
       number: { color: p.text, ...type(28, F.extra) },
     },
-    // Шкала тіней: більша поверхня має читатись товщою.
-    // Колір теплий (#5C4F3D), не чорний — інакше крейда сіріє.
+    // Shadow scale: a larger surface should read as thicker.
+    // The color is warm (#5C4F3D), not black, otherwise the chalk turns gray.
     SHADOW_SM: dark
       ? { shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 3 }
       : { shadowColor: '#5C4F3D', shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 2 },
@@ -179,8 +179,8 @@ function buildTheme(def) {
 
 export const THEMES = Object.fromEntries(THEME_DEFS.map((d) => [d.key, buildTheme(d)]));
 
-// Міграція зі старих ключів: у користувача могла лишитись одна з восьми
-// попередніх тем — світлі йдуть у light, темні в dark.
+// Migration from old keys: a user could have been left with one of the eight
+// previous themes. Light ones go to light, dark ones to dark.
 const LEGACY_DARK = ['charcoal', 'ocean', 'violet', 'neon'];
 export function resolveThemeKey(stored, systemScheme) {
   if (THEMES[stored]) return stored;
@@ -195,5 +195,5 @@ export function useTheme() {
   return useContext(ThemeCtx);
 }
 
-// Статичні експорти (fallback для модулів поза провайдером)
+// Static exports (a fallback for modules outside the provider)
 export const C = THEMES.light.C;

@@ -1,10 +1,10 @@
-// Спливаюче вітання, коли розблоковано нове досягнення.
+// A pop-up greeting when a new achievement is unlocked.
 //
-// Правила руху:
-//   • просторова послідовність — приходить згори і йде туди ж, звідки прийшов;
-//   • без перельоту: елемент з'явився сам, його ніхто не кидав;
-//   • вихід швидший за вхід (170 мс проти пружини на ~350);
-//   • не з'являється зі scale(0) — у реальному світі ніщо не виникає з нічого.
+// Motion rules:
+//   • spatial consistency: it comes from the top and goes back to where it came from;
+//   • no overshoot: the element appeared by itself, nobody threw it;
+//   • the exit is faster than the entrance (170 ms versus a spring of ~350);
+//   • it does not appear from scale(0): in the real world nothing arises from nothing.
 import { useEffect, useRef } from 'react';
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import { DUR, EASE, SPRING, travel } from './motion';
@@ -12,11 +12,11 @@ import { Mascot } from './Mascot';
 import { AchIcon } from './AchIcons';
 import { CAPS, F, R, type, useTheme } from './theme';
 
-const OFF = 150; // на скільки тост ховається за верхній край
+const OFF = 150; // how far the toast hides above the top edge
 
 export default function AchievementToast({ achievement, onHide, t }) {
   const { C, SHADOW_LG } = useTheme();
-  const a = useRef(new Animated.Value(0)).current; // 0 — сховано, 1 — на місці
+  const a = useRef(new Animated.Value(0)).current; // 0 = hidden, 1 = in place
   const timer = useRef(null);
   const leaving = useRef(false);
 
@@ -46,7 +46,7 @@ export default function AchievementToast({ achievement, onHide, t }) {
   const shift = travel(OFF);
   const transform = [
     { translateY: a.interpolate({ inputRange: [0, 1], outputRange: [-shift, 0] }) },
-    // масштаб стартує з 0.96, а не з нуля
+    // the scale starts from 0.96, not from zero
     { scale: a.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1] }) },
   ];
 

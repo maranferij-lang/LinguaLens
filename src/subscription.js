@@ -1,36 +1,36 @@
-// Підписка LinguaLens Pro.
+// LinguaLens Pro subscription.
 //
-// ЦІНОВА ЛОГІКА
-// Драбина побудована так, щоб тиждень був найдорожчим у перерахунку на рік, а
-// рік — найдешевшим. Тижневий тариф тут не для того, щоб на ньому сиділи: він
-// існує як якір, поруч з яким річний виглядає очевидним вибором.
+// PRICING LOGIC
+// The ladder is built so that the week is the most expensive per year and
+// the year is the cheapest. The weekly plan is not here for people to stay on it: it
+// exists as an anchor, next to which the yearly one looks like the obvious choice.
 //
-//   тиждень   $4.99  →  $259/рік   (×7.4 від річного)
-//   місяць    $6.99  →  $84/рік    (×2.4)
-//   3 місяці  $16.99 →  $68/рік    (×1.9)
-//   рік       $34.99 →  $35/рік    ← 7 днів безкоштовно
+//   week      $4.99  →  $259/year   (×7.4 of the yearly)
+//   month     $6.99  →  $84/year    (×2.4)
+//   3 months  $16.99 →  $68/year    (×1.9)
+//   year      $34.99 →  $35/year    ← 7 days free
 //
-// Річний із пробним тижнем — головний тариф. Конкурент (CapWords, лауреат
-// Apple Design Award) тримає $5.99/міс і $29.99/рік, тож ми в тому ж полі,
-// але з відчутно кращою річною економією у показі.
+// The yearly plan with a trial week is the main plan. A competitor (CapWords, an
+// Apple Design Award winner) charges $5.99/month and $29.99/year, so we are in the same field,
+// but with a noticeably better yearly saving in the display.
 //
-// ПРО ПРОБНИЙ ПЕРІОД — і чому він тут чесний
-// Занепокоєння справедливе: тріал, після якого тихо списуються гроші, — це
-// темний патерн, і він повертається одиничками в App Store та поверненнями
-// коштів. Але сам по собі тріал не є обманом; обманом його робить
-// замовчування. Тому:
-//   1. У пейволі прямим текстом написано, коли і скільки спишеться.
-//   2. За 2 дні до кінця застосунок сам надсилає нагадування (scheduleTrialReminder).
-//      Apple теж надсилає своє, але ми не покладаємось на це.
-//   3. Скасувати можна в один дотик, і посилання на це є в налаштуваннях.
-// Якщо після тесту відчуття все одно неприємне — вимкни тріал одним рядком:
-// прибери trialDays з річного плану, і вся механіка зникне сама.
+// ABOUT THE TRIAL PERIOD, AND WHY IT IS HONEST HERE
+// The concern is fair: a trial after which money is quietly charged is a
+// dark pattern, and it comes back as one-star reviews in the App Store and as refunds.
+// But a trial in itself is not a trick; what makes it one
+// is the default. Therefore:
+//   1. The paywall states in plain text when and how much will be charged.
+//   2. 2 days before the end the app itself sends a reminder (scheduleTrialReminder).
+//      Apple sends its own too, but we do not rely on that.
+//   3. It can be canceled in one tap, and the link for that is in settings.
+// If after testing the feeling is still unpleasant, turn the trial off with one line:
+// remove trialDays from the yearly plan, and the whole mechanic disappears by itself.
 //
-// ЛОГІКА ЛІМІТІВ
-// Обмежуємо те, що коштує нам грошей (виклики AI), і те, що показує цінність
-// накопичення (розмір словника). НЕ обмежуємо слово дня, повторення й
-// вимову — це саме те, що вертає людину щодня. Задушити retention, щоб
-// продати підписку, — найдорожча помилка.
+// LIMITS LOGIC
+// We limit what costs us money (AI calls) and what shows the value of
+// accumulation (dictionary size). We do NOT limit the word of the day, reviews and
+// pronunciation: that is exactly what brings the person back every day. Choking retention to
+// sell a subscription is the most expensive mistake.
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const PLANS = [
@@ -72,14 +72,14 @@ export const PLANS = [
   },
 ];
 
-// Що дає безкоштовний рівень
+// What the free tier gives
 export const FREE = {
   scansPerDay: 5,
   maxWords: 100,
   languagePairs: 1,
 };
 
-// Ключі сховища
+// Storage keys
 const K_STATE = 'll_sub_v1';
 const K_USAGE = 'll_usage_v1';
 
@@ -88,9 +88,9 @@ function today() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-// ── Стан підписки ───────────────────────────────────────────────────────────
-// Поки еквайринг не підключений, стан тримаємо локально. Коли підключиться —
-// джерелом правди стане чек від App Store, а форма даних не зміниться.
+// ── Subscription state ──────────────────────────────────────────────────────
+// Until payment processing is connected, we keep the state locally. Once it is connected,
+// the source of truth will be the App Store receipt, and the data shape will not change.
 export async function loadSubscription() {
   try {
     const raw = await AsyncStorage.getItem(K_STATE);
@@ -121,12 +121,12 @@ export async function cancelSubscription() {
   return { pro: false };
 }
 
-// ── Облік сканів ────────────────────────────────────────────────────────────
+// ── Scan accounting ─────────────────────────────────────────────────────────
 export async function loadUsage() {
   try {
     const raw = await AsyncStorage.getItem(K_USAGE);
     const u = raw ? JSON.parse(raw) : null;
-    // новий день — лічильник з нуля
+    // a new day: the counter starts from zero
     if (!u || u.day !== today()) return { day: today(), scans: 0 };
     return u;
   } catch (_) {
@@ -143,10 +143,10 @@ export async function bumpScan(usage) {
   return next;
 }
 
-// ── Воротар ─────────────────────────────────────────────────────────────────
-// Повертає null, якщо дію можна робити, або причину відмови.
-// Причина — це рядок, за яким пейвол розуміє, ЯКИЙ саме аргумент показати:
-// людині, що вичерпала скани, і людині, що набила словник, треба різне.
+// ── Gatekeeper ──────────────────────────────────────────────────────────────
+// Returns null if the action can be done, or the reason for refusal.
+// The reason is a string by which the paywall understands WHICH argument to show:
+// a person who used up their scans and a person who filled the dictionary need different things.
 
 export function canScan({ pro, usage }) {
   if (pro) return null;
@@ -174,11 +174,11 @@ export function canUseLanguage({ pro, words, nextLang }) {
   return null;
 }
 
-// Переваги Pro — використовуються і в пейволі, і в налаштуваннях.
-// Порядок не випадковий: спершу те, через що людина сюди прийшла.
-// Переваги Pro. Тут лише те, що людина реально відчує.
-// «Експорт у файл» звідси прибраний свідомо: ним користуються одиниці, а в
-// списку він займає місце справжнього аргументу і розмиває цінність.
+// Pro benefits: used both in the paywall and in settings.
+// The order is deliberate: first the thing the person came here for.
+// Pro benefits. Only what the person will really feel.
+// "Export to file" was removed from here deliberately: only a few people use it, and in
+// the list it takes the place of a real argument and dilutes the value.
 export const PRO_BENEFITS = [
   { id: 'scans', icon: 'scan' },
   { id: 'words', icon: 'book' },
@@ -187,8 +187,8 @@ export const PRO_BENEFITS = [
   { id: 'support', icon: 'heart' },
 ];
 
-// Порівняння «без підписки / з підпискою». Головний елемент пейволу:
-// людина має бачити не список благ, а СВОЮ ситуацію і те, як вона зміниться.
+// A "without subscription / with subscription" comparison. The main element of the paywall:
+// a person should see not a list of benefits, but THEIR situation and how it will change.
 export const COMPARISON = [
   { id: 'scans', free: '5 / день', pro: '∞' },
   { id: 'words', free: '100', pro: '∞' },

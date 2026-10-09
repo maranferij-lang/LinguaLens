@@ -1,11 +1,11 @@
-// Сховище даних для сервера LinguaLens.
-// Два бекенди, вибір автоматичний:
-//   1) firestore — якщо задано FIRESTORE_PROJECT (продакшн, Cloud Run).
-//      Працює через REST API, токен береться з metadata-сервера Google Cloud.
-//      Жодних npm-залежностей.
-//   2) file — інакше (локальна розробка): звичайний JSON-файл поруч із сервером.
+// Data storage for the LinguaLens server.
+// Two backends, chosen automatically:
+//   1) firestore: if FIRESTORE_PROJECT is set (production, Cloud Run).
+//      Works through the REST API, the token comes from the Google Cloud metadata server.
+//      No npm dependencies.
+//   2) file: otherwise (local development): a plain JSON file next to the server.
 //
-// Інтерфейс: get(collection, id), put(collection, id, obj), findBy(collection, field, value)
+// Interface: get(collection, id), put(collection, id, obj), findBy(collection, field, value)
 
 const fs = require('fs');
 const path = require('path');
@@ -53,7 +53,7 @@ async function accessToken() {
 const FS_BASE = () =>
   `https://firestore.googleapis.com/v1/projects/${PROJECT}/databases/(default)/documents`;
 
-// Конвертація JS <-> Firestore Value
+// Conversion JS <-> Firestore Value
 function toFs(v) {
   if (v === null || v === undefined) return { nullValue: null };
   if (typeof v === 'string') return { stringValue: v };
@@ -126,7 +126,7 @@ async function fsFindBy(coll, field, value) {
   return null;
 }
 
-// ---------- ПУБЛІЧНИЙ ІНТЕРФЕЙС ----------
+// ---------- PUBLIC INTERFACE ----------
 async function get(coll, id) {
   if (MODE === 'firestore') return fsGet(coll, id);
   const db = readFile();

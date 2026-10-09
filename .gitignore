@@ -40,7 +40,7 @@ yarn-error.*
 /ios
 /android
 
-# Секрети сервера й підпису
+# Server and signing secrets
 server/.env
 server/data.json
 credentials.json

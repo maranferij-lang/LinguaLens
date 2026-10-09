@@ -1,4 +1,4 @@
-# Не завантажувати в Cloud Run:
+# Do not upload to Cloud Run:
 .env
 node_modules
 *.log

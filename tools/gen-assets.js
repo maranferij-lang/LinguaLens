@@ -1,10 +1,10 @@
-// Генерація фірмових асетів через Gemini (nano banana / gemini-3.1-flash-image)
-// Запуск із кореня проєкту:  node tools/gen-assets.js
-// Ключ береться з server/.env (GEMINI_API_KEY)
+// Generating brand assets via Gemini (nano banana / gemini-3.1-flash-image)
+// Run from the project root:  node tools/gen-assets.js
+// The key is taken from server/.env (GEMINI_API_KEY)
 //
-// Концепція: маскот Lingo — маленький допитливий хамелеон, що «міняє колір»
-// під мову, яку вчиш (фіолетово-бірюзовий градієнт). Один і той самий персонаж
-// у всіх ілюстраціях = впізнаваний стиль апки.
+// Concept: the Lingo mascot is a small curious chameleon that "changes color"
+// to match the language you are learning (a violet-turquoise gradient). The same character
+// in all illustrations = a recognizable style for the app.
 
 const fs = require('fs');
 const path = require('path');

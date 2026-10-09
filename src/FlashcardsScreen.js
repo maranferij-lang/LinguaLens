@@ -1,4 +1,4 @@
-// «Навчання»: хаб — флешкартки (3D-фліп) + квіз
+// "Learning": a hub with flashcards (3D flip) + quiz
 import { useMemo, useRef, useState } from 'react';
 import { Animated, ScrollView, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
@@ -94,8 +94,8 @@ export default function FlashcardsScreen({
       >
         <View style={s.hubHead}>
           <Text style={s.title}>{t('learnTitle')}</Text>
-          {/* Pro завжди на очах, але не кричить: маленький піл замість
-              попапа. Попап, що вилітає сам, бісить і псує оцінку. */}
+          {/* Pro is always in sight but does not shout: a small pill instead of a
+              popup. A popup that flies out on its own is annoying and hurts the rating. */}
           {onOpenPro && !isPro ? (
             <Press style={s.proPill} onPress={onOpenPro}>
               <PCrown size={13} color={C.accent} />
@@ -190,7 +190,7 @@ export default function FlashcardsScreen({
   const progress = (session.index / session.ids.length) * 100;
   const frontRotate = flipAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '180deg'] });
   const backRotate = flipAnim.interpolate({ inputRange: [0, 1], outputRange: ['180deg', '360deg'] });
-  // 0.5 — момент, коли картка стоїть ребром. Саме там міняємо, хто видимий.
+  // 0.5 is the moment when the card stands on its edge. That is exactly where we swap which side is visible.
   const frontOpacity = flipAnim.interpolate({
     inputRange: [0, 0.499, 0.5, 1],
     outputRange: [1, 1, 0, 0],

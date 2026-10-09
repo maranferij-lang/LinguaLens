@@ -1,15 +1,15 @@
-// Пейвол.
+// Paywall.
 //
-// Правила, за якими він побудований:
-//   • Заголовок говорить про людину, не про тариф. Причина відмови приходить
-//     ззовні (скани / словник / мови), і текст під неї підлаштовується —
-//     людина бачить відповідь саме на ту стіну, в яку щойно вперлась.
-//   • Тижневий тариф присутній, але не виділений. Він потрібен як якір:
-//     поруч із $4.99/тиждень річний за $34.99 читається як очевидний вибір.
-//   • Річний обраний за замовчуванням і має пробний тиждень. Ніяких
-//     передвибраних дорогих варіантів — це нечесно і повертається відписками.
-//   • Закрити можна завжди, хрестик великий і на своєму місці. Пейвол, з
-//     якого важко вийти, псує оцінку в App Store сильніше, ніж дає виторгу.
+// The rules it is built on:
+//   • The title speaks about the person, not the plan. The reason for the refusal comes
+//     from outside (scans / dictionary / languages), and the text adapts to it:
+//     the person sees an answer to exactly the wall they just hit.
+//   • The weekly plan is present but not highlighted. It is needed as an anchor:
+//     next to $4.99/week, the yearly one at $34.99 reads as the obvious choice.
+//   • Yearly is selected by default and has a trial week. No
+//     pre-selected expensive options: that is dishonest and comes back as cancellations.
+//   • It can always be closed, the close button is big and in its usual place. A paywall that is
+//     hard to leave hurts the App Store rating more than it brings in revenue.
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
@@ -26,7 +26,7 @@ export default function PaywallScreen({ reason, onClose, onPurchase, t }) {
   const [picked, setPicked] = useState('year');
   const [busy, setBusy] = useState(false);
 
-  // Заголовок під причину: кожна стіна має свій аргумент.
+  // A title for the reason: every wall has its own argument.
   const HEAD = {
     scans: { title: t('pwScansTitle'), text: t('pwScansText', { n: FREE.scansPerDay }) },
     words: { title: t('pwWordsTitle'), text: t('pwWordsText', { n: FREE.maxWords }) },
@@ -36,8 +36,8 @@ export default function PaywallScreen({ reason, onClose, onPurchase, t }) {
 
   const plan = PLANS.find((p) => p.id === picked);
 
-  // Пряма дата, коли спишуться гроші. «Через 7 днів» — розмито;
-  // конкретне число прибирає відчуття, що щось приховали.
+  // A direct date when the money will be charged. "In 7 days" is blurry;
+  // a specific number removes the feeling that something was hidden.
   function chargeDate(days) {
     const d = new Date(Date.now() + days * 86400000);
     return d.toLocaleDateString(undefined, { day: 'numeric', month: 'long' });
@@ -71,9 +71,9 @@ export default function PaywallScreen({ reason, onClose, onPurchase, t }) {
           <Text style={s.text}>{head.text}</Text>
         </FadeIn>
 
-        {/* Порівняння. Це головне на екрані: людина має побачити не список
-            благ, а свою нинішню ситуацію і те, як вона зміниться. Без лівої
-            колонки «зараз» права колонка нічого не означає. */}
+        {/* Comparison. This is the main thing on the screen: the person should see not a list
+            of benefits, but their current situation and how it will change. Without the left
+            "now" column, the right column means nothing. */}
         <FadeIn delay={45} style={s.table}>
           <View style={s.tableHead}>
             <View style={{ flex: 1 }} />
@@ -106,7 +106,7 @@ export default function PaywallScreen({ reason, onClose, onPurchase, t }) {
           ))}
         </FadeIn>
 
-        {/* Те, чого без Pro немає взагалі */}
+        {/* What does not exist at all without Pro */}
         <FadeIn delay={70} style={s.benefits}>
           {PRO_BENEFITS.filter((b) => b.id === 'photos' || b.id === 'support').map((b) => (
             <View key={b.id} style={s.benefitRow}>
@@ -118,7 +118,7 @@ export default function PaywallScreen({ reason, onClose, onPurchase, t }) {
           ))}
         </FadeIn>
 
-        {/* Тарифи */}
+        {/* Plans */}
         <FadeIn delay={90} style={{ gap: 10, marginTop: 26 }}>
           {PLANS.map((p) => {
             const active = picked === p.id;
@@ -159,7 +159,7 @@ export default function PaywallScreen({ reason, onClose, onPurchase, t }) {
         </FadeIn>
       </ScrollView>
 
-      {/* Дія притиснута донизу — під великий палець */}
+      {/* The action is pressed to the bottom, under the thumb */}
       <View style={[s.footer, SHADOW_LG]}>
         <GradBtn
           title={plan?.trialDays ? t('startTrial') : t('subscribe')}

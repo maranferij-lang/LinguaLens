@@ -1,4 +1,4 @@
-// Маскот Lingo — 4 пози на прозорому фоні. Використовується по всіх екранах.
+// The Lingo mascot: 4 poses on a transparent background. Used on all screens.
 import { useEffect, useRef } from 'react';
 import { Animated, Image } from 'react-native';
 import { EASE, useReducedMotion } from './motion';
@@ -10,7 +10,7 @@ const POSES = {
   encourage: require('../assets/lingo-encourage.png'),
 };
 
-// Статичний Lingo
+// Static Lingo
 export function Mascot({ pose = 'wave', size = 120, style }) {
   return (
     <Image
@@ -20,14 +20,14 @@ export function Mascot({ pose = 'wave', size = 120, style }) {
   );
 }
 
-// Lingo з легким «диханням» (плавний вертикальний покач) — для порожніх станів і фіналів
+// Lingo with light "breathing" (a smooth vertical bob), for empty states and finales
 export function MascotBob({ pose = 'wave', size = 140, style }) {
   const y = useRef(new Animated.Value(0)).current;
   const reduced = useReducedMotion();
 
   useEffect(() => {
     if (reduced) {
-      y.setValue(0); // «менше руху» — Lingo просто стоїть
+      y.setValue(0); // "reduce motion": Lingo just stands
       return;
     }
     const loop = Animated.loop(

@@ -49,7 +49,7 @@ export default function DictionaryScreen({ words, onDelete, onScan, t }) {
           <MascotBob pose="think" size={190} />
           <Text style={s.emptyTitle}>{t('dictEmptyTitle')}</Text>
           <Text style={s.emptyText}>{t('dictEmptyText')}</Text>
-          {/* Порожній стан без виходу — глухий кут. Даємо дію просто тут. */}
+          {/* An empty state with no way out is a dead end. We give an action right here. */}
           {onScan ? (
             <GradBtn
               title={t('scanFirstWord')}
@@ -148,8 +148,8 @@ const makeStyles = (C, SHADOW_SM) =>
     root: { flex: 1, backgroundColor: C.bg, padding: 20, paddingBottom: 0 },
     title: { color: C.text, fontSize: 34, letterSpacing: -0.75, fontFamily: F.bold },
     subtitle: { color: C.dim, fontSize: 13, marginTop: 3, marginBottom: 14 },
-    // Поле пошуку: заглиблена поверхня замість рамки — рамка на крейді
-    // додає лінію, якої там не треба.
+    // Search field: a sunken surface instead of a border, since a border on chalk
+    // adds a line that is not needed there.
     searchWrap: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -174,8 +174,8 @@ const makeStyles = (C, SHADOW_SM) =>
     },
     filterChipActive: { backgroundColor: C.accentSoft },
     filterText: { color: C.dim, fontSize: 13, fontFamily: F.semi },
-    // Рядок словника — плаваюча картка, а не рядок із розділювачем:
-    // на крейдяному тлі лінія-роздільник додає бруду, тінь — ні.
+    // A dictionary row is a floating card, not a row with a divider:
+    // on a chalk background a divider line adds dirt, a shadow does not.
     card: {
       backgroundColor: C.card,
       borderRadius: R.lg,

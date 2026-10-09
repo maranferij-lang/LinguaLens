@@ -1,9 +1,9 @@
-// Межа помилок.
+// Error boundary.
 //
-// Без неї будь-яке падіння в рендері дає порожній білий екран: ані користувач,
-// ані ми не бачимо причини. Тут ловимо виняток, показуємо людський текст і
-// даємо вийти з глухого кута. У режимі розробки додатково друкуємо стек —
-// саме він потрібен, щоб знайти справжню поломку.
+// Without it, any crash in rendering gives an empty white screen: neither the user
+// nor we can see the cause. Here we catch the exception, show human text and
+// let the user out of the dead end. In development mode we also print the stack,
+// which is what you need to find the real breakage.
 import { Component } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { MascotBob } from './Mascot';
@@ -18,8 +18,8 @@ export default class ErrorBoundary extends Component {
   }
 
   componentDidCatch(error, info) {
-    // У продакшені сюди можна підключити збір помилок. Поки просто в консоль —
-    // у Metro це видно одразу.
+    // In production an error-reporting service can be connected here. For now, just to the console:
+    // it is visible in Metro right away.
     console.error('LinguaLens crash:', error, info?.componentStack);
   }
 
@@ -29,7 +29,7 @@ export default class ErrorBoundary extends Component {
     const { error } = this.state;
     if (!error) return this.props.children;
 
-    // Тему не беремо з контексту: він міг упасти разом із деревом.
+    // We do not take the theme from the context: it may have crashed along with the tree.
     const C = THEMES.light.C;
     const s = makeStyles(C);
     const isDev = typeof __DEV__ !== 'undefined' && __DEV__;

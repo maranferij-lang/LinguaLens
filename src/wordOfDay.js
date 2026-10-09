@@ -1,15 +1,15 @@
-// «Слово дня»: щодня нове слово, унікальне для кожного користувача (порядок
-// задає його seed на сервері), без повторів.
+// "Word of the Day": a new word every day, unique for each user (the order
+// is set by their seed on the server), with no repeats.
 //
-// Як працює:
-//   1. Апка раз на кілька днів просить у сервера слова на 7 днів наперед.
-//   2. Кешує їх локально — картка слова дня показується навіть офлайн.
-//   3. Планує 7 локальних сповіщень (по одному на день о заданій годині).
+// How it works:
+//   1. Once every few days the app asks the server for words for 7 days ahead.
+//   2. It caches them locally, so the word of the day card shows even offline.
+//   3. It schedules 7 local notifications (one per day at the set hour).
 import { Platform } from 'react-native';
 import { apiWordOfDay } from './api';
 import { loadWod, persistWod, localDayKey } from './storage';
 
-// Якщо expo-notifications ще не встановлено — апка має працювати, просто без пушів.
+// If expo-notifications is not installed yet, the app must still work, just without pushes.
 let Notifications = null;
 try {
   Notifications = require('expo-notifications');
@@ -17,9 +17,9 @@ try {
 } catch (_) {}
 
 export const NOTIFS_AVAILABLE = !!Notifications;
-export const DEFAULT_HOUR = 10; // 10:00 за замовчуванням
+export const DEFAULT_HOUR = 10; // 10:00 by default
 
-// Показувати банер, навіть коли апка відкрита
+// Show the banner even when the app is open
 if (Notifications) {
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
@@ -53,14 +53,14 @@ export async function hasPermission() {
   }
 }
 
-// Слово на сьогодні з кешу (або null)
+// Today's word from the cache (or null)
 export function todayFrom(cache) {
   if (!cache || !Array.isArray(cache.words)) return null;
   const key = localDayKey();
   return cache.words.find((w) => w.date === key) || null;
 }
 
-// Чи треба оновити кеш: немає, інші мови, або лишилось <3 днів
+// Whether the cache needs refreshing: it is missing, other languages, or fewer than 3 days are left
 function needsRefresh(cache, lang, native) {
   if (!cache || !Array.isArray(cache.words) || !cache.words.length) return true;
   if (cache.lang !== lang || cache.native !== native) return true;
@@ -69,8 +69,8 @@ function needsRefresh(cache, lang, native) {
   return future.length < 3;
 }
 
-// Головна функція: оновити кеш + перепланувати сповіщення.
-// Викликається при старті апки і при зміні мов/налаштувань.
+// The main function: refresh the cache + reschedule the notifications.
+// Called at app start and when languages/settings change.
 export async function syncWordOfDay({ lang, native, enabled, hour = DEFAULT_HOUR, force = false }) {
   let cache = await loadWod();
 
@@ -82,7 +82,7 @@ export async function syncWordOfDay({ lang, native, enabled, hour = DEFAULT_HOUR
         await persistWod(cache);
       }
     } catch (_) {
-      // офлайн або не авторизований — лишаємо старий кеш
+      // offline or not authorized: keep the old cache
     }
   }
 
@@ -90,7 +90,7 @@ export async function syncWordOfDay({ lang, native, enabled, hour = DEFAULT_HOUR
   return cache;
 }
 
-// Плануємо по одному сповіщенню на кожен майбутній день із кешу
+// We schedule one notification for every future day from the cache
 export async function rescheduleNotifications(cache, enabled, hour = DEFAULT_HOUR) {
   if (!Notifications) return;
   try {
@@ -114,7 +114,7 @@ export async function rescheduleNotifications(cache, enabled, hour = DEFAULT_HOU
     const [y, m, d] = String(w.date).split('-').map(Number);
     if (!y || !m || !d) continue;
     const when = new Date(y, m - 1, d, hour, 0, 0, 0);
-    if (when.getTime() <= now + 60000) continue; // тільки майбутні
+    if (when.getTime() <= now + 60000) continue; // only future ones
 
     try {
       await Notifications.scheduleNotificationAsync({
@@ -135,13 +135,13 @@ export async function rescheduleNotifications(cache, enabled, hour = DEFAULT_HOU
   }
 }
 
-// Нагадування про кінець пробного періоду.
-// Apple надсилає своє, але ми не покладаємось на це: людина має дізнатись
-// про майбутнє списання від нас, а не з виписки по картці.
+// A reminder about the end of the trial period.
+// Apple sends its own, but we do not rely on that: the person should learn
+// about the upcoming charge from us, not from a card statement.
 export async function scheduleTrialReminder(untilMs, title, body) {
   if (!Notifications) return false;
   try {
-    const when = new Date(untilMs - 2 * 86400000); // за 2 дні до кінця
+    const when = new Date(untilMs - 2 * 86400000); // 2 days before the end
     if (when.getTime() <= Date.now() + 60000) return false;
     if (!(await hasPermission())) return false;
     await Notifications.scheduleNotificationAsync({

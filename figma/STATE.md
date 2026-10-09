@@ -1,36 +1,36 @@
-# Figma — стан роботи
+# Figma: work status
 
-**Файл:** https://www.figma.com/design/c5DX8UXHJUdO58fwjIRTFq
+**File:** https://www.figma.com/design/c5DX8UXHJUdO58fwjIRTFq
 **fileKey:** `c5DX8UXHJUdO58fwjIRTFq`
-**План:** Starter (`team::1408921808135707787`)
+**Plan:** Starter (`team::1408921808135707787`)
 
-## Обмеження Starter, які визначили структуру
+## Starter limits that shaped the structure
 
-| Ліміт | Наслідок |
+| Limit | Consequence |
 |---|---|
-| 1 мод на колекцію змінних | Light і Dark — **дві окремі колекції** з однаковими іменами токенів, а не два моди однієї. Перемикання теми в макеті вручну. |
-| 3 сторінки | `Foundations` (токени + компоненти), `Screens · Light`, `Screens · Dark`. Окремої сторінки Components немає. |
-| Ліміт викликів MCP | Будувати екрани великими скриптами, не по одному елементу. |
+| 1 mode per variable collection | Light and Dark are **two separate collections** with identical token names, not two modes of one. The theme is switched manually in the mockup. |
+| 3 pages | `Foundations` (tokens + components), `Screens · Light`, `Screens · Dark`. There is no separate Components page. |
+| MCP call limit | Build screens with large scripts, not one element at a time. |
 
 ---
 
-## Дизайн-напрям
+## Design direction
 
-**Тепла крейда + один акцент.** Акцент узятий піпеткою зі шкіри Lingo
-(`#6C6CCC` / `#8484E4` — барвінковий), поглиблений до `#5B4FD6` заради контрасту
-5.6:1 на крейдяному тлі. Бірюза з черевця маскота (`#0E8C82`) — **тільки** для
-станів успіху, не як другий акцент.
+**Warm chalk + one accent.** The accent was picked with an eyedropper from Lingo's skin
+(`#6C6CCC` / `#8484E4`, periwinkle) and deepened to `#5B4FD6` for a contrast of
+5.6:1 on the chalk background. The turquoise from the mascot's belly (`#0E8C82`) is **only** for
+success states, not a second accent.
 
-Тло ніколи не чисто-біле: `#FAF8F4`. Тіні теплі (`rgba(92,79,61,·)`), не сірі —
-сіра тінь на теплому тлі виглядає брудно.
+The background is never pure white: `#FAF8F4`. Shadows are warm (`rgba(92,79,61,·)`), not gray:
+a gray shadow on a warm background looks dirty.
 
 ---
 
-## Токени (Foundations)
+## Tokens (Foundations)
 
-Колекції `Color · Light` / `Color · Dark`, однакові імена:
+Collections `Color · Light` / `Color · Dark`, identical names:
 
-| Токен | Light | Dark |
+| Token | Light | Dark |
 |---|---|---|
 | `bg` | `#FAF8F4` | `#151412` |
 | `surface` | `#FFFFFF` | `#201F1C` |
@@ -50,11 +50,11 @@
 `Spacing`: 2xs 4 · xs 8 · sm 12 · md 16 · lg 20 · xl 24 · 2xl 32 · 3xl 40
 `Radius`: sm 10 · md 14 · lg 20 · xl 28 · pill 999
 
-### Текстові стилі (Nunito)
+### Text styles (Nunito)
 
-Трекінг залежить від кегля — одне значення на всі розміри завжди десь хибне.
+Tracking depends on the font size: a single value for all sizes is always wrong somewhere.
 
-| Стиль | Кегль | Накреслення | Трекінг | Інтерліньяж |
+| Style | Size | Weight | Tracking | Leading |
 |---|---|---|---|---|
 | Display | 34 | ExtraBold | −0.75 | 38 |
 | Title | 26 | ExtraBold | −0.36 | 31 |
@@ -68,91 +68,91 @@
 | IPA | 15 | Medium | +0.2 | 20 |
 | Number | 28 | ExtraBold | −0.42 | 32 |
 
-Тіні: `Shadow/sm` (10/4, 5%) · `Shadow/md` (24/10, 7%) · `Shadow/lg` (40/20, 10%).
+Shadows: `Shadow/sm` (10/4, 5%) · `Shadow/md` (24/10, 7%) · `Shadow/lg` (40/20, 10%).
 
 ---
 
-## ID компонентів (потрібні для `createInstance`)
+## Component IDs (needed for `createInstance`)
 
-| Компонент | Set | Варіанти |
+| Component | Set | Variants |
 |---|---|---|
 | Mascot | `2:76` | wave `2:68` · celebrate `2:70` · think `2:72` · encourage `2:74` |
 | Button | `4:12` | Primary `4:6` · Secondary `4:8` · Ghost `4:10` |
-| Pill | `5:12` | Accent `5:2` (далі по порядку: Teal, Warm, Danger, Neutral) |
-| Input | `5:13` | — |
-| TabBar | `5:15` | — |
+| Pill | `5:12` | Accent `5:2` (then in order: Teal, Warm, Danger, Neutral) |
+| Input | `5:13` | - |
+| TabBar | `5:15` | - |
 | Icon | `6:46` | scan `6:5` · book `6:10` · cards `6:14` · user `6:18` · sliders `6:22` · speaker `6:26` · check `6:29` · chevron `6:32` · flame `6:35` · search `6:39` · plus `6:42` · close `6:45` |
 
 ---
 
-## Екрани
+## Screens
 
-Розмір кадру — **402 × 874** (iPhone 16 Pro). Статус-бар 54px, таб-бар 84px.
+Frame size: **402 × 874** (iPhone 16 Pro). Status bar 54px, tab bar 84px.
 
-| № | Екран | Node ID | Стан |
+| No. | Screen | Node ID | Status |
 |---|---|---|---|
-| 01 | Онбординг | `9:6` | ✅ |
-| 02 | Навчання (хаб) | `8:18` | ✅ |
-| 03 | Сканер | `10:32` | ✅ |
-| 04 | Результат скану | `10:70` | ✅ |
-| 05 | Словник | `12:55` | ✅ |
-| 06 | Словник · порожній | `12:174` | ✅ |
-| 07 | Флешкартка | `12:228` | ✅ |
-| 08 | Квіз | `14:115` | ✅ |
-| 09 | Профіль | `14:149` | ✅ |
-| 10 | Налаштування | `14:253` | ✅ |
-| 11 | Вхід | `14:355` | ✅ |
+| 01 | Onboarding | `9:6` | ✅ |
+| 02 | Learning (hub) | `8:18` | ✅ |
+| 03 | Scanner | `10:32` | ✅ |
+| 04 | Scan result | `10:70` | ✅ |
+| 05 | Dictionary | `12:55` | ✅ |
+| 06 | Dictionary · empty | `12:174` | ✅ |
+| 07 | Flashcard | `12:228` | ✅ |
+| 08 | Quiz | `14:115` | ✅ |
+| 09 | Profile | `14:149` | ✅ |
+| 10 | Settings | `14:253` | ✅ |
+| 11 | Sign in | `14:355` | ✅ |
 
-**Screens · Dark** — три ключові екрани: Навчання `15:165`, Словник `15:248`,
-Профіль `15:367`. Зроблені клонуванням зі світлої сторінки + перепривʼязкою
-кожної змінної на однойменну з `Color · Dark`.
+**Screens · Dark** has three key screens: Learning `15:165`, Dictionary `15:248`,
+Profile `15:367`. They were made by cloning from the light page and re-binding
+every variable to the same-named one from `Color · Dark`.
 
-### Що на кожному екрані
+### What is on each screen
 
-**03 Сканер.** Темний вьюпорт камери на весь кадр. Кутові дужки видошукача
-(4 куточки, штрих 2.5, акцент). Зверху чип `EN → UK` на матовому склі. Знизу над
-таб-баром — велика кнопка затвора (76px, біле кільце). Lingo `think` маленький
-у кутку як підказка.
+**03 Scanner.** A dark camera viewport across the full frame. Viewfinder corner brackets
+(4 corners, stroke 2.5, accent). At the top, an `EN → UK` chip on frosted glass. At the bottom, above the
+tab bar, a big shutter button (76px, white ring). A small Lingo `think` in the
+corner as a hint.
 
-**04 Результат скану.** Той самий кадр + аркуш знизу (радіус 28 зверху,
-`Shadow/lg`): слово `Word` 40px, IPA, переклад `Headline`, приклад у
-`surface-sunken`, дві дії — «Прослухати» (Secondary + іконка speaker) і
-«Зберегти» (Primary). Lingo `celebrate` 80px справа зверху аркуша.
+**04 Scan result.** The same frame + a sheet from the bottom (radius 28 at the top,
+`Shadow/lg`): the `Word` at 40px, IPA, the translation in `Headline`, the example in
+`surface-sunken`, two actions: «Прослухати» (Listen; Secondary + speaker icon) and
+«Зберегти» (Save; Primary). Lingo `celebrate` 80px at the top right of the sheet.
 
-**05 Словник.** Заголовок `Словник` Display, поле пошуку (Input + іконка search),
-список рядків: слово `Body Strong` + переклад `Footnote text-dim` + Pill з рівнем
-праворуч, розділювач `border`. Таб-бар, активна вкладка 1.
+**05 Dictionary.** The title `Словник` (Dictionary) in Display, a search field (Input + search icon),
+a list of rows: the word in `Body Strong` + the translation in `Footnote text-dim` + a Pill with the level
+on the right, a `border` divider. Tab bar, active tab 1.
 
-**06 Словник · порожній.** Lingo `think` 200px по центру, `Ще нічого немає`
-Title, підпис Callout, Primary «Сканувати перше слово».
+**06 Dictionary · empty.** Lingo `think` 200px in the center, `Ще нічого немає` (Nothing here yet)
+in Title, a Callout caption, Primary «Сканувати перше слово» (Scan the first word).
 
-**07 Флешкартка.** Смужка прогресу зверху (`surface-sunken` + `accent`), `3 / 12`
-Footnote по центру. Велика картка на весь простір: слово `Word`, IPA, кругла
-кнопка speaker. Знизу дві кнопки: «Ще вчу» (`danger-soft`/`danger`) і «Знаю»
-(`teal-soft`/`teal`).
+**07 Flashcard.** A progress strip at the top (`surface-sunken` + `accent`), `3 / 12`
+in Footnote in the center. A large card across the whole space: the `Word`, IPA, a round
+speaker button. At the bottom two buttons: «Ще вчу» (Still learning; `danger-soft`/`danger`) and «Знаю»
+(I know it; `teal-soft`/`teal`).
 
-**08 Квіз.** Таймер-смужка. `Питання 3 з 10` + Pill «СЕРІЯ 4» (warm + іконка
-flame). Картка зі словом. Чотири варіанти — рядки `surface`, радіус 20; правильний
-показано `teal-soft`, хибний `danger-soft`.
+**08 Quiz.** A timer strip. `Питання 3 з 10` (Question 3 of 10) + a Pill «СЕРІЯ 4» (STREAK 4; warm + flame
+icon). A card with the word. Four options as `surface` rows, radius 20; the correct one
+is shown in `teal-soft`, the wrong one in `danger-soft`.
 
-**09 Профіль.** Герой-картка: Lingo `celebrate` 92px, імʼя Title, пошта Footnote,
-смужка рівня + `Рівень 4` / `12/18`. Сегмент «Статистика | Досягнення».
-Картка серії (іконка flame у `warm-soft`). Три міні-картки: слів усього / за
-тиждень / повторень — `Number` + `Caps`. Графік 7 днів: стовпчики `accent`,
-підписи `НПВСЧПС`.
+**09 Profile.** A hero card: Lingo `celebrate` 92px, the name in Title, the email in Footnote,
+a level strip + `Рівень 4` (Level 4) / `12/18`. A segment «Статистика | Досягнення» (Statistics | Achievements).
+A streak card (flame icon in `warm-soft`). Three mini cards: total words / this
+week / reviews, with `Number` + `Caps`. A 7-day chart: `accent` bars,
+labels `НПВСЧПС` (the Ukrainian weekday initials, Monday to Sunday).
 
-**10 Налаштування.** Рядок акаунта (Lingo 44px + імʼя + пошта). Дві мови —
-рядки з прапорцем і chevron. «Слово дня» — перемикач + чипи годин 8/10/12/18/20.
-Тема — два свотчі: світлий і темний, активний з рамкою `accent` 2.5px.
-Кнопка «Вийти» `danger`, текстом.
+**10 Settings.** The account row (Lingo 44px + name + email). Two languages:
+rows with a flag and a chevron. «Слово дня» (Word of the Day): a toggle + hour chips 8/10/12/18/20.
+Theme: two swatches, light and dark, the active one with a 2.5px `accent` border.
+The «Вийти» (Sign out) button in `danger`, text only.
 
-**11 Вхід.** Lingo `wave` 150px, логотип, сегмент «Вхід | Реєстрація»,
-два Input, Primary «Увійти», Ghost «Продовжити без акаунта».
+**11 Sign in.** Lingo `wave` 150px, the logo, a segment «Вхід | Реєстрація» (Sign in | Sign up),
+two Inputs, Primary «Увійти» (Sign in), Ghost «Продовжити без акаунта» (Continue without an account).
 
 ---
 
-## Наступний крок
+## Next step
 
-Коли ліміт MCP скинеться — виконати по одному великому скрипту на пару екранів.
-Спільна «шапка» кожного скрипта (отримання токенів, стилів, хелпери `T`, `C`,
-`R`, `screen`, `tabBar`, `lingo`) лежить у `figma/preamble.js`.
+When the MCP limit resets, run one big script per pair of screens.
+The shared "preamble" of each script (fetching tokens and styles, the helpers `T`, `C`,
+`R`, `screen`, `tabBar`, `lingo`) is in `figma/preamble.js`.

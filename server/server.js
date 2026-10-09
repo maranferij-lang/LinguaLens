@@ -1,6 +1,6 @@
-// LinguaLens proxy server — тримає API-ключі в себе, апка ключів не бачить.
-// Запуск:  npm start   (читає налаштування з .env)
-// Без зовнішніх залежностей — потрібен лише Node 20+.
+// LinguaLens proxy server: holds the API keys itself, the app never sees the keys.
+// Start:  npm start   (reads settings from .env)
+// No external dependencies: only Node 20+ is needed.
 
 const http = require('http');
 const os = require('os');
@@ -8,8 +8,8 @@ const store = require('./store');
 const auth = require('./auth');
 const words = require('./words');
 
-// Підвантажуємо server/.env, якщо він є (локальний запуск).
-// У хмарі (Cloud Run) змінні приходять зі середовища — файл не потрібен.
+// Load server/.env if it exists (local run).
+// In the cloud (Cloud Run) the variables come from the environment, so the file is not needed.
 try {
   const envText = require('fs').readFileSync(require('path').join(__dirname, '.env'), 'utf8');
   for (const line of envText.split('\n')) {
@@ -25,15 +25,15 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || 'claude-haiku-4-5';
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite';
 
-// Захист публічного сервера:
-// APP_TOKEN — секрет, який знає лише апка (шле в заголовку x-app-token).
-//   Якщо не заданий — перевірка вимкнена (зручно для локальної розробки).
+// Protection of the public server:
+// APP_TOKEN is a secret known only to the app (it sends it in the x-app-token header).
+//   If it is not set, the check is turned off (convenient for local development).
 const APP_TOKEN = process.env.APP_TOKEN || '';
-// Ліміт сканів з однієї IP-адреси за хвилину (захист від зловживань).
+// Limit of scans from one IP address per minute (protection against abuse).
 const RATE_PER_MIN = Number(process.env.RATE_PER_MIN || 20);
-// Спроби входу лімітуємо окремо й набагато суворіше. Загальний ліміт у 20/хв
-// дозволяв би 28 800 спроб пароля за добу з однієї IP — цього достатньо, щоб
-// підібрати слабкий пароль. Десять на 15 хвилин робить перебір безглуздим.
+// Sign-in attempts are limited separately and much more strictly. The general limit of 20/min
+// would allow 28,800 password attempts per day from one IP, which is enough to
+// guess a weak password. Ten per 15 minutes makes brute force pointless.
 const AUTH_TRIES = 10;
 const AUTH_WINDOW = 15 * 60 * 1000;
 const authHits = new Map();
@@ -43,21 +43,21 @@ function authRateLimited(key) {
   const arr = (authHits.get(key) || []).filter((t) => now - t < AUTH_WINDOW);
   arr.push(now);
   authHits.set(key, arr);
-  // не даємо мапі рости безмежно — це теж вектор (виснаження пам'яті)
+  // we do not let the map grow without bound: that is also a vector (memory exhaustion)
   if (authHits.size > 5000) {
     for (const [k, v] of authHits) if (!v.length || now - v[v.length - 1] > AUTH_WINDOW) authHits.delete(k);
   }
   return arr.length > AUTH_TRIES;
 }
 
-// Простий лічильник запитів на IP (у памʼяті, ковзне вікно 60с).
+// A simple per-IP request counter (in memory, a 60 s sliding window).
 const hits = new Map();
 function rateLimited(ip) {
   const now = Date.now();
   const arr = (hits.get(ip) || []).filter((t) => now - t < 60000);
   arr.push(now);
   hits.set(ip, arr);
-  // раз-у-раз чистимо старі записи, щоб мапа не росла
+  // every now and then we clean old entries so that the map does not grow
   if (hits.size > 5000) {
     for (const [k, v] of hits) if (!v.some((t) => now - t < 60000)) hits.delete(k);
   }
@@ -139,7 +139,7 @@ function parseModelJson(text) {
   return null;
 }
 
-// fetch з таймаутом 45с і одним повтором при 503 (перевантаження AI)
+// fetch with a 45 s timeout and one retry on 503 (AI overload)
 async function fetchAI(url, options) {
   for (let attempt = 1; ; attempt++) {
     const res = await fetch(url, { ...options, signal: AbortSignal.timeout(45000) });
@@ -204,7 +204,7 @@ async function callGemini(base64, prompt) {
       ],
       generationConfig: {
         response_mime_type: 'application/json',
-        // без цього модель "думає" 40-180с; minimal = майже миттєво
+        // without this the model "thinks" for 40-180 s; minimal = almost instant
         thinkingConfig: { thinkingLevel: 'minimal' },
       },
     }),
@@ -218,7 +218,7 @@ async function callGemini(base64, prompt) {
   return parseModelJson(data?.candidates?.[0]?.content?.parts?.[0]?.text);
 }
 
-// Текстовий запит до AI (без фото) — для перекладу «слова дня».
+// A text request to the AI (without a photo), for translating the "word of the day".
 async function callTextAI(prompt) {
   if (PROVIDER === 'anthropic') {
     const res = await fetchAI('https://api.anthropic.com/v1/messages', {
@@ -259,7 +259,7 @@ async function callTextAI(prompt) {
   return parseModelJson(d?.candidates?.[0]?.content?.parts?.[0]?.text);
 }
 
-// Переклад слова дня з кешем (щоб не витрачати квоту на однакові пари)
+// Translation of the word of the day with a cache (so as not to spend quota on identical pairs)
 async function translateWord(enWord, lang, nativeLang) {
   const key = `${enWord}|${lang}|${nativeLang}`;
   const cached = await store.get('wordCache', key.replace(/[^\w|-]/g, '_'));
@@ -311,16 +311,16 @@ function json(res, status, obj) {
   res.writeHead(status, {
     'content-type': 'application/json; charset=utf-8',
     ...SECURITY_HEADERS,
-    // Мобільний застосунок не має Origin, тому CORS тут потрібен лише для
-    // локальної діагностики з браузера. Дозволяємо, але без credentials —
-    // куки й авторизація через '*' не проходять за специфікацією.
+    // A mobile app has no Origin, so CORS is needed here only for
+    // local diagnostics from a browser. We allow it, but without credentials:
+    // cookies and authorization do not pass with '*' according to the specification.
     'Access-Control-Allow-Origin': '*',
   });
   res.end(JSON.stringify(obj));
 }
 
 const server = http.createServer(async (req, res) => {
-  // CORS + Private Network Access preflight (дозволяє запити з браузера до localhost)
+  // CORS + Private Network Access preflight (allows requests from a browser to localhost)
   if (req.method === 'OPTIONS') {
     res.writeHead(204, {
       'Access-Control-Allow-Origin': '*',
@@ -335,20 +335,20 @@ const server = http.createServer(async (req, res) => {
     return json(res, 200, { ok: true, provider: PROVIDER, store: store.MODE });
   }
 
-  // ---------- АВТОРИЗАЦІЯ ----------
+  // ---------- AUTHORIZATION ----------
   if (req.method === 'POST' && (req.url === '/auth/register' || req.url === '/auth/login')) {
     if (authRateLimited(clientIp(req))) {
       return json(res, 429, { error: 'TOO_MANY_ATTEMPTS' });
     }
-    // Тіло входу маленьке. 64 КБ на email+пароль — це подарунок атакуючому,
-    // 4 КБ вистачає з запасом.
+    // The sign-in body is small. 64 KB for an email + password is a gift to an attacker,
+    // 4 KB is more than enough.
 
     try {
       const body = JSON.parse((await readBody(req, 4 * 1024)) || '{}');
       const result =
         req.url === '/auth/register' ? await auth.register(body) : await auth.login(body);
       if (result.error) return json(res, result.status || 400, { error: result.error });
-      // У логи не пишемо пошту: логи Cloud Run бачить більше людей, ніж база.
+      // We do not write the email to the logs: more people can see Cloud Run logs than the database.
       console.log(new Date().toISOString(), req.url, '→ ok');
       return json(res, 200, result);
     } catch (e) {
@@ -357,7 +357,7 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
-  // ---------- ПРОФІЛЬ ----------
+  // ---------- PROFILE ----------
   if (req.url === '/me' && (req.method === 'GET' || req.method === 'PATCH')) {
     const user = await auth.userFromRequest(req).catch(() => null);
     if (!user) return json(res, 401, { error: 'UNAUTHORIZED' });
@@ -371,8 +371,8 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
-  // ---------- СЛОВО ДНЯ ----------
-  // GET /word-of-day?days=7&lang=en&native=uk  (потрібен Bearer-токен)
+  // ---------- WORD OF THE DAY ----------
+  // GET /word-of-day?days=7&lang=en&native=uk  (a Bearer token is required)
   if (req.method === 'GET' && req.url.startsWith('/word-of-day')) {
     const user = await auth.userFromRequest(req).catch(() => null);
     if (!user) return json(res, 401, { error: 'UNAUTHORIZED' });
@@ -394,7 +394,7 @@ const server = http.createServer(async (req, res) => {
           const w = await translateWord(en, lang, native);
           out.push({ date: words.dateKey(i), ...w });
         } catch (_) {
-          // якщо AI недоступний — віддаємо принаймні англійське слово
+          // if the AI is unavailable, we return at least the English word
           out.push({ date: words.dateKey(i), word: en, ipa: '', translation: '', example: '', example_translation: '', source: en });
         }
       }
@@ -408,18 +408,18 @@ const server = http.createServer(async (req, res) => {
 
   if (req.method === 'POST' && req.url === '/scan') {
     const t0 = Date.now();
-    // 1) доступ: або авторизований користувач, або спільний токен апки
+    // 1) access: either an authorized user or the app's shared token
     const scanUser = await auth.userFromRequest(req).catch(() => null);
     if (!scanUser && APP_TOKEN && req.headers['x-app-token'] !== APP_TOKEN) {
       return json(res, 401, { error: 'Немає доступу.' });
     }
-    // 2) ліміт на IP
+    // 2) per-IP limit
     if (rateLimited(clientIp(req))) {
       return json(res, 429, { error: 'Забагато запитів. Зачекай хвилинку.' });
     }
     try {
-      // Апка надсилає кадр 1024px/JPEG ≈ 150–400 КБ у base64. Ліміт у 15 МБ
-      // дозволяв закидати сервер важкими тілами — 4 МБ із запасом достатньо.
+      // The app sends a 1024px/JPEG frame ≈ 150-400 KB in base64. A 15 MB limit
+      // allowed throwing heavy bodies at the server; 4 MB is plenty.
       const raw = await readBody(req, 4 * 1024 * 1024);
       const body = JSON.parse(raw || '{}');
       const image = body.image;
@@ -442,16 +442,16 @@ const server = http.createServer(async (req, res) => {
         return json(res, 422, { error: "Не бачу чіткого об'єкта. Наведи камеру ближче." });
       }
 
-      // Рамка предмета: 4 цілих 0–1000 у порядку y1,x1,y2,x2 (як у Gemini).
-      // Апка ріже по ній кадр, щоб дістати сам предмет без тла — знімок
-      // цілого екрана виглядає як випадковий скрін і губить стиль.
+      // Object box: 4 integers 0-1000 in the order y1,x1,y2,x2 (as in Gemini).
+      // The app crops the frame with it to get the object itself without the background: a screenshot
+      // of the whole screen looks like an accidental screen capture and loses the style.
       const box = Array.isArray(parsed.box) && parsed.box.length === 4
         ? parsed.box.map((v) => Math.max(0, Math.min(1000, Math.round(Number(v) || 0))))
         : null;
       const validBox = box && box[2] > box[0] + 40 && box[3] > box[1] + 40 ? box : null;
 
-      // Силуэт предмета. Приймаємо лише розумний полігон: менше 6 точок —
-      // це не контур, а трикутник; більше 40 — модель почала фантазувати.
+      // Object silhouette. We accept only a sensible polygon: fewer than 6 points is
+      // not an outline but a triangle; more than 40 means the model started making things up.
       const rawOutline = Array.isArray(parsed.outline) ? parsed.outline : null;
       const outline =
         rawOutline && rawOutline.length >= 6 && rawOutline.length <= 40

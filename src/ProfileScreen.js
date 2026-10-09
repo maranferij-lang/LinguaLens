@@ -1,4 +1,4 @@
-// Профіль: аватар-Lingo, рівень, стрік, статистика, графік, досягнення.
+// Profile: Lingo avatar, level, streak, statistics, chart, achievements.
 import { useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
@@ -50,7 +50,7 @@ export default function ProfileScreen({ words, activity, stats, user, onUpdateUs
   const unlocked = unlockedCount(achievements);
   const lvl = levelFromWords(words.length);
 
-  // графік 7 днів
+  // 7-day chart
   const days = [];
   for (let i = 6; i >= 0; i--) {
     const d = new Date();
@@ -59,7 +59,7 @@ export default function ProfileScreen({ words, activity, stats, user, onUpdateUs
     days.push({ key, dow: d.getDay(), value: activity[key] || 0 });
   }
   const maxVal = Math.max(1, ...days.map((d) => d.value));
-  const DAY_LETTERS = (t('dowLetters') || 'SMTWTFS').split(''); // неділя → субота
+  const DAY_LETTERS = (t('dowLetters') || 'SMTWTFS').split(''); // Sunday → Saturday
 
   const byLang = {};
   for (const w of words) {
@@ -93,7 +93,7 @@ export default function ProfileScreen({ words, activity, stats, user, onUpdateUs
       showsVerticalScrollIndicator={false}
       contentInsetAdjustmentBehavior="never"
     >
-      {/* Шапка профілю */}
+      {/* Profile header */}
       <FadeIn>
         <View style={[s.hero, SHADOW]}>
           <Pressable onPress={() => setEditing(true)} style={s.avatarWrap}>
@@ -114,7 +114,7 @@ export default function ProfileScreen({ words, activity, stats, user, onUpdateUs
         </View>
       </FadeIn>
 
-      {/* Перемикач Статистика / Досягнення */}
+      {/* Statistics / Achievements toggle */}
       <FadeIn delay={40}>
         <View style={s.segment}>
           {[
@@ -236,7 +236,7 @@ export default function ProfileScreen({ words, activity, stats, user, onUpdateUs
         </FadeIn>
       )}
 
-      {/* Редагування профілю */}
+      {/* Profile editing */}
       <Modal visible={editing} transparent animationType="fade" onRequestClose={() => setEditing(false)}>
         <Pressable style={s.backdrop} onPress={saveName} />
         <View style={s.sheetWrap}>
