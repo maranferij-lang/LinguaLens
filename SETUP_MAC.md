@@ -139,6 +139,22 @@ npm run sim
 > overwritten»?** Скинь ці зміни: `git checkout -- package.json`, потім
 > повтори `git pull`.
 
+> **Xcode пише «Failed to build module 'ExpoModulesCore'; this SDK is not
+> supported by the compiler»?** Модулі Expo прийшли зібраними іншою версією
+> Swift, ніж у твого Xcode (так було 18.10.2026: Xcode 27.1, Swift 6.4, а
+> модулі зібрано Swift 6.3.1). Код застосунку тут ні до чого. Збери їх із
+> вихідного коду:
+> ```bash
+> cd ~/Documents/LinguaLens
+> npx expo prebuild --platform ios --clean
+> # у ios/Podfile.properties.json додай рядок: "EXPO_USE_PRECOMPILED_MODULES": "false"
+> sh node_modules/expo-modules-jsi/apple/scripts/build-xcframework.sh --clean
+> cd ios && LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 pod install && cd ..
+> ```
+> Потім у Xcode ⇧⌘K і ▶️. Після кожного `prebuild --clean` чи
+> перевстановлення `node_modules` ці кроки треба повторити. Хмарні збірки
+> EAS це не зачіпає: там своя версія Xcode.
+
 **iPhone на кабелі** — потрібен платний акаунт розробника ($99): додай його в
 Xcode → Settings → **Accounts**, потім
 ```bash
