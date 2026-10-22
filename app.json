@@ -276,6 +276,12 @@
       "de": "./locales/de.json",
       "es": "./locales/es.json",
       "ru": "./locales/ru.json"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "f866b9df-ecaa-4407-a891-d33e09e45acc"
+      }
+    },
+    "owner": "marikx"
   }
 }
