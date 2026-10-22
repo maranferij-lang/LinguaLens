@@ -147,11 +147,11 @@ npm run sim
 > ```bash
 > cd ~/Documents/LinguaLens
 > npx expo prebuild --platform ios --clean
-> # у ios/Podfile.properties.json додай рядок: "EXPO_USE_PRECOMPILED_MODULES": "false"
 > sh node_modules/expo-modules-jsi/apple/scripts/build-xcframework.sh --clean
 > cd ios && LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 pod install && cd ..
 > ```
-> Потім у Xcode ⇧⌘K і ▶️. Після кожного `prebuild --clean` чи
+> (Прапорець `EXPO_USE_PRECOMPILED_MODULES=false` ставить сам плагін
+> `plugins/withSourceModules.js` під час prebuild.) Потім у Xcode ⇧⌘K і ▶️. Після кожного `prebuild --clean` чи
 > перевстановлення `node_modules` ці кроки треба повторити. Хмарні збірки
 > EAS це не зачіпає: там своя версія Xcode.
 
