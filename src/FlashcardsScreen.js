@@ -506,7 +506,7 @@ export default function FlashcardsScreen({
         {/* Bar з ui.js: scaleX від лівого краю на нативному драйвері, без перерахунку лейауту */}
         <View style={{ flex: 1 }}>
           {/* «3 / 10» стоїть поруч текстом: смужку VoiceOver не читає вдруге */}
-          <Bar progress={nextIdx / session.ids.length} color={C.text} bg={C.soft} height={4} decorative />
+          <Bar progress={nextIdx / session.ids.length} color={C.text} bg={C.card3} height={4} decorative />
         </View>
         <Text style={s.progress}>
           {nextIdx + 1} / {session.ids.length}

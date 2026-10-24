@@ -550,7 +550,7 @@ const GridTile = memo(function GridTile({ item, tile, row, onOpen, s, C, t }) {
         >
           {/* Артикль приглушений: в альбомі око ковзає по самих предметах.
               Повне слово з артиклем: в аркуші. */}
-          <Text style={s.tileWord} numberOfLines={1} maxFontSizeMultiplier={1.2}>
+          <Text style={s.tileWord} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} maxFontSizeMultiplier={1.2}>
             {article ? <Text style={s.tileArticle}>{article}</Text> : null}
             {rest}
           </Text>

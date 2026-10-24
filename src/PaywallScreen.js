@@ -588,7 +588,7 @@ export default function PaywallScreen({
               style={s.freeBtnText}
               numberOfLines={1}
               adjustsFontSizeToFit
-              minimumFontScale={0.85}
+              minimumFontScale={0.75}
               maxFontSizeMultiplier={1.3}
             >
               {freeLeft > 0 ? t('pwContinueFree', { n: freeLeft }) : t('pwContinueFreeNoScans')}
