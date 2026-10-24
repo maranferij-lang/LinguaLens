@@ -1,8 +1,27 @@
 // Спільні UI-компоненти. Рух — за src/motion.js.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import Svg, { Defs, LinearGradient, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
+import { CAMERA_CHROME, GlassBlurView } from './Chrome';
 import { DUR, EASE, SPRING, haptic as fireHaptic, stagger, travel, useReducedMotionCached } from './motion';
 import { CAPS, F, R, type, useTheme } from './theme';
+
+// expo-glass-effect (Liquid Glass, iOS 26+). Без нативного модуля (старий
+// білд, веб, jest) тихо падаємо на blur.
+let GlassViewNative = null;
+let liquidGlass = () => false;
+try {
+  const g = require('expo-glass-effect');
+  GlassViewNative = g.GlassView;
+  liquidGlass = g.isLiquidGlassAvailable;
+} catch (_) {}
+export const hasLiquidGlass = () => {
+  try {
+    return !!GlassViewNative && !!liquidGlass();
+  } catch (_) {
+    return false;
+  }
+};
 
 // Натискний елемент.
 // Правило Apple №1: відгук на press-IN, не на відпускання. Мить, коли з'являється
@@ -148,18 +167,231 @@ export function Press({
   );
 }
 
-// Плаваюча картка: великий радіус, м'яка тінь, без рамок
-export function Glass({ children, style, flat, big }) {
-  const { C, SHADOW, SHADOW_LG } = useTheme();
+// «rgba(r,g,b,a)» -> те саме з a = 0 (кінець радіального градієнта плями)
+const clear = (c) => String(c).replace(/,\s*[\d.]+\)$/, ',0)');
+
+// Ледь тонований акцентом градієнт «героя» екрана (один на екран). Малюємо SVG
+// з градієнтом: дешево, без runtime-blur.
+function HeroTint({ radius }) {
+  const { C } = useTheme();
+  return (
+    <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius: radius, overflow: 'hidden' }]}>
+      <Svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
+        <Defs>
+          <LinearGradient id="hero" x1="0" y1="0" x2="1" y2="1">
+            <Stop offset="0" stopColor={C.heroFrom} />
+            <Stop offset="1" stopColor={C.heroTo} />
+          </LinearGradient>
+        </Defs>
+        <Rect x="0" y="0" width="100" height="100" fill="url(#hero)" />
+      </Svg>
+    </View>
+  );
+}
+
+// Скляна поверхня: заливка (Liquid Glass на iOS 26+, інакше blur) і 1 px
+// кромка, що лежать ПІД дітьми. Діти й layout-стилі лишаються на зовнішньому
+// View, тож padding, flexDirection тощо працюють, а тінь не обрізається.
+//   camera — над камерою: завжди темна, незалежно від теми;
+//   strong — щільніша заливка (аркуші з текстом).
+function GlassLayer({ radius, camera, strong, intensity, interactive }) {
+  const { C, isDark } = useTheme();
+  const dark = camera || isDark;
+  const clip = { borderRadius: radius, overflow: 'hidden' };
+  const border = (
+    <View
+      pointerEvents="none"
+      style={[StyleSheet.absoluteFill, { borderRadius: radius, borderWidth: 1, borderColor: camera ? 'rgba(255,255,255,0.14)' : C.glassBorder }]}
+    />
+  );
+  if (hasLiquidGlass()) {
+    return (
+      <>
+        <GlassViewNative
+          pointerEvents="none"
+          glassEffectStyle="regular"
+          colorScheme={dark ? 'dark' : 'light'}
+          isInteractive={!!interactive}
+          style={[StyleSheet.absoluteFill, clip]}
+        />
+        {border}
+      </>
+    );
+  }
+  const fill = camera ? CAMERA_CHROME : strong ? C.glassStrong : C.glass;
+  return (
+    <>
+      {GlassBlurView ? (
+        <GlassBlurView pointerEvents="none" intensity={intensity} tint={dark ? 'dark' : 'light'} style={[StyleSheet.absoluteFill, clip]} />
+      ) : null}
+      <View pointerEvents="none" style={[StyleSheet.absoluteFill, clip, { backgroundColor: fill }]} />
+      {border}
+    </>
+  );
+}
+
+// Плаваюча скляна панель: таб-бар, чипи над камерою. Радіус 32, тінь, blur 42.
+//   camera — темна над камерою; radius, intensity — свої.
+// Розмір, позицію й layout задає style (як у View).
+export function GlassBar({ children, style, camera = false, radius = R.bar, intensity = 42, interactive, ...rest }) {
+  const { SHADOW_LG } = useTheme();
+  return (
+    <View {...rest} style={[{ borderRadius: radius }, SHADOW_LG, style]}>
+      <GlassLayer radius={radius} camera={camera} intensity={intensity} interactive={interactive} />
+      {children}
+    </View>
+  );
+}
+
+// Нижній аркуш: радіус 40, щільніше скло, сильніший blur, «ручка» зверху
+// (grabber=false ховає). Діти — вміст; відступи задає style.
+export function GlassSheet({ children, style, camera = false, radius = R.sheet, intensity = 60, grabber = true, ...rest }) {
+  const { C, SHADOW_LG } = useTheme();
+  return (
+    <View {...rest} style={[{ borderRadius: radius }, SHADOW_LG, style]}>
+      <GlassLayer radius={radius} camera={camera} strong intensity={intensity} />
+      {grabber ? (
+        <View
+          pointerEvents="none"
+          style={{ alignSelf: 'center', width: 36, height: 5, borderRadius: 3, marginBottom: 12, backgroundColor: camera ? 'rgba(255,255,255,0.35)' : C.hairline }}
+        />
+      ) : null}
+      {children}
+    </View>
+  );
+}
+
+// Картка «Soft Glass»: напівпрозора заливка, 1 px кромка, м'яка тінь, радіус 24,
+// padding 16. Пропси:
+//   flat — без тіні; big — глибша тінь (плаваючі блоки);
+//   hero — ледь тонований акцентом градієнт (ОДНА така картка на екран);
+//   blur — справжнє розмиття за карткою (дорого: лише для малих карток над
+//     контентом, що рухається; звичайні картки без нього);
+//   radius — інший радіус; решта пропсів (testID, accessibility…) — у View.
+export function Glass({ children, style, flat, big, hero, blur, radius = R.xl, ...rest }) {
+  const { C, isDark, SHADOW, SHADOW_LG } = useTheme();
   return (
     <View
+      {...rest}
       style={[
-        { backgroundColor: C.card, borderRadius: R.xl, padding: 16 },
+        { backgroundColor: C.glass, borderRadius: radius, padding: 16, borderWidth: 1, borderColor: C.glassBorder },
         !flat && (big ? SHADOW_LG : SHADOW),
         style,
       ]}
     >
+      {blur && GlassBlurView ? (
+        <GlassBlurView pointerEvents="none" intensity={30} tint={isDark ? 'dark' : 'light'} style={[StyleSheet.absoluteFill, { borderRadius: radius, overflow: 'hidden' }]} />
+      ) : null}
+      {hero ? <HeroTint radius={radius} /> : null}
       {children}
+    </View>
+  );
+}
+
+// Стрілка ↗ у правому куті картки, що щось відкриває. Декор (VoiceOver її не
+// читає: роль і підпис має сама картка).
+export function CardArrow({ style, color }) {
+  const { C } = useTheme();
+  return (
+    <View pointerEvents="none" accessible={false} importantForAccessibility="no-hide-descendants" style={[{ position: 'absolute', top: 14, right: 14 }, style]}>
+      <Svg width={14} height={14} viewBox="0 0 24 24">
+        <Path d="M7 17 17 7M8.5 7H17v8.5" fill="none" stroke={color ?? C.dim} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+      </Svg>
+    </View>
+  );
+}
+
+// Тло екрана «Soft Glass»: тепле тло теми й три дуже м'які кольорові плями
+// (лаванда, мʼята, персик; у темній темі ледь помітні). Статичне: радіальні
+// градієнти SVG, без runtime-blur і анімацій, нуль вартості на скролі. Кладіть
+// першим дитям кореня екрана (воно absoluteFill і не ловить дотики); якщо
+// кореню вже задано backgroundColor — залиште, фон тут лише підстраховує.
+export function ScreenBackground({ style, testID }) {
+  const { C } = useTheme();
+  const blobs = [
+    { c: C.blob1, cx: 85, cy: 8, rx: 52, ry: 30 },
+    { c: C.blob2, cx: 0, cy: 45, rx: 46, ry: 28 },
+    { c: C.blob3, cx: 92, cy: 88, rx: 54, ry: 30 },
+  ];
+  return (
+    <View pointerEvents="none" testID={testID} accessible={false} importantForAccessibility="no-hide-descendants" style={[StyleSheet.absoluteFill, { backgroundColor: C.bg }, style]}>
+      <Svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
+        <Defs>
+          {blobs.map((b, i) => (
+            <RadialGradient key={i} id={`b${i}`} cx={b.cx} cy={b.cy} rx={b.rx} ry={b.ry} gradientUnits="userSpaceOnUse">
+              <Stop offset="0" stopColor={b.c} />
+              <Stop offset="1" stopColor={clear(b.c)} />
+            </RadialGradient>
+          ))}
+        </Defs>
+        {blobs.map((b, i) => (
+          <Rect key={i} x="0" y="0" width="100" height="100" fill={`url(#b${i})`} />
+        ))}
+      </Svg>
+    </View>
+  );
+}
+
+// Кругла кнопка-іконка 44 pt на склі (чипи біля заголовка, закриття, дзвінок).
+// children — іконка; accessibilityLabel обовʼязковий. camera — темна над камерою.
+export function IconBtn({ children, onPress, size = 44, camera = false, style, accessibilityLabel, ...rest }) {
+  const { C } = useTheme();
+  return (
+    <Press
+      {...rest}
+      onPress={onPress}
+      accessibilityLabel={accessibilityLabel}
+      style={[
+        {
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: camera ? CAMERA_CHROME : C.glass,
+          borderWidth: 1,
+          borderColor: camera ? 'rgba(255,255,255,0.14)' : C.glassBorder,
+        },
+        style,
+      ]}
+    >
+      {children}
+    </Press>
+  );
+}
+
+// Сегментований перемикач: м'яка доріжка, виділений сегмент — біла (темна:
+// світліше скло) «таблетка». options: [{ key, label, testID?, accessibilityLabel? }].
+export function Segmented({ options, value, onChange, style, testID }) {
+  const { C, isDark } = useTheme();
+  return (
+    <View
+      testID={testID}
+      accessibilityRole="tablist"
+      style={[{ flexDirection: 'row', padding: 3, borderRadius: 14, backgroundColor: C.soft }, style]}
+    >
+      {options.map((o) => {
+        const on = o.key === value;
+        return (
+          <Press
+            key={o.key}
+            feedback="dim"
+            testID={o.testID}
+            accessibilityRole="tab"
+            accessibilityLabel={o.accessibilityLabel ?? o.label}
+            accessibilityState={{ selected: on }}
+            onPress={() => onChange?.(o.key)}
+            style={[
+              { flex: 1, minHeight: 32, borderRadius: 11, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
+              on && { backgroundColor: isDark ? C.card3 : C.card, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 3, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
+            ]}
+          >
+            <Text numberOfLines={1} style={{ color: on ? C.text : C.dim, ...type(13, on ? F.semi : F.reg, { noLead: true }) }}>
+              {o.label}
+            </Text>
+          </Press>
+        );
+      })}
     </View>
   );
 }
@@ -197,7 +429,7 @@ export function Caps({ children, style }) {
 // проходить, а VoiceOver чує підпис і «зайнято». maxFontScale — стеля системного
 // шрифту для підпису (типово без стелі; обмежуємо лише там, де кнопка має вміститись).
 export function GradBtn({ title, onPress, disabled, loading = false, style, small, accessibilityLabel, maxFontScale, ...rest }) {
-  const { C, SHADOW } = useTheme();
+  const { C, isDark } = useTheme();
   const size = small ? 15 : 17;
   return (
     <Press
@@ -214,18 +446,22 @@ export function GradBtn({ title, onPress, disabled, loading = false, style, smal
         style={[
           {
             backgroundColor: C.accent,
-            borderRadius: R.lg,
-            paddingVertical: small ? 11 : 16,
+            borderRadius: R.pill,
+            minHeight: small ? 44 : 54,
+            paddingVertical: small ? 11 : 15,
+            paddingHorizontal: 20,
             alignItems: 'center',
+            justifyContent: 'center',
           },
-          SHADOW,
+          // м'яка кольорова тінь у тон акценту (макет: 0 6 16 accent .3)
+          { shadowColor: C.accent, shadowOpacity: isDark ? 0.35 : 0.3, shadowRadius: 16, shadowOffset: { width: 0, height: 6 }, elevation: 4 },
         ]}
       >
         {loading ? (
           // висота — як у рядка тексту (Nunito ≈ 1.36 кегля): кнопка не стрибає
           <ActivityIndicator color={C.onAccent} style={{ height: Math.round(size * 1.36) }} />
         ) : (
-          <Text maxFontSizeMultiplier={maxFontScale} style={{ color: C.onAccent, ...type(size, F.extra, { noLead: true }) }}>{title}</Text>
+          <Text maxFontSizeMultiplier={maxFontScale} style={{ color: C.onAccent, ...type(size, F.semi, { noLead: true }) }}>{title}</Text>
         )}
       </View>
     </Press>
@@ -239,10 +475,20 @@ export function SecBtn({ title, onPress, style, maxFontScale, ...rest }) {
     <Press {...rest} onPress={onPress} style={style}>
       <View
         style={[
-          { backgroundColor: C.card2, borderRadius: R.lg, paddingVertical: 15, alignItems: 'center' },
+          {
+            backgroundColor: C.glass,
+            borderRadius: R.pill,
+            borderWidth: 1,
+            borderColor: C.hairline,
+            minHeight: 50,
+            paddingVertical: 14,
+            paddingHorizontal: 20,
+            alignItems: 'center',
+            justifyContent: 'center',
+          },
         ]}
       >
-        <Text maxFontSizeMultiplier={maxFontScale} style={{ color: C.text, ...type(16, F.bold, { noLead: true }) }}>{title}</Text>
+        <Text maxFontSizeMultiplier={maxFontScale} style={{ color: C.text, ...type(16, F.semi, { noLead: true }) }}>{title}</Text>
       </View>
     </Press>
   );
@@ -348,7 +594,7 @@ export function Bar({ progress, color, bg, height = 8, radius, duration = DUR.sh
         accessibilityValue: { min: 0, max: 100, now: pct, text: `${pct}%` },
       };
   return (
-    <View {...a11y} testID={testID} style={{ height, backgroundColor: bg ?? C.card2, borderRadius: r, overflow: 'hidden' }}>
+    <View {...a11y} testID={testID} style={{ height, backgroundColor: bg ?? C.soft, borderRadius: r, overflow: 'hidden' }}>
       <Animated.View
         style={{
           height,

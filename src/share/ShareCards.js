@@ -17,7 +17,7 @@ import { Mascot } from '../Mascot';
 import { photoUri } from '../photos';
 import { flagFor, nameFor } from '../speech';
 import { StickerLarge } from '../Sticker';
-import { F, ipaFont, type } from '../theme';
+import { F, ipaFont, type, fw } from '../theme';
 import {
   CAPS_TRACK,
   CARD_H,
@@ -65,7 +65,7 @@ function Txt(props) {
 // Розрядковий капс для метаданих: «ENGLISH», «DAY STREAK».
 const capsStyle = (color, size = 11) => ({
   color,
-  fontFamily: F.extra,
+  ...fw(F.extra),
   fontSize: size,
   lineHeight: Math.round(size * 1.35),
   letterSpacing: size * 0.14,
@@ -102,7 +102,7 @@ function Footer({ pal, t, right, center }) {
       <LogoMark size={22} color={pal.text} fg={pal.bg} />
       <View>
         <Txt style={{ color: pal.text, ...type(13, F.extra, { noLead: true }), lineHeight: 16 }}>LinguaLens</Txt>
-        <Txt style={{ color: pal.muted, fontFamily: F.reg, fontSize: 10, lineHeight: 13 }}>{t('shareTagline')}</Txt>
+        <Txt style={{ color: pal.muted, ...fw(F.reg), fontSize: 10, lineHeight: 13 }}>{t('shareTagline')}</Txt>
       </View>
     </View>
   );
@@ -137,7 +137,7 @@ function BigWord({ word, pal, max, align = 'center', style }) {
       style={[
         {
           color: pal.text,
-          fontFamily: F.extra,
+          ...fw(F.extra),
           fontSize: size,
           // запас під діакритику над великими літерами (Ü, Ñ, Й)
           lineHeight: Math.round(size * 1.18),
@@ -186,7 +186,7 @@ function Art({ word, pal, size, tilt = 0 }) {
           transform: [{ rotate: `${tilt - 3}deg` }],
         }}
       >
-        <Txt style={{ color: pal.onTile, fontFamily: F.extra, fontSize: tile * 0.56, lineHeight: tile * 0.72 }}>
+        <Txt style={{ color: pal.onTile, ...fw(F.extra), fontSize: tile * 0.56, lineHeight: tile * 0.72 }}>
           {initialOf(word.word)}
         </Txt>
       </View>
@@ -234,7 +234,7 @@ function Stats({ items, pal, locale, style }) {
           >
             <Txt
               numberOfLines={1}
-              style={{ color: pal.text, fontFamily: F.extra, fontSize: size, lineHeight: Math.round(size * 1.12), letterSpacing: -size * 0.02 }}
+              style={{ color: pal.text, ...fw(F.extra), fontSize: size, lineHeight: Math.round(size * 1.12), letterSpacing: -size * 0.02 }}
             >
               {value}
             </Txt>
@@ -310,12 +310,12 @@ function WordEntry({ word, pal, t, locale }) {
           </Txt>
         ) : null}
         {word.example ? (
-          <Txt numberOfLines={exampleLines} style={{ color: pal.text, fontFamily: F.semi, fontSize: 18, lineHeight: 26, marginTop: 18 }}>
+          <Txt numberOfLines={exampleLines} style={{ color: pal.text, ...fw(F.semi), fontSize: 18, lineHeight: 26, marginTop: 18 }}>
             {quote(clipLines(word.example, exampleLines, 18), word.lang)}
           </Txt>
         ) : null}
         {word.example && exampleTr ? (
-          <Txt numberOfLines={2} style={{ color: pal.muted, fontFamily: F.reg, fontSize: 15, lineHeight: 21, marginTop: 8 }}>
+          <Txt numberOfLines={2} style={{ color: pal.muted, ...fw(F.reg), fontSize: 15, lineHeight: 21, marginTop: 8 }}>
             {clipLines(exampleTr, 2, 15)}
           </Txt>
         ) : null}
@@ -325,14 +325,14 @@ function WordEntry({ word, pal, t, locale }) {
         {word.lang ? (
           <View>
             <Txt style={capsStyle(pal.muted, 10)}>{t('shareLang')}</Txt>
-            <Txt style={{ color: pal.text, fontFamily: F.extra, fontSize: 17, lineHeight: 22, marginTop: 2 }}>
+            <Txt style={{ color: pal.text, ...fw(F.extra), fontSize: 17, lineHeight: 22, marginTop: 2 }}>
               {nameFor(word.lang)}
             </Txt>
           </View>
         ) : null}
         <View>
           <Txt style={capsStyle(pal.muted, 10)}>{t('shareDate')}</Txt>
-          <Txt style={{ color: pal.text, fontFamily: F.extra, fontSize: 17, lineHeight: 22, marginTop: 2 }}>
+          <Txt style={{ color: pal.text, ...fw(F.extra), fontSize: 17, lineHeight: 22, marginTop: 2 }}>
             {dateLabel(word.addedAt || Date.now(), locale)}
           </Txt>
         </View>

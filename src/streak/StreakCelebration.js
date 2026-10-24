@@ -30,7 +30,7 @@ import { Mascot } from '../Mascot';
 import { useSafeAreaInsets } from '../SafeArea';
 import { GradBtn, Press } from '../ui';
 import { DUR, EASE, SPRING, recentSuccess, useReducedMotion, useScreenReader } from '../motion';
-import { F, R, type, useTheme } from '../theme';
+import { F, R, type, useTheme, fw } from '../theme';
 
 // Скільки звичайний день лишається на екрані
 export const CELEBRATE_MS = 2600;
@@ -138,7 +138,7 @@ function WeekDots({ activeDays, pop, C, t }) {
         return (
           <View key={d.key} style={{ alignItems: 'center', gap: 4 }}>
             {today ? <Animated.View style={{ transform: [{ scale: pop }] }}>{dot}</Animated.View> : dot}
-            <Text style={{ color: today ? C.text : C.dim, fontSize: 11, fontFamily: today ? F.extra : F.semi }}>{d.label}</Text>
+            <Text style={{ color: today ? C.text : C.dim, fontSize: 11, ...fw(today ? F.extra : F.semi) }}>{d.label}</Text>
           </View>
         );
       })}
@@ -375,7 +375,7 @@ export default function StreakCelebration({ data, activeDays, onDone, onShare, t
 }
 
 const s = {
-  num: (C, h, size) => ({ color: C.text, fontSize: size, lineHeight: h, fontFamily: F.extra, letterSpacing: -1.5, fontVariant: ['tabular-nums'] }),
+  num: (C, h, size) => ({ color: C.text, fontSize: size, lineHeight: h, ...fw(F.extra), letterSpacing: -1.5, fontVariant: ['tabular-nums'] }),
   chip: (C) => ({
     flexDirection: 'row',
     alignItems: 'center',

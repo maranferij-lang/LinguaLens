@@ -15,7 +15,7 @@ import { IcBolt, IcChevron, IcClose } from '../icons';
 import { PCrown } from '../ProIcons';
 import { flagFor, nameFor } from '../speech';
 import { variantOf } from '../langVariants';
-import { F, R } from '../theme';
+import { F, R, fw } from '../theme';
 import { CAM, CAM_FONT, CamGlass } from './CamGlass';
 import { BAR_H, SIDE, TOP } from './layout';
 
@@ -28,7 +28,7 @@ export function LangChip({ lang, onPress, disabled, t }) {
       <Text style={{ fontSize: 15, lineHeight: 19 }} maxFontSizeMultiplier={CAM_FONT} accessible={false}>
         {flagFor(lang, variant)}
       </Text>
-      <Text style={{ color: CAM.text, fontSize: 15, fontFamily: F.extra, letterSpacing: 0.6 }} maxFontSizeMultiplier={CAM_FONT}>
+      <Text style={{ color: CAM.text, fontSize: 15, ...fw(F.extra), letterSpacing: 0.6 }} maxFontSizeMultiplier={CAM_FONT}>
         {String(lang || '').toUpperCase()}
       </Text>
       <IcChevron size={15} color={CAM.text} />
@@ -74,7 +74,7 @@ export function Status({ status, onPro, t }) {
       >
         <PCrown size={15} color={CAM.onAccent} />
         <Text
-          style={{ color: CAM.onAccent, fontSize: 14, fontFamily: F.extra, flexShrink: 1 }}
+          style={{ color: CAM.onAccent, fontSize: 14, ...fw(F.extra), flexShrink: 1 }}
           numberOfLines={1}
           adjustsFontSizeToFit
           minimumFontScale={0.85}
@@ -96,7 +96,7 @@ export function Status({ status, onPro, t }) {
         {/* корона лавандова, підпис кремовий: над світлою стіною лавандовий
             текст на склі не читається */}
         <PCrown size={14} color={CAM.accent} />
-        <Text style={{ color: CAM.text, fontSize: 12, fontFamily: F.extra, letterSpacing: 1.2 }} maxFontSizeMultiplier={CAM_FONT}>
+        <Text style={{ color: CAM.text, fontSize: 12, ...fw(F.extra), letterSpacing: 1.2 }} maxFontSizeMultiplier={CAM_FONT}>
           PRO
         </Text>
       </CamGlass>
@@ -115,7 +115,7 @@ export function Status({ status, onPro, t }) {
         <Circle cx={6} cy={6} r={4.3} stroke={CAM.text} strokeWidth={2} fill="none" />
       </Svg>
       <Text
-        style={{ color: CAM.text, fontSize: 14, fontFamily: F.bold, flexShrink: 1 }}
+        style={{ color: CAM.text, fontSize: 14, ...fw(F.bold), flexShrink: 1 }}
         numberOfLines={1}
         adjustsFontSizeToFit
         minimumFontScale={0.85}

@@ -12,7 +12,7 @@ import { nextMilestone, phase, streakInfo, streakMessage, weekStrip } from '../s
 import { weekdayLabels } from '../share/layout';
 import { IcFlame } from '../icons';
 import { Bar, Glass } from '../ui';
-import { F, R, type, useTheme } from '../theme';
+import { F, R, type, useTheme, fw } from '../theme';
 
 // Головна фраза картки: сьогодні вже було — «до тижня ще…» (а на 7-й і 30-й
 // день — сама віха); сьогодні ще ні — «сьогодні ще ні» / «не дай згаснути».
@@ -34,7 +34,7 @@ function Day({ day, C }) {
   return (
     <View style={{ flex: 1, alignItems: 'center', gap: 5 }} testID={'week-' + day.state}>
       {dot}
-      <Text style={{ color: today ? C.text : C.dim, fontSize: 11, fontFamily: today ? F.extra : F.semi }} numberOfLines={1}>
+      <Text style={{ color: today ? C.text : C.dim, fontSize: 11, ...fw(today ? F.extra : F.semi) }} numberOfLines={1}>
         {day.label}
       </Text>
     </View>

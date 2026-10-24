@@ -406,7 +406,7 @@ describe('Bar: progressbar for VoiceOver', () => {
 
   test('colours default to the theme, explicit ones win; the fill still scales on X', async () => {
     const tree = await mount(<Bar testID="bar" progress={0.5} />, 'ocean-light');
-    expect(flat(bar(tree)).backgroundColor).toBe(THEMES['ocean-light'].C.card2);
+    expect(flat(bar(tree)).backgroundColor).toBe(THEMES['ocean-light'].C.soft);
     const fill = bar(tree).children[0];
     expect(flat(fill.children?.[0] ?? fill).backgroundColor).toBe(THEMES['ocean-light'].C.accent);
     const own = await mount(<Bar testID="bar" progress={0.5} color="#123456" bg="#abcdef" />);

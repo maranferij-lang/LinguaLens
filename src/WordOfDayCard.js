@@ -30,7 +30,7 @@ import { cefrFor } from './profile';
 import { todaySlots } from './wordOfDay';
 import { hasWord } from './scene/scenes';
 import { hourLabel } from './widgets/format';
-import { CAPS, F, R, ipaFont, type, useTheme } from './theme';
+import { CAPS, F, R, ipaFont, type, useTheme, fw } from './theme';
 import { quote } from './share/layout';
 
 // Спільне сховище слотів: пише useWodSlots (App), читає картка. null — одне
@@ -469,9 +469,9 @@ const makeStyles = (C) =>
     slotText: { color: C.dim, ...type(12, F.bold, { noLead: true }), marginLeft: 6, fontVariant: ['tabular-nums'] },
     pagerRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-    word: { color: C.text, fontSize: 26, fontFamily: F.extra },
+    word: { color: C.text, fontSize: 26, ...fw(F.extra) },
     ipa: { color: C.dim, fontSize: 14, ...ipaFont('500'), marginTop: 2 },
-    translation: { color: C.text, opacity: 0.8, fontSize: 16, fontFamily: F.semi, marginTop: 4 },
+    translation: { color: C.text, opacity: 0.8, fontSize: 16, ...fw(F.semi), marginTop: 4 },
     locked: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -486,8 +486,8 @@ const makeStyles = (C) =>
     details: { marginTop: 14 },
     exampleBox: { backgroundColor: C.card2, borderRadius: R.md, padding: 13, paddingRight: 30 },
     exampleSpeaker: { position: 'absolute', top: 10, right: 10 },
-    example: { color: C.text, fontSize: 15, lineHeight: 21, fontFamily: F.reg },
-    exampleTr: { color: C.dim, fontSize: 13, marginTop: 5, lineHeight: 18, fontFamily: F.reg },
+    example: { color: C.text, fontSize: 15, lineHeight: 21, ...fw(F.reg) },
+    exampleTr: { color: C.dim, fontSize: 13, marginTop: 5, lineHeight: 18, ...fw(F.reg) },
     actions: { flexDirection: 'row', gap: 10, marginTop: 12 },
     listenBtn: {
       width: 48,
@@ -511,7 +511,7 @@ const makeStyles = (C) =>
     saveBtn: { backgroundColor: C.accent },
     savedBtn: { gap: 4, paddingHorizontal: 6 },
     savedWrap: { flex: 1 },
-    actionText: { color: C.text, fontSize: 15, fontFamily: F.bold },
+    actionText: { color: C.text, fontSize: 15, ...fw(F.bold) },
     note: { color: C.dim, ...type(13, F.semi), marginTop: 10, textAlign: 'center' },
 
     offer: { marginTop: 12, backgroundColor: C.accentSoft, borderRadius: R.md, padding: 14 },

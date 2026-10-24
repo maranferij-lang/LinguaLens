@@ -15,7 +15,7 @@ import { profileSummary } from '../profile';
 import { IcChevron } from '../icons';
 import { Glass } from '../ui';
 import { layoutNext } from '../motion';
-import { F, R, type } from '../theme';
+import { F, R, type, fw } from '../theme';
 import { PRO_WOD_OPTIONS } from '../flags';
 import { hourLabel as formatHour } from '../widgets/format';
 
@@ -137,7 +137,7 @@ export default function WodSection({ ctx, extra = {} }) {
             >
               <View style={{ flex: 1, paddingRight: 12 }}>
                 <Text style={s.switchTitle}>{t('pfRowTitle')}</Text>
-                <Text style={[s.dimText, profile && { color: C.accent, fontFamily: F.bold }]}>{profileSummary(profile, t)}</Text>
+                <Text style={[s.dimText, profile && { color: C.accent, ...fw(F.bold) }]}>{profileSummary(profile, t)}</Text>
               </View>
               <View style={{ transform: [{ rotate: '-90deg' }] }}>
                 <IcChevron color={C.faint} />
@@ -183,7 +183,7 @@ export default function WodSection({ ctx, extra = {} }) {
                     accessibilityState={{ selected: active }}
                   >
                     <Text
-                      style={[s.hourText, active && { color: C.onAccent, fontFamily: F.extra }]}
+                      style={[s.hourText, active && { color: C.onAccent, ...fw(F.extra) }]}
                       numberOfLines={1}
                       adjustsFontSizeToFit
                       minimumFontScale={0.8}
@@ -261,7 +261,7 @@ const makeStyles = (C) =>
     },
     segActive: { backgroundColor: C.card, shadowColor: C.text, shadowOpacity: 0.08, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
     segText: { color: C.dim, ...type(16, F.bold, { noLead: true }) },
-    segTextActive: { color: C.text, fontFamily: F.extra },
+    segTextActive: { color: C.text, ...fw(F.extra) },
     proPill: { backgroundColor: C.accentSoft, borderRadius: R.pill, paddingHorizontal: 6, paddingVertical: 1 },
     proText: { color: C.accent, ...type(11, F.extra, { noLead: true }) },
     segHint: { marginTop: 8 },

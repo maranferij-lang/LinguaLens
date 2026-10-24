@@ -16,7 +16,7 @@ import { AchIcon } from './AchIcons';
 import { Bar, FadeIn, Glass, GradBtn, Press } from './ui';
 import { UNDER_TAB } from './Chrome';
 import { DUR, EASE, layoutNext, useReducedMotionCached } from './motion';
-import { F, R, useTheme } from './theme';
+import { F, R, useTheme, fw } from './theme';
 
 const WEEK = 7 * 24 * 60 * 60 * 1000;
 const AVATARS = ['wave', 'celebrate', 'think', 'encourage'];
@@ -468,7 +468,7 @@ const makeStyles = (C) =>
       borderRadius: R.md,
       backgroundColor: C.accentSoft,
     },
-    shareWeekText: { color: C.accent, fontSize: 15, fontFamily: F.bold },
+    shareWeekText: { color: C.accent, fontSize: 15, ...fw(F.bold) },
     root: { flex: 1, backgroundColor: C.bg, padding: 20 },
     title: { marginBottom: 14 },
     hero: {
@@ -493,26 +493,26 @@ const makeStyles = (C) =>
       alignItems: 'center',
       justifyContent: 'center',
     },
-    name: { color: C.text, fontSize: 22, letterSpacing: -0.31, fontFamily: F.extra, textAlign: 'center' },
-    email: { color: C.dim, fontSize: 13, fontFamily: F.reg, marginTop: 2, marginBottom: 16 },
+    name: { color: C.text, fontSize: 22, letterSpacing: -0.31, ...fw(F.extra), textAlign: 'center' },
+    email: { color: C.dim, fontSize: 13, ...fw(F.reg), marginTop: 2, marginBottom: 16 },
     levelRow: { flexDirection: 'row', justifyContent: 'space-between', alignSelf: 'stretch', marginBottom: 6 },
-    levelText: { color: C.text, fontSize: 14, fontFamily: F.bold },
-    levelNext: { color: C.dim, fontSize: 13, fontFamily: F.semi },
+    levelText: { color: C.text, fontSize: 14, ...fw(F.bold) },
+    levelNext: { color: C.dim, fontSize: 13, ...fw(F.semi) },
 
     segment: { flexDirection: 'row', backgroundColor: C.card2, borderRadius: R.md, padding: 3, marginBottom: 14 },
     segmentBtn: { flex: 1, paddingVertical: 9, borderRadius: R.md - 3, alignItems: 'center' },
     segmentBtnActive: { backgroundColor: C.card },
-    segmentText: { color: C.dim, fontSize: 14, fontFamily: F.semi },
-    segmentTextActive: { color: C.text, fontFamily: F.extra },
+    segmentText: { color: C.dim, fontSize: 14, ...fw(F.semi) },
+    segmentTextActive: { color: C.text, ...fw(F.extra) },
 
     rowCards: { flexDirection: 'row', gap: 10 },
     miniCard: { flex: 1, paddingVertical: 14, alignItems: 'center', borderRadius: R.lg },
-    miniNum: { color: C.text, fontSize: 24, fontFamily: F.extra },
-    miniLabel: { color: C.dim, fontSize: 11, marginTop: 3, fontFamily: F.reg },
+    miniNum: { color: C.text, fontSize: 24, ...fw(F.extra) },
+    miniLabel: { color: C.dim, fontSize: 11, marginTop: 3, ...fw(F.reg) },
     sectionLabel: {
       color: C.dim,
       fontSize: 12,
-      fontFamily: F.extra,
+      ...fw(F.extra),
       textTransform: 'uppercase',
       letterSpacing: 1,
       marginBottom: 8,
@@ -522,12 +522,12 @@ const makeStyles = (C) =>
     chart: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
     barCol: { alignItems: 'center', flex: 1, gap: 4 },
     bar: { width: 16, borderRadius: 5 },
-    barVal: { color: C.dim, fontSize: 10, letterSpacing: 0.2, height: 14, fontFamily: F.semi },
-    barLabel: { color: C.dim, fontSize: 11, fontFamily: F.semi },
+    barVal: { color: C.dim, fontSize: 10, letterSpacing: 0.2, height: 14, ...fw(F.semi) },
+    barLabel: { color: C.dim, fontSize: 11, ...fw(F.semi) },
     sepLine: { height: StyleSheet.hairlineWidth, backgroundColor: C.sep, marginLeft: 48 },
     langRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 11 },
-    langName: { color: C.text, fontSize: 16, flex: 1, fontFamily: F.semi },
-    langCount: { color: C.dim, fontSize: 16, fontFamily: F.bold },
+    langName: { color: C.text, fontSize: 16, flex: 1, ...fw(F.semi) },
+    langCount: { color: C.dim, fontSize: 16, ...fw(F.bold) },
 
     achGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'space-between' },
     achCard: {
@@ -541,10 +541,10 @@ const makeStyles = (C) =>
     achUnlocked: {},
     achLocked: { opacity: 0.9 },
     achIcon: { fontSize: 30 },
-    achTitle: { color: C.text, fontSize: 13, fontFamily: F.bold, marginTop: 8, marginBottom: 8, lineHeight: 17 },
+    achTitle: { color: C.text, fontSize: 13, ...fw(F.bold), marginTop: 8, marginBottom: 8, lineHeight: 17 },
     achDone: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-    achDoneText: { color: C.greenInk, fontSize: 12, fontFamily: F.bold },
-    achProgress: { color: C.dim, fontSize: 11, fontFamily: F.semi, marginTop: 5 },
+    achDoneText: { color: C.greenInk, fontSize: 12, ...fw(F.bold) },
+    achProgress: { color: C.dim, fontSize: 11, ...fw(F.semi), marginTop: 5 },
     achShare: {
       position: 'absolute',
       top: 10,
@@ -570,11 +570,11 @@ const makeStyles = (C) =>
     sheetScroll: { flexGrow: 0 },
     // клавіатура майже завжди відкрита, тож знизу лише невеликий відступ (як у LangSheet)
     sheetBody: { padding: 22, paddingBottom: 30 },
-    sheetTitle: { color: C.text, fontSize: 20, fontFamily: F.extra, marginBottom: 10 },
+    sheetTitle: { color: C.text, fontSize: 20, ...fw(F.extra), marginBottom: 10 },
     label: {
       color: C.dim,
       fontSize: 11,
-      fontFamily: F.extra,
+      ...fw(F.extra),
       letterSpacing: 1,
       textTransform: 'uppercase',
       marginTop: 12,
@@ -587,7 +587,7 @@ const makeStyles = (C) =>
       paddingVertical: 12,
       color: C.text,
       fontSize: 16, letterSpacing: -0.1,
-      fontFamily: F.semi,
+      ...fw(F.semi),
     },
     avatarRow: { flexDirection: 'row', gap: 10 },
     avatarOption: {

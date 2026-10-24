@@ -43,7 +43,7 @@ import { Mascot } from './Mascot';
 import { FadeIn, Glass, Press } from './ui';
 import { UNDER_TAB } from './Chrome';
 import { announce, layoutNext } from './motion';
-import { F, R, type, useTheme } from './theme';
+import { F, R, type, useTheme, fw } from './theme';
 import WodSection from './settings/WodSection';
 import StreakSection from './settings/StreakSection';
 import WidgetsSection from './settings/WidgetsSection';
@@ -132,7 +132,7 @@ function LangPicker({ label, hint, value, variant = null, variants = false, onCh
                   accessibilityLabel={locked ? t('langA11yPro', { l: nameFor(code, v) }) : undefined}
                 >
                   <Text style={{ fontSize: 18 }}>{flagFor(code, v || undefined)}</Text>
-                  <Text style={[s.listName, active && { color: C.text, fontFamily: F.bold }]}>
+                  <Text style={[s.listName, active && { color: C.text, ...fw(F.bold) }]}>
                     {nameFor(code, v)}
                   </Text>
                   {locked ? (
@@ -752,14 +752,14 @@ const makeStyles = (C) =>
     sectionLabel: {
       color: C.dim,
       fontSize: 12,
-      fontFamily: F.extra,
+      ...fw(F.extra),
       textTransform: 'uppercase',
       letterSpacing: 1,
       marginBottom: 8,
       marginTop: 20,
       marginLeft: 4,
     },
-    dimText: { color: C.dim, fontSize: 13, lineHeight: 19, fontFamily: F.reg },
+    dimText: { color: C.dim, fontSize: 13, lineHeight: 19, ...fw(F.reg) },
 
     proCard: {
       flexDirection: 'row',
@@ -793,11 +793,11 @@ const makeStyles = (C) =>
     sep: { height: StyleSheet.hairlineWidth, backgroundColor: C.sep, marginLeft: 14 },
     sepInner: { height: StyleSheet.hairlineWidth, backgroundColor: C.sep, marginVertical: 14 },
     linkRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 14 },
-    linkText: { color: C.text, fontSize: 16, fontFamily: F.semi },
+    linkText: { color: C.text, fontSize: 16, ...fw(F.semi) },
 
     pickerHead: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16 },
-    pickerValue: { color: C.text, fontSize: 16, letterSpacing: -0.1, fontFamily: F.bold },
-    pickerHint: { color: C.dim, fontSize: 12, marginTop: 2, fontFamily: F.reg },
+    pickerValue: { color: C.text, fontSize: 16, letterSpacing: -0.1, ...fw(F.bold) },
+    pickerHint: { color: C.dim, fontSize: 12, marginTop: 2, ...fw(F.reg) },
     list: {
       borderTopWidth: StyleSheet.hairlineWidth,
       borderTopColor: C.sep,
@@ -806,14 +806,14 @@ const makeStyles = (C) =>
     },
     listRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 11 },
     listRowActive: { backgroundColor: C.accentSoft },
-    listName: { color: C.text, fontSize: 15, flex: 1, opacity: 0.85, fontFamily: F.semi },
+    listName: { color: C.text, fontSize: 15, flex: 1, opacity: 0.85, ...fw(F.semi) },
     // така сама позначка, як біля «3» і «5» у «Слів на день» (WodSection)
     proPill: { backgroundColor: C.accentSoft, borderRadius: R.pill, paddingHorizontal: 6, paddingVertical: 1 },
     proPillText: { color: C.accent, ...type(11, F.extra, { noLead: true }) },
 
     switchRow: { flexDirection: 'row', alignItems: 'center' },
     profileRow: { flexDirection: 'row', alignItems: 'center', minHeight: 44 },
-    switchTitle: { color: C.text, fontSize: 16, letterSpacing: -0.1, fontFamily: F.bold, marginBottom: 3 },
+    switchTitle: { color: C.text, fontSize: 16, letterSpacing: -0.1, ...fw(F.bold), marginBottom: 3 },
     // П'ять годин в один ряд навіть на SE: кожна — рівна частка ширини,
     // 44 pt заввишки (мінімум Apple для пальця)
     hourRow: { flexDirection: 'row', gap: 6, marginTop: 10 },
@@ -827,12 +827,12 @@ const makeStyles = (C) =>
       backgroundColor: C.card2,
     },
     hourChipActive: { backgroundColor: C.accent },
-    hourText: { color: C.dim, fontSize: 13, fontFamily: F.bold },
+    hourText: { color: C.dim, fontSize: 13, ...fw(F.bold) },
 
     serverUrl: {
       color: C.dim,
       fontSize: 13,
-      fontFamily: F.semi,
+      ...fw(F.semi),
       marginTop: 12,
       backgroundColor: C.input,
       borderRadius: R.sm,
@@ -841,9 +841,9 @@ const makeStyles = (C) =>
       overflow: 'hidden',
     },
     checkBtn: { backgroundColor: C.accent, borderRadius: R.md, paddingVertical: 12, alignItems: 'center', marginTop: 12 },
-    checkBtnText: { color: C.onAccent, fontSize: 15, fontFamily: F.bold },
-    okText: { color: C.greenInk, fontSize: 13, marginTop: 10, fontFamily: F.bold },
-    badText: { color: C.redInk, fontSize: 13, marginTop: 10, lineHeight: 19, fontFamily: F.semi },
+    checkBtnText: { color: C.onAccent, fontSize: 15, ...fw(F.bold) },
+    okText: { color: C.greenInk, fontSize: 13, marginTop: 10, ...fw(F.bold) },
+    badText: { color: C.redInk, fontSize: 13, marginTop: 10, lineHeight: 19, ...fw(F.semi) },
 
     // 44 pt: і з підписом, і зі спінером на його місці висота однакова
     dangerBtn: { marginTop: 10, paddingVertical: 10, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
@@ -874,5 +874,5 @@ const makeStyles = (C) =>
     },
     syncBtnText: { color: C.text, ...type(15, F.bold, { noLead: true }) },
     signOutBtn: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
-    dangerText: { color: C.redInk, fontSize: 16, letterSpacing: -0.1, fontFamily: F.semi },
+    dangerText: { color: C.redInk, fontSize: 16, letterSpacing: -0.1, ...fw(F.semi) },
   });

@@ -252,3 +252,16 @@ jest.mock('expo-localization', () => {
     },
   };
 });
+
+// expo-glass-effect (Liquid Glass): нативного модуля в jest немає. Liquid Glass
+// «недоступний», тож ui.js бере blur, а GlassView — звичайний View.
+jest.mock('expo-glass-effect', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  return {
+    GlassView: (props) => React.createElement(View, props),
+    GlassContainer: (props) => React.createElement(View, props),
+    isLiquidGlassAvailable: () => false,
+    isGlassEffectAPIAvailable: () => false,
+  };
+});

@@ -20,7 +20,7 @@ import { IcBell, IcCards, IcChart, IcCheck, IcCompass, IcScan, IcSpeaker } from 
 import { FadeIn } from './ui';
 import { fontSizeForWord, textEm } from './share/layout';
 import { DUR, EASE, SPRING, stagger, useReducedMotion } from './motion';
-import { CAPS, F, R, track, type, useTheme } from './theme';
+import { CAPS, F, R, track, type, useTheme, fw } from './theme';
 
 // Якщо людина нічого не обрала на кроці «що заважає» (чи у варіанті без
 // нього) — три головні речі, заради яких застосунок існує.
@@ -866,8 +866,8 @@ const makeStyles = (C) =>
     hourPart: { color: C.dim, ...type(13, F.bold, { noLead: true }) },
     hourTime: { color: C.text, ...type(17, F.extra, { noLead: true }), marginTop: 3 },
 
-    lockDate: { fontFamily: F.bold, textAlign: 'center' },
-    lockClock: { fontFamily: F.extra, textAlign: 'center', letterSpacing: -1 },
+    lockDate: { ...fw(F.bold), textAlign: 'center' },
+    lockClock: { ...fw(F.extra), textAlign: 'center', letterSpacing: -1 },
     push: {
       flexDirection: 'row',
       alignItems: 'center',

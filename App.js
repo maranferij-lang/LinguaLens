@@ -9,14 +9,6 @@ import { StatusBar } from 'expo-status-bar';
 import * as Haptics from 'expo-haptics';
 import * as SplashScreen from 'expo-splash-screen';
 import { getLocales } from 'expo-localization';
-// Шрифти поштучно: імпорт із кореня пакета тягне в бандл усі 18 файлів
-// Nunito (~2 МБ), а ми використовуємо чотири накреслення.
-import { useFonts } from '@expo-google-fonts/nunito/useFonts';
-import { Nunito_500Medium } from '@expo-google-fonts/nunito/500Medium';
-import { Nunito_600SemiBold } from '@expo-google-fonts/nunito/600SemiBold';
-import { Nunito_700Bold } from '@expo-google-fonts/nunito/700Bold';
-import { Nunito_800ExtraBold } from '@expo-google-fonts/nunito/800ExtraBold';
-
 import ScannerScreen from './src/ScannerScreen';
 import DictionaryScreen from './src/DictionaryScreen';
 import FlashcardsScreen from './src/FlashcardsScreen';
@@ -95,11 +87,11 @@ import {
 import { subscribeToWidgetTaps, widgetsAvailable } from './src/widgets';
 import { IcBook, IcCards, IcGear, IcScan, IcUser } from './src/icons';
 import { MascotBob } from './src/Mascot';
-import { Material, MaterialEdge } from './src/Chrome';
 import { planOfProduct, trackPaywallImpression, usePro } from './src/purchases';
 
-import { FadeIn } from './src/ui';
-import { F, THEMES, ThemeProvider, type } from './src/theme';
+import { FadeIn, GlassBar } from './src/ui';
+import { TAB_H } from './src/Chrome';
+import { F, R, THEMES, ThemeProvider, fw, type } from './src/theme';
 import { DUR, EASE, SPRING, haptic, recentSuccess, travel, safeSpring, useReducedMotion } from './src/motion';
 import { askNotifications } from './src/notifPermission';
 import {
@@ -302,12 +294,7 @@ function defaultSettings() {
 export default function App() {
   const systemScheme = useColorScheme();
   const insets = useSafeAreaInsets();
-  const [fontsLoaded, fontError] = useFonts({
-    Nunito_500Medium,
-    Nunito_600SemiBold,
-    Nunito_700Bold,
-    Nunito_800ExtraBold,
-  });
+  // Шрифт системний (SF Pro): завантажувати нічого, Nunito прибрано з редизайном
 
   const [ready, setReady] = useState(false);
   const [onboarded, setOnboarded] = useState(true);
@@ -1696,7 +1683,7 @@ export default function App() {
 
   // Шрифт не завантажився — не застрягаємо на заставці, а йдемо далі із
   // системним шрифтом.
-  const appReady = ready && (fontsLoaded || !!fontError);
+  const appReady = ready;
   useEffect(() => {
     if (appReady) SplashScreen.hideAsync().catch(() => {});
   }, [appReady]);
@@ -2433,11 +2420,10 @@ export default function App() {
           </View>
         </SafeAreaView>
 
-        {/* Таб-бар — напівпрозорий матеріал, контент проїжджає під ним. Над
-            камерою — темний, як хром Камери iOS: світлий над яскравою сценою
-            губив підписи вкладок. */}
-        <Material camera={tab === 'scan'} style={[s.tabbar, { paddingBottom: insets.bottom + 5 }]}>
-          <MaterialEdge camera={tab === 'scan'} />
+        {/* Таб-бар — плаваюча скляна пігулка (Liquid Glass на iOS 26+, інакше
+            blur), контент проїжджає під нею. Над камерою — темна, як хром
+            Камери iOS: світла над яскравою сценою губила підписи вкладок. */}
+        <GlassBar camera={tab === 'scan'} style={[s.tabbar, { bottom: Math.max(insets.bottom - 6, 14) }]}>
           {TABS.map((tb) => (
             <TabButton
               key={tb.key}
@@ -2452,7 +2438,7 @@ export default function App() {
               t={t}
             />
           ))}
-        </Material>
+        </GlassBar>
 
         {/* Редактор «Слово дня під тебе» — так само власним шаром, а не
             Modal: з вкладки навчання над ним ще може відкритись пейвол.
@@ -2653,17 +2639,19 @@ function TabButton({ tb, active, badge, locked = false, onPress, onCamera, C, s,
         if (!reduced) Animated.spring(press, { toValue: 1, ...SPRING.ui }).start();
       }}
     >
+      {/* капсула активної вкладки накриває іконку з підписом (макет Soft Glass) */}
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          s.tabPill,
+          {
+            backgroundColor: onCamera ? 'rgba(255,255,255,0.18)' : C.accentSoft,
+            opacity: a,
+            transform: [{ scale: pillScale }],
+          },
+        ]}
+      />
       <Animated.View style={[s.tabIconWrap, { transform: [{ scale }] }]}>
-        <Animated.View
-          style={[
-            s.tabPill,
-            {
-              backgroundColor: onCamera ? 'rgba(255,255,255,0.18)' : C.accentSoft,
-              opacity: a,
-              transform: [{ scale: pillScale }],
-            },
-          ]}
-        />
         {/* Іконка явно над пігулкою: пігулка має transform, а з ним на
             деяких рушіях (веб) вона малювалась би поверх іконки. */}
         <View style={{ zIndex: 1 }}>
@@ -2695,19 +2683,21 @@ const makeStyles = (C, isDark) =>
     safe: { flex: 1, backgroundColor: C.bg },
     loader: { flex: 1, backgroundColor: C.bg, alignItems: 'center', justifyContent: 'center' },
     loaderName: { color: C.text, ...type(22, F.extra), marginTop: 6 },
+    // плаваюча пігулка: відступ 16 з боків, висота 64, радіус 32 (bottom — від insets)
     tabbar: {
       position: 'absolute',
-      left: 0,
-      right: 0,
-      bottom: 0,
+      left: 16,
+      right: 16,
+      height: TAB_H,
+      borderRadius: R.bar,
       flexDirection: 'row',
-      paddingTop: 7,
-      overflow: 'hidden',
+      alignItems: 'center',
+      paddingHorizontal: 6,
     },
-    tabBtn: { flex: 1, alignItems: 'center', gap: 3, paddingHorizontal: 2 },
-    tabIconWrap: { paddingHorizontal: 14, paddingVertical: 5, alignItems: 'center', justifyContent: 'center' },
+    tabBtn: { flex: 1, height: 52, alignItems: 'center', justifyContent: 'center', gap: 2, paddingHorizontal: 2 },
+    tabIconWrap: { paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center' },
     tabPill: { ...StyleSheet.absoluteFill, borderRadius: 999 },
-    tabLabel: { color: C.dim, fontSize: 10, letterSpacing: 0.15, fontFamily: F.bold },
+    tabLabel: { color: C.dim, fontSize: 10, letterSpacing: 0.15, ...fw(F.semi) },
     badge: {
       position: 'absolute',
       top: -4,
@@ -2723,5 +2713,5 @@ const makeStyles = (C, isDark) =>
     },
     // Біле на світлому червоному, тло теми на «живому» червоному темних тем:
     // біле там давало 2.5:1, тло теми (майже чорне) дає понад 7:1
-    badgeText: { color: isDark ? C.bg : '#fff', fontSize: 10, letterSpacing: 0.2, fontFamily: F.extra },
+    badgeText: { color: isDark ? C.bg : '#fff', fontSize: 10, letterSpacing: 0.2, ...fw(F.extra) },
   });

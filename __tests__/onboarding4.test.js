@@ -4,6 +4,7 @@
 // імені, дві секції на кроці мови, назви рівнів, телефон у рамці зі
 // сповіщенням, сцена в демо, Лінго на обіцянці. Повний шлях — у
 // onboarding.test.js; тут — кожна нова поведінка окремо.
+import { F, fw } from '../src/theme';
 import { AccessibilityInfo, Animated, ScrollView, StyleSheet } from 'react-native';
 import { act, create } from 'react-test-renderer';
 import OnboardingScreen, { AUTO_MS, LINGO_POSE, restoreDraft, topicsLine } from '../src/OnboardingScreen';
@@ -457,7 +458,7 @@ describe('welcome', () => {
         const title = hostText(tree, t('ob3HookTitle'));
         expect(fontSize(hello)).toBeGreaterThanOrEqual(min);
         expect(fontSize(hello)).toBeLessThanOrEqual(max);
-        expect(StyleSheet.flatten(hello.props.style).fontFamily).toBe('Nunito_800ExtraBold');
+        expect(StyleSheet.flatten(hello.props.style)).toMatchObject(fw(F.extra));
         expect(fontSize(title)).toBeLessThan(fontSize(hello));
         const others = tree.root.findAll((n) => n.type === 'Text' && n !== hello).map(fontSize);
         expect(Math.max(...others)).toBeLessThan(fontSize(hello));

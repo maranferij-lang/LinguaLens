@@ -22,7 +22,7 @@ import { PALETTES_ENABLED } from '../flags';
 import { PCrown } from '../ProIcons';
 import { Glass } from '../ui';
 import { SPRING, useReducedMotion } from '../motion';
-import { F, FREE_PALETTE, PALETTES, R, THEMES, isDarkMode, themeKeyOf, type } from '../theme';
+import { F, FREE_PALETTE, PALETTES, R, THEMES, isDarkMode, themeKeyOf, type, fw } from '../theme';
 
 const MODES = [
   { key: 'system', label: 'themeAuto' },
@@ -215,7 +215,7 @@ const makeStyles = (C, dark) =>
     },
     segment: { flex: 1, minHeight: 38, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
     segText: { color: C.dim, ...type(15, F.semi, { noLead: true }) },
-    segTextOn: { color: C.text, fontFamily: F.bold },
+    segTextOn: { color: C.text, ...fw(F.bold) },
 
     card: { paddingHorizontal: 12, paddingTop: 14, paddingBottom: 14 },
     tiles: { flexDirection: 'row', gap: 4 },
@@ -262,6 +262,6 @@ const makeStyles = (C, dark) =>
       justifyContent: 'center',
     },
     name: { color: C.dim, ...type(13, F.semi, { noLead: true }), textAlign: 'center' },
-    nameOn: { color: C.text, fontFamily: F.bold },
+    nameOn: { color: C.text, ...fw(F.bold) },
     hintRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginTop: 14, paddingHorizontal: 4 },
   });

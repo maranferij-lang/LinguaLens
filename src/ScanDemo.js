@@ -61,7 +61,7 @@ import {
 } from './demoTimeline';
 import { IcBook } from './icons';
 import { DUR, EASE, useReducedMotion } from './motion';
-import { F, R, THEMES, ThemeProvider, themeKeyOf, type, useTheme } from './theme';
+import { F, R, THEMES, ThemeProvider, themeKeyOf, type, useTheme, fw } from './theme';
 
 const APath = Animated.createAnimatedComponent(Path);
 const ORIGIN = `${MUG_ORIGIN.x}px ${MUG_ORIGIN.y}px`;
@@ -631,7 +631,7 @@ const styles = StyleSheet.create({
   // Запалена серія: тло те саме, що в чипа «0» — тіло вогника першого дня
   // на тлі його ж кольору зливалось; горить сам вогник, обвідка й число
   chipLit: { borderWidth: 1, paddingHorizontal: 10, paddingVertical: 5 },
-  chipText: { color: '#FFFFFF', fontFamily: F.extra, fontSize: 13, lineHeight: 17 },
+  chipText: { color: '#FFFFFF', ...fw(F.extra), fontSize: 13, lineHeight: 17 },
   chipFlame: { width: 13, height: 16, alignItems: 'center', justifyContent: 'center' },
   chipTL: { position: 'absolute', left: 12, top: 12 },
   chipTR: { position: 'absolute', right: 12, top: 12, alignItems: 'flex-end' },
@@ -650,8 +650,8 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     elevation: 3,
   },
-  tagWord: { color: PLATE.ink, fontFamily: F.extra, fontSize: 14, lineHeight: 18 },
-  tagTr: { color: PLATE.dim, fontFamily: F.semi, fontSize: 11, lineHeight: 14 },
+  tagWord: { color: PLATE.ink, ...fw(F.extra), fontSize: 14, lineHeight: 18 },
+  tagTr: { color: PLATE.dim, ...fw(F.semi), fontSize: 11, lineHeight: 14 },
   tagDot: {
     position: 'absolute',
     width: 10,
@@ -666,7 +666,7 @@ const styles = StyleSheet.create({
   modeThumb: { position: 'absolute', left: 4, top: 4, width: SEG, height: MODE_H, borderRadius: MODE_H / 2, backgroundColor: '#F5F2EC' },
   modeSeg: { width: SEG, height: MODE_H, alignItems: 'center', justifyContent: 'center' },
   modeSegIn: { alignItems: 'center', justifyContent: 'center' },
-  modeText: { color: '#F5F2EC', fontFamily: F.bold, fontSize: 15, lineHeight: 19 },
+  modeText: { color: '#F5F2EC', ...fw(F.bold), fontSize: 15, lineHeight: 19 },
   replay: { position: 'absolute', right: 12, bottom: 12 },
   dots: { flexDirection: 'row', gap: 6, marginBottom: 8 },
   dot: { width: 6, height: 6, borderRadius: 3 },

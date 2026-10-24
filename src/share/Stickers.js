@@ -25,7 +25,7 @@ import { Mascot } from '../Mascot';
 import { flagFor } from '../speech';
 import { StickerLarge } from '../Sticker';
 import { silhouette } from '../stickerGeometry';
-import { F } from '../theme';
+import { F, fw } from '../theme';
 import WordPlate, { PLATE, PLATE_STYLE } from '../WordPlate';
 import {
   PALETTES,
@@ -79,7 +79,7 @@ export function BrandTag({ rotate = 8, style }) {
       ]}
     >
       <LogoMark size={16} color={WHITE} fg={PLATE.accent} />
-      <T style={{ color: WHITE, fontFamily: F.extra, fontSize: 11, lineHeight: 14 }}>LinguaLens</T>
+      <T style={{ color: WHITE, ...fw(F.extra), fontSize: 11, lineHeight: 14 }}>LinguaLens</T>
     </View>
   );
 }
@@ -184,7 +184,7 @@ function SceneSet({ scene, t }) {
           ]}
         >
           <LogoMark size={18} color={WHITE} fg={PLATE.accent} />
-          <T numberOfLines={1} style={{ color: WHITE, fontFamily: F.extra, fontSize: 13, lineHeight: 17, flexShrink: 1 }}>
+          <T numberOfLines={1} style={{ color: WHITE, ...fw(F.extra), fontSize: 13, lineHeight: 17, flexShrink: 1 }}>
             {'LinguaLens · '}
             {scene.lang ? flagFor(scene.lang) + ' ' : ''}
             {t('sceneCardWords', { n: scene.objects.length })}
@@ -214,7 +214,7 @@ function SceneSet({ scene, t }) {
             numberOfLines={1}
             adjustsFontSizeToFit
             minimumFontScale={0.8}
-            style={{ color: PLATE.accent, fontFamily: F.extra, fontSize: ch.wordSize, lineHeight: c.lineW, letterSpacing: -ch.wordSize * 0.015 }}
+            style={{ color: PLATE.accent, ...fw(F.extra), fontSize: ch.wordSize, lineHeight: c.lineW, letterSpacing: -ch.wordSize * 0.015 }}
           >
             {ch.word}
           </T>
@@ -223,7 +223,7 @@ function SceneSet({ scene, t }) {
               numberOfLines={1}
               adjustsFontSizeToFit
               minimumFontScale={0.8}
-              style={{ color: PLATE.ink, fontFamily: F.semi, fontSize: ch.subSize, lineHeight: c.lineS }}
+              style={{ color: PLATE.ink, ...fw(F.semi), fontSize: ch.subSize, lineHeight: c.lineS }}
             >
               {ch.translation}
             </T>
@@ -238,7 +238,7 @@ function SceneSet({ scene, t }) {
               { height: SCENE_MORE_H, borderRadius: 999, paddingHorizontal: 12, justifyContent: 'center', transform: [{ rotate: '-2deg' }] },
             ]}
           >
-            <T style={{ color: PLATE.dim, fontFamily: F.extra, fontSize: 13, lineHeight: 17 }}>{t('sceneCardMore', { n: L.more })}</T>
+            <T style={{ color: PLATE.dim, ...fw(F.extra), fontSize: 13, lineHeight: 17 }}>{t('sceneCardMore', { n: L.more })}</T>
           </View>
         </View>
       ) : null}
@@ -309,7 +309,7 @@ function BadgeSticker({ payload, t }) {
       >
         <T
           numberOfLines={1}
-          style={{ color: PLATE.dim, fontFamily: F.extra, fontSize: 9.5, lineHeight: 13, letterSpacing: 1.2, textTransform: 'uppercase' }}
+          style={{ color: PLATE.dim, ...fw(F.extra), fontSize: 9.5, lineHeight: 13, letterSpacing: 1.2, textTransform: 'uppercase' }}
         >
           {fresh ? t('shareUnlocked') : t('shareMyAch')}
         </T>
@@ -317,7 +317,7 @@ function BadgeSticker({ payload, t }) {
           numberOfLines={2}
           adjustsFontSizeToFit
           minimumFontScale={0.8}
-          style={{ color: PLATE.ink, fontFamily: F.extra, fontSize: size, lineHeight: Math.round(size * 1.24), textAlign: 'center' }}
+          style={{ color: PLATE.ink, ...fw(F.extra), fontSize: size, lineHeight: Math.round(size * 1.24), textAlign: 'center' }}
         >
           {title}
         </T>

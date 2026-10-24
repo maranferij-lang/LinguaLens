@@ -131,9 +131,9 @@ describe('Xcode project', () => {
   });
 });
 
-test('app.json: the eye icon after every other plugin, right before withSceneLifecycle, which stays last', () => {
+test('app.json: the eye icon after the content plugins; withSourceModules and withSceneLifecycle close the list', () => {
   const names = appJson.expo.plugins.map((p) => (Array.isArray(p) ? p[0] : p));
-  expect(names.slice(-2)).toEqual(['./plugins/withAlternateIcons', './plugins/withSceneLifecycle']);
+  expect(names.slice(-3)).toEqual(['./plugins/withAlternateIcons', './plugins/withSourceModules', './plugins/withSceneLifecycle']);
   const opts = appJson.expo.plugins.find((p) => Array.isArray(p) && p[0] === './plugins/withAlternateIcons')[1];
   expect(opts).toEqual({ icons: { 'AppIcon-Eye': EYE } });
   expect(fs.existsSync(path.join(ROOT, EYE))).toBe(true);

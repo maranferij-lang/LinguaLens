@@ -189,36 +189,36 @@ describe('palettes', () => {
     }
   });
 
-  test('Chalk is exactly what it was before v1.3', () => {
+  test('Chalk keeps its Soft Glass values (redesign 24.10.2026)', () => {
     expect(THEMES.light.C).toMatchObject({
-      bg: '#FAF8F4',
+      bg: '#F7F6F3',
       card: '#FFFFFF',
-      card2: '#F1EEE8',
-      card3: '#E9E5DC',
-      text: '#1C1B19',
-      dim: '#6E6A62',
-      faint: '#8A857C',
-      sep: '#E8E4DC',
+      card2: '#EFEEEA',
+      card3: '#E6E5E0',
+      text: '#141417',
+      dim: '#6A6A74',
+      faint: '#85858E',
+      sep: '#E6E5E1',
       accent: '#5B4FD6',
       accentSoft: '#E4E1FB',
       onAccent: '#FFFFFF',
       chrome: 'rgba(255,255,255,0.7)',
     });
     expect(THEMES.dark.C).toMatchObject({
-      bg: '#151412',
-      card: '#201F1C',
-      text: '#F5F2EC',
-      dim: '#A9A49B',
+      bg: '#121110',
+      card: '#1E1D1B',
+      text: '#F3F1EC',
+      dim: '#9A978F',
       accent: '#9B8FFF',
       accentSoft: '#221E45',
       onAccent: '#100C2E',
     });
-    expect(THEMES.light.SHADOW.shadowColor).toBe('#5C4F3D');
+    expect(THEMES.light.SHADOW.shadowColor).toBe('#14103A');
     expect(THEMES.dark.SHADOW.shadowColor).toBe('#000');
   });
 
   test('shadows take their colour from the palette in light mode and are black in dark mode', () => {
-    const want = { chalk: '#5C4F3D', berry: '#5C4F3D', cocoa: '#5C4F3D', ocean: '#34465C', graphite: '#2A2A2A' };
+    const want = { chalk: '#14103A', berry: '#5C4F3D', cocoa: '#5C4F3D', ocean: '#34465C', graphite: '#2A2A2A' };
     for (const [p, color] of Object.entries(want)) {
       const light = THEMES[themeKeyOf(p, false)];
       const dark = THEMES[themeKeyOf(p, true)];

@@ -19,7 +19,7 @@ import Svg, { Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
 import { LogoMark } from '../Logo';
 import { nameFor } from '../speech';
 import { inflate, smoothPath } from '../stickerGeometry';
-import { F, type } from '../theme';
+import { F, type, fw } from '../theme';
 import { LiftedObjects, Leaders, SceneChip, sceneShapes } from '../scene/SceneArt';
 import { anchorOf, chipSize, contourPoints, layoutChips, rectOf } from '../scene/sceneLayout';
 import { sceneImageUri } from '../scene/scenes';
@@ -47,7 +47,7 @@ function Txt(props) {
 
 const caps = (color, size = 10) => ({
   color,
-  fontFamily: F.extra,
+  ...fw(F.extra),
   fontSize: size,
   lineHeight: Math.round(size * 1.35),
   letterSpacing: size * 0.14,
@@ -97,7 +97,7 @@ function Brand({ color, fg, tagline }) {
       <LogoMark size={22} color={color} fg={fg} />
       <View>
         <Txt style={{ color, ...type(13, F.extra, { noLead: true }), lineHeight: 16 }}>LinguaLens</Txt>
-        {tagline ? <Txt style={{ color: tagline.color, fontFamily: F.reg, fontSize: 10, lineHeight: 13 }}>{tagline.text}</Txt> : null}
+        {tagline ? <Txt style={{ color: tagline.color, ...fw(F.reg), fontSize: 10, lineHeight: 13 }}>{tagline.text}</Txt> : null}
       </View>
     </View>
   );
@@ -253,14 +253,14 @@ function LabelsCard({ scene, uri, frame, pal, t }) {
           >
             <Txt
               numberOfLines={1}
-              style={{ color: LABEL_INK.word, fontFamily: F.extra, fontSize: size.wordSize, lineHeight: size.lineW, textAlign: c.align, letterSpacing: -0.15 }}
+              style={{ color: LABEL_INK.word, ...fw(F.extra), fontSize: size.wordSize, lineHeight: size.lineW, textAlign: c.align, letterSpacing: -0.15 }}
             >
               {o.word}
             </Txt>
             {o.translation ? (
               <Txt
                 numberOfLines={1}
-                style={{ color: LABEL_INK.sub, fontFamily: F.semi, fontSize: size.subSize, lineHeight: size.lineS, textAlign: c.align }}
+                style={{ color: LABEL_INK.sub, ...fw(F.semi), fontSize: size.subSize, lineHeight: size.lineS, textAlign: c.align }}
               >
                 {o.translation}
               </Txt>
@@ -367,7 +367,7 @@ function FrameCard({ scene, uri, pal, t, locale }) {
               shadowOffset: { width: 0, height: 1 },
             }}
           >
-            <Txt style={{ color: '#1F1B16', fontFamily: F.extra, fontSize: 11, lineHeight: 14 }}>{n}</Txt>
+            <Txt style={{ color: '#1F1B16', ...fw(F.extra), fontSize: 11, lineHeight: 14 }}>{n}</Txt>
           </View>
         ))}
       </View>
@@ -376,21 +376,21 @@ function FrameCard({ scene, uri, pal, t, locale }) {
         {rows.map(({ o, n }) => (
           <View key={o.key} style={{ height: ROW_H, flexDirection: 'row', alignItems: 'center' }}>
             {n ? (
-              <Txt style={{ width: 26, color: pal.accent, fontFamily: F.extra, fontSize: 13, lineHeight: 18 }}>{n}</Txt>
+              <Txt style={{ width: 26, color: pal.accent, ...fw(F.extra), fontSize: 13, lineHeight: 18 }}>{n}</Txt>
             ) : (
               // окремої крапки на фото в нього немає — тиха крапка замість номера
               <View style={{ width: 26 }}>
                 <View style={{ width: 5, height: 5, borderRadius: 2.5, marginLeft: 2, backgroundColor: pal.muted, opacity: 0.7 }} />
               </View>
             )}
-            <Txt numberOfLines={1} style={{ flex: 1, color: pal.text, fontFamily: F.extra, fontSize: size, lineHeight: Math.round(size * 1.3), letterSpacing: -0.1 }}>
+            <Txt numberOfLines={1} style={{ flex: 1, color: pal.text, ...fw(F.extra), fontSize: size, lineHeight: Math.round(size * 1.3), letterSpacing: -0.1 }}>
               {o.word}
-              {o.translation ? <Txt style={{ color: pal.muted, fontFamily: F.reg }}>{PAIR_SEP + o.translation}</Txt> : null}
+              {o.translation ? <Txt style={{ color: pal.muted, ...fw(F.reg) }}>{PAIR_SEP + o.translation}</Txt> : null}
             </Txt>
           </View>
         ))}
         {more > 0 ? (
-          <Txt style={{ marginLeft: 26, color: pal.muted, fontFamily: F.semi, fontSize: 14, lineHeight: 22 }}>
+          <Txt style={{ marginLeft: 26, color: pal.muted, ...fw(F.semi), fontSize: 14, lineHeight: 22 }}>
             {t('sceneCardMore', { n: more })}
           </Txt>
         ) : null}

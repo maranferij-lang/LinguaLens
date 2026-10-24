@@ -10,7 +10,7 @@ import { useId } from 'react';
 import { Text, View } from 'react-native';
 import Svg, { Circle, ClipPath, Defs, FeGaussianBlur, Filter, G, Image as SvgImage, Line, Path } from 'react-native-svg';
 import { inflate, smoothPath } from '../stickerGeometry';
-import { F } from '../theme';
+import { F, fw } from '../theme';
 import { contourPoints, perimeter, rectOf } from './sceneLayout';
 
 // Товщина білої облямівки й тіні — частки ширини фото, щоб на екрані й
@@ -162,7 +162,7 @@ export function SceneChip({ word, translation, size, colors, radius = 12, padX =
       <Text
         allowFontScaling={false}
         numberOfLines={1}
-        style={{ color: colors.word, fontFamily: F.extra, fontSize: size.wordSize, lineHeight: size.lineW, letterSpacing: -0.15 }}
+        style={{ color: colors.word, ...fw(F.extra), fontSize: size.wordSize, lineHeight: size.lineW, letterSpacing: -0.15 }}
       >
         {word}
       </Text>
@@ -170,7 +170,7 @@ export function SceneChip({ word, translation, size, colors, radius = 12, padX =
         <Text
           allowFontScaling={false}
           numberOfLines={1}
-          style={{ color: colors.sub, fontFamily: F.semi, fontSize: size.subSize, lineHeight: size.lineS }}
+          style={{ color: colors.sub, ...fw(F.semi), fontSize: size.subSize, lineHeight: size.lineS }}
         >
           {translation}
         </Text>

@@ -25,7 +25,7 @@ import {
 } from './icons';
 import { FadeIn, Press } from './ui';
 import { DUR, EASE, SPRING, useReducedMotion, useScreenReader } from './motion';
-import { F, R, type, useTheme } from './theme';
+import { F, R, type, useTheme, fw } from './theme';
 
 // Порядок кроків для цих цілей. Сфера — лише тим, хто вчить для роботи чи
 // навчання; «звідки дізнались» — лише в онбордингу.
@@ -665,7 +665,7 @@ const makeStyles = (C) =>
     chipHalf: { flexBasis: '47%', flexGrow: 1 },
     chipOn: { borderColor: C.accent, backgroundColor: C.accentSoft },
     chipText: { color: C.text, ...type(16, F.semi), textAlign: 'center' },
-    chipTextOn: { color: C.accent, fontFamily: F.extra },
+    chipTextOn: { color: C.accent, ...fw(F.extra) },
 
     result: { marginTop: 14, alignItems: 'center', minHeight: 72 },
     levelName: { color: C.text, ...type(26, F.extra), textAlign: 'center' },

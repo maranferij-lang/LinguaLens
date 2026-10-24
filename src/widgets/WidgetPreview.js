@@ -29,7 +29,7 @@ import { nameFor } from '../speech';
 import { topicName } from '../profile';
 import { ipaLabel } from '../share/layout';
 import { DUR, EASE, useReducedMotion } from '../motion';
-import { F, R, ipaFont, useTheme } from '../theme';
+import { F, R, ipaFont, useTheme, fw } from '../theme';
 import { exampleMarkdown } from './format';
 import { mix, widgetPalette } from './palette';
 import { streakLines } from './streakTimeline';
@@ -244,15 +244,15 @@ const makeStyles = (pal, k = 1) => {
     medium: { flex: 47, minHeight: 0 },
     smallRow: { flex: 50, flexDirection: 'row', gap: z(14) },
     small: { flex: 1 },
-    caps: { color: pal.accent, fontFamily: F.extra, fontSize: z(10.5), letterSpacing: z(0.9), textTransform: 'uppercase' },
+    caps: { color: pal.accent, ...fw(F.extra), fontSize: z(10.5), letterSpacing: z(0.9), textTransform: 'uppercase' },
     wordRow: { flexDirection: 'row', alignItems: 'baseline', gap: z(8) },
-    wordBig: { flexShrink: 1, color: pal.ink, fontFamily: F.extra, fontSize: z(30), letterSpacing: z(-0.6) },
-    wordSmall: { color: pal.ink, fontFamily: F.extra, fontSize: z(23), letterSpacing: z(-0.3) },
+    wordBig: { flexShrink: 1, color: pal.ink, ...fw(F.extra), fontSize: z(30), letterSpacing: z(-0.6) },
+    wordSmall: { color: pal.ink, ...fw(F.extra), fontSize: z(23), letterSpacing: z(-0.3) },
     ipa: { color: pal.dim, ...ipaFont('500'), fontSize: z(12) },
-    translation: { color: pal.soft, fontFamily: F.bold, fontSize: z(16), marginTop: z(2) },
-    translationSmall: { color: pal.soft, fontFamily: F.bold, fontSize: z(14), marginTop: z(6) },
-    example: { color: pal.dim, fontFamily: F.reg, fontSize: z(12), marginTop: z(4) },
-    exampleBold: { color: pal.ink, fontFamily: F.extra },
+    translation: { color: pal.soft, ...fw(F.bold), fontSize: z(16), marginTop: z(2) },
+    translationSmall: { color: pal.soft, ...fw(F.bold), fontSize: z(14), marginTop: z(6) },
+    example: { color: pal.dim, ...fw(F.reg), fontSize: z(12), marginTop: z(4) },
+    exampleBold: { color: pal.ink, ...fw(F.extra) },
     reveal: {
       alignSelf: 'flex-start',
       flexDirection: 'row',
@@ -263,15 +263,15 @@ const makeStyles = (pal, k = 1) => {
       paddingVertical: z(5),
       marginTop: z(6),
     },
-    revealText: { fontFamily: F.extra, fontSize: z(12.5) },
+    revealText: { ...fw(F.extra), fontSize: z(12.5) },
     streakTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     // число й підпис — щільно, як у віджета; фраза — внизу, з повітрям над нею
-    streakN: { color: pal.ink, fontFamily: F.extra, fontSize: z(36), lineHeight: z(40), letterSpacing: z(-1) },
-    unit: { color: pal.ink, fontFamily: F.bold, fontSize: z(12.5), lineHeight: z(16) },
-    phrase: { color: pal.dim, fontFamily: F.semi, fontSize: z(11.5), lineHeight: z(14.5), marginTop: z(6) },
+    streakN: { color: pal.ink, ...fw(F.extra), fontSize: z(36), lineHeight: z(40), letterSpacing: z(-1) },
+    unit: { color: pal.ink, ...fw(F.bold), fontSize: z(12.5), lineHeight: z(16) },
+    phrase: { color: pal.dim, ...fw(F.semi), fontSize: z(11.5), lineHeight: z(14.5), marginTop: z(6) },
     wordsTop: { flexDirection: 'row', alignItems: 'flex-start', gap: z(6) },
     tile: { width: z(34), height: z(34), borderRadius: z(9), backgroundColor: pal.accentSoft, alignItems: 'center', justifyContent: 'center' },
-    tileLetter: { color: pal.accent, fontFamily: F.extra, fontSize: z(17) },
+    tileLetter: { color: pal.accent, ...fw(F.extra), fontSize: z(17) },
   });
 };
 

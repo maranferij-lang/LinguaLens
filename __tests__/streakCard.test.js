@@ -4,6 +4,7 @@
  * @jest-environment ./jest.tzEnvironment.js
  * @jest-environment-options {"timezone": "Europe/Kyiv"}
  */
+import { UNDER_TAB } from '../src/Chrome';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { act, create } from 'react-test-renderer';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -152,7 +153,7 @@ describe('the Profile card', () => {
     tree = await render(profile(true));
     const scrollTo = await lay(tree, 600, { y: 380, height: 330 });
     expect(scrollTo).toHaveBeenCalledTimes(1);
-    expect(scrollTo.mock.calls[0][0].y).toBe(380 + 330 + 78 + 12 - 600);
+    expect(scrollTo.mock.calls[0][0].y).toBe(380 + 330 + UNDER_TAB + 12 - 600);
     await act(async () => tree.unmount());
     // без прохання з чипа — ніякої прокрутки
     tree = await render(profile(false));

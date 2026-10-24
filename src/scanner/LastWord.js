@@ -14,7 +14,7 @@ import { Animated, Pressable, Text } from 'react-native';
 import { photoUri } from '../photos';
 import { Sticker } from '../Sticker';
 import { DUR, EASE, SPRING } from '../motion';
-import { F } from '../theme';
+import { F, fw } from '../theme';
 import { CAM, CAM_FONT } from './CamGlass';
 
 const SIZE = 50;
@@ -87,7 +87,7 @@ function LastWord({ word, onPress, paused = false, disabled = false, reduced = f
         {uri ? (
           <Sticker uri={uri} shape={word.shape} outline={word.outline} box={word.box} size={40} />
         ) : (
-          <Text style={{ color: CAM.violet, fontSize: 21, fontFamily: F.extra }} maxFontSizeMultiplier={CAM_FONT}>
+          <Text style={{ color: CAM.violet, fontSize: 21, ...fw(F.extra) }} maxFontSizeMultiplier={CAM_FONT}>
             {String(word.word || '?').trim().charAt(0).toUpperCase()}
           </Text>
         )}

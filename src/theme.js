@@ -24,8 +24,9 @@ import { createContext, useContext } from 'react';
 import { Platform } from 'react-native';
 import { PALETTES_ENABLED } from './flags';
 
-// Радіуси з макета: картка 28, рядок 22, поле 16, чип-пігулка 999.
-export const R = { xl: 28, lg: 22, md: 16, sm: 12, pill: 999 };
+// «Soft Glass» (редизайн 24.10.2026, див. DESIGN.md): картка 24, рядок 22,
+// поле 16, таб-бар 32, нижній аркуш 40, чип-пігулка 999.
+export const R = { sheet: 40, bar: 32, xl: 24, lg: 22, md: 16, sm: 12, pill: 999 };
 export const SP = { xs: 8, sm: 12, md: 16, lg: 20, xl: 24, xxl: 32 };
 
 // Транскрипція (IPA). У Nunito немає ʊ, ɪ, ɔ, θ, β, ʝ…: iOS добирав би
@@ -40,13 +41,40 @@ const IPA_FAMILY = Platform.select({
   default: '"SF Pro Rounded", ui-rounded, system-ui, sans-serif',
 });
 
+// ===== ШРИФТ =====
+// Системний шрифт iOS (SF Pro), вага — окремо (fontWeight). Токени F.* лишились
+// з часів Nunito, щоб 359 викликів type(size, F.x) і fontFamily: F.x не
+// переписувати: це непрозорі ключі ваги, а не назви шрифтів. Прямий
+// `fontFamily: F.x` у стилі не працює (вага загубиться): користуйтесь
+// `...fw(F.x)` або type(). Вага: light 300 (великі цифри й слова), reg 400
+// (текст), semi 500 (підписи, заголовки), bold і extra 600 (акцент).
+const SYSTEM_FAMILY = Platform.select({
+  ios: 'System',
+  android: 'sans-serif',
+  default: 'system-ui, -apple-system, "SF Pro Text", sans-serif',
+});
+
 export const F = {
-  reg: 'Nunito_500Medium',
-  semi: 'Nunito_600SemiBold',
-  bold: 'Nunito_700Bold',
-  extra: 'Nunito_800ExtraBold',
+  light: 'lingua-light',
+  reg: 'lingua-reg',
+  semi: 'lingua-semi',
+  bold: 'lingua-bold',
+  extra: 'lingua-extra',
   ipa: IPA_FAMILY,
 };
+
+export const WEIGHT = {
+  [F.light]: '300',
+  [F.reg]: '400',
+  [F.semi]: '500',
+  [F.bold]: '600',
+  [F.extra]: '600',
+};
+
+// Токен F.x -> { fontFamily, fontWeight }. Інший рядок (F.ipa, 'Menlo') лишається
+// як є: це справжня назва шрифту, і вага йому не нав'язується.
+export const fw = (family = F.reg) =>
+  WEIGHT[family] ? { fontFamily: SYSTEM_FAMILY, fontWeight: WEIGHT[family] } : { fontFamily: family };
 
 // Шрифт транскрипції вагою weight: '500' там, де поруч F.reg, '600' — F.semi,
 // '700' — F.bold. Системний шрифт один на всі ваги, тож вага — окремо.
@@ -72,17 +100,29 @@ export function lead(size, dense) {
 export function type(size, family = F.reg, opts = {}) {
   return {
     fontSize: size,
-    fontFamily: family,
+    ...fw(family),
     letterSpacing: opts.letterSpacing ?? track(size),
     ...(opts.noLead ? null : { lineHeight: lead(size, opts.dense) }),
   };
 }
 
+// Великі цифри й слова: вага 300, щільний трекінг (−3 %), лейаут тісний.
+// display(40) для «12 днів», слова дня; display(56) для героїв.
+export function display(size, opts = {}) {
+  return {
+    fontSize: size,
+    ...fw(F.light),
+    letterSpacing: opts.letterSpacing ?? -size * 0.03,
+    ...(opts.noLead ? null : { lineHeight: Math.round(size * (opts.dense ? 1.05 : 1.12)) }),
+  };
+}
+
 // Дрібні розрядкові кепси — «СЛОВО ДНЯ», «АКАУНТ», підписи під цифрами.
+// 11 pt, вага 500, трекінг 0.7, колір dim (кольору тут нема: його ставить Caps).
 export const CAPS = {
   fontSize: 11,
-  fontFamily: F.extra,
-  letterSpacing: 1.1,
+  ...fw(F.semi),
+  letterSpacing: 0.7,
   textTransform: 'uppercase',
 };
 
@@ -160,16 +200,18 @@ export const PALETTES = [
   {
     key: 'chalk',
     pro: false,
-    shadow: '#5C4F3D',
+    // кольори трьох м'яких плям за екраном (ScreenBackground): світла / темна
+    blobs: { light: ['#C4BAFF', '#C8ECDA', '#FFDAC6'], dark: ['#6E5FE6', '#3C8C6E', '#B46E50'] },
+    shadow: '#14103A',
     light: {
-      bg: '#FAF8F4',
+      bg: '#F7F6F3',
       card: '#FFFFFF',
-      card2: '#F1EEE8',
-      card3: '#E9E5DC',
-      text: '#1C1B19',
-      dim: '#6E6A62',
-      faint: '#8A857C',
-      sep: '#E8E4DC',
+      card2: '#EFEEEA',
+      card3: '#E6E5E0',
+      text: '#141417',
+      dim: '#6A6A74',
+      faint: '#85858E',
+      sep: '#E6E5E1',
       accent: '#5B4FD6',
       accentSoft: '#E4E1FB',
       onAccent: '#FFFFFF',
@@ -180,14 +222,14 @@ export const PALETTES = [
       onFlame: '#FFFFFF',
     },
     dark: {
-      bg: '#151412',
-      card: '#201F1C',
-      card2: '#2A2825',
-      card3: '#35322E',
-      text: '#F5F2EC',
-      dim: '#A9A49B',
-      faint: '#8A857D',
-      sep: '#302D29',
+      bg: '#121110',
+      card: '#1E1D1B',
+      card2: '#262422',
+      card3: '#32302D',
+      text: '#F3F1EC',
+      dim: '#9A978F',
+      faint: '#85827B',
+      sep: '#2A2826',
       accent: '#9B8FFF',
       accentSoft: '#221E45',
       onAccent: '#100C2E',
@@ -201,14 +243,16 @@ export const PALETTES = [
   {
     key: 'ocean',
     pro: true,
+    // кольори трьох м'яких плям за екраном (ScreenBackground): світла / темна
+    blobs: { light: ['#B9D0FF', '#C4ECE6', '#FFE0CC'], dark: ['#3F6FE0', '#2E8C84', '#A5704F'] },
     shadow: '#34465C',
     light: {
-      bg: '#F5F8FC',
+      bg: '#F4F7FB',
       card: '#FFFFFF',
       card2: '#EBF0F7',
       card3: '#DFE6F0',
       text: '#14202E',
-      dim: '#5B6878',
+      dim: '#5F6D7D',
       faint: '#808D9D',
       sep: '#E1E7EF',
       accent: '#1F5BD1',
@@ -221,7 +265,7 @@ export const PALETTES = [
       onFlame: '#FFFFFF',
     },
     dark: {
-      bg: '#0E141C',
+      bg: '#0D1218',
       card: '#18212C',
       card2: '#212C39',
       card3: '#2B3746',
@@ -242,9 +286,11 @@ export const PALETTES = [
   {
     key: 'berry',
     pro: true,
+    // кольори трьох м'яких плям за екраном (ScreenBackground): світла / темна
+    blobs: { light: ['#F3BEDD', '#D6C8FF', '#FFDCC8'], dark: ['#C2459A', '#6A55D0', '#B46E50'] },
     shadow: '#5C4F3D',
     light: {
-      bg: '#FCF7F9',
+      bg: '#FBF7F9',
       card: '#FFFFFF',
       card2: '#F5ECF0',
       card3: '#ECDFE6',
@@ -262,7 +308,7 @@ export const PALETTES = [
       onFlame: '#FFFFFF',
     },
     dark: {
-      bg: '#161013',
+      bg: '#131012',
       card: '#21181C',
       card2: '#2C2126',
       card3: '#382A31',
@@ -283,9 +329,11 @@ export const PALETTES = [
   {
     key: 'graphite',
     pro: true,
+    // кольори трьох м'яких плям за екраном (ScreenBackground): світла / темна
+    blobs: { light: ['#D5D7DD', '#D8E8E2', '#EADFD6'], dark: ['#6E7482', '#3C7C70', '#8A6A55'] },
     shadow: '#2A2A2A',
     light: {
-      bg: '#F4F4F2',
+      bg: '#F5F5F3',
       card: '#FFFFFF',
       card2: '#EAEAE6',
       card3: '#DEDED9',
@@ -303,7 +351,7 @@ export const PALETTES = [
       onFlame: '#FFFFFF',
     },
     dark: {
-      bg: '#0F0F10',
+      bg: '#0E0E0F',
       card: '#1B1B1D',
       card2: '#252528',
       card3: '#303033',
@@ -324,9 +372,11 @@ export const PALETTES = [
   {
     key: 'cocoa',
     pro: true,
+    // кольори трьох м'яких плям за екраном (ScreenBackground): світла / темна
+    blobs: { light: ['#EAC9AE', '#D7E5C8', '#F5D3D0'], dark: ['#A8683F', '#5F7F4A', '#A8564F'] },
     shadow: '#5C4F3D',
     light: {
-      bg: '#F7F1EA',
+      bg: '#F8F3EC',
       card: '#FFFCF8',
       card2: '#EFE6DB',
       card3: '#E5D9CB',
@@ -344,7 +394,7 @@ export const PALETTES = [
       onFlame: '#FFFFFF',
     },
     dark: {
-      bg: '#17120E',
+      bg: '#15110E',
       card: '#221B15',
       card2: '#2D241C',
       card3: '#392E24',
@@ -387,6 +437,27 @@ function buildTheme(palette, dark) {
     // Напівпрозорий шар під blur: контент має просвічувати, але текст
     // лишатись читабельним. Прозоріше — і підпис під іконкою «попливе».
     chrome: tint(p.card, dark ? 0.62 : 0.7),
+    // ===== Soft Glass =====
+    // card лишається суцільним (на ньому перевіряється контраст тексту), а
+    // скляна заливка поверхонь — glass: світла 66 % білого, темна 62 % card2.
+    glass: dark ? tint(p.card2, 0.62) : tint('#FFFFFF', 0.66),
+    // щільніша скляна заливка під текстом на камері й нижніх аркушах
+    glassStrong: dark ? tint(p.card2, 0.82) : tint('#FFFFFF', 0.82),
+    // 1 px обводка скла: світла «кромка» вдень, ледь помітна вночі
+    glassBorder: dark ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.9)',
+    // тонка лінія-роздільник і межа вторинних кнопок
+    hairline: dark ? 'rgba(255,255,255,0.08)' : tint(p.text, 0.07),
+    // м'яка доріжка (сегмент, смужки, неактивні крапки)
+    soft: dark ? 'rgba(255,255,255,0.07)' : tint(p.text, 0.05),
+    // колір тіні головної кнопки
+    accentGlow: tint(p.accent, dark ? 0.35 : 0.3),
+    // ледь тонований акцентом «герой» екрана (один на екран): від, до
+    heroFrom: dark ? tint(mix(p.card2, p.accent, 0.1), 0.75) : 'rgba(255,255,255,0.8)',
+    heroTo: dark ? tint(mix(p.card2, p.accent, 0.28), 0.6) : tint(p.accentSoft, 0.92),
+    // три м'які плями за екраном (ScreenBackground)
+    blob1: tint(palette.blobs[dark ? 'dark' : 'light'][0], dark ? 0.3 : 0.5),
+    blob2: tint(palette.blobs[dark ? 'dark' : 'light'][1], dark ? 0.16 : 0.45),
+    blob3: tint(palette.blobs[dark ? 'dark' : 'light'][2], dark ? 0.14 : 0.4),
     // Затемнення під аркушами (згода на AI, мова, слово, редактор профілю).
     // Чорне 40 % на темному тлі (#151412) ледь помітне й край аркуша тримається
     // лише на кольорі картки, тож у темній версії шар густіший. Тіні камери,
@@ -409,27 +480,31 @@ function buildTheme(palette, dark) {
     T: {
       // Заголовок вкладки: однаковий кегль, накреслення й місце на всіх
       // вкладках (Слова, Навчання, Профіль, Параметри)
-      largeTitle: { color: p.text, ...type(34, F.bold) },
-      title: { color: p.text, ...type(26, F.extra) },
-      headline: { color: p.text, ...type(19, F.bold) },
+      largeTitle: { color: p.text, ...type(34, F.semi) },
+      title: { color: p.text, ...type(26, F.semi) },
+      headline: { color: p.text, ...type(19, F.semi) },
       bodyStrong: { color: p.text, ...type(16, F.semi) },
       body: { color: p.text, ...type(16, F.reg) },
       callout: { color: p.dim, ...type(15, F.reg) },
       footnote: { color: p.dim, ...type(13, F.reg) },
       caps: { color: p.dim, ...CAPS },
-      word: { color: p.text, ...type(40, F.extra) },
-      number: { color: p.text, ...type(28, F.extra) },
+      // великі слова й цифри: світла вага 300
+      word: { color: p.text, ...display(40) },
+      number: { color: p.text, ...display(28) },
+      display: { color: p.text, ...display(40) },
     },
-    // Шкала тіней: більша поверхня має читатись товщою.
+    // Шкала тіней «Soft Glass»: дуже м'які, холодно-фіолетові у світлому.
     SHADOW_SM: dark
       ? { shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 3 }
-      : { shadowColor: sh, shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 2 },
+      : { shadowColor: sh, shadowOpacity: 0.04, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 1 },
+    // картка: 0 10 30 rgba(20,15,50,.05)
     SHADOW: dark
-      ? { shadowColor: '#000', shadowOpacity: 0.45, shadowRadius: 20, shadowOffset: { width: 0, height: 9 }, elevation: 6 }
-      : { shadowColor: sh, shadowOpacity: 0.07, shadowRadius: 24, shadowOffset: { width: 0, height: 10 }, elevation: 4 },
+      ? { shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 30, shadowOffset: { width: 0, height: 10 }, elevation: 5 }
+      : { shadowColor: sh, shadowOpacity: 0.05, shadowRadius: 30, shadowOffset: { width: 0, height: 10 }, elevation: 3 },
+    // плаваючі панелі й аркуші
     SHADOW_LG: dark
-      ? { shadowColor: '#000', shadowOpacity: 0.55, shadowRadius: 34, shadowOffset: { width: 0, height: 18 }, elevation: 12 }
-      : { shadowColor: sh, shadowOpacity: 0.1, shadowRadius: 40, shadowOffset: { width: 0, height: 20 }, elevation: 9 },
+      ? { shadowColor: '#000', shadowOpacity: 0.5, shadowRadius: 34, shadowOffset: { width: 0, height: 14 }, elevation: 10 }
+      : { shadowColor: sh, shadowOpacity: 0.12, shadowRadius: 30, shadowOffset: { width: 0, height: 10 }, elevation: 8 },
   };
 }
 

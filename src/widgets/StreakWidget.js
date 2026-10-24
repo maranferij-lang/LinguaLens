@@ -47,16 +47,16 @@ const Streak = (props, environment) => {
   const secondary = { type: 'hierarchical', style: 'secondary' };
   const tertiary = { type: 'hierarchical', style: 'tertiary' };
   const quaternary = { type: 'hierarchical', style: 'quaternary' };
-  const bg = pick('bg', '#FAF8F4', '#151412');
-  const ink = tinted ? primary : pick('ink', '#1C1B19', '#F5F2EC');
-  const dim = tinted ? secondary : pick('dim', '#6E6A62', '#A9A49B');
+  const bg = pick('bg', '#F7F6F3', '#121110');
+  const ink = tinted ? primary : pick('ink', '#141417', '#F3F1EC');
+  const dim = tinted ? secondary : pick('dim', '#6A6A74', '#9A978F');
   const faint = tinted ? tertiary : pick('faint', '#8A857C', '#8A857D');
   const chip = tinted ? quaternary : pick('chip', '#F1EEE8', '#2A2825');
   const flameRaw = pick('flame', '#6152E0', '#9B8FFF');
   const flameTip = pick('flameTip', '#3FCFC2', '#5FE6D9');
   const flameCol = tinted ? primary : flameRaw;
   const flameSoft = tinted ? quaternary : pick('flameSoft', '#EFEDFD', '#26224A');
-  const flameInk = tinted ? secondary : pick('flameInk', '#5044AE', '#9B8FFF');
+  const flameInk = tinted ? secondary : pick('flameInk', '#4E43AE', '#9B8FFF');
   const onFlame = tinted ? { type: 'hierarchical', style: 'quinary' } : pick('onFlame', '#FFFFFF', '#100C2E');
 
   const n = props.n || '0';

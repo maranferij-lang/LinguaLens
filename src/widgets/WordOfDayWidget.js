@@ -59,10 +59,10 @@ const WordOfDay = (props, environment) => {
   const tertiary = { type: 'hierarchical', style: 'tertiary' };
   // Палітра застосунку (без props — фірмова «Крейда»): тепла крейда /
   // графіт, один фіолетовий акцент.
-  const bg = pick('bg', '#FAF8F4', '#151412');
-  const ink = tinted ? primary : pick('ink', '#1C1B19', '#F5F2EC');
+  const bg = pick('bg', '#F7F6F3', '#121110');
+  const ink = tinted ? primary : pick('ink', '#141417', '#F3F1EC');
   const soft = tinted ? primary : pick('soft', '#3E3B36', '#DCD7CF');
-  const dim = tinted ? secondary : pick('dim', '#6E6A62', '#A9A49B');
+  const dim = tinted ? secondary : pick('dim', '#6A6A74', '#9A978F');
   const faint = tinted ? tertiary : pick('faint', '#8A857C', '#8A857D');
   const accent = tinted ? secondary : pick('accent', '#5B4FD6', '#9B8FFF');
   const accentSoft = tinted ? { type: 'hierarchical', style: 'quaternary' } : pick('accentSoft', '#E4E1FB', '#221E45');

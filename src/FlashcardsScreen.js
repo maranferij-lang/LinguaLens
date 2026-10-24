@@ -26,7 +26,7 @@ import RiskBanner from './streak/RiskBanner';
 import { Bar, FadeIn, GradBtn, Pill, Press } from './ui';
 import { UNDER_TAB } from './Chrome';
 
-import { F, R, type, useTheme } from './theme';
+import { F, R, type, useTheme, fw } from './theme';
 import { DUR, EASE, announce, useReducedMotion } from './motion';
 import { quote } from './share/layout';
 
@@ -778,7 +778,7 @@ const makeStyles = (C) =>
       paddingHorizontal: 11,
       paddingVertical: 6,
     },
-    proPillText: { color: C.accent, fontSize: 11, fontFamily: F.extra, letterSpacing: 1.2 },
+    proPillText: { color: C.accent, fontSize: 11, ...fw(F.extra), letterSpacing: 1.2 },
     // Висота рядка = висоті заголовка: він стоїть там само, як на інших
     // вкладках, а пігулка PRO чи маскот центруються відносно нього.
     hubHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', height: 37, marginBottom: 18, gap: 10 },

@@ -26,7 +26,7 @@ import OnboardingScreen from '../src/OnboardingScreen';
 import PaywallScreen from '../src/PaywallScreen';
 import { StickerLarge } from '../src/Sticker';
 import { STRINGS, makeT } from '../src/i18n';
-import { THEMES } from '../src/theme';
+import { F, THEMES, fw } from '../src/theme';
 import { dayLetter, weekdayLabels } from '../src/share/layout';
 import { recognizeImage } from '../src/api';
 import { flagFor } from '../src/speech';
@@ -773,7 +773,7 @@ describe('readable secondary text', () => {
   });
 
   test('tab titles share one style', () => {
-    for (const key of ['light', 'dark']) expect(THEMES[key].T.largeTitle).toMatchObject({ fontSize: 34, fontFamily: 'Nunito_700Bold' });
+    for (const key of ['light', 'dark']) expect(THEMES[key].T.largeTitle).toMatchObject({ fontSize: 34, ...fw(F.semi) });
   });
 });
 

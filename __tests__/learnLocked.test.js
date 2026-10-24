@@ -1,6 +1,7 @@
 // «Навчання» до першого слова (core.md B.4): картки й квіз видно завжди,
 // закриті — з поясненням і замком; блок «Як отримати перше слово»; квіз
 // рахує різні переклади; «Відкрито!» рівно один раз; «Менше руху».
+import { UNDER_TAB } from '../src/Chrome';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AccessibilityInfo, Animated } from 'react-native';
 import * as Haptics from 'expo-haptics';
@@ -118,7 +119,7 @@ test('on a small phone the tap scrolls the how-to block out from under the tab b
   const how = tree.root.findAll((n) => n.type === 'View' && typeof n.props.onLayout === 'function' && n.findAll((x) => x.props.testID === 'learn-how').length)[0];
   await act(async () => how.props.onLayout({ nativeEvent: { layout: { y: 600, height: 220 } } }));
   await press(() => card(tree, 'hub-cards').props.onPress());
-  expect(scroll.instance.scrollTo).toHaveBeenCalledWith(expect.objectContaining({ y: 600 + 220 + 78 + 16 - 560 }));
+  expect(scroll.instance.scrollTo).toHaveBeenCalledWith(expect.objectContaining({ y: 600 + 220 + UNDER_TAB + 16 - 560 }));
   await act(async () => tree.unmount());
 });
 

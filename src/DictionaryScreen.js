@@ -34,7 +34,7 @@ import { dateLabel, quote, safeLocale } from './share/layout';
 import { FadeIn, GradBtn, Press } from './ui';
 import { UNDER_TAB } from './Chrome';
 import { layoutNext, SPRING, useReducedMotion } from './motion';
-import { CAPS, F, R, type, useTheme } from './theme';
+import { CAPS, F, R, type, useTheme, fw } from './theme';
 
 // ─── Чисті помічники (покриті тестами) ─────────────────────────────────────
 
@@ -696,7 +696,7 @@ const makeStyles = (C, SHADOW_SM) =>
     },
     segmentBtn: { flex: 1, paddingVertical: 9, alignItems: 'center' },
     segmentText: { color: C.dim, ...type(14, F.semi, { noLead: true }) },
-    segmentTextActive: { color: C.text, fontFamily: F.extra },
+    segmentTextActive: { color: C.text, ...fw(F.extra) },
 
     // Поле пошуку: заглиблена поверхня замість рамки — рамка на крейді
     // додає лінію, якої там не треба.

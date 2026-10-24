@@ -8,7 +8,7 @@ import { MascotBob } from './Mascot';
 import { Bar, FadeIn, Glass, GradBtn, Press } from './ui';
 import { UNDER_TAB } from './Chrome';
 import { DUR, EASE, SPRING, announce, isReducedMotion, useScreenReader } from './motion';
-import { F, R, type, useTheme } from './theme';
+import { F, R, type, useTheme, fw } from './theme';
 
 const Q_TIME = 10000;
 const Q_COUNT = 10;
@@ -383,7 +383,7 @@ export default function QuizScreen({ words, t, onExit, onQuizDone, onMiss }) {
                 <Text
                   style={[
                     s.optionText,
-                    show && isCorrect && { color: C.greenInk, fontFamily: F.bold },
+                    show && isCorrect && { color: C.greenInk, ...fw(F.bold) },
                     wrongPick && { color: C.redInk },
                   ]}
                 >

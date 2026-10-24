@@ -10,7 +10,7 @@ import { Pressable, Text } from 'react-native';
 import { track } from '../analytics';
 import { IcSearch } from '../icons';
 import { haptic } from '../motion';
-import { F } from '../theme';
+import { F, fw } from '../theme';
 import { CAM, CAM_FONT, CamGlass } from './CamGlass';
 import { useZoom } from './zoomStore';
 
@@ -48,7 +48,7 @@ export default function ZoomButton({ zoom, onChange, t }) {
     >
       <CamGlass style={{ width: 48, height: 48, alignItems: 'center', justifyContent: 'center' }}>
         {cur ? (
-          <Text style={{ color: CAM.text, fontSize: 15, fontFamily: F.extra }} maxFontSizeMultiplier={CAM_FONT}>
+          <Text style={{ color: CAM.text, fontSize: 15, ...fw(F.extra) }} maxFontSizeMultiplier={CAM_FONT}>
             {cur.label}
           </Text>
         ) : (

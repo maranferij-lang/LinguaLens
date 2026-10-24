@@ -9,7 +9,7 @@
 import { Text, View } from 'react-native';
 import Flame from './Flame';
 import { streakMessage } from '../streak';
-import { F, R, useTheme } from '../theme';
+import { F, R, useTheme, fw } from '../theme';
 import { Press } from '../ui';
 
 const H = 34;
@@ -57,7 +57,7 @@ export default function StreakChip({ info, onPress, t, style }) {
     >
       <Flame n={n} size={17} pending={!info.doneToday} breathe={false} testID="streak-chip-flame" />
       <Text
-        style={{ color: C.text, fontSize: 15, fontFamily: F.extra, fontVariant: ['tabular-nums'] }}
+        style={{ color: C.text, fontSize: 15, ...fw(F.extra), fontVariant: ['tabular-nums'] }}
         maxFontSizeMultiplier={1.3}
       >
         {String(n)}

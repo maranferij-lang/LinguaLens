@@ -11,7 +11,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Animated, Pressable, Text, View } from 'react-native';
 import { PCrown } from '../ProIcons';
 import { SPRING } from '../motion';
-import { F } from '../theme';
+import { F, fw } from '../theme';
 import { CAM, CAM_FONT, CamGlass } from './CamGlass';
 import { MODE_H } from './layout';
 
@@ -95,7 +95,7 @@ export default function ModeSwitch({ mode, onChange, disabled, locked, reduced, 
                 }}
               >
                 <Text
-                  style={{ color: active ? CAM.ink : CAM.text, fontSize: 15, fontFamily: F.bold }}
+                  style={{ color: active ? CAM.ink : CAM.text, fontSize: 15, ...fw(F.bold) }}
                   maxFontSizeMultiplier={CAM_FONT}
                   numberOfLines={1}
                 >

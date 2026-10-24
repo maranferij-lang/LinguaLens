@@ -31,7 +31,7 @@ import { photoUri } from './photos';
 import { useSafeAreaInsets } from './SafeArea';
 import { FadeIn, GradBtn, Press } from './ui';
 import { DUR, EASE, SPRING, haptic, safeSpring, useReducedMotion } from './motion';
-import { F, R, type, useTheme } from './theme';
+import { F, R, type, useTheme, fw } from './theme';
 import { quote } from './share/layout';
 
 // ─── Артиклі ────────────────────────────────────────────────────────────────
@@ -137,7 +137,7 @@ export const LetterTile = memo(function LetterTile({ word, lang, size = 48, styl
               до плитки, тож системне збільшення шрифту її не роздуває. */}
           <Text
             allowFontScaling={false}
-            style={{ color: C.accent, fontFamily: F.extra, fontSize: Math.round(inner * 0.54), includeFontPadding: false }}
+            style={{ color: C.accent, ...fw(F.extra), fontSize: Math.round(inner * 0.54), includeFontPadding: false }}
           >
             {headLetter(word, lang)}
           </Text>

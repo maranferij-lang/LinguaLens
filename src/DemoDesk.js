@@ -28,7 +28,7 @@ import Svg, {
 } from 'react-native-svg';
 import { PLATE } from './WordPlate';
 import { flagFor } from './speech';
-import { F } from './theme';
+import { F, fw } from './theme';
 
 export const SCENE_W = 342;
 export const SCENE_H = 420;
@@ -328,7 +328,7 @@ export function TagLabel({ code, word, tilt = 0 }) {
       <Text allowFontScaling={false} style={{ fontSize: 11, lineHeight: 14 }}>
         {flagFor(code)}
       </Text>
-      <Text allowFontScaling={false} style={{ color: PLATE.accent, fontFamily: F.extra, fontSize: 13, lineHeight: 17 }}>
+      <Text allowFontScaling={false} style={{ color: PLATE.accent, ...fw(F.extra), fontSize: 13, lineHeight: 17 }}>
         {word}
       </Text>
     </View>

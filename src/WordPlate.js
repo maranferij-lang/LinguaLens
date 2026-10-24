@@ -15,7 +15,7 @@
 import { Text, View } from 'react-native';
 import { flagFor, nameFor } from './speech';
 import { fontSizeForWord, ipaLabel } from './share/layout';
-import { F, ipaFont } from './theme';
+import { F, ipaFont, fw } from './theme';
 
 export const PLATE = {
   face: '#FFFFFF',
@@ -57,7 +57,7 @@ export function LangLine({ code, size = 9.5, flag = 11, color = PLATE.dim }) {
       <T style={{ fontSize: flag, lineHeight: flag + 3 }}>{flagFor(code)}</T>
       <T
         numberOfLines={1}
-        style={{ color, fontFamily: F.extra, fontSize: size, lineHeight: size + 3.5, letterSpacing: 1.2, textTransform: 'uppercase' }}
+        style={{ color, ...fw(F.extra), fontSize: size, lineHeight: size + 3.5, letterSpacing: 1.2, textTransform: 'uppercase' }}
       >
         {nameFor(code)}
       </T>
@@ -100,7 +100,7 @@ export default function WordPlate({ word, size = 'md', tilt = 0, ipa = size === 
         // запас на випадок, коли оцінка ширини гліфів промахнулась (iOS)
         adjustsFontSizeToFit
         minimumFontScale={0.8}
-        style={{ color: PLATE.accent, fontFamily: F.extra, fontSize: fs, lineHeight: Math.round(fs * 1.2), letterSpacing: -fs * 0.02, marginTop: 1 }}
+        style={{ color: PLATE.accent, ...fw(F.extra), fontSize: fs, lineHeight: Math.round(fs * 1.2), letterSpacing: -fs * 0.02, marginTop: 1 }}
       >
         {text}
       </T>
@@ -114,7 +114,7 @@ export default function WordPlate({ word, size = 'md', tilt = 0, ipa = size === 
           numberOfLines={2}
           style={{
             color: PLATE.ink,
-            fontFamily: size === 'lg' ? F.bold : F.semi,
+            ...fw(size === 'lg' ? F.bold : F.semi),
             fontSize: trSize,
             lineHeight: Math.round(trSize * 1.26),
             textAlign: 'center',
