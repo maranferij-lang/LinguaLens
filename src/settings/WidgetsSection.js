@@ -47,7 +47,7 @@ export default function WidgetsSection({ ctx, extra = {} }) {
           <Switch
             value={hide}
             onValueChange={toggleHide}
-            trackColor={{ false: C.soft, true: C.accent }}
+            trackColor={{ false: C.card3, true: C.accent }}
             thumbColor="#fff"
             accessibilityLabel={t('settingsHideTr')}
             testID="widget-hide-tr"
@@ -76,7 +76,7 @@ export default function WidgetsSection({ ctx, extra = {} }) {
               <Switch
                 value={clock.fast}
                 onValueChange={setFastClock}
-                trackColor={{ false: C.soft, true: C.accent }}
+                trackColor={{ false: C.card3, true: C.accent }}
                 thumbColor="#fff"
                 accessibilityLabel={t('widgetFastClock')}
                 testID="widget-fast-clock"

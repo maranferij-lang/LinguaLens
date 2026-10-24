@@ -49,7 +49,7 @@ const Streak = (props, environment) => {
   const quaternary = { type: 'hierarchical', style: 'quaternary' };
   const bg = pick('bg', '#F7F6F3', '#121110');
   const ink = tinted ? primary : pick('ink', '#141417', '#F3F1EC');
-  const dim = tinted ? secondary : pick('dim', '#6A6A74', '#9A978F');
+  const dim = tinted ? secondary : pick('dim', '#64646E', '#9A978F');
   const faint = tinted ? tertiary : pick('faint', '#8A857C', '#8A857D');
   const chip = tinted ? quaternary : pick('chip', '#F1EEE8', '#2A2825');
   const flameRaw = pick('flame', '#6152E0', '#9B8FFF');
@@ -199,7 +199,7 @@ const Streak = (props, environment) => {
     return (
       <VStack key={'d' + i} spacing={3} modifiers={[frame({ maxWidth: Infinity })]}>
         {dot}
-        <Text modifiers={[sf(10, today ? 'semibold' : 'semibold'), foregroundStyle(today ? ink : faint), lineLimit(1), minimumScaleFactor(0.7)]}>
+        <Text modifiers={[sf(10, today ? 'bold' : 'medium'), foregroundStyle(today ? ink : faint), lineLimit(1), minimumScaleFactor(0.7)]}>
           {d.d || ' '}
         </Text>
       </VStack>

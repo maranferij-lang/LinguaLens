@@ -29,7 +29,7 @@ import { StickerLarge } from './Sticker';
 import { PLATE } from './WordPlate';
 import { photoUri } from './photos';
 import { useSafeAreaInsets } from './SafeArea';
-import { FadeIn, GlassSheet, GradBtn, IconBtn, Press, SecBtn } from './ui';
+import { FadeIn, GlassSheet, GradBtn, IconBtn, Press } from './ui';
 import { DUR, EASE, SPRING, haptic, safeSpring, useReducedMotion } from './motion';
 import { F, R, display, ipaFont, type, useTheme, fw } from './theme';
 import { quote } from './share/layout';

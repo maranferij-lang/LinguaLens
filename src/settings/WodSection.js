@@ -157,7 +157,7 @@ export default function WodSection({ ctx, extra = {} }) {
             accessibilityLabel={t('dailyPush')}
             accessibilityHint={t('dailyPushHint')}
             testID="wod-enabled"
-            trackColor={{ false: C.soft, true: C.accent }}
+            trackColor={{ false: C.card3, true: C.accent }}
             thumbColor="#fff"
           />
         </View>

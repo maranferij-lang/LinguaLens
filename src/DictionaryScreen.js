@@ -10,7 +10,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
-  Animated,
   FlatList,
   Image,
   Pressable,
@@ -31,10 +30,10 @@ import { photoUri } from './photos';
 import SceneView from './scene/SceneView';
 import { sceneImageUri } from './scene/scenes';
 import { dateLabel, quote, safeLocale } from './share/layout';
-import { FadeIn, GradBtn, IconBtn, Press, ScreenBackground, Segmented } from './ui';
+import { FadeIn, GradBtn, Press, ScreenBackground, Segmented } from './ui';
 import { GlassBlurView } from './Chrome';
 import { UNDER_TAB } from './Chrome';
-import { layoutNext, SPRING, useReducedMotion } from './motion';
+import { layoutNext } from './motion';
 import { CAPS, F, R, type, useTheme, fw } from './theme';
 
 // ─── Чисті помічники (покриті тестами) ─────────────────────────────────────
@@ -561,9 +560,6 @@ const GridTile = memo(function GridTile({ item, tile, row, onOpen, s, C, t }) {
             </Text>
           ) : null}
         </View>
-        <IconBtn size={34} onPress={() => speak(item.word, lang)} accessibilityLabel={t('listen')}>
-          <IcSpeaker size={16} color={C.dim} />
-        </IconBtn>
       </View>
     </Press>
   );

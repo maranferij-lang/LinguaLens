@@ -23,7 +23,7 @@ import { track } from './analytics';
 import { captureScene, createCutter, cropToObject, dropFile, objectJpeg, scanBackdrop } from './cutout';
 import { DEV_SAMPLE, isSimulatorShot } from './devSample';
 import { speak } from './speech';
-import { IcCheck, IcClose, IcSpeaker, IcWarn } from './icons';
+import { IcCheck, IcClose, IcShare, IcSpeaker, IcWarn } from './icons';
 import { MascotBob } from './Mascot';
 import { StickerLarge } from './Sticker';
 import ShareSheet from './share/ShareSheet';
@@ -1137,7 +1137,6 @@ export default function ScannerScreen({
           {view ? (
             <FadeIn delay={90} style={s.sheetBtns}>
               <View style={s.btnRow}>
-                <SecBtn title={t('share')} onPress={share} accessibilityLabel={t('share')} style={{ flex: 1 }} />
                 <View style={{ flex: 1 }}>
                   {view.unsaved ? (
                     <Animated.View style={{ opacity: nudgeDip, transform: [{ scale: nudgeScale }] }}>
@@ -1153,6 +1152,9 @@ export default function ScannerScreen({
                     </FadeIn>
                   )}
                 </View>
+                <Press style={s.shareBtn} onPress={share} accessibilityLabel={t('share')}>
+                  <IcShare size={22} color={C.accent} />
+                </Press>
               </View>
               {/* «Сканувати ще» — явна відмова від слова. Після останнього
                   безкоштовного скану (і в онбордингу) її немає: затвор однаково
@@ -1313,6 +1315,15 @@ const makeStyles = (C) =>
     extraTr: { color: C.dim, fontSize: 13, lineHeight: 18, marginTop: 1, ...fw(F.reg) },
     sheetBtns: { marginTop: 22, gap: 10 },
     btnRow: { flexDirection: 'row', gap: 10, alignItems: 'stretch' },
+    shareBtn: {
+      width: 56,
+      borderRadius: R.pill,
+      backgroundColor: C.glass,
+      borderWidth: 1,
+      borderColor: C.glassBorder,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
     // висота — як у «Зберегти» (paddingVertical 16), щоб ряд не стрибав
     savedBadge: {
       borderRadius: R.pill,

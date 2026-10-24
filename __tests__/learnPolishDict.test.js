@@ -134,8 +134,16 @@ describe('language chips', () => {
   test('the Words/Collection tabs reach 44 pt with their hit area', async () => {
     const tree = await render();
     // Segmented з ui.js: Press сам добирає hitSlop (6 pt) до зони 44 pt
-    const list = tree.root.findAll((n) => n.props.hitSlop && n.findAll((c) => hasText(c, t('viewList'))).length > 0);
-    expect(list.some((n) => n.props.hitSlop === 6 || n.props.hitSlop?.top === 6)).toBe(true);
+    const tab = () =>
+      tree.root
+        .findAll((n) => typeof n.props.onLayout === 'function' && n.props.hitSlop != null && n.findAll((c) => hasText(c, t('viewList'))).length > 0)
+        .at(-1);
+    // вкладка 32 pt заввишки: після лейауту зона має дорости до 44 pt
+    await act(async () => tab().props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width: 120, height: 32 } } }));
+    const slop = tab().props.hitSlop;
+    const top = typeof slop === 'number' ? slop : slop.top;
+    const bottom = typeof slop === 'number' ? slop : slop.bottom;
+    expect(32 + top + bottom).toBeGreaterThanOrEqual(44);
   });
 });
 

@@ -23,7 +23,7 @@ import WordOfDayCard from './WordOfDayCard';
 import { ProfileTip, WidgetTip } from './LearnTips';
 import StreakChip, { atRisk } from './streak/StreakChip';
 import RiskBanner from './streak/RiskBanner';
-import { Bar, CardArrow, FadeIn, GradBtn, Glass, Pill, Press, ScreenBackground } from './ui';
+import { Bar, CardArrow, FadeIn, GradBtn, Pill, Press, ScreenBackground } from './ui';
 import { UNDER_TAB } from './Chrome';
 
 import { F, R, display, type, useTheme, fw } from './theme';

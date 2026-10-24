@@ -707,7 +707,7 @@ export default function SettingsScreen(props) {
                   value={analyticsOn}
                   onValueChange={onToggleAnalytics}
                   accessibilityLabel={t('analyticsTitle')}
-                  trackColor={{ false: C.soft, true: C.accent }}
+                  trackColor={{ false: C.card3, true: C.accent }}
                   thumbColor="#fff"
                 />
               </View>

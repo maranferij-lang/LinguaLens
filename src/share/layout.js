@@ -31,6 +31,21 @@ export const CONTENT_W = CARD_W - PAD_X * 2;
 //   tiers — обідок медалі за рівнем досягнення: бронза, срібло, акцент.
 export const PALETTES = [
   {
+    key: 'violet',
+    label: 'sharePalViolet',
+    bg: '#5B4FD6',
+    text: '#FFFFFF',
+    muted: '#E4E1FB',
+    accent: '#FFFFFF',
+    pill: '#6F64DB',
+    pillText: '#FFFFFF',
+    line: '#8279E0',
+    tile: '#FFFFFF',
+    onTile: '#5B4FD6',
+    tiers: ['#E9B98A', '#D9DAE6', '#FFFFFF'],
+    blobs: ['rgba(255,255,255,0.14)', 'rgba(150,230,215,0.12)', 'rgba(255,190,170,0.12)'],
+  },
+  {
     key: 'chalk',
     label: 'sharePalChalk',
     bg: '#F7F6F3',
@@ -60,21 +75,6 @@ export const PALETTES = [
     onTile: '#121110',
     tiers: ['#C99467', '#B5B8C2', '#9B8FFF'],
     blobs: ['rgba(155,143,255,0.14)', 'rgba(110,200,170,0.08)', 'rgba(255,160,130,0.09)'],
-  },
-  {
-    key: 'violet',
-    label: 'sharePalViolet',
-    bg: '#5B4FD6',
-    text: '#FFFFFF',
-    muted: '#E4E1FB',
-    accent: '#FFFFFF',
-    pill: '#6F64DB',
-    pillText: '#FFFFFF',
-    line: '#8279E0',
-    tile: '#FFFFFF',
-    onTile: '#5B4FD6',
-    tiers: ['#E9B98A', '#D9DAE6', '#FFFFFF'],
-    blobs: ['rgba(255,255,255,0.14)', 'rgba(150,230,215,0.12)', 'rgba(255,190,170,0.12)'],
   },
   {
     key: 'sunset',

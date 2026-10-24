@@ -1120,7 +1120,7 @@ const makeStyles = (C) =>
     planName: { color: C.dim, ...type(16, F.semi, { noLead: true }) },
     // dim, а не faint: «7 днів безкоштовно» — частина умов, ≥ 4.5:1
     planPer: { color: C.dim, ...type(13, F.reg, { noLead: true }), marginTop: 3 },
-    planPrice: { color: C.text, ...display(20) },
+    planPrice: { color: C.text, ...type(20, F.semi) },
     saveText: { color: C.greenInk, ...CAPS, marginTop: 3 },
 
     bestTag: {
