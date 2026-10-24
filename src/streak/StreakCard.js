@@ -28,8 +28,8 @@ function Day({ day, C }) {
   if (day.state === 'done') dot = <View style={[base, { backgroundColor: C.flameSoft }]}><IcFlame size={15} color={C.flame} /></View>;
   else if (day.state === 'today') dot = <View style={[base, { backgroundColor: C.flame }]}><IcFlame size={16} color={C.onFlame} /></View>;
   else if (day.state === 'pending') dot = <View style={[base, { borderWidth: 2, borderColor: C.flame, borderStyle: 'dashed' }]} />;
-  else if (day.state === 'missed') dot = <View style={[base, { backgroundColor: C.card2 }]} />;
-  else dot = <View style={[base, { borderWidth: 1.5, borderColor: C.sep }]} />;
+  else if (day.state === 'missed') dot = <View style={[base, { backgroundColor: C.soft }]} />;
+  else dot = <View style={[base, { borderWidth: 1.5, borderColor: C.hairline }]} />;
   const today = day.state === 'today' || day.state === 'pending';
   return (
     <View style={{ flex: 1, alignItems: 'center', gap: 5 }} testID={'week-' + day.state}>
@@ -59,7 +59,7 @@ export default function StreakCard({ activeDays, best = 0, now = new Date(), wee
         </View>
         <View style={{ flex: 1 }}>
           {/* Нуль днів — не провал, а старт: перший день так і кличе */}
-          <Text style={{ color: C.text, ...type(20, F.extra) }}>{n ? t('streakN', { n }) : t('streakStartTitle')}</Text>
+          <Text style={{ color: C.text, ...type(20, F.semi) }}>{n ? t('streakN', { n }) : t('streakStartTitle')}</Text>
           <Text style={{ color: C.dim, ...type(14, F.reg), marginTop: 3 }}>{cardLine(info, t)}</Text>
         </View>
       </View>
@@ -77,12 +77,12 @@ export default function StreakCard({ activeDays, best = 0, now = new Date(), wee
             <Text style={{ color: C.dim, ...type(13, F.semi) }}>{milestoneName(next.m, t)}</Text>
           </View>
           {/* до віхи: VoiceOver читає «Тиждень, 71%», а «5 з 7» стоїть текстом поруч */}
-          <Bar progress={next.progress} color={C.flame} bg={C.card2} height={7} accessibilityLabel={milestoneName(next.m, t)} />
+          <Bar progress={next.progress} color={C.flame} bg={C.soft} height={4} accessibilityLabel={milestoneName(next.m, t)} />
         </View>
       ) : null}
 
       {record >= 2 && record > n ? (
-        <View style={{ alignSelf: 'flex-start', backgroundColor: C.card2, borderRadius: R.pill, paddingHorizontal: 11, paddingVertical: 5 }}>
+        <View style={{ alignSelf: 'flex-start', backgroundColor: C.soft, borderRadius: R.pill, paddingHorizontal: 11, paddingVertical: 5 }}>
           <Text style={{ color: C.dim, ...type(12, F.bold, { noLead: true }) }}>{t('streakBest', { n: record })}</Text>
         </View>
       ) : null}

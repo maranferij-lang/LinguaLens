@@ -46,9 +46,9 @@ export default function StreakChip({ info, onPress, t, style }) {
           alignItems: 'center',
           justifyContent: 'center',
           gap: 3,
-          backgroundColor: C.card,
-          borderWidth: 1.5,
-          borderColor: risk ? C.flame : 'transparent',
+          backgroundColor: C.glass,
+          borderWidth: risk ? 1.5 : 1,
+          borderColor: risk ? C.flame : C.glassBorder,
           borderStyle: risk ? 'dashed' : 'solid',
         },
         risk ? null : SHADOW_SM,
@@ -57,7 +57,7 @@ export default function StreakChip({ info, onPress, t, style }) {
     >
       <Flame n={n} size={17} pending={!info.doneToday} breathe={false} testID="streak-chip-flame" />
       <Text
-        style={{ color: C.text, fontSize: 15, ...fw(F.extra), fontVariant: ['tabular-nums'] }}
+        style={{ color: C.text, fontSize: 15, ...fw(F.semi), fontVariant: ['tabular-nums'] }}
         maxFontSizeMultiplier={1.3}
       >
         {String(n)}

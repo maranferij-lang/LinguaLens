@@ -332,7 +332,7 @@ export default function StreakCelebration({ data, activeDays, onDone, onShare, t
             </Animated.Text>
           </View>
 
-          <Text style={{ color: C.text, ...type(22, F.extra), textAlign: 'center', marginTop: 2 }} accessibilityRole="header">
+          <Text style={{ color: C.text, ...type(22, F.semi), textAlign: 'center', marginTop: 2 }} accessibilityRole="header">
             {headline}
           </Text>
           {sub ? <Text style={{ color: C.dim, ...type(15, F.reg), textAlign: 'center', marginTop: 8, maxWidth: 320 }}>{sub}</Text> : null}
@@ -375,7 +375,7 @@ export default function StreakCelebration({ data, activeDays, onDone, onShare, t
 }
 
 const s = {
-  num: (C, h, size) => ({ color: C.text, fontSize: size, lineHeight: h, ...fw(F.extra), letterSpacing: -1.5, fontVariant: ['tabular-nums'] }),
+  num: (C, h, size) => ({ color: C.text, fontSize: size, lineHeight: h, ...fw(F.light), letterSpacing: -size * 0.03, fontVariant: ['tabular-nums'] }),
   chip: (C) => ({
     flexDirection: 'row',
     alignItems: 'center',
@@ -391,8 +391,10 @@ const s = {
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: C.card2,
-    borderRadius: R.lg,
+    backgroundColor: C.glass,
+    borderWidth: 1,
+    borderColor: C.hairline,
+    borderRadius: R.pill,
     paddingVertical: 15,
   }),
 };

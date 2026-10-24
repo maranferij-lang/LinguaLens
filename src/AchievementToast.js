@@ -13,6 +13,7 @@ import { useEffect, useRef } from 'react';
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import { DUR, EASE, SPRING, announce, travel, useReducedMotionCached, useScreenReader } from './motion';
 import { Mascot } from './Mascot';
+import { GlassBar } from './ui';
 import { AchIcon } from './AchIcons';
 import { CAPS, F, R, type, useTheme } from './theme';
 
@@ -21,7 +22,7 @@ export const SHOW_MS = 3600; // скільки тост видно
 export const SHOW_MS_READER = 9000; // з VoiceOver: щоб устигнути знайти й прочитати
 
 export default function AchievementToast({ achievement, onHide, onPress, t }) {
-  const { C, SHADOW_LG } = useTheme();
+  const { C } = useTheme();
   const a = useRef(new Animated.Value(0)).current; // 0 — сховано, 1 — на місці
   const timer = useRef(null);
   const leaving = useRef(false);
@@ -83,18 +84,18 @@ export default function AchievementToast({ achievement, onHide, onPress, t }) {
         accessibilityActions={[{ name: 'dismiss', label: t('close') }]}
         onAccessibilityAction={(e) => e.nativeEvent.actionName === 'dismiss' && hide()}
       >
-        <View style={[styles.card, { backgroundColor: C.card }, SHADOW_LG]}>
+        <GlassBar radius={R.xl} style={styles.card}>
           <View style={[styles.iconWrap, { backgroundColor: C.accentSoft }]}>
             <AchIcon id={achievement.id} size={30} color={C.accent} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={[CAPS, { color: C.accent }]}>{t('unlocked')}</Text>
+            <Text style={[CAPS, { color: C.dim }]}>{t('unlocked')}</Text>
             <Text style={[styles.title, { color: C.text }]} numberOfLines={2}>
               {t('ach_' + achievement.id)}
             </Text>
           </View>
           <Mascot pose="celebrate" size={48} />
-        </View>
+        </GlassBar>
       </Pressable>
     </Animated.View>
   );
@@ -117,5 +118,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   icon: { fontSize: 24 },
-  title: { ...type(16, F.bold, { noLead: true }), marginTop: 3 },
+  title: { ...type(16, F.semi, { noLead: true }), marginTop: 3 },
 });

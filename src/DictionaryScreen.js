@@ -31,7 +31,8 @@ import { photoUri } from './photos';
 import SceneView from './scene/SceneView';
 import { sceneImageUri } from './scene/scenes';
 import { dateLabel, quote, safeLocale } from './share/layout';
-import { FadeIn, GradBtn, Press } from './ui';
+import { FadeIn, GradBtn, IconBtn, Press, ScreenBackground, Segmented } from './ui';
+import { GlassBlurView } from './Chrome';
 import { UNDER_TAB } from './Chrome';
 import { layoutNext, SPRING, useReducedMotion } from './motion';
 import { CAPS, F, R, type, useTheme, fw } from './theme';
@@ -80,7 +81,7 @@ export function tiltFor(id) {
 // Геометрія сітки: три колонки на ширину екрана мінус поля екрана.
 // Висота рядка стала (наліпка + підпис + проміжок) — сітка не стрибає,
 // коли наліпки догружаються.
-export const GRID = { cols: 3, gap: 10, pad: 20, label: 21, rowGap: 14 };
+export const GRID = { cols: 2, gap: 12, pad: 20, label: 52, rowGap: 12 };
 export function gridMetrics(width) {
   const tile = Math.floor((width - GRID.pad * 2 - GRID.gap * (GRID.cols - 1)) / GRID.cols);
   return { tile, row: tile + GRID.label + GRID.rowGap };
@@ -125,8 +126,8 @@ export default function DictionaryScreen({
   onOpenWordDone,
   t,
 }) {
-  const { C, T, SHADOW_SM } = useTheme();
-  const s = useMemo(() => makeStyles(C, SHADOW_SM), [C, SHADOW_SM]);
+  const { C, T, isDark, SHADOW, SHADOW_SM } = useTheme();
+  const s = useMemo(() => makeStyles(C, SHADOW, SHADOW_SM), [C, SHADOW, SHADOW_SM]);
   const { width } = useWindowDimensions();
 
   const [view, setView] = useState(lastView);
@@ -246,10 +247,18 @@ export default function DictionaryScreen({
     />
   );
 
+  // Рядки списку складаються в одну скляну картку: першому й останньому
+  // заокруглюємо краї, між ними тонкі лінії.
+  const posOf = useMemo(() => {
+    const m = new Map();
+    shown.forEach((w, i) => m.set(w.id, shown.length === 1 ? 'only' : i === 0 ? 'first' : i === shown.length - 1 ? 'last' : 'mid'));
+    return m;
+  }, [shown]);
   const renderRow = useCallback(
     (item) => (
       <ListRow
         item={item}
+        pos={posOf.get(item.id)}
         open={openId === item.id}
         flag={multiLang}
         onToggle={toggle}
@@ -260,7 +269,7 @@ export default function DictionaryScreen({
         t={t}
       />
     ),
-    [openId, multiLang, toggle, askDelete, canShare, shareWord, s, C, t]
+    [openId, multiLang, toggle, askDelete, canShare, shareWord, s, C, t, posOf]
   );
 
   if (!words.length) {
@@ -281,9 +290,15 @@ export default function DictionaryScreen({
     );
     // Слів ще немає, а сцени вже є (кімнату відскановано, слів не збережено):
     // стрічка лишається, бо саме з неї ці слова й зберігають.
-    if (!scenes.length) return <View style={s.empty}>{empty}</View>;
+    if (!scenes.length) return (
+        <View style={s.empty}>
+          <ScreenBackground />
+          {empty}
+        </View>
+      );
     return (
       <View style={[s.root, s.rootPadded]}>
+        <ScreenBackground />
         <Text style={T.largeTitle} accessibilityRole="header">{t('dictTitle')}</Text>
         <Text style={s.subtitle}>{t('dictCount', { n: 0 })}</Text>
         {sceneStrip}
@@ -316,14 +331,15 @@ export default function DictionaryScreen({
   // Липка панель: перемикач погляду, пошук і фільтр мови завжди під рукою
   const bar = (
     <View style={s.bar}>
-      <Segment
+      {GlassBlurView ? <GlassBlurView pointerEvents="none" intensity={30} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} /> : null}
+      <Segmented
         value={view}
         onChange={switchView}
+        style={{ marginBottom: 10 }}
         options={[
-          { k: 'list', label: t('viewList') },
-          { k: 'grid', label: t('viewCollection') },
+          { key: 'list', label: t('viewList') },
+          { key: 'grid', label: t('viewCollection') },
         ]}
-        s={s}
       />
 
       <View style={s.searchWrap}>
@@ -373,12 +389,13 @@ export default function DictionaryScreen({
 
   function renderItem({ item }) {
     if (item === BAR) return bar;
-    if (Array.isArray(item)) return <GridRow items={item} tile={tile} row={row} onOpen={openSheet} s={s} />;
+    if (Array.isArray(item)) return <GridRow items={item} tile={tile} row={row} onOpen={openSheet} s={s} C={C} t={t} />;
     return renderRow(item);
   }
 
   return (
     <View style={s.root}>
+      <ScreenBackground />
       {/* Один FlatList на обидва погляди: шапка — ListHeaderComponent,
           панель пошуку — перший елемент даних і липне (у stickyHeaderIndices
           шапка — це 0, тож панель — 1). */}
@@ -394,7 +411,7 @@ export default function DictionaryScreen({
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
         // Наліпки — SVG із розмитою тінню: малюємо порціями
-        initialNumToRender={view === 'grid' ? 5 : 10}
+        initialNumToRender={view === 'grid' ? 6 : 10}
         maxToRenderPerBatch={view === 'grid' ? 3 : 10}
         windowSize={7}
       />
@@ -487,79 +504,67 @@ const SceneStrip = memo(function SceneStrip({ scenes, onOpen, onLongPress, s, t 
   );
 });
 
-// ─── Перемикач Список / Колекція ───────────────────────────────────────────
-// Стиль той самий, що в Профілі, але біла «пігулка» не стрибає, а
-// переїжджає під обраний пункт: так видно, ЩО саме змінилося.
-function Segment({ value, options, onChange, s }) {
-  const reduced = useReducedMotion();
-  const [w, setW] = useState(0);
-  const idx = Math.max(0, options.findIndex((o) => o.k === value));
-  const a = useRef(new Animated.Value(idx)).current;
-
-  useEffect(() => {
-    if (reduced) a.setValue(idx);
-    else Animated.spring(a, { toValue: idx, ...SPRING.snappy }).start();
-  }, [idx, reduced]);
-
-  const thumb = w ? (w - 6) / options.length : 0;
-  return (
-    <View style={s.segment} onLayout={(e) => setW(e.nativeEvent.layout.width)} accessibilityRole="tablist">
-      {thumb ? (
-        <Animated.View
-          style={[s.segmentThumb, { width: thumb, transform: [{ translateX: Animated.multiply(a, thumb) }] }]}
-        />
-      ) : null}
-      {options.map((o) => {
-        const active = o.k === value;
-        return (
-          <Pressable
-            key={o.k}
-            style={s.segmentBtn}
-            onPress={() => onChange(o.k)}
-            // ~35 pt на вигляд, 45 для пальця (поле над і під тримають відступи)
-            hitSlop={{ top: 5, bottom: 5 }}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: active }}
-          >
-            <Text style={[s.segmentText, active && s.segmentTextActive]}>{o.label}</Text>
-          </Pressable>
-        );
-      })}
-    </View>
-  );
-}
-
 // ─── Рядок альбому: до трьох наліпок ───────────────────────────────────────
-const GridRow = memo(function GridRow({ items, tile, row, onOpen, s }) {
+const GridRow = memo(function GridRow({ items, tile, row, onOpen, s, C, t }) {
   return (
     <View style={s.gridRow}>
       {items.map((item, slot) => (
-        <GridTile key={slot} item={item} tile={tile} row={row} onOpen={onOpen} s={s} />
+        <GridTile key={slot} item={item} tile={tile} row={row} onOpen={onOpen} s={s} C={C} t={t} />
       ))}
     </View>
   );
 });
 
 // ─── Наліпка в альбомі ─────────────────────────────────────────────────────
-const GridTile = memo(function GridTile({ item, tile, row, onOpen, s }) {
+const GridTile = memo(function GridTile({ item, tile, row, onOpen, s, C, t }) {
   const uri = photoUri(item.photo);
   const lang = item.lang || 'en';
   const { article, rest } = splitArticle(item.word, lang);
+  const art = tile - 24;
   return (
-    <Press style={[s.tile, { width: tile, height: row }]} onPress={() => onOpen(item)} scaleTo={0.94}>
-      <View style={{ transform: [{ rotate: `${tiltFor(item.id)}deg` }] }}>
-        {uri ? (
-          <Sticker uri={uri} shape={item.shape} outline={item.outline} box={item.box} size={tile} />
-        ) : (
-          <LetterTile word={item.word} lang={lang} size={tile} />
-        )}
+    // Нейтральна скляна картка: наліпка, слово, переклад і кругла «Слухати».
+    // Відкриває картку блок зі словом, динамік — окрема дія (як у ListRow).
+    <Press
+      style={[s.tile, { width: tile, height: row - GRID.rowGap }]}
+      onPress={() => onOpen(item)}
+      scaleTo={0.96}
+      accessible={false}
+      minTarget={0}
+      hitSlop={0}
+    >
+      <View style={{ alignItems: 'center', height: art }} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+        <View style={{ transform: [{ rotate: `${tiltFor(item.id)}deg` }] }}>
+          {uri ? (
+            <Sticker uri={uri} shape={item.shape} outline={item.outline} box={item.box} size={art} />
+          ) : (
+            <LetterTile word={item.word} lang={lang} size={art} />
+          )}
+        </View>
       </View>
-      {/* Артикль приглушений: в альбомі око ковзає по самих предметах.
-          Повне слово з артиклем — в аркуші. */}
-      <Text style={s.tileWord} numberOfLines={1} maxFontSizeMultiplier={1.2}>
-        {article ? <Text style={s.tileArticle}>{article}</Text> : null}
-        {rest}
-      </Text>
+      <View style={s.tileFoot}>
+        <View
+          style={{ flex: 1 }}
+          accessible
+          accessibilityRole="button"
+          accessibilityActions={[{ name: 'activate' }]}
+          onAccessibilityAction={() => onOpen(item)}
+        >
+          {/* Артикль приглушений: в альбомі око ковзає по самих предметах.
+              Повне слово з артиклем: в аркуші. */}
+          <Text style={s.tileWord} numberOfLines={1} maxFontSizeMultiplier={1.2}>
+            {article ? <Text style={s.tileArticle}>{article}</Text> : null}
+            {rest}
+          </Text>
+          {item.translation ? (
+            <Text style={s.tileTr} numberOfLines={1} maxFontSizeMultiplier={1.2}>
+              {item.translation}
+            </Text>
+          ) : null}
+        </View>
+        <IconBtn size={34} onPress={() => speak(item.word, lang)} accessibilityLabel={t('listen')}>
+          <IcSpeaker size={16} color={C.dim} />
+        </IconBtn>
+      </View>
     </Press>
   );
 });
@@ -568,14 +573,14 @@ const GridTile = memo(function GridTile({ item, tile, row, onOpen, s }) {
 // «Поділитись» і «Видалити»: ~25 pt на вигляд, 45 для пальця (проміжок між
 // ними 22, тож бічні зони не перекриваються)
 const ACTION_SLOP = { top: 10, bottom: 10, left: 8, right: 8 };
-const ListRow = memo(function ListRow({ item, open, flag, onToggle, onAskDelete, onShare, s, C, t }) {
+const ListRow = memo(function ListRow({ item, pos, open, flag, onToggle, onAskDelete, onShare, s, C, t }) {
   const uri = photoUri(item.photo);
   const lang = item.lang || 'en';
   return (
     // Уся картка — ціль для пальця, але не для VoiceOver: доступний Pressable
     // злив би вкладені «Слухати», «Поділитись» і «Видалити» в один елемент,
     // і до них було б не дістатись. Розгортає рядок блок зі словом.
-    <Press style={s.card} onPress={() => onToggle(item.id)} accessible={false} feedback="dim" minTarget={0} hitSlop={0}>
+    <Press style={[s.card, pos === 'first' || pos === 'only' ? s.cardFirst : s.cardSep, (pos === 'last' || pos === 'only') && s.cardLast]} onPress={() => onToggle(item.id)} accessible={false} feedback="dim" minTarget={0} hitSlop={0}>
       <View style={s.rowTop}>
         <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
           {uri ? (
@@ -599,7 +604,7 @@ const ListRow = memo(function ListRow({ item, open, flag, onToggle, onAskDelete,
           {item.translation ? <Text style={s.translation}>{item.translation}</Text> : null}
         </View>
         <Press style={s.speakBtn} onPress={() => speak(item.word, lang)} accessibilityLabel={t('listen')}>
-          <IcSpeaker size={18} color={C.accent} />
+          <IcSpeaker size={18} color={C.dim} />
         </Press>
       </View>
       {open ? (
@@ -636,32 +641,35 @@ const ListRow = memo(function ListRow({ item, open, flag, onToggle, onAskDelete,
   );
 });
 
-const makeStyles = (C, SHADOW_SM) =>
+const makeStyles = (C, SHADOW, SHADOW_SM) =>
   StyleSheet.create({
     root: { flex: 1, backgroundColor: C.bg },
     // слів ще немає, а сцени є — без списку, відступи як у шапки
     rootPadded: { padding: 20, paddingBottom: 0 },
     listContent: { paddingBottom: UNDER_TAB + 8 },
     head: { paddingHorizontal: 20, paddingTop: 20 },
-    subtitle: { color: C.dim, ...type(13, F.reg), marginTop: 2, marginBottom: 14 },
+    subtitle: { color: C.dim, ...type(14, F.reg), marginTop: 2, marginBottom: 14 },
     // Липка панель на тлі екрана: рядки проїжджають під нею
-    bar: { backgroundColor: C.bg, paddingHorizontal: 20, paddingTop: 6, paddingBottom: 4 },
+    bar: { backgroundColor: C.glassStrong, paddingHorizontal: 20, paddingTop: 6, paddingBottom: 4, overflow: 'hidden' },
 
     // Підказка про вхід: м'який акцентний фон, як у картки Pro в Параметрах,
     // — помітна, але не кричить червоним чи градієнтом.
     nudge: {
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: C.accentSoft,
-      borderRadius: R.lg,
+      backgroundColor: C.glass,
+      borderWidth: 1,
+      borderColor: C.glassBorder,
+      borderRadius: R.xl,
       marginBottom: 12,
+      ...SHADOW,
     },
     nudgeMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 12, paddingLeft: 12 },
     nudgeIcon: {
       width: 34,
       height: 34,
       borderRadius: 11,
-      backgroundColor: C.card,
+      backgroundColor: C.accentSoft,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -684,34 +692,22 @@ const makeStyles = (C, SHADOW_SM) =>
     sceneThumbShade: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 36, backgroundColor: 'rgba(0,0,0,0.38)' },
     sceneThumbText: { color: '#FFFFFF', ...type(11, F.extra, { noLead: true }), textAlign: 'center', paddingHorizontal: 4, paddingBottom: 7 },
 
-    segment: { flexDirection: 'row', backgroundColor: C.card2, borderRadius: R.md, padding: 3, marginBottom: 10 },
-    segmentThumb: {
-      position: 'absolute',
-      top: 3,
-      bottom: 3,
-      left: 3,
-      borderRadius: R.md - 3,
-      backgroundColor: C.card,
-      ...SHADOW_SM,
-    },
-    segmentBtn: { flex: 1, paddingVertical: 9, alignItems: 'center' },
-    segmentText: { color: C.dim, ...type(14, F.semi, { noLead: true }) },
-    segmentTextActive: { color: C.text, ...fw(F.extra) },
-
     // Поле пошуку: заглиблена поверхня замість рамки — рамка на крейді
     // додає лінію, якої там не треба.
     searchWrap: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 10,
-      backgroundColor: C.input,
-      borderRadius: R.md,
-      paddingHorizontal: 15,
+      backgroundColor: C.glass,
+      borderWidth: 1,
+      borderColor: C.glassBorder,
+      borderRadius: R.pill,
+      paddingHorizontal: 16,
       marginBottom: 8,
     },
     search: {
       flex: 1,
-      paddingVertical: 13,
+      paddingVertical: 12,
       color: C.text,
       ...type(16, F.reg, { noLead: true }),
     },
@@ -720,23 +716,26 @@ const makeStyles = (C, SHADOW_SM) =>
       paddingHorizontal: 13,
       paddingVertical: 7,
       borderRadius: R.pill,
-      backgroundColor: C.card,
+      backgroundColor: C.glass,
+      borderWidth: 1,
+      borderColor: C.glassBorder,
     },
     filterChipActive: { backgroundColor: C.accentSoft },
     filterText: { color: C.dim, ...type(13, F.semi, { noLead: true }) },
 
     // Альбом: проміжки між наліпками — повітря, а не лінії сітки.
-    gridRow: { flexDirection: 'row', gap: GRID.gap, paddingHorizontal: GRID.pad },
-    tile: { alignItems: 'center' },
-    // Наліпка має прозорий запас під облямівку й тінь, тож підпис
-    // підтягуємо ближче — інакше він «відпадає» від своєї наліпки.
-    tileWord: {
-      color: C.text,
-      ...type(13, F.semi),
-      textAlign: 'center',
-      marginTop: 2,
-      alignSelf: 'stretch',
+    gridRow: { flexDirection: 'row', gap: GRID.gap, paddingHorizontal: GRID.pad, marginBottom: GRID.rowGap },
+    tile: {
+      backgroundColor: C.glass,
+      borderWidth: 1,
+      borderColor: C.glassBorder,
+      borderRadius: R.xl,
+      padding: 12,
+      ...SHADOW,
     },
+    tileFoot: { flexDirection: 'row', alignItems: 'flex-end', gap: 6, marginTop: 8 },
+    tileWord: { color: C.text, ...type(17, F.semi, { noLead: true }) },
+    tileTr: { color: C.dim, ...type(13, F.reg, { noLead: true }), marginTop: 3 },
     tileArticle: { color: C.dim },
 
     noMatch: { alignItems: 'center', paddingTop: 48, paddingHorizontal: 24 },
@@ -746,19 +745,25 @@ const makeStyles = (C, SHADOW_SM) =>
     // Рядок словника — плаваюча картка, а не рядок із розділювачем:
     // на крейдяному тлі лінія-роздільник додає бруду, тінь — ні.
     card: {
-      backgroundColor: C.card,
-      borderRadius: R.lg,
-      padding: 14,
+      backgroundColor: C.glass,
+      borderColor: C.glassBorder,
+      borderLeftWidth: 1,
+      borderRightWidth: 1,
+      paddingVertical: 12,
+      paddingHorizontal: 14,
       marginHorizontal: 20,
-      marginBottom: 9,
-      ...SHADOW_SM,
     },
+    cardFirst: { borderTopWidth: 1, borderTopLeftRadius: R.xl, borderTopRightRadius: R.xl, paddingTop: 16 },
+    cardSep: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.hairline },
+    cardLast: { borderBottomWidth: 1, borderBottomLeftRadius: R.xl, borderBottomRightRadius: R.xl, paddingBottom: 16, ...SHADOW },
     rowTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-    word: { color: C.text, ...type(17, F.semi) },
+    word: { color: C.text, ...type(17, F.semi, { noLead: true }) },
     flag: { fontSize: 13 },
     translation: { color: C.dim, ...type(14, F.reg), marginTop: 1 },
     speakBtn: {
-      backgroundColor: C.card2,
+      backgroundColor: C.glass,
+      borderWidth: 1,
+      borderColor: C.glassBorder,
       width: 38,
       height: 38,
       borderRadius: 19,
@@ -768,11 +773,11 @@ const makeStyles = (C, SHADOW_SM) =>
     details: {
       marginTop: 12,
       borderTopWidth: StyleSheet.hairlineWidth,
-      borderTopColor: C.sep,
+      borderTopColor: C.hairline,
       paddingTop: 12,
       gap: 8,
     },
-    ipa: { color: C.dim, ...type(15, F.ipa), fontWeight: '500' },
+    ipa: { color: C.accent, ...type(15, F.ipa), fontWeight: '500' },
     example: { color: C.text, ...type(14, F.reg) },
     exampleTr: { color: C.dim, ...type(13, F.reg), marginTop: 4 },
     exampleSpeaker: { position: 'absolute', top: 2, right: 0 },

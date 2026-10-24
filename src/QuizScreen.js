@@ -5,10 +5,10 @@ import * as Haptics from 'expo-haptics';
 import { speak } from './speech';
 import { IcCheck, IcClock, IcClose, IcFlame, IcSpeaker } from './icons';
 import { MascotBob } from './Mascot';
-import { Bar, FadeIn, Glass, GradBtn, Press } from './ui';
+import { Bar, FadeIn, Glass, GradBtn, Press, ScreenBackground } from './ui';
 import { UNDER_TAB } from './Chrome';
 import { DUR, EASE, SPRING, announce, isReducedMotion, useScreenReader } from './motion';
-import { F, R, type, useTheme, fw } from './theme';
+import { F, R, display, type, useTheme, fw } from './theme';
 
 const Q_TIME = 10000;
 const Q_COUNT = 10;
@@ -125,7 +125,9 @@ export function SessionClose({ onPress, label }) {
         width: 36,
         height: 36,
         borderRadius: 18,
-        backgroundColor: C.card2,
+        backgroundColor: C.glass,
+        borderWidth: 1,
+        borderColor: C.glassBorder,
         alignItems: 'center',
         justifyContent: 'center',
         transform: [{ scale }],
@@ -288,6 +290,7 @@ export default function QuizScreen({ words, t, onExit, onQuizDone, onMiss }) {
     const pct = Math.round((score / questions.length) * 100);
     return (
       <View style={s.center}>
+        <ScreenBackground />
         <FadeIn style={{ alignItems: 'center', width: '100%' }}>
           <MascotBob pose={pct >= 60 ? 'celebrate' : 'encourage'} size={160} />
           <Text style={s.bigTitle}>{t('quizDone')}</Text>
@@ -308,8 +311,10 @@ export default function QuizScreen({ words, t, onExit, onQuizDone, onMiss }) {
   return (
     // ScrollView — запас на великий шрифт (Dynamic Type) і довгі переклади:
     // на звичайному екрані все влазить і нічого не прокручується.
+    <View style={s.root}>
+    <ScreenBackground />
     <ScrollView
-      style={s.root}
+      style={{ flex: 1 }}
       contentContainerStyle={s.content}
       alwaysBounceVertical={false}
       showsVerticalScrollIndicator={false}
@@ -319,7 +324,7 @@ export default function QuizScreen({ words, t, onExit, onQuizDone, onMiss }) {
         <SessionClose onPress={onExit} label={t('close')} />
         <View style={{ flex: 1 }}>
           {/* «3 / 10» стоїть поруч текстом: смужку VoiceOver не читає вдруге */}
-          <Bar progress={idx / questions.length} color={C.accent} bg={C.card2} height={6} decorative />
+          <Bar progress={idx / questions.length} color={C.text} bg={C.soft} height={4} decorative />
         </View>
         <Text style={s.meta}>{t('quizQ', { i: idx + 1, n: questions.length })}</Text>
       </View>
@@ -327,7 +332,7 @@ export default function QuizScreen({ words, t, onExit, onQuizDone, onMiss }) {
       <View style={s.metaRow}>
         {streak > 1 ? (
           <View style={s.streakRow}>
-            <IcFlame size={15} color={C.accent} />
+            <IcFlame size={15} color={C.dim} />
             <Text style={s.streakText}>{t('quizStreak', { n: streak })}</Text>
           </View>
         ) : null}
@@ -340,7 +345,7 @@ export default function QuizScreen({ words, t, onExit, onQuizDone, onMiss }) {
           <View style={s.qRow}>
             <Text style={s.qWord}>{q.word.word}</Text>
             <Press style={s.speakBtn} onPress={() => speak(q.word.word, q.word.lang)} accessibilityLabel={t('listen')}>
-              <IcSpeaker size={18} color={C.accent} />
+              <IcSpeaker size={18} color={C.dim} />
             </Press>
           </View>
           {q.word.ipa ? <Text style={s.qIpa}>{q.word.ipa}</Text> : null}
@@ -374,8 +379,8 @@ export default function QuizScreen({ words, t, onExit, onQuizDone, onMiss }) {
                 key={i}
                 style={[
                   s.option,
-                  show && isCorrect && { backgroundColor: C.greenSoft },
-                  wrongPick && { backgroundColor: C.redSoft },
+                  show && isCorrect && { backgroundColor: C.greenSoft, borderColor: C.green },
+                  wrongPick && { backgroundColor: C.redSoft, borderColor: C.red },
                 ]}
                 onPress={() => pick(i)}
                 accessibilityState={{ selected: picked === i }}
@@ -398,6 +403,7 @@ export default function QuizScreen({ words, t, onExit, onQuizDone, onMiss }) {
         </View>
       </FadeIn>
     </ScrollView>
+    </View>
   );
 }
 
@@ -449,7 +455,7 @@ const makeStyles = (C) =>
     // рядок серії тримає висоту й без серії — картка питання не стрибає
     metaRow: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', marginTop: 10, minHeight: 18 },
     streakRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-    streakText: { color: C.accent, ...type(13, F.bold) },
+    streakText: { color: C.dim, ...type(13, F.bold) },
     qCard: { marginTop: 6, alignItems: 'center', paddingVertical: 26 },
     // місце під таймер і «Час вийшов» — однакової висоти
     timerSlot: { height: 34, justifyContent: 'center', paddingHorizontal: 18 },
@@ -468,18 +474,20 @@ const makeStyles = (C) =>
     },
     timeUpText: { color: C.text, ...type(14, F.bold, { noLead: true }) },
     qRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-    qWord: { color: C.text, ...type(28, F.bold), textAlign: 'center', flexShrink: 1 },
+    qWord: { color: C.text, ...display(36), textAlign: 'center', flexShrink: 1 },
     speakBtn: {
-      backgroundColor: C.card2,
+      backgroundColor: C.glass,
+      borderWidth: 1,
+      borderColor: C.glassBorder,
       width: 38,
       height: 38,
       borderRadius: 19,
       alignItems: 'center',
       justifyContent: 'center',
     },
-    qIpa: { color: C.dim, ...type(15, F.ipa), fontWeight: '500', marginTop: 6 },
-    option: { backgroundColor: C.card, borderRadius: R.md, paddingVertical: 15, paddingHorizontal: 16 },
+    qIpa: { color: C.accent, ...type(15, F.ipa), fontWeight: '500', marginTop: 6 },
+    option: { backgroundColor: C.glass, borderWidth: 1, borderColor: C.glassBorder, borderRadius: R.lg, paddingVertical: 16, paddingHorizontal: 16 },
     // боковий відступ — місце під позначку відповіді, щоб довгий переклад під
     // неї не заходив і не перезавертався, коли вона з'являється
-    optionText: { color: C.text, ...type(16, F.semi), textAlign: 'center', paddingHorizontal: 20 },
+    optionText: { color: C.text, ...type(16, F.reg), textAlign: 'center', paddingHorizontal: 20 },
   });

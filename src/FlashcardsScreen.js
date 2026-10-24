@@ -23,10 +23,10 @@ import WordOfDayCard from './WordOfDayCard';
 import { ProfileTip, WidgetTip } from './LearnTips';
 import StreakChip, { atRisk } from './streak/StreakChip';
 import RiskBanner from './streak/RiskBanner';
-import { Bar, FadeIn, GradBtn, Pill, Press } from './ui';
+import { Bar, CardArrow, FadeIn, GradBtn, Glass, Pill, Press, ScreenBackground } from './ui';
 import { UNDER_TAB } from './Chrome';
 
-import { F, R, type, useTheme, fw } from './theme';
+import { F, R, display, type, useTheme, fw } from './theme';
 import { DUR, EASE, announce, useReducedMotion } from './motion';
 import { quote } from './share/layout';
 
@@ -100,7 +100,7 @@ export default function FlashcardsScreen({
   onOpenStreak,
   lang = 'en',
 }) {
-  const { C, T, SHADOW } = useTheme();
+  const { C, T, SHADOW_LG } = useTheme();
   const s = useMemo(() => makeStyles(C), [C]);
   const reduced = useReducedMotion();
 
@@ -320,9 +320,11 @@ export default function FlashcardsScreen({
   if (mode === 'hub') {
     const quizHint = level === 2 ? t('quizHint') : level === 0 ? t('learnLockedQuiz', { n: progress.need }) : t('learnQuizLeft', { k: left });
     return (
+      <View style={s.hubRoot}>
+      <ScreenBackground />
       <ScrollView
         ref={hubScroll}
-        style={s.hubRoot}
+        style={{ flex: 1 }}
         contentContainerStyle={{ padding: 20, paddingBottom: UNDER_TAB + 14 }}
         showsVerticalScrollIndicator={false}
         onLayout={(e) => (hubView.current.h = e.nativeEvent.layout.height)}
@@ -450,6 +452,7 @@ export default function FlashcardsScreen({
         {profileTip ? <ProfileTip onOpen={onOpenProfile} onHide={onHideProfileTip} t={t} /> : null}
         {widgetTip ? <WidgetTip onHide={onHideWidgetTip} t={t} /> : null}
       </ScrollView>
+      </View>
     );
   }
 
@@ -457,6 +460,7 @@ export default function FlashcardsScreen({
     const pct = Math.round((session.correct / session.ids.length) * 100);
     return (
       <View style={s.center}>
+        <ScreenBackground />
         <FadeIn style={{ alignItems: 'center', width: '100%' }}>
           <MascotBob pose={pct >= 60 ? 'celebrate' : 'encourage'} size={160} />
           <Text style={s.bigTitle}>{t('done')}</Text>
@@ -496,12 +500,13 @@ export default function FlashcardsScreen({
 
   return (
     <View style={s.root}>
+      <ScreenBackground />
       <View style={s.top}>
         <SessionClose onPress={close} label={t('close')} />
         {/* Bar з ui.js: scaleX від лівого краю на нативному драйвері, без перерахунку лейауту */}
         <View style={{ flex: 1 }}>
           {/* «3 / 10» стоїть поруч текстом: смужку VoiceOver не читає вдруге */}
-          <Bar progress={nextIdx / session.ids.length} color={C.accent} bg={C.card2} height={6} decorative />
+          <Bar progress={nextIdx / session.ids.length} color={C.text} bg={C.soft} height={4} decorative />
         </View>
         <Text style={s.progress}>
           {nextIdx + 1} / {session.ids.length}
@@ -515,7 +520,7 @@ export default function FlashcardsScreen({
             дочитав би зворот ще до перевороту, а після нього курсор лишився б
             на картці, яка зникла. */}
         <Animated.View
-          style={[s.card, SHADOW, frontStyle]}
+          style={[s.card, SHADOW_LG, frontStyle]}
           pointerEvents={flipped || hold ? 'none' : 'auto'}
           accessibilityElementsHidden={flipped}
           importantForAccessibility={flipped ? 'no-hide-descendants' : 'auto'}
@@ -533,14 +538,14 @@ export default function FlashcardsScreen({
             <Text style={s.cardWord}>{current.word}</Text>
             {current.ipa ? <Text style={s.cardIpa}>{current.ipa}</Text> : null}
             <Press style={s.speakBtn} onPress={() => speak(current.word, current.lang)} accessibilityLabel={t('listen')}>
-              <IcSpeaker size={22} color={C.accent} />
+              <IcSpeaker size={22} color={C.dim} />
             </Press>
             <Text style={s.tapHint}>{t('tapFlip')}</Text>
           </Press>
         </Animated.View>
 
         <Animated.View
-          style={[s.card, SHADOW, backStyle]}
+          style={[s.card, SHADOW_LG, backStyle]}
           pointerEvents={flipped && !hold ? 'auto' : 'none'}
           accessibilityElementsHidden={!flipped}
           importantForAccessibility={flipped ? 'auto' : 'no-hide-descendants'}
@@ -600,7 +605,7 @@ export default function FlashcardsScreen({
         </View>
       ) : (
         <View style={s.answerRow} pointerEvents={hold ? 'none' : 'auto'} testID="fc-answers">
-          <Press style={[s.answerBtn, { backgroundColor: C.card2 }]} onPress={() => doFlip(true)}>
+          <Press style={[s.answerBtn, s.answerGlass]} onPress={() => doFlip(true)}>
             <Text style={s.answerText}>{t('showAnswer')}</Text>
           </Press>
         </View>
@@ -661,7 +666,7 @@ function HubCard({ Icon, title, hint, locked, unlocking, badge = 0, progress, on
             <View style={[StyleSheet.absoluteFill, s.hubIconLocked]} />
             <Animated.View style={[StyleSheet.absoluteFill, s.hubIconOpen, { opacity: tint }]} />
             <View>
-              <Icon size={26} color={locked && !flying ? C.faint : C.accent} />
+              <Icon size={24} color={locked && !flying ? C.faint : C.text} />
             </View>
             {unlocking ? (
               <>
@@ -674,13 +679,13 @@ function HubCard({ Icon, title, hint, locked, unlocking, badge = 0, progress, on
               </>
             ) : null}
           </View>
-          <View style={{ flex: 1 }}>
+          <View style={{ flex: 1, paddingRight: 18 }}>
             <Text style={[s.hubCardTitle, locked && { color: C.dim }]}>{title}</Text>
             <Text style={s.hubCardHint}>{hint}</Text>
             {progress ? (
               <View style={s.dashes} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" testID="quiz-progress">
                 {Array.from({ length: progress.need }, (_, i) => (
-                  <View key={i} testID={i < progress.have ? 'dash-on' : 'dash-off'} style={[s.dash, { backgroundColor: i < progress.have ? C.accent : C.card3 }]} />
+                  <View key={i} testID={i < progress.have ? 'dash-on' : 'dash-off'} style={[s.dash, { backgroundColor: i < progress.have ? C.text : C.soft }]} />
                 ))}
               </View>
             ) : null}
@@ -696,9 +701,7 @@ function HubCard({ Icon, title, hint, locked, unlocking, badge = 0, progress, on
                   <Text style={s.dueBadgeText}>{badge}</Text>
                 </View>
               ) : null}
-              <View style={{ transform: [{ rotate: '-90deg' }] }}>
-                <IcChevron color={C.faint} />
-              </View>
+              <CardArrow />
             </>
           )}
           {unlocking ? (
@@ -773,7 +776,9 @@ const makeStyles = (C) =>
       flexDirection: 'row',
       alignItems: 'center',
       gap: 5,
-      backgroundColor: C.accentSoft,
+      backgroundColor: C.glass,
+      borderWidth: 1,
+      borderColor: C.glassBorder,
       borderRadius: R.pill,
       paddingHorizontal: 11,
       paddingVertical: 6,
@@ -798,16 +803,16 @@ const makeStyles = (C) =>
     note: { color: C.dim, ...type(13, F.reg), textAlign: 'center', marginTop: 6 },
 
     hubCard: {
-      backgroundColor: C.card,
-      borderRadius: R.lg,
+      backgroundColor: C.glass,
+      borderRadius: R.xl,
       padding: 16,
       flexDirection: 'row',
       alignItems: 'center',
       gap: 14,
       marginBottom: 12,
       // рамка є завжди (прозора), щоб «Відкрито!» не зсував вміст
-      borderWidth: 2,
-      borderColor: 'transparent',
+      borderWidth: 1,
+      borderColor: C.glassBorder,
     },
     hubCardOpen: { borderColor: C.accent },
     hubIconWrap: {
@@ -817,31 +822,31 @@ const makeStyles = (C) =>
       alignItems: 'center',
       justifyContent: 'center',
     },
-    hubIconLocked: { borderRadius: 12, backgroundColor: C.card2 },
-    hubIconOpen: { borderRadius: 12, backgroundColor: C.accentSoft },
+    hubIconLocked: { borderRadius: 12, backgroundColor: C.soft },
+    hubIconOpen: { borderRadius: 12, backgroundColor: C.soft },
     sparkA: { position: 'absolute', top: -7, left: -6 },
     sparkB: { position: 'absolute', bottom: -4, left: -8 },
-    lock: { width: 32, height: 32, borderRadius: 16, backgroundColor: C.card2, alignItems: 'center', justifyContent: 'center' },
+    lock: { width: 32, height: 32, borderRadius: 16, backgroundColor: C.soft, alignItems: 'center', justifyContent: 'center' },
     dashes: { flexDirection: 'row', gap: 6, marginTop: 8 },
-    dash: { width: 22, height: 4, borderRadius: 2 },
+    dash: { width: 22, height: 3, borderRadius: 2 },
     unlockedWrap: { position: 'absolute', top: -12, right: 14 },
     // зелений — колір успіху; дрібний текст — темним зеленим на м'якому
     // (білий на чистому green — лише 4,1:1)
     unlocked: { backgroundColor: C.greenSoft, borderRadius: R.pill, paddingHorizontal: 10, paddingVertical: 3 },
     unlockedText: { color: C.greenInk, ...type(12, F.extra, { noLead: true }) },
 
-    how: { backgroundColor: C.card, borderRadius: R.xl, padding: 16, gap: 14, borderWidth: 2, borderColor: 'transparent', marginBottom: 12 },
+    how: { backgroundColor: C.glass, borderRadius: R.xl, padding: 16, gap: 14, borderWidth: 1, borderColor: C.glassBorder, marginBottom: 12 },
     howGlow: { borderColor: C.accent },
     howTitle: { color: C.text, ...type(17, F.extra) },
     howText: { color: C.dim, ...type(14, F.reg), marginTop: 2 },
     howNote: { color: C.dim, ...type(13, F.semi), textAlign: 'center' },
     howBtns: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
     howBtnWrap: { flexGrow: 1 },
-    howBtn: { minHeight: 46, borderRadius: R.md, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+    howBtn: { minHeight: 48, borderRadius: R.pill, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
     howBtnText: { ...type(15, F.extra, { noLead: true }), flexShrink: 1 },
     scanPro: { flexGrow: 1, minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
     scanProText: { color: C.accent, ...type(15, F.bold, { noLead: true }) },
-    tip: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: C.card2, borderRadius: R.lg, paddingHorizontal: 16, paddingVertical: 13, borderWidth: 2, borderColor: 'transparent', marginBottom: 12 },
+    tip: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: C.glass, borderRadius: R.xl, paddingHorizontal: 16, paddingVertical: 13, borderWidth: 1, borderColor: C.glassBorder, marginBottom: 12 },
     tipGlow: { borderColor: C.accent },
     tipText: { color: C.dim, ...type(14, F.reg), flex: 1 },
     glowRing: { position: 'absolute', borderWidth: 2, borderColor: C.accent, borderRadius: R.xl + 3 },
@@ -850,7 +855,7 @@ const makeStyles = (C) =>
     hubCardTitle: { color: C.text, ...type(17, F.semi) },
     hubCardHint: { color: C.dim, ...type(13, F.reg), marginTop: 1 },
     dueBadge: {
-      backgroundColor: C.accent,
+      backgroundColor: C.soft,
       borderRadius: R.pill,
       minWidth: 26,
       height: 26,
@@ -858,7 +863,7 @@ const makeStyles = (C) =>
       justifyContent: 'center',
       paddingHorizontal: 8,
     },
-    dueBadgeText: { color: C.onAccent, ...type(13, F.bold, { noLead: true }) },
+    dueBadgeText: { color: C.text, ...type(13, F.bold, { noLead: true }) },
 
     top: { flexDirection: 'row', alignItems: 'center', gap: 14 },
     // табличні цифри — лічильник не стрибає по ширині від картки до картки
@@ -867,16 +872,20 @@ const makeStyles = (C) =>
     cardWrap: { flex: 1, marginVertical: 16 },
     card: {
       ...StyleSheet.absoluteFill,
-      backgroundColor: C.card,
-      borderRadius: R.xl,
+      backgroundColor: C.glassStrong,
+      borderWidth: 1,
+      borderColor: C.glassBorder,
+      borderRadius: R.sheet,
       backfaceVisibility: 'hidden',
     },
     cardInner: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
-    cardWord: { color: C.text, ...type(38, F.bold), textAlign: 'center' },
-    cardIpa: { color: C.dim, ...type(17, F.ipa), fontWeight: '500', marginTop: 8 },
+    cardWord: { color: C.text, ...display(48), textAlign: 'center' },
+    cardIpa: { color: C.accent, ...type(17, F.ipa), fontWeight: '500', marginTop: 8 },
     speakBtn: {
       marginTop: 20,
-      backgroundColor: C.card2,
+      backgroundColor: C.glass,
+      borderWidth: 1,
+      borderColor: C.glassBorder,
       width: 50,
       height: 50,
       borderRadius: 25,
@@ -886,12 +895,13 @@ const makeStyles = (C) =>
     tapHint: { color: C.dim, ...type(12, F.reg), position: 'absolute', bottom: 18 },
     backWordRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
     backWord: { color: C.dim, ...type(17, F.semi), textAlign: 'center', flexShrink: 1 },
-    backSpeak: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: C.card2 },
-    cardTranslation: { color: C.text, ...type(28, F.bold), textAlign: 'center' },
-    exampleBox: { marginTop: 24, backgroundColor: C.card2, borderRadius: R.md, padding: 14, alignSelf: 'stretch' },
+    backSpeak: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: C.soft },
+    cardTranslation: { color: C.text, ...display(32), textAlign: 'center' },
+    exampleBox: { marginTop: 24, backgroundColor: C.soft, borderRadius: R.md, padding: 14, alignSelf: 'stretch' },
     example: { color: C.text, ...type(15, F.reg), textAlign: 'center' },
     exampleTr: { color: C.dim, ...type(13, F.reg), marginTop: 6, textAlign: 'center' },
     answerRow: { flexDirection: 'row', gap: 12 },
-    answerBtn: { flex: 1, paddingVertical: 16, borderRadius: R.md, alignItems: 'center' },
+    answerBtn: { flex: 1, paddingVertical: 16, borderRadius: R.pill, alignItems: 'center' },
+    answerGlass: { backgroundColor: C.glass, borderWidth: 1, borderColor: C.hairline },
     answerText: { color: C.text, ...type(17, F.semi, { noLead: true }) },
   });

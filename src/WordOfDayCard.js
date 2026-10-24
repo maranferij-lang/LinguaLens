@@ -23,14 +23,13 @@ import { ActivityIndicator, Animated, AppState, Pressable, ScrollView, StyleShee
 import * as Haptics from 'expo-haptics';
 import { speak } from './speech';
 import { IcCheck, IcChevron, IcLock, IcSpeaker } from './icons';
-import { Mascot } from './Mascot';
-import { FadeIn, Press } from './ui';
+import { FadeIn, Glass, Press } from './ui';
 import { DUR, EASE, announce, layoutNext, useAnnounce, useReducedMotion } from './motion';
 import { cefrFor } from './profile';
 import { todaySlots } from './wordOfDay';
 import { hasWord } from './scene/scenes';
 import { hourLabel } from './widgets/format';
-import { CAPS, F, R, ipaFont, type, useTheme, fw } from './theme';
+import { CAPS, F, R, display, ipaFont, type, useTheme, fw } from './theme';
 import { quote } from './share/layout';
 
 // Спільне сховище слотів: пише useWodSlots (App), читає картка. null — одне
@@ -144,7 +143,7 @@ export default function WordOfDayCard({
 }) {
   const fromApp = useSharedWodSlots();
   const slots = slotsProp === undefined ? fromApp : slotsProp;
-  const { C, SHADOW } = useTheme();
+  const { C } = useTheme();
   const s = useMemo(() => makeStyles(C), [C]);
   const reduce = useReducedMotion();
   const [open, setOpen] = useState(false);
@@ -256,7 +255,6 @@ export default function WordOfDayCard({
         {w.ipa ? <Text style={s.ipa}>{w.ipa}</Text> : null}
         <Text style={s.translation}>{w.translation}</Text>
       </View>
-      {multi ? null : <Mascot pose="think" size={62} />}
     </View>
   );
 
@@ -265,7 +263,7 @@ export default function WordOfDayCard({
       {/* Уся картка — ціль для пальця, але не для VoiceOver: інакше «Слухати»
           й «Зберегти» злились би з нею в один елемент. Розгортає рядок зі словом. */}
       <Press onPress={toggle} style={{ marginBottom: 12 }} accessible={false}>
-        <View style={[s.card, SHADOW]}>
+        <Glass hero style={s.card}>
           <View style={s.head}>
             <View style={s.badge}>
               <Text style={s.badgeText} numberOfLines={1} accessibilityLabel={capsLabel}>
@@ -307,7 +305,6 @@ export default function WordOfDayCard({
                   ))}
                 </ScrollView>
               </View>
-              <Mascot pose="think" size={62} />
             </View>
           ) : (
             // key — нове слово після «Знаю» мʼяко проявляється, а не підміняється
@@ -368,7 +365,7 @@ export default function WordOfDayCard({
               й «Зберегти» мали місце для слів навіть німецькою. */}
           <View style={s.actions}>
             <Press style={s.listenBtn} onPress={() => speak(cur.word, lang)} accessibilityLabel={t('listen')}>
-              <IcSpeaker size={19} color={C.accent} />
+              <IcSpeaker size={19} color={C.text} />
             </Press>
 
             {onKnow || multi ? (
@@ -440,7 +437,7 @@ export default function WordOfDayCard({
               </View>
             </FadeIn>
           ) : null}
-        </View>
+        </Glass>
       </Press>
     </FadeIn>
   );
@@ -448,30 +445,26 @@ export default function WordOfDayCard({
 
 const makeStyles = (C) =>
   StyleSheet.create({
-    card: { backgroundColor: C.card, borderRadius: R.xl, padding: 16 },
+    card: { padding: 18 },
     head: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
     badge: {
       flexShrink: 1,
-      backgroundColor: C.accentSoft,
-      borderRadius: R.pill,
-      paddingHorizontal: 10,
-      paddingVertical: 4,
     },
     // Кепс задає стиль: тема приходить звичайним словом («Фінанси»)
-    badgeText: { color: C.accent, ...CAPS, letterSpacing: 0.5 },
+    badgeText: { color: C.dim, ...CAPS },
     // крапки слотів: відкриті — акцент (поточна — довша), майбутні — порожні
     dots: { flexDirection: 'row', alignItems: 'center', marginTop: 8, marginLeft: -2.5 },
     dotHit: { height: 24, justifyContent: 'center', paddingHorizontal: 2.5 },
     dot: { height: 7, borderRadius: 3.5 },
     dotOn: { width: 16, backgroundColor: C.accent },
-    dotOpen: { width: 7, backgroundColor: C.accent, opacity: 0.4 },
-    dotLocked: { width: 7, backgroundColor: C.card3 },
+    dotOpen: { width: 7, backgroundColor: C.text, opacity: 0.35 },
+    dotLocked: { width: 7, backgroundColor: C.soft },
     slotText: { color: C.dim, ...type(12, F.bold, { noLead: true }), marginLeft: 6, fontVariant: ['tabular-nums'] },
     pagerRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-    word: { color: C.text, fontSize: 26, ...fw(F.extra) },
-    ipa: { color: C.dim, fontSize: 14, ...ipaFont('500'), marginTop: 2 },
-    translation: { color: C.text, opacity: 0.8, fontSize: 16, ...fw(F.semi), marginTop: 4 },
+    word: { color: C.text, ...display(40) },
+    ipa: { color: C.accent, fontSize: 15, ...ipaFont('500'), marginTop: 4 },
+    translation: { color: C.text, fontSize: 17, ...fw(F.semi), marginTop: 6 },
     locked: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -480,21 +473,24 @@ const makeStyles = (C) =>
       paddingVertical: 9,
       paddingHorizontal: 12,
       borderRadius: R.md,
-      backgroundColor: C.card2,
+      backgroundColor: C.soft,
     },
     lockedText: { flex: 1, color: C.dim, ...type(13, F.semi) },
     details: { marginTop: 14 },
-    exampleBox: { backgroundColor: C.card2, borderRadius: R.md, padding: 13, paddingRight: 30 },
+    exampleBox: { backgroundColor: C.soft, borderRadius: R.md, padding: 13, paddingRight: 30 },
     exampleSpeaker: { position: 'absolute', top: 10, right: 10 },
-    example: { color: C.text, fontSize: 15, lineHeight: 21, ...fw(F.reg) },
+    example: { color: C.dim, fontSize: 15, lineHeight: 21, ...fw(F.reg), fontStyle: 'italic' },
     exampleTr: { color: C.dim, fontSize: 13, marginTop: 5, lineHeight: 18, ...fw(F.reg) },
     actions: { flexDirection: 'row', gap: 10, marginTop: 12 },
     listenBtn: {
       width: 48,
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: C.accentSoft,
-      borderRadius: R.md,
+      backgroundColor: C.glass,
+      borderWidth: 1,
+      borderColor: C.hairline,
+      borderRadius: R.pill,
+      minHeight: 48,
     },
     actionBtn: {
       flex: 1,
@@ -502,16 +498,18 @@ const makeStyles = (C) =>
       alignItems: 'center',
       justifyContent: 'center',
       gap: 6,
-      backgroundColor: C.card2,
-      borderRadius: R.md,
+      backgroundColor: C.glass,
+      borderWidth: 1,
+      borderColor: C.hairline,
+      borderRadius: R.pill,
       paddingVertical: 12,
       paddingHorizontal: 8,
-      minHeight: 46,
+      minHeight: 48,
     },
-    saveBtn: { backgroundColor: C.accent },
+    saveBtn: { backgroundColor: C.accent, borderColor: C.accent, shadowColor: C.accent, shadowOpacity: 0.3, shadowRadius: 12, shadowOffset: { width: 0, height: 4 } },
     savedBtn: { gap: 4, paddingHorizontal: 6 },
     savedWrap: { flex: 1 },
-    actionText: { color: C.text, fontSize: 15, ...fw(F.bold) },
+    actionText: { color: C.text, fontSize: 15, ...fw(F.semi) },
     note: { color: C.dim, ...type(13, F.semi), marginTop: 10, textAlign: 'center' },
 
     offer: { marginTop: 12, backgroundColor: C.accentSoft, borderRadius: R.md, padding: 14 },
@@ -519,11 +517,11 @@ const makeStyles = (C) =>
     offerBtns: { flexDirection: 'row', gap: 10, marginTop: 12 },
     offerBtn: {
       flex: 1,
-      minHeight: 42,
+      minHeight: 44,
       alignItems: 'center',
       justifyContent: 'center',
-      borderRadius: R.sm,
-      backgroundColor: C.card,
+      borderRadius: R.pill,
+      backgroundColor: C.glass,
       paddingHorizontal: 8,
     },
     offerYes: { backgroundColor: C.accent },

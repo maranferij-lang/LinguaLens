@@ -133,8 +133,9 @@ describe('language chips', () => {
 
   test('the Words/Collection tabs reach 44 pt with their hit area', async () => {
     const tree = await render();
-    const list = tab(tree, t('viewList'));
-    expect(list.props.hitSlop).toMatchObject({ top: 5, bottom: 5 });
+    // Segmented з ui.js: Press сам добирає hitSlop (6 pt) до зони 44 pt
+    const list = tree.root.findAll((n) => n.props.hitSlop && n.findAll((c) => hasText(c, t('viewList'))).length > 0);
+    expect(list.some((n) => n.props.hitSlop === 6 || n.props.hitSlop?.top === 6)).toBe(true);
   });
 });
 

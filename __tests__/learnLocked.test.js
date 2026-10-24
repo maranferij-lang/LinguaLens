@@ -11,6 +11,8 @@ import App from '../App';
 import FlashcardsScreen, { GLOW_MS, UNLOCK_MS } from '../src/FlashcardsScreen';
 import QuizScreen, { quizProgress } from '../src/QuizScreen';
 import { makeT } from '../src/i18n';
+import { THEMES } from '../src/theme';
+const C = THEMES.light.C;
 import { localDayKey } from '../src/storage';
 
 jest.setTimeout(20000);
@@ -100,13 +102,13 @@ test('no words: both cards are there, locked, and say how to unlock them', async
 test('a tap on a locked card lights up the way to unlock it for a moment', async () => {
   const tree = await render({});
   const how = () => tree.root.findAll((n) => n.props.testID === 'learn-how' && n.type === 'View')[0];
-  expect(flat(how().props.style).borderColor).toBe('transparent');
+  expect(flat(how().props.style).borderColor).toBe(C.glassBorder);
   await press(() => card(tree, 'hub-cards').props.onPress());
-  expect(flat(how().props.style).borderColor).not.toBe('transparent');
+  expect(flat(how().props.style).borderColor).not.toBe(C.glassBorder);
   await act(async () => {
     await new Promise((r) => setTimeout(r, GLOW_MS + 30));
   });
-  expect(flat(how().props.style).borderColor).toBe('transparent');
+  expect(flat(how().props.style).borderColor).toBe(C.glassBorder);
   await act(async () => tree.unmount());
 });
 

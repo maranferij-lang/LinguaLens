@@ -30,14 +30,14 @@ export default function RiskBanner({ n, lang, ctaLabel, onCta, t, style }) {
   return (
     <View
       testID="risk-banner"
-      style={[{ backgroundColor: C.flameSoft, borderRadius: R.xl, padding: 16, marginBottom: 14 }, style]}
+      style={[{ backgroundColor: C.flameSoft, borderWidth: 1, borderColor: C.glassBorder, borderRadius: R.xl, padding: 16, marginBottom: 12 }, style]}
     >
       <View style={{ flexDirection: 'row', gap: 12 }} accessible accessibilityLabel={`${t('streakRiskTitle', { n })}. ${t('streakRiskBody', { t: left })}`}>
         <View style={{ width: 44, alignItems: 'center', paddingTop: 2 }}>
           <Flame n={n} size={38} pending breathe={false} />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={{ color: C.text, ...type(16, F.extra) }}>{t('streakRiskTitle', { n })}</Text>
+          <Text style={{ color: C.text, ...type(16, F.semi) }}>{t('streakRiskTitle', { n })}</Text>
           <Text style={{ color: C.dim, ...type(14, F.reg), marginTop: 2 }}>{t('streakRiskBody', { t: left })}</Text>
         </View>
       </View>

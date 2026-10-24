@@ -616,13 +616,13 @@ describe('dictionary on a small phone', () => {
     await act(async () => tree.unmount());
   });
 
-  test('the collection is the same list, three stickers a row', async () => {
+  test('the collection is the same list, two stickers a row', async () => {
     const tree = await render(<DictionaryScreen words={words(['es'])} onDelete={() => {}} t={t} />);
     const seg = tree.root.findAll((n) => n.props.accessibilityRole === 'tab' && typeof n.props.onPress === 'function');
-    await press(() => seg[1].props.onPress());
+    await press(() => seg.at(-1).props.onPress());
     const list = tree.root.findByType(FlatList);
-    expect(list.props.data).toHaveLength(1 + 5); // панель + 5 рядків по три (14 слів)
-    expect(list.props.data[5]).toHaveLength(2);
+    expect(list.props.data).toHaveLength(1 + 7); // панель + 7 рядків по два (14 слів)
+    expect(list.props.data[7]).toHaveLength(2);
     await press(() => seg[0].props.onPress());
     await act(async () => tree.unmount());
   });

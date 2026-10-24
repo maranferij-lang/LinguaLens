@@ -91,24 +91,24 @@ export function WidgetTip({ onHide, t }) {
 const makeStyles = (C) =>
   StyleSheet.create({
     // м'який акцентний фон, як у підказки про вхід у Словнику
-    tip: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.accentSoft, borderRadius: R.lg, marginBottom: 12 },
+    tip: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.glass, borderWidth: 1, borderColor: C.glassBorder, borderRadius: R.xl, marginBottom: 12 },
     tipMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13, paddingLeft: 13 },
     tipIcon: {
       width: 38,
       height: 38,
       borderRadius: 12,
-      backgroundColor: C.card,
+      backgroundColor: C.accentSoft,
       alignItems: 'center',
       justifyContent: 'center',
     },
-    tipTitle: { color: C.text, ...type(15, F.bold) },
+    tipTitle: { color: C.text, ...type(15, F.semi) },
     tipText: { color: C.dim, ...type(13, F.reg), marginTop: 2 },
     hide: { width: 44, minHeight: 44, alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center' },
 
-    widget: { backgroundColor: C.card, borderRadius: R.lg, padding: 14, paddingRight: 0, marginBottom: 12 },
+    widget: { backgroundColor: C.glass, borderWidth: 1, borderColor: C.glassBorder, borderRadius: R.xl, padding: 14, paddingRight: 0, marginBottom: 12 },
     widgetHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
     // картка біла — значок на мʼякому акценті (у підказки про профіль навпаки)
-    widgetIcon: { backgroundColor: C.accentSoft },
-    widgetTitle: { flex: 1, color: C.text, ...type(16, F.bold) },
+    widgetIcon: { backgroundColor: C.soft },
+    widgetTitle: { flex: 1, color: C.text, ...type(16, F.semi) },
     steps: { marginTop: 14, paddingLeft: 6, paddingRight: 14 },
   });
