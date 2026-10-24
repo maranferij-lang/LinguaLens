@@ -23,9 +23,9 @@ import {
   IcHome,
   IcPlane,
 } from './icons';
-import { FadeIn, Press } from './ui';
+import { FadeIn, Press, ScreenBackground } from './ui';
 import { DUR, EASE, SPRING, useReducedMotion, useScreenReader } from './motion';
-import { F, R, type, useTheme, fw } from './theme';
+import { F, R, display, type, useTheme, fw } from './theme';
 
 // Порядок кроків для цих цілей. Сфера — лише тим, хто вчить для роботи чи
 // навчання; «звідки дізнались» — лише в онбордингу.
@@ -160,6 +160,7 @@ export function StepFrame({ stepKey, progress, onBack, right, header, title, tex
   const dy = direction === 'fade' ? 0 : 10;
   return (
     <View style={s.frame}>
+      <ScreenBackground />
       <View style={s.bar}>
         {onBack ? (
           <Press
@@ -569,13 +570,14 @@ export function LevelBody({ value, onChange, lang, t }) {
 const makeStyles = (C) =>
   StyleSheet.create({
     frame: { flex: 1, backgroundColor: C.bg },
+    // тонка монохромна доріжка: C.soft, акцент лише у заповненні
     bar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingTop: 8, height: 52, gap: 8 },
     barBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
     barRight: { minWidth: 44, alignItems: 'flex-end', justifyContent: 'center' },
-    progress: { flex: 1, height: 4, borderRadius: 2, backgroundColor: C.card3, overflow: 'hidden', marginHorizontal: 6 },
-    progressFill: { height: 4, width: '100%', borderRadius: 2, backgroundColor: C.accent },
+    progress: { flex: 1, height: 3, borderRadius: 2, backgroundColor: C.soft, overflow: 'hidden', marginHorizontal: 6 },
+    progressFill: { height: 3, width: '100%', borderRadius: 2, backgroundColor: C.accent },
     acts: { flex: 1, flexDirection: 'row', gap: 6, marginHorizontal: 6 },
-    segment: { flex: 1, height: 4, borderRadius: 2, backgroundColor: C.card3, overflow: 'hidden' },
+    segment: { flex: 1, height: 3, borderRadius: 2, backgroundColor: C.soft, overflow: 'hidden' },
     skip: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 8 },
     // dim, а не faint: «Пропустити» — єдиний вихід з непотрібного питання,
     // і він мусить читатися (≥ 4.5:1 в обох темах)
@@ -584,14 +586,17 @@ const makeStyles = (C) =>
       width: 36,
       height: 36,
       borderRadius: 18,
-      backgroundColor: C.card2,
+      backgroundColor: C.glass,
+      borderWidth: 1,
+      borderColor: C.glassBorder,
       alignItems: 'center',
       justifyContent: 'center',
       marginRight: 4,
     },
 
     body: { paddingHorizontal: 24, paddingTop: 14, paddingBottom: BODY_PAD },
-    title: { color: C.text, ...type(28, F.extra) },
+    // світлий дисплейний заголовок (вага 300)
+    title: { color: C.text, ...display(30) },
     titleRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     // над кнопкою, низом — за нею: те, що визирає, ховає ноги за кнопкою
     peek: { position: 'absolute', left: 0, right: 0, bottom: '100%' },
@@ -603,7 +608,9 @@ const makeStyles = (C) =>
       alignItems: 'center',
       alignSelf: 'flex-start',
       gap: 7,
-      backgroundColor: C.card,
+      backgroundColor: C.glass,
+      borderWidth: 1,
+      borderColor: C.glassBorder,
       borderRadius: R.pill,
       paddingHorizontal: 12,
       paddingVertical: 6,
@@ -612,23 +619,24 @@ const makeStyles = (C) =>
     // кнопка: ціль не менша за 44 pt, «змінити» — акцентом, як посилання
     langBtn: { minHeight: 44, paddingLeft: 14, paddingRight: 10, gap: 6 },
     langFlag: { fontSize: 16 },
-    langName: { color: C.text, ...type(14, F.bold, { noLead: true }) },
+    langName: { color: C.text, ...type(14, F.semi, { noLead: true }) },
     langChange: { color: C.accent, ...type(13, F.semi, { noLead: true }), marginLeft: 2 },
 
     option: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 14,
-      backgroundColor: C.card,
-      borderRadius: R.lg,
+      backgroundColor: C.glass,
+      borderRadius: R.xl,
       // щільніше, щоб на SE всі пʼять цілей влазили без прокрутки; рядок
       // однаково вищий за 44 pt
       paddingVertical: 9,
       paddingHorizontal: 14,
-      borderWidth: 2,
-      borderColor: 'transparent',
+      borderWidth: 1.5,
+      borderColor: C.glassBorder,
     },
-    optionOn: { borderColor: C.accent },
+    // вибране: акцентна кромка + м'яка акцентна заливка
+    optionOn: { borderColor: C.accent, backgroundColor: C.accentSoft },
     optIcon: {
       width: 40,
       height: 40,
@@ -638,13 +646,13 @@ const makeStyles = (C) =>
       justifyContent: 'center',
     },
     optIconOn: { backgroundColor: C.accent },
-    optText: { flex: 1, color: C.text, ...type(17, F.bold) },
+    optText: { flex: 1, color: C.text, ...type(17, F.semi) },
     check: {
       width: 24,
       height: 24,
       borderRadius: 12,
-      borderWidth: 2,
-      borderColor: C.card3,
+      borderWidth: 1.5,
+      borderColor: C.hairline,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -656,30 +664,30 @@ const makeStyles = (C) =>
       justifyContent: 'center',
       paddingHorizontal: 16,
       paddingVertical: 10,
-      borderRadius: R.md,
-      backgroundColor: C.card,
-      borderWidth: 2,
-      borderColor: 'transparent',
+      borderRadius: R.pill,
+      backgroundColor: C.glass,
+      borderWidth: 1.5,
+      borderColor: C.glassBorder,
     },
     // дві колонки: 12 сфер — шість рівних рядів, а не рвана хмара
     chipHalf: { flexBasis: '47%', flexGrow: 1 },
     chipOn: { borderColor: C.accent, backgroundColor: C.accentSoft },
-    chipText: { color: C.text, ...type(16, F.semi), textAlign: 'center' },
-    chipTextOn: { color: C.accent, ...fw(F.extra) },
+    chipText: { color: C.text, ...type(16, F.reg), textAlign: 'center' },
+    chipTextOn: { color: C.accent, ...fw(F.semi) },
 
     result: { marginTop: 14, alignItems: 'center', minHeight: 72 },
-    levelName: { color: C.text, ...type(26, F.extra), textAlign: 'center' },
+    levelName: { color: C.text, ...display(34), textAlign: 'center' },
     levelDesc: { color: C.dim, ...type(15, F.semi), textAlign: 'center', marginTop: 2 },
 
     input: {
-      backgroundColor: C.card,
-      borderRadius: R.lg,
-      borderWidth: 2,
+      backgroundColor: C.glass,
+      borderRadius: R.xl,
+      borderWidth: 1.5,
       borderColor: C.accent,
       paddingHorizontal: 18,
       paddingVertical: 16,
       color: C.text,
-      ...type(20, F.bold, { noLead: true }),
+      ...type(20, F.semi, { noLead: true }),
       // власна рамка поля вже показує фокус — системний контур не потрібен
       outlineWidth: 0,
     },

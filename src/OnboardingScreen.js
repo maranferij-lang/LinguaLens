@@ -57,7 +57,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { FadeIn, GradBtn, Press } from './ui';
+import { FadeIn, GradBtn, Press, ScreenBackground } from './ui';
 import { DEFAULT_HOUR, permissionStatus, requestPermission } from './wordOfDay';
 import { AppIcon } from './Logo';
 import { MascotBob, MascotLive } from './Mascot';
@@ -948,6 +948,7 @@ export default function OnboardingScreen({
     );
     return (
       <View style={s.root}>
+        <ScreenBackground />
         <View style={s.brand}>
           <AppIcon size={30} />
           <Text style={s.brandName}>LinguaLens</Text>
@@ -957,7 +958,7 @@ export default function OnboardingScreen({
           <HelloBubble text={hello} size={size.hello} />
           <FadeIn delay={320} testID="welcome-title">
             <Text
-              style={[s.heroTitle, type(size.title, F.extra), { maxWidth: size.titleWidth }]}
+              style={[s.heroTitle, type(size.title, F.reg), { maxWidth: size.titleWidth }]}
               maxFontSizeMultiplier={WELCOME_FONT_MAX}
               accessibilityRole="header"
             >
@@ -1027,7 +1028,7 @@ export default function OnboardingScreen({
       <View>
         <Text style={s.section}>{t('obNativeLabel')}</Text>
         <Pressable
-          style={({ pressed }) => [s.nativeCard, pressed && { backgroundColor: C.card2 }]}
+          style={({ pressed }) => [s.nativeCard, pressed && { backgroundColor: C.soft }]}
           onPress={() => {
             Haptics.selectionAsync();
             setNativeOpen(true);
@@ -1405,22 +1406,24 @@ const makeStyles = (C) =>
   StyleSheet.create({
     root: { flex: 1, backgroundColor: C.bg },
     brand: { flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 20, paddingTop: 14 },
-    brandName: { color: C.text, ...type(17, F.extra, { noLead: true }) },
+    brandName: { color: C.text, ...type(17, F.semi, { noLead: true }) },
     hero: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: WELCOME_PAD },
     heroTitle: { color: C.text, textAlign: 'center', marginTop: 16 },
     heroFooter: { paddingHorizontal: 24, paddingTop: 8, paddingBottom: 24 },
     later: { alignItems: 'center', justifyContent: 'center', minHeight: 48 },
-    laterText: { color: C.dim, ...type(16, F.bold, { noLead: true }) },
+    laterText: { color: C.dim, ...type(16, F.semi, { noLead: true }) },
     usedText: { color: C.dim, ...type(14, F.semi), textAlign: 'center', paddingHorizontal: 6 },
-    tryHint: { color: C.accent, ...type(14, F.bold), textAlign: 'center', marginTop: 12 },
+    tryHint: { color: C.accent, ...type(14, F.semi), textAlign: 'center', marginTop: 12 },
     // Підпис секції на кроці мови: «Моя рідна мова» / «Мова, яку я вчу» —
     // рівня вище за «Популярні» й «Усі мови» всередині списку
-    section: { color: C.text, ...type(17, F.extra), marginBottom: 10, marginLeft: 2 },
+    section: { color: C.text, ...type(17, F.semi), marginBottom: 10, marginLeft: 2 },
     nativeCard: {
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: C.card,
-      borderRadius: R.lg,
+      backgroundColor: C.glass,
+      borderWidth: 1,
+      borderColor: C.glassBorder,
+      borderRadius: R.xl,
       paddingHorizontal: 16,
       paddingVertical: 12,
       minHeight: 56,
@@ -1428,6 +1431,6 @@ const makeStyles = (C) =>
     nativeRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
     nativeFlag: { fontSize: 22 },
     wodLingo: { alignItems: 'center', marginTop: -6, marginBottom: -20, zIndex: 0 },
-    nativeName: { flexShrink: 1, color: C.text, ...type(17, F.bold, { noLead: true }) },
-    nativeChange: { color: C.accent, ...type(15, F.bold, { noLead: true }), marginLeft: 10 },
+    nativeName: { flexShrink: 1, color: C.text, ...type(17, F.semi, { noLead: true }) },
+    nativeChange: { color: C.accent, ...type(15, F.semi, { noLead: true }), marginLeft: 10 },
   });

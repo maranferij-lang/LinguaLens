@@ -32,12 +32,12 @@ import { useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { LANGS, flagFor, nameFor } from './speech';
-import { Press } from './ui';
+import { GlassSheet, Press } from './ui';
 import { langSections, optionLabel, sortLangs } from './langPick';
 import { expandOptions, optionKey, parseOption, variantOf } from './langVariants';
 import { phoneUiLang } from './locale';
 import { IcCheck, IcClose, IcSearch } from './icons';
-import { CAPS, F, R, type, useTheme } from './theme';
+import { CAPS, F, R, display, type, useTheme } from './theme';
 
 // Порядок рядків старого аркуша: поточна згори, мова перекладів прихована.
 // Лишається для тих, хто будує свій список (і для старих тестів).
@@ -74,7 +74,7 @@ function LangRow({ code: key, ui, t, on, disabled, locked, note, onPress, first,
   return (
     <Pressable
       testID={'lang-' + key}
-      style={({ pressed }) => [s.row, !first && s.rowSep, on && s.rowOn, pressed && !disabled && !on && { backgroundColor: C.card2 }, disabled && s.rowOff]}
+      style={({ pressed }) => [s.row, !first && s.rowSep, on && s.rowOn, pressed && !disabled && !on && { backgroundColor: C.soft }, disabled && s.rowOff]}
       onPress={disabled ? undefined : () => onPress(key)}
       disabled={disabled}
       accessibilityRole="radio"
@@ -249,8 +249,7 @@ export default function LangSheet({ visible, current, variant = null, native, ot
           хрестик і жест виходу. */}
       <Pressable style={s.backdrop} onPress={onClose} accessible={false} />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={s.kav} pointerEvents="box-none">
-        <View style={s.sheet} accessibilityViewIsModal onAccessibilityEscape={onClose}>
-          <View style={s.handle} />
+        <GlassSheet style={s.sheet} accessibilityViewIsModal onAccessibilityEscape={onClose}>
           <View style={s.head}>
             <View style={{ flex: 1 }}>
               <Text style={s.title} accessibilityRole="header">
@@ -279,7 +278,7 @@ export default function LangSheet({ visible, current, variant = null, native, ot
               ui={ui}
             />
           </ScrollView>
-        </View>
+        </GlassSheet>
       </KeyboardAvoidingView>
     </Modal>
   );
@@ -292,36 +291,26 @@ const makeStyles = (C) =>
     kav: { flex: 1, justifyContent: 'flex-end' },
     sheet: {
       maxHeight: '86%',
-      backgroundColor: C.sheet,
-      borderTopLeftRadius: R.xl,
-      borderTopRightRadius: R.xl,
+      // скло, радіус і «ручку» дає GlassSheet
       paddingTop: 10,
       paddingHorizontal: 16,
       // смужка домашнього індикатора
       paddingBottom: 30,
     },
-    handle: {
-      width: 36,
-      height: 5,
-      borderRadius: 3,
-      backgroundColor: C.card3,
-      alignSelf: 'center',
-      marginBottom: 10,
-    },
     head: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingHorizontal: 8, marginBottom: 12 },
-    title: { color: C.text, ...type(22, F.extra) },
+    title: { color: C.text, ...display(26) },
     text: { color: C.dim, ...type(14, F.reg), marginTop: 2 },
     close: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', marginRight: -8, marginTop: -6 },
-    closeDot: { width: 32, height: 32, borderRadius: 16, backgroundColor: C.card2, alignItems: 'center', justifyContent: 'center' },
+    closeDot: { width: 32, height: 32, borderRadius: 16, backgroundColor: C.soft, alignItems: 'center', justifyContent: 'center' },
     list: { flexGrow: 0 },
 
     search: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 8,
-      backgroundColor: C.card2,
-      borderRadius: R.md,
-      paddingHorizontal: 14,
+      backgroundColor: C.soft,
+      borderRadius: R.pill,
+      paddingHorizontal: 16,
       minHeight: 44,
       marginBottom: 6,
     },
@@ -333,11 +322,11 @@ const makeStyles = (C) =>
       // власне тло поля вже показує, де воно, — системний контур не потрібен
       outlineWidth: 0,
     },
-    clear: { width: 24, height: 24, borderRadius: 12, backgroundColor: C.card3, alignItems: 'center', justifyContent: 'center' },
+    clear: { width: 24, height: 24, borderRadius: 12, backgroundColor: C.soft, alignItems: 'center', justifyContent: 'center' },
     caps: { color: C.dim, ...CAPS, marginTop: 16, marginBottom: 8, marginLeft: 4 },
     none: { color: C.dim, ...type(15, F.semi), textAlign: 'center', marginTop: 14, marginBottom: 4 },
 
-    group: { backgroundColor: C.card, borderRadius: R.lg, overflow: 'hidden' },
+    group: { backgroundColor: C.glass, borderRadius: R.xl, borderWidth: 1, borderColor: C.glassBorder, overflow: 'hidden' },
     row: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -345,16 +334,16 @@ const makeStyles = (C) =>
       minHeight: 50,
       paddingHorizontal: 14,
     },
-    rowSep: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.sep },
+    rowSep: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.hairline },
     rowOn: { backgroundColor: C.accentSoft },
     rowOff: { opacity: 0.45 },
     flag: { fontSize: 22 },
-    name: { flexShrink: 1, color: C.text, ...type(17, F.semi, { noLead: true }) },
+    name: { flexShrink: 1, color: C.text, ...type(17, F.reg, { noLead: true }) },
     twoLines: { flexShrink: 1, paddingVertical: 7 },
     under: { color: C.dim, ...type(13, F.semi, { noLead: true }), marginTop: 1 },
     local: { flex: 1, textAlign: 'right', color: C.dim, ...type(13, F.semi, { noLead: true }) },
     // пілюля «Pro» — та сама, що в Налаштуваннях (SettingsScreen proPill)
     proPill: { backgroundColor: C.accentSoft, borderRadius: R.pill, paddingHorizontal: 6, paddingVertical: 1 },
-    proPillText: { color: C.accent, ...type(11, F.extra, { noLead: true }) },
+    proPillText: { color: C.accent, ...type(11, F.semi, { noLead: true }) },
     check: { width: 22, height: 22, borderRadius: 11, backgroundColor: C.accent, alignItems: 'center', justifyContent: 'center' },
   });

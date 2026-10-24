@@ -18,10 +18,10 @@ import { Animated, PanResponder, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { CEFR_MARKS, LEVEL_MAX, LEVEL_MIN, cefrFor, clampLevel } from './profile';
 import { SPRING, useReducedMotion } from './motion';
-import { F, R, type, useTheme } from './theme';
+import { F, R, display, type, useTheme } from './theme';
 
 const THUMB = 30;
-const TRACK = 8;
+const TRACK = 6;
 const STOPS = LEVEL_MAX - LEVEL_MIN; // 9 проміжків між 10 зупинками
 
 // Позиція центру бігунка (від лівого краю доріжки) для значення.
@@ -225,8 +225,8 @@ const makeStyles = (C) =>
     headBare: { minHeight: 0 },
     numRow: { flexDirection: 'row', alignItems: 'center' },
     // табличні цифри — число не стрибає по ширині між 9 і 10
-    num: { color: C.text, ...type(64, F.extra, { noLead: true }), fontVariant: ['tabular-nums'] },
-    of: { color: C.faint, ...type(22, F.bold, { noLead: true }), marginLeft: 2, marginTop: 18 },
+    num: { color: C.text, ...display(72, { noLead: true }), fontVariant: ['tabular-nums'] },
+    of: { color: C.faint, ...type(22, F.reg, { noLead: true }), marginLeft: 2, marginTop: 22 },
     badge: {
       marginLeft: 12,
       marginTop: 6,
@@ -237,7 +237,7 @@ const makeStyles = (C) =>
       minWidth: 48,
       alignItems: 'center',
     },
-    badgeText: { color: C.accent, ...type(15, F.extra, { noLead: true }), letterSpacing: 0.4 },
+    badgeText: { color: C.accent, ...type(15, F.semi, { noLead: true }), letterSpacing: 0.4 },
     desc: { color: C.text, ...type(17, F.semi), textAlign: 'center', marginTop: 6, minHeight: 46 },
 
     // Висота шару — 48: ціль для пальця більша за саму доріжку.
@@ -246,7 +246,7 @@ const makeStyles = (C) =>
       marginHorizontal: THUMB / 2,
       height: TRACK,
       borderRadius: TRACK / 2,
-      backgroundColor: C.card3,
+      backgroundColor: C.soft,
       overflow: 'hidden',
     },
     fill: { height: TRACK, borderRadius: TRACK / 2, backgroundColor: C.accent },
@@ -268,7 +268,7 @@ const makeStyles = (C) =>
       height: THUMB,
       borderRadius: THUMB / 2,
       backgroundColor: C.card,
-      borderWidth: 2,
+      borderWidth: 1.5,
       borderColor: C.accent,
       alignItems: 'center',
       justifyContent: 'center',
@@ -282,7 +282,7 @@ const makeStyles = (C) =>
       textAlign: 'center',
       // A1…C2 несуть зміст, тож dim (≥ 4,5:1), а не faint
       color: C.dim,
-      ...type(12, F.bold, { noLead: true }),
+      ...type(12, F.semi, { noLead: true }),
     },
     markOn: { color: C.accent },
   });

@@ -35,9 +35,9 @@ import { IcBell, IcCheck, IcClose } from './icons';
 import { MascotBob } from './Mascot';
 import { StickerLarge } from './Sticker';
 import { photoUri } from './photos';
-import { FadeIn, GradBtn, Press } from './ui';
+import { FadeIn, GradBtn, Press, ScreenBackground } from './ui';
 import { DUR, EASE, stagger, useScreenReader } from './motion';
-import { CAPS, F, R, type, useTheme } from './theme';
+import { CAPS, F, R, display, type, useTheme } from './theme';
 
 // Номер екрана для статистики (paywall_step / paywall_close) — завжди той
 // самий для того самого екрана, навіть коли (а) і (б) пропущено.
@@ -155,6 +155,7 @@ function PaywallSteps({
       // Поки зверху нативний пейвол RevenueCat — під ним тихе тло
       return (
         <View style={[s.root, s.center]}>
+          <ScreenBackground />
           <ActivityIndicator color={C.accent} />
         </View>
       );
@@ -188,6 +189,7 @@ function PaywallSteps({
   const Glyph = canRemind ? IcBell : IcCheck;
   return (
     <View style={s.root}>
+      <ScreenBackground />
       {/* Хрестик — у власній смужці поза прокруткою, як у PaywallScreen */}
       <View style={[s.topBar, short && s.topBarShort]}>
         <Press style={s.close} onPress={close} feedback="dim" hitSlop={4} accessibilityRole="button" accessibilityLabel={t('close')}>
@@ -275,7 +277,6 @@ const makeStyles = (C) =>
       alignItems: 'center',
       justifyContent: 'flex-end',
       paddingHorizontal: 10,
-      backgroundColor: C.bg,
     },
     topBarShort: { height: 44 },
     close: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
@@ -283,7 +284,9 @@ const makeStyles = (C) =>
       width: 36,
       height: 36,
       borderRadius: 18,
-      backgroundColor: C.card2,
+      backgroundColor: C.glass,
+      borderWidth: 1,
+      borderColor: C.glassBorder,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -311,8 +314,8 @@ const makeStyles = (C) =>
       marginBottom: 6,
     },
     bellShort: { width: 76, height: 76, borderRadius: 38, marginBottom: 2 },
-    title: { color: C.text, ...type(28, F.extra), textAlign: 'center', marginTop: 14 },
-    titleShort: { ...type(26, F.extra), marginTop: 10 },
+    title: { color: C.text, ...display(30), textAlign: 'center', marginTop: 14 },
+    titleShort: { ...display(26), marginTop: 10 },
     text: { color: C.dim, ...type(15, F.reg), textAlign: 'center', marginTop: 8, maxWidth: 320 },
     benefits: { marginTop: 28, gap: 14, alignSelf: 'stretch' },
     benefitsShort: { marginTop: 20, gap: 10 },
@@ -320,8 +323,10 @@ const makeStyles = (C) =>
       flexDirection: 'row',
       alignItems: 'center',
       gap: 14,
-      backgroundColor: C.card,
-      borderRadius: R.lg,
+      backgroundColor: C.glass,
+      borderWidth: 1,
+      borderColor: C.glassBorder,
+      borderRadius: R.xl,
       paddingVertical: 12,
       paddingHorizontal: 14,
     },
@@ -333,16 +338,19 @@ const makeStyles = (C) =>
       alignItems: 'center',
       justifyContent: 'center',
     },
-    benefitText: { flex: 1, color: C.text, ...type(16, F.bold) },
+    benefitText: { flex: 1, color: C.text, ...type(16, F.semi) },
     cancel: { color: C.dim, ...type(13, F.semi), textAlign: 'center', marginTop: 14 },
     cancelShort: { marginTop: 10 },
     footer: {
-      backgroundColor: C.card,
+      backgroundColor: C.glassStrong,
+      borderWidth: 1,
+      borderBottomWidth: 0,
+      borderColor: C.glassBorder,
       paddingHorizontal: 22,
       paddingTop: 16,
       // App уже додає відступ домашнього індикатора — свій лише невеликий
       paddingBottom: 16,
-      borderTopLeftRadius: R.xl,
-      borderTopRightRadius: R.xl,
+      borderTopLeftRadius: R.sheet,
+      borderTopRightRadius: R.sheet,
     },
   });

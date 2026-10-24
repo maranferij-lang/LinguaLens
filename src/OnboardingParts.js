@@ -17,10 +17,10 @@ import { AppIcon } from './Logo';
 import { Mascot, MascotBob, MascotLive } from './Mascot';
 import { MiniKey, MiniMug, MiniPlant, TagLabel } from './DemoDesk';
 import { IcBell, IcCards, IcChart, IcCheck, IcCompass, IcScan, IcSpeaker } from './icons';
-import { FadeIn } from './ui';
+import { FadeIn, Glass } from './ui';
 import { fontSizeForWord, textEm } from './share/layout';
 import { DUR, EASE, SPRING, stagger, useReducedMotion } from './motion';
-import { CAPS, F, R, track, type, useTheme, fw } from './theme';
+import { CAPS, F, R, display, track, type, useTheme, fw } from './theme';
 
 // Якщо людина нічого не обрала на кроці «що заважає» (чи у варіанті без
 // нього) — три головні речі, заради яких застосунок існує.
@@ -42,7 +42,7 @@ const shade = (rank) => SHADES[Math.min(rank, SHADES.length - 1)];
 // Одна тема (усе пропущено чи «для себе») — без легенди: «Загальне ·
 // щодня» лише повторило б заголовок, тож замість неї один рядок.
 export function PlanBody({ profile, struggles, lang, t }) {
-  const { C, SHADOW_SM } = useTheme();
+  const { C, SHADOW } = useTheme();
   const s = useMemo(() => makeStyles(C), [C]);
   const p = cleanProfile(profile);
   const cycle = topicCycle(p);
@@ -54,7 +54,7 @@ export function PlanBody({ profile, struggles, lang, t }) {
 
   return (
     <View style={{ gap: 12 }}>
-      <FadeIn delay={stagger(i++)} style={[s.card, SHADOW_SM]}>
+      <FadeIn delay={stagger(i++)} style={[s.card, SHADOW]}>
         <View style={s.capsRow}>
           <Text style={[s.caps, { flex: 1 }]}>{t('obPlanWod')}</Text>
           {lang ? (
@@ -110,9 +110,9 @@ export function PlanBody({ profile, struggles, lang, t }) {
 
       {/* «Рівень: B1 · Середній» — без обіцянок, які саме слова зникнуть */}
       {p ? (
-        <FadeIn delay={stagger(i++)} style={[s.card, s.levelCard, SHADOW_SM]}>
+        <FadeIn delay={stagger(i++)} style={[s.card, s.levelCard, SHADOW]}>
           <View style={s.lineIcon}>
-            <IcChart size={20} color={C.accent} />
+            <IcChart size={20} color={C.text} />
           </View>
           <Text style={s.levelText}>{t('obPlanLevel', { cefr: cefrFor(p.level), name: levelName(p.level, t) })}</Text>
         </FadeIn>
@@ -126,7 +126,7 @@ export function PlanBody({ profile, struggles, lang, t }) {
         return (
           <FadeIn key={k} delay={stagger(i++)} style={s.line}>
             <View style={s.lineIcon}>
-              <Icon size={20} color={C.accent} />
+              <Icon size={20} color={C.text} />
             </View>
             <Text style={s.lineText}>{t('plan_' + k)}</Text>
           </FadeIn>
@@ -140,13 +140,14 @@ export function PlanBody({ profile, struggles, lang, t }) {
 // Справжнє слово дня під щойно складений профіль: те саме, що чекатиме на
 // вкладці «Навчання» й у сповіщенні. Тап по динаміку — вимова.
 export function TodayCard({ word, topic, lang, t }) {
-  const { C, SHADOW_SM } = useTheme();
+  const { C } = useTheme();
   const s = useMemo(() => makeStyles(C), [C]);
   if (!word?.word) return null;
   const caps = topic ? `${t('obPlanToday')} · ${topic}` : t('obPlanToday');
   const sub = [word.ipa, word.translation].filter(Boolean).join(' · ');
   return (
-    <FadeIn style={[s.today, SHADOW_SM]} testID="plan-today">
+    <FadeIn style={s.today} testID="plan-today">
+      <Glass hero>
       <Text style={[s.caps, { color: C.accent }]} numberOfLines={1}>
         {caps}
       </Text>
@@ -165,6 +166,7 @@ export function TodayCard({ word, topic, lang, t }) {
         </Pressable>
       </View>
       {sub ? <Text style={s.todaySub}>{sub}</Text> : null}
+      </Glass>
     </FadeIn>
   );
 }
@@ -201,7 +203,7 @@ function BuildMark({ done, color, spinner }) {
 }
 
 export function PlanBuilding({ title, rows }) {
-  const { C, SHADOW_SM } = useTheme();
+  const { C, SHADOW } = useTheme();
   const s = useMemo(() => makeStyles(C), [C]);
   return (
     <View style={s.build} testID="plan-building">
@@ -211,8 +213,8 @@ export function PlanBuilding({ title, rows }) {
       </Text>
       <View style={{ alignSelf: 'stretch', gap: 10, marginTop: 22 }}>
         {rows.map((r, i) => (
-          <FadeIn key={r.key} delay={i * BUILD_STAGGER} style={[s.buildRow, SHADOW_SM]}>
-            <View style={[s.buildMark, r.done && { backgroundColor: C.green }]}>
+          <FadeIn key={r.key} delay={i * BUILD_STAGGER} style={[s.buildRow, SHADOW]}>
+            <View style={[s.buildMark, r.done && { backgroundColor: C.accent }]}>
               <BuildMark done={r.done} color={C.onAccent} spinner={C.accent} />
             </View>
             {r.flag ? <Text style={s.buildFlag}>{r.flag}</Text> : null}
@@ -257,7 +259,7 @@ export function HourChips({ value, onChange, t }) {
           <Pressable
             key={hour}
             onPress={() => onChange(hour)}
-            style={({ pressed }) => [s.hourChip, on && s.hourOn, pressed && !on && { backgroundColor: C.card2 }]}
+            style={({ pressed }) => [s.hourChip, on && s.hourOn, pressed && !on && { backgroundColor: C.soft }]}
             accessibilityRole="radio"
             accessibilityState={{ checked: on }}
             accessibilityLabel={`${t(key)}, ${time}`}
@@ -461,7 +463,7 @@ function PhoneFade({ color }) {
 // складемо далі), тож це чашка з демо (demoExample) — без мережі. Тап по
 // динаміку — вимова, як на справжній картці. Зʼявляється мʼякою пружиною.
 export function WodExample({ sample, t, delay = 220 }) {
-  const { C, SHADOW } = useTheme();
+  const { C } = useTheme();
   const s = useMemo(() => makeStyles(C), [C]);
   const reduced = useReducedMotion();
   const a = useRef(new Animated.Value(0)).current;
@@ -484,7 +486,8 @@ export function WodExample({ sample, t, delay = 220 }) {
   };
   const sub = [sample.ipa, sample.translation].filter(Boolean).join(' · ');
   return (
-    <Animated.View style={[s.wodCard, SHADOW, style]} testID="wod-example">
+    <Animated.View style={style} testID="wod-example">
+      <Glass hero>
       <View style={s.capsRow}>
         <Text style={[s.caps, { color: C.accent, flex: 1 }]} numberOfLines={1}>
           {t('obPushPreviewTitle')}
@@ -517,6 +520,7 @@ export function WodExample({ sample, t, delay = 220 }) {
           {sample.exampleTranslation ? <Text style={s.wodExTr}>{sample.exampleTranslation}</Text> : null}
         </View>
       ) : null}
+      </Glass>
     </Animated.View>
   );
 }
@@ -557,7 +561,7 @@ export function bubbleLift(size, room, h) {
 }
 
 export function NameLingo({ name, cheer = '', room, t }) {
-  const { C, SHADOW_SM } = useTheme();
+  const { C, SHADOW } = useTheme();
   const s = useMemo(() => makeStyles(C), [C]);
   const [bubbleH, setBubbleH] = useState(0);
   const [greet, setGreet] = useState(name);
@@ -587,7 +591,7 @@ export function NameLingo({ name, cheer = '', room, t }) {
           importantForAccessibility={hidden ? 'no-hide-descendants' : 'auto'}
           testID="name-bubble"
         >
-          <FadeIn key={text} dy={6} style={[s.peekBubble, SHADOW_SM]}>
+          <FadeIn key={text} dy={6} style={[s.peekBubble, SHADOW]}>
             <Text style={s.peekText} numberOfLines={3} accessibilityLiveRegion="polite">
               {text}
             </Text>
@@ -735,12 +739,12 @@ export function balancedWidth(text, size, width) {
 // великий системний шрифт збільшує його не більш як на 30 %
 // (WELCOME_FONT_MAX): тоді рядок переноситься, але екран не розлазиться.
 export function HelloBubble({ text, size }) {
-  const { C, SHADOW_SM } = useTheme();
+  const { C, SHADOW } = useTheme();
   const s = useMemo(() => makeStyles(C), [C]);
   return (
-    <FadeIn delay={160} style={[s.hello, SHADOW_SM]} testID="hello-bubble">
+    <FadeIn delay={160} style={[s.hello, SHADOW]} testID="hello-bubble">
       <View style={s.helloTail} testID="hello-tail" />
-      <Text style={[s.helloText, type(size, F.extra)]} maxFontSizeMultiplier={WELCOME_FONT_MAX} accessibilityRole="header">
+      <Text style={[s.helloText, type(size, F.light)]} maxFontSizeMultiplier={WELCOME_FONT_MAX} accessibilityRole="header">
         {text}
       </Text>
     </FadeIn>
@@ -751,10 +755,10 @@ export function HelloBubble({ text, size }) {
 // pose={null} — без мініатюри: Lingo вже стоїть поруч із заголовком
 // (кроки-питання), другий був би зайвий.
 export function LingoBubble({ text, pose = 'wave', style }) {
-  const { C, SHADOW_SM } = useTheme();
+  const { C, SHADOW } = useTheme();
   const s = useMemo(() => makeStyles(C), [C]);
   return (
-    <FadeIn delay={120} style={[s.bubble, SHADOW_SM, !pose && { paddingLeft: 14, paddingVertical: 8 }, style]} testID="lingo-bubble">
+    <FadeIn delay={120} style={[s.bubble, SHADOW, !pose && { paddingLeft: 14, paddingVertical: 8 }, style]} testID="lingo-bubble">
       {pose ? <Mascot pose={pose} size={30} /> : null}
       <Text style={s.bubbleText} numberOfLines={2}>
         {text}
@@ -768,10 +772,10 @@ export function LingoBubble({ text, pose = 'wave', style }) {
 // ціль — 7 днів поспіль» із сімома крапками; перша світиться вогником, якщо
 // слово вже збережено (lit) — день перший зараховано.
 export function PledgeCard({ text, lit, t }) {
-  const { C, SHADOW_SM } = useTheme();
+  const { C, SHADOW } = useTheme();
   const s = useMemo(() => makeStyles(C), [C]);
   return (
-    <View style={[s.pledge, SHADOW_SM]} testID="pledge">
+    <View style={[s.pledge, SHADOW]} testID="pledge">
       <Text style={s.pledgeText}>{text}</Text>
       <View style={s.goal} accessible accessibilityLabel={t('obCommitGoal')}>
         <Text style={s.goalText}>{t('obCommitGoal')}</Text>
@@ -787,22 +791,22 @@ export function PledgeCard({ text, lit, t }) {
 
 const makeStyles = (C) =>
   StyleSheet.create({
-    card: { backgroundColor: C.card, borderRadius: R.lg, padding: 18 },
+    card: { backgroundColor: C.glass, borderWidth: 1, borderColor: C.glassBorder, borderRadius: R.xl, padding: 16 },
     caps: { color: C.dim, ...CAPS },
     capsRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     planLang: { flexDirection: 'row', alignItems: 'center', gap: 5, flexShrink: 1 },
     planFlag: { fontSize: 14 },
-    planLangName: { color: C.dim, ...type(13, F.bold, { noLead: true }), flexShrink: 1 },
+    planLangName: { color: C.dim, ...type(13, F.semi, { noLead: true }), flexShrink: 1 },
     headRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8 },
     singleSub: { color: C.dim, ...type(15, F.semi), marginTop: 6 },
-    headTopic: { flexShrink: 1, color: C.text, ...type(24, F.extra) },
+    headTopic: { flexShrink: 1, color: C.text, ...display(30) },
     cefr: { backgroundColor: C.accent, borderRadius: R.pill, paddingHorizontal: 10, paddingVertical: 4 },
-    cefrText: { color: C.onAccent, ...type(14, F.extra, { noLead: true }) },
+    cefrText: { color: C.onAccent, ...type(14, F.semi, { noLead: true }) },
     strip: { flexDirection: 'row', gap: 4, marginTop: 14 },
-    cell: { flex: 1, height: 10, borderRadius: 4, backgroundColor: C.accent },
+    cell: { flex: 1, height: 6, borderRadius: 3, backgroundColor: C.accent },
     legendRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-    dot: { width: 10, height: 10, borderRadius: 3, backgroundColor: C.accent },
-    legendName: { flex: 1, color: C.text, ...type(15, F.semi) },
+    dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: C.accent },
+    legendName: { flex: 1, color: C.text, ...type(15, F.reg) },
     legendDays: { color: C.dim, ...type(14, F.semi) },
 
     levelCard: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14 },
@@ -812,42 +816,36 @@ const makeStyles = (C) =>
     lineIcon: {
       width: 40,
       height: 40,
-      borderRadius: 13,
-      backgroundColor: C.accentSoft,
+      borderRadius: 20,
+      backgroundColor: C.soft,
       alignItems: 'center',
       justifyContent: 'center',
     },
     lineText: { flex: 1, color: C.text, ...type(15, F.semi) },
 
-    today: {
-      backgroundColor: C.card,
-      borderRadius: R.lg,
-      borderWidth: 2,
-      borderColor: C.accentSoft,
-      paddingHorizontal: 18,
-      paddingTop: 14,
-      paddingBottom: 16,
-      marginBottom: 12,
-    },
+    // герой-картка плану (Glass hero всередині), відступ знизу тут
+    today: { marginBottom: 12 },
     todayRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
-    todayWord: { flexShrink: 1, color: C.text, ...type(28, F.extra) },
+    todayWord: { flexShrink: 1, color: C.text, ...display(36) },
     todaySpeak: { width: 36, height: 36, borderRadius: 18, backgroundColor: C.accentSoft, alignItems: 'center', justifyContent: 'center' },
     todaySub: { color: C.dim, ...type(14, F.semi), marginTop: 2 },
 
     build: { alignItems: 'center', paddingTop: 12 },
-    buildTitle: { color: C.text, ...type(24, F.extra), textAlign: 'center', marginTop: 10 },
+    buildTitle: { color: C.text, ...display(28), textAlign: 'center', marginTop: 10 },
     buildRow: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 10,
-      backgroundColor: C.card,
-      borderRadius: R.md,
+      backgroundColor: C.glass,
+      borderWidth: 1,
+      borderColor: C.glassBorder,
+      borderRadius: R.xl,
       paddingHorizontal: 14,
       paddingVertical: 12,
     },
-    buildMark: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: C.card2 },
+    buildMark: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: C.soft },
     buildFlag: { fontSize: 16 },
-    buildText: { flex: 1, color: C.text, ...type(15, F.bold) },
+    buildText: { flex: 1, color: C.text, ...type(15, F.semi) },
 
     hours: { flexDirection: 'row', gap: 8 },
     hourChip: {
@@ -855,56 +853,49 @@ const makeStyles = (C) =>
       minHeight: 58,
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: C.card,
-      borderRadius: R.md,
-      borderWidth: 2,
-      borderColor: 'transparent',
+      backgroundColor: C.glass,
+      borderRadius: R.xl,
+      borderWidth: 1.5,
+      borderColor: C.glassBorder,
       paddingHorizontal: 6,
       paddingVertical: 8,
     },
     hourOn: { borderColor: C.accent, backgroundColor: C.accentSoft },
-    hourPart: { color: C.dim, ...type(13, F.bold, { noLead: true }) },
-    hourTime: { color: C.text, ...type(17, F.extra, { noLead: true }), marginTop: 3 },
+    hourPart: { color: C.dim, ...type(13, F.semi, { noLead: true }) },
+    hourTime: { color: C.text, ...type(17, F.semi, { noLead: true }), marginTop: 3 },
 
-    lockDate: { ...fw(F.bold), textAlign: 'center' },
-    lockClock: { ...fw(F.extra), textAlign: 'center', letterSpacing: -1 },
+    lockDate: { ...fw(F.semi), textAlign: 'center' },
+    lockClock: { ...fw(F.light), textAlign: 'center', letterSpacing: -1 },
     push: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 12,
       backgroundColor: C.card,
-      borderRadius: R.lg,
+      borderRadius: R.xl,
       padding: 14,
     },
     pushHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-    pushApp: { flexShrink: 1, color: C.dim, ...type(13, F.bold, { noLead: true }) },
+    pushApp: { flexShrink: 1, color: C.dim, ...type(13, F.semi, { noLead: true }) },
     pushTime: { color: C.dim, ...type(12, F.semi, { noLead: true }) },
-    pushTitle: { color: C.text, ...type(14, F.extra), marginTop: 2 },
+    pushTitle: { color: C.text, ...type(14, F.semi), marginTop: 2 },
     pushBody: { color: C.text, ...type(14, F.reg) },
 
-    wodCard: {
-      backgroundColor: C.card,
-      borderRadius: R.lg,
-      borderWidth: 2,
-      borderColor: C.accentSoft,
-      paddingHorizontal: 18,
-      paddingTop: 14,
-      paddingBottom: 16,
-    },
-    wodWord: { flexShrink: 1, color: C.text, ...type(30, F.extra) },
-    wodExample: { marginTop: 12, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.sep },
-    wodExText: { color: C.text, ...type(15, F.semi) },
+    wodWord: { flexShrink: 1, color: C.text, ...display(40) },
+    wodExample: { marginTop: 12, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.hairline },
+    wodExText: { color: C.text, ...type(15, F.reg) },
     wodExTr: { color: C.dim, ...type(14, F.reg), marginTop: 2 },
 
     peekRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'flex-end', gap: 6, paddingLeft: 24, paddingRight: 34 },
     peekBubble: {
       flexShrink: 1,
       backgroundColor: C.card,
-      borderRadius: R.md,
+      borderWidth: 1,
+      borderColor: C.glassBorder,
+      borderRadius: R.xl,
       paddingHorizontal: 14,
       paddingVertical: 10,
     },
-    peekText: { color: C.text, ...type(14, F.extra) },
+    peekText: { color: C.text, ...type(14, F.semi) },
     // хвостик бульбашки — до Lingo праворуч
     peekTail: {
       position: 'absolute',
@@ -922,7 +913,9 @@ const makeStyles = (C) =>
       alignItems: 'center',
       alignSelf: 'flex-start',
       gap: 8,
-      backgroundColor: C.card,
+      backgroundColor: C.glass,
+      borderWidth: 1,
+      borderColor: C.glassBorder,
       borderRadius: R.pill,
       paddingLeft: 8,
       paddingRight: 14,
@@ -930,13 +923,15 @@ const makeStyles = (C) =>
       marginBottom: 14,
       maxWidth: '100%',
     },
-    bubbleText: { flexShrink: 1, color: C.text, ...type(14, F.extra) },
+    bubbleText: { flexShrink: 1, color: C.text, ...type(14, F.semi) },
 
     hello: {
       alignSelf: 'center',
       maxWidth: '100%',
       backgroundColor: C.card,
-      borderRadius: R.lg,
+      borderWidth: 1,
+      borderColor: C.glassBorder,
+      borderRadius: R.xl,
       paddingHorizontal: HELLO_PAD,
       paddingTop: 12,
       paddingBottom: 13,
@@ -955,10 +950,10 @@ const makeStyles = (C) =>
       transform: [{ rotate: '45deg' }],
     },
 
-    pledge: { backgroundColor: C.card, borderRadius: R.lg, paddingHorizontal: 20, paddingTop: 18, paddingBottom: 14 },
-    pledgeText: { color: C.text, ...type(22, F.extra), textAlign: 'center' },
+    pledge: { backgroundColor: C.glass, borderWidth: 1, borderColor: C.glassBorder, borderRadius: R.xl, paddingHorizontal: 20, paddingTop: 18, paddingBottom: 14 },
+    pledgeText: { color: C.text, ...type(22, F.light), textAlign: 'center' },
     goal: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 12, flexWrap: 'wrap' },
-    goalText: { color: C.dim, ...type(13, F.bold, { noLead: true }) },
+    goalText: { color: C.dim, ...type(13, F.semi, { noLead: true }) },
     goalDots: { flexDirection: 'row', gap: 4 },
-    goalDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: C.card3 },
+    goalDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: C.soft },
   });

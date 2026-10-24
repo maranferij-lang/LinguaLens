@@ -28,7 +28,7 @@ import * as Haptics from 'expo-haptics';
 import Svg, { Circle, Defs, LinearGradient, RadialGradient, Stop } from 'react-native-svg';
 import Flame from './streak/Flame';
 import { EASE, SPRING, announce, useReducedMotion, useScreenReader } from './motion';
-import { F, type, useTheme } from './theme';
+import { F, display, type, useTheme } from './theme';
 
 export const HOLD_MS = 1500;
 // Відпустив раніше за цю частку кільця — це був тап, а не спроба втримати
@@ -277,7 +277,7 @@ export default function HoldToCommit({
                   <Stop offset="1" stopColor={C.flameTip} />
                 </LinearGradient>
               </Defs>
-              <Circle cx={size / 2} cy={size / 2} r={r} stroke={C.card3} strokeWidth={STROKE} fill="none" />
+              <Circle cx={size / 2} cy={size / 2} r={r} stroke={C.soft} strokeWidth={STROKE} fill="none" />
               <ACircle
                 cx={size / 2}
                 cy={size / 2}
@@ -360,13 +360,15 @@ const makeStyles = (C, size) =>
       width: size - STROKE * 2 - 18,
       height: size - STROKE * 2 - 18,
       borderRadius: size,
-      backgroundColor: C.card,
+      backgroundColor: C.glassStrong,
+      borderWidth: 1,
+      borderColor: C.glassBorder,
       alignItems: 'center',
       justifyContent: 'center',
     },
     flame: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
-    hint: { color: C.dim, ...type(15, F.bold), marginTop: 18, textAlign: 'center' },
+    hint: { color: C.dim, ...type(15, F.semi), marginTop: 18, textAlign: 'center' },
     hintNudge: { color: C.accent },
-    hintDone: { color: C.accent, ...type(19, F.extra) },
+    hintDone: { color: C.accent, ...display(24) },
     sub: { color: C.dim, ...type(14, F.semi), marginTop: 2, textAlign: 'center' },
   });

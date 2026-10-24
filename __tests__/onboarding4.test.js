@@ -458,7 +458,7 @@ describe('welcome', () => {
         const title = hostText(tree, t('ob3HookTitle'));
         expect(fontSize(hello)).toBeGreaterThanOrEqual(min);
         expect(fontSize(hello)).toBeLessThanOrEqual(max);
-        expect(StyleSheet.flatten(hello.props.style)).toMatchObject(fw(F.extra));
+        expect(StyleSheet.flatten(hello.props.style)).toMatchObject(fw(F.light));
         expect(fontSize(title)).toBeLessThan(fontSize(hello));
         const others = tree.root.findAll((n) => n.type === 'Text' && n !== hello).map(fontSize);
         expect(Math.max(...others)).toBeLessThan(fontSize(hello));

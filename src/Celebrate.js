@@ -18,7 +18,7 @@ import { photoUri } from './photos';
 import { speak } from './speech';
 import { IcSpeaker } from './icons';
 import { EASE, useReducedMotion, useScreenReader } from './motion';
-import { F, R, type, useTheme } from './theme';
+import { F, R, display, type, useTheme } from './theme';
 
 export const CELEBRATE_NEXT_MS = 900;
 export const CONFETTI = 12;
@@ -143,7 +143,7 @@ const makeStyles = (C) =>
       alignItems: 'center',
       justifyContent: 'center',
     },
-    title: { color: C.text, ...type(28, F.extra), textAlign: 'center', marginTop: 22 },
+    title: { color: C.text, ...display(32), textAlign: 'center', marginTop: 22 },
     pill: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -155,6 +155,6 @@ const makeStyles = (C) =>
       paddingVertical: 7,
       marginTop: 12,
     },
-    pillText: { color: C.text, ...type(14, F.extra, { noLead: true }) },
+    pillText: { color: C.text, ...type(14, F.semi, { noLead: true }) },
     lingo: { alignSelf: 'flex-end', marginTop: 10, marginRight: 6 },
   });

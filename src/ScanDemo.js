@@ -430,7 +430,7 @@ export function BeatCaption({ beat, t, style }) {
     <View style={[{ alignItems: 'center' }, style]}>
       <View style={styles.dots} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
         {Array.from({ length: DOTS }, (_, i) => i).map((i) => (
-          <View key={i} style={[styles.dot, { backgroundColor: i === dot ? C.accent : C.card3 }, i === dot && styles.dotOn]} />
+          <View key={i} style={[styles.dot, { backgroundColor: i === dot ? C.accent : C.soft }, i === dot && styles.dotOn]} />
         ))}
       </View>
       <Animated.Text style={[styles.caption, { color: C.text, opacity: a }]} accessibilityLiveRegion="none" testID="demo-caption">
@@ -671,7 +671,7 @@ const styles = StyleSheet.create({
   dots: { flexDirection: 'row', gap: 6, marginBottom: 8 },
   dot: { width: 6, height: 6, borderRadius: 3 },
   dotOn: { width: 18 },
-  caption: { ...type(16, F.extra), textAlign: 'center', paddingHorizontal: 12, minHeight: 44 },
+  caption: { ...type(16, F.semi), textAlign: 'center', paddingHorizontal: 12, minHeight: 44 },
   staticGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', alignSelf: 'center', columnGap: STATIC_GAP, rowGap: 6 },
-  staticCap: { ...type(12, F.bold), textAlign: 'center', marginTop: 8 },
+  staticCap: { ...type(12, F.semi), textAlign: 'center', marginTop: 8 },
 });
