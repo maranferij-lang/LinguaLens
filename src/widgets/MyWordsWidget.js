@@ -75,8 +75,10 @@ const MyWords = (props, environment) => {
   const link = withFamily(props.link || 'lingualens://word-of-day');
   const label = hidden ? props.a11yShort || props.a11y || message : props.a11y || message;
   const a11y = [accessibilityElement('contain'), accessibilityLabel(label)];
+  const sf = (size, weight) => font({ size: size, weight: weight });
+  // транскрипції потрібен IPA: у SF Pro Rounded він є весь
   const rounded = (size, weight) => font({ size: size, weight: weight, design: 'rounded' });
-  const caps = (color) => [rounded(11, 'heavy'), foregroundStyle(color), textCase('uppercase'), kerning(0.8), lineLimit(1)];
+  const caps = (color) => [sf(11, 'medium'), foregroundStyle(color), textCase('uppercase'), kerning(0.8), lineLimit(1)];
   const src = (photo) => (photo ? (photo.indexOf('://') > 0 ? photo : (props.dir || '') + photo) : '');
 
   // Плитка з літерою, а поверх — фото (якщо файл прочитався).
@@ -86,7 +88,7 @@ const MyWords = (props, environment) => {
     return (
       <ZStack modifiers={[frame({ width: size, height: size })]}>
         <ZStack modifiers={[frame({ width: size, height: size }), background(accentSoft, shapes.roundedRectangle({ cornerRadius: r }))]}>
-          <Text modifiers={[rounded(Math.round(size * 0.46), 'heavy'), foregroundStyle(accent)]}>{letter || ' '}</Text>
+          <Text modifiers={[sf(Math.round(size * 0.46), 'semibold'), foregroundStyle(accent)]}>{letter || ' '}</Text>
         </ZStack>
         {uri ? (
           <Image
@@ -120,11 +122,11 @@ const MyWords = (props, environment) => {
         modifiers={[frame({ maxWidth: Infinity, alignment: 'leading' }), containerBackground('clear', 'widget'), widgetURL(link)].concat(a11y)}
       >
         <Text modifiers={caps(secondary)}>{props.caption || 'LinguaLens'}</Text>
-        <Text modifiers={[rounded(19, 'bold'), foregroundStyle(primary), lineLimit(1), minimumScaleFactor(0.6), allowsTightening(true)]}>
+        <Text modifiers={[sf(19, 'semibold'), foregroundStyle(primary), lineLimit(1), minimumScaleFactor(0.6), allowsTightening(true)]}>
           {hasWord ? props.word : message}
         </Text>
         {hasWord && props.translation ? (
-          <Text modifiers={[rounded(15, 'semibold'), foregroundStyle(secondary), lineLimit(1), minimumScaleFactor(0.8)]}>
+          <Text modifiers={[sf(15, 'semibold'), foregroundStyle(secondary), lineLimit(1), minimumScaleFactor(0.8)]}>
             {props.translation}
           </Text>
         ) : null}
@@ -148,11 +150,11 @@ const MyWords = (props, environment) => {
         <Spacer />
         <VStack alignment="leading" spacing={large ? 8 : 4}>
           <Image systemName="sparkles" size={large ? 28 : small ? 18 : 20} modifiers={[foregroundStyle(accent)]} />
-          <Text modifiers={[rounded(large ? 24 : small ? 15 : 18, 'bold'), foregroundStyle(ink), lineLimit(3), minimumScaleFactor(0.8)]}>
+          <Text modifiers={[sf(large ? 24 : small ? 15 : 18, 'semibold'), foregroundStyle(ink), lineLimit(3), minimumScaleFactor(0.8)]}>
             {message}
           </Text>
           {props.hint ? (
-            <Text modifiers={[rounded(large ? 15 : small ? 12 : 13, 'medium'), foregroundStyle(dim), lineLimit(2), minimumScaleFactor(0.85)]}>
+            <Text modifiers={[sf(large ? 15 : small ? 12 : 13, 'medium'), foregroundStyle(dim), lineLimit(2), minimumScaleFactor(0.85)]}>
               {props.hint}
             </Text>
           ) : null}
@@ -170,7 +172,7 @@ const MyWords = (props, environment) => {
     >
       <HStack spacing={5} modifiers={[padding({ horizontal: 10, vertical: 5 }), background(accentSoft, shapes.capsule()), invalidatableContent()]}>
         <Image systemName="eye" size={12} modifiers={[foregroundStyle(accent)]} />
-        <Text modifiers={[rounded(13, 'bold'), foregroundStyle(accent), lineLimit(1), minimumScaleFactor(0.8)]}>
+        <Text modifiers={[sf(13, 'semibold'), foregroundStyle(accent), lineLimit(1), minimumScaleFactor(0.8)]}>
           {long ? props.revealLong : props.revealShort}
         </Text>
       </HStack>
@@ -181,11 +183,11 @@ const MyWords = (props, environment) => {
     props.due ? (
       <HStack spacing={4} modifiers={[padding({ horizontal: 8, vertical: 3 }), background(warmSoft, shapes.capsule())]}>
         <Image systemName="clock" size={11} modifiers={[foregroundStyle(warmInk)]} />
-        <Text modifiers={[rounded(12, 'heavy'), foregroundStyle(warmInk), lineLimit(1)]}>{long ? props.dueLabel : props.due}</Text>
+        <Text modifiers={[sf(12, 'semibold'), foregroundStyle(warmInk), lineLimit(1)]}>{long ? props.dueLabel : props.due}</Text>
       </HStack>
     ) : null;
   const word = (size) => (
-    <Text modifiers={[rounded(size, 'bold'), foregroundStyle(ink), lineLimit(1), minimumScaleFactor(0.45), allowsTightening(true)]}>
+    <Text modifiers={[sf(size, 'light'), foregroundStyle(ink), lineLimit(1), minimumScaleFactor(0.45), allowsTightening(true)]}>
       {props.word}
     </Text>
   );
@@ -194,13 +196,13 @@ const MyWords = (props, environment) => {
   ) : null;
   const translation = (size) =>
     props.translation ? (
-      <Text modifiers={[rounded(size, 'semibold'), foregroundStyle(soft), lineLimit(small ? 2 : 1), minimumScaleFactor(0.75), layoutPriority(1)]}>
+      <Text modifiers={[sf(size, 'semibold'), foregroundStyle(soft), lineLimit(small ? 2 : 1), minimumScaleFactor(0.75), layoutPriority(1)]}>
         {props.translation}
       </Text>
     ) : null;
   const example = (size, lines) =>
     props.example ? (
-      <Text markdownEnabled={props.md === '1'} modifiers={[rounded(size, 'medium'), foregroundStyle(dim), lineLimit(lines)]}>
+      <Text markdownEnabled={props.md === '1'} modifiers={[sf(size, 'medium'), foregroundStyle(dim), lineLimit(lines)]}>
         {props.example}
       </Text>
     ) : null;
@@ -277,7 +279,7 @@ const MyWords = (props, environment) => {
       <VStack alignment="leading" spacing={2} modifiers={[padding({ top: 10 })]}>
         {example(14, hidden || !props.exampleTr ? 2 : 1)}
         {!hidden && props.exampleTr ? (
-          <Text modifiers={[rounded(12, 'regular'), foregroundStyle(faint), lineLimit(1)]}>{props.exampleTr}</Text>
+          <Text modifiers={[sf(12, 'regular'), foregroundStyle(faint), lineLimit(1)]}>{props.exampleTr}</Text>
         ) : null}
       </VStack>
       {next.length ? rule : null}
@@ -286,11 +288,11 @@ const MyWords = (props, environment) => {
         <Link key={'next' + i} destination={withFamily('lingualens://word/' + encodeURIComponent(n.id) + '?from=widget&w=words')}>
           <HStack alignment="center" spacing={10} modifiers={[padding({ top: 5 })]}>
             {tile(24, n.photo, n.letter)}
-            <Text modifiers={[rounded(16, 'bold'), foregroundStyle(ink), lineLimit(1), minimumScaleFactor(0.8)]}>{n.w}</Text>
+            <Text modifiers={[sf(16, 'semibold'), foregroundStyle(ink), lineLimit(1), minimumScaleFactor(0.8)]}>{n.w}</Text>
             {hidden ? (
-              <Text modifiers={[rounded(15, 'heavy'), foregroundStyle(faint), kerning(2)]}>•••</Text>
+              <Text modifiers={[sf(15, 'semibold'), foregroundStyle(faint), kerning(2)]}>•••</Text>
             ) : (
-              <Text modifiers={[rounded(14, 'medium'), foregroundStyle(dim), lineLimit(1), minimumScaleFactor(0.8)]}>{n.t || ' '}</Text>
+              <Text modifiers={[sf(14, 'medium'), foregroundStyle(dim), lineLimit(1), minimumScaleFactor(0.8)]}>{n.t || ' '}</Text>
             )}
             <Spacer />
             <Image systemName="chevron.right" size={11} modifiers={[foregroundStyle(faint)]} />
@@ -301,7 +303,7 @@ const MyWords = (props, environment) => {
       <HStack alignment="bottom" spacing={12}>
         {props.learnedLabel ? (
           <VStack alignment="leading" spacing={5}>
-            <Text modifiers={[rounded(12, 'bold'), foregroundStyle(dim), lineLimit(1), minimumScaleFactor(0.8)]}>{props.learnedLabel}</Text>
+            <Text modifiers={[sf(12, 'semibold'), foregroundStyle(dim), lineLimit(1), minimumScaleFactor(0.8)]}>{props.learnedLabel}</Text>
             <ProgressView value={Number(props.learned) || 0} modifiers={[progressViewStyle('linear'), tint(green)]} />
           </VStack>
         ) : (
@@ -310,7 +312,7 @@ const MyWords = (props, environment) => {
         {props.reviewLink ? (
           <Link destination={withFamily(props.reviewLink)}>
             <HStack modifiers={[padding({ horizontal: 16, vertical: 8 }), background(tinted ? quaternary : accent, shapes.capsule())]}>
-              <Text modifiers={[rounded(14, 'heavy'), foregroundStyle(onAccent), lineLimit(1)]}>{props.reviewLabel}</Text>
+              <Text modifiers={[sf(14, 'semibold'), foregroundStyle(onAccent), lineLimit(1)]}>{props.reviewLabel}</Text>
             </HStack>
           </Link>
         ) : null}

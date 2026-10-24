@@ -79,7 +79,7 @@ export function BrandTag({ rotate = 8, style }) {
       ]}
     >
       <LogoMark size={16} color={WHITE} fg={PLATE.accent} />
-      <T style={{ color: WHITE, ...fw(F.extra), fontSize: 11, lineHeight: 14 }}>LinguaLens</T>
+      <T style={{ color: WHITE, ...fw(F.semi), fontSize: 11, lineHeight: 14 }}>LinguaLens</T>
     </View>
   );
 }
@@ -309,7 +309,7 @@ function BadgeSticker({ payload, t }) {
       >
         <T
           numberOfLines={1}
-          style={{ color: PLATE.dim, ...fw(F.extra), fontSize: 9.5, lineHeight: 13, letterSpacing: 1.2, textTransform: 'uppercase' }}
+          style={{ color: PLATE.dim, ...fw(F.semi), fontSize: 9.5, lineHeight: 13, letterSpacing: 1.2, textTransform: 'uppercase' }}
         >
           {fresh ? t('shareUnlocked') : t('shareMyAch')}
         </T>
@@ -317,7 +317,7 @@ function BadgeSticker({ payload, t }) {
           numberOfLines={2}
           adjustsFontSizeToFit
           minimumFontScale={0.8}
-          style={{ color: PLATE.ink, ...fw(F.extra), fontSize: size, lineHeight: Math.round(size * 1.24), textAlign: 'center' }}
+          style={{ color: PLATE.ink, ...fw(F.semi), fontSize: size, lineHeight: Math.round(size * 1.24), textAlign: 'center' }}
         >
           {title}
         </T>

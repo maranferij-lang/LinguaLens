@@ -121,7 +121,7 @@ export function StickerLarge({ uri, shape, outline, box, size = 132, style, pop 
   return (
     <View style={[{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }, style]}>
       {halo ? (
-        // М'яка акцентна пляма дає предмету «землю» й тримає композицію,
+        // М'яка нейтральна пляма дає предмету «землю» й тримає композицію,
         // коли силует вузький (олівець, пляшка).
         <View
           style={{
@@ -129,7 +129,7 @@ export function StickerLarge({ uri, shape, outline, box, size = 132, style, pop 
             width: size * 0.8,
             height: size * 0.8,
             borderRadius: size,
-            backgroundColor: C.accentSoft,
+            backgroundColor: C.soft,
           }}
         />
       ) : null}

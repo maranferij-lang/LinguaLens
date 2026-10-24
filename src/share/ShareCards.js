@@ -17,7 +17,7 @@ import { Mascot } from '../Mascot';
 import { photoUri } from '../photos';
 import { flagFor, nameFor } from '../speech';
 import { StickerLarge } from '../Sticker';
-import { F, ipaFont, type, fw } from '../theme';
+import { F, display, ipaFont, type, fw } from '../theme';
 import {
   CAPS_TRACK,
   CARD_H,
@@ -43,6 +43,7 @@ import {
   weekRangeLabel,
   SCENE_TEMPLATES,
 } from './layout';
+import { Blobs } from './Blobs';
 import { SceneCard } from './SceneCards';
 
 // Фото слова може бути відносним шляхом у Documents ('stickers/x.jpg') або
@@ -65,10 +66,10 @@ function Txt(props) {
 // Розрядковий капс для метаданих: «ENGLISH», «DAY STREAK».
 const capsStyle = (color, size = 11) => ({
   color,
-  ...fw(F.extra),
+  ...fw(F.semi),
   fontSize: size,
   lineHeight: Math.round(size * 1.35),
-  letterSpacing: size * 0.14,
+  letterSpacing: size * 0.07,
   textTransform: 'uppercase',
 });
 
@@ -89,6 +90,7 @@ function Frame({ pal, cardRef, children }) {
         overflow: 'hidden',
       }}
     >
+      <Blobs pal={pal} />
       {children}
     </View>
   );
@@ -99,9 +101,9 @@ function Frame({ pal, cardRef, children }) {
 function Footer({ pal, t, right, center }) {
   const brand = (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-      <LogoMark size={22} color={pal.text} fg={pal.bg} />
+      <LogoMark size={20} color={pal.text} fg={pal.bg} />
       <View>
-        <Txt style={{ color: pal.text, ...type(13, F.extra, { noLead: true }), lineHeight: 16 }}>LinguaLens</Txt>
+        <Txt style={{ color: pal.text, ...type(13, F.semi, { noLead: true }), lineHeight: 16 }}>LinguaLens</Txt>
         <Txt style={{ color: pal.muted, ...fw(F.reg), fontSize: 10, lineHeight: 13 }}>{t('shareTagline')}</Txt>
       </View>
     </View>
@@ -137,11 +139,11 @@ function BigWord({ word, pal, max, align = 'center', style }) {
       style={[
         {
           color: pal.text,
-          ...fw(F.extra),
+          ...fw(F.light),
           fontSize: size,
           // запас під діакритику над великими літерами (Ü, Ñ, Й)
           lineHeight: Math.round(size * 1.18),
-          letterSpacing: -size * 0.022,
+          letterSpacing: -size * 0.03,
           textAlign: align,
           alignSelf: 'stretch',
         },
@@ -186,7 +188,7 @@ function Art({ word, pal, size, tilt = 0 }) {
           transform: [{ rotate: `${tilt - 3}deg` }],
         }}
       >
-        <Txt style={{ color: pal.onTile, ...fw(F.extra), fontSize: tile * 0.56, lineHeight: tile * 0.72 }}>
+        <Txt style={{ color: pal.onTile, ...fw(F.light), fontSize: tile * 0.56, lineHeight: tile * 0.72 }}>
           {initialOf(word.word)}
         </Txt>
       </View>
@@ -204,7 +206,7 @@ function IpaPill({ ipa, pal, style }) {
         style,
       ]}
     >
-      <Txt numberOfLines={1} style={{ color: pal.pillText, ...ipaFont('600'), fontSize: 15, lineHeight: 20 }}>
+      <Txt numberOfLines={1} style={{ color: pal.pillText, ...ipaFont('500'), fontSize: 15, lineHeight: 20 }}>
         {label}
       </Txt>
     </View>
@@ -234,7 +236,7 @@ function Stats({ items, pal, locale, style }) {
           >
             <Txt
               numberOfLines={1}
-              style={{ color: pal.text, ...fw(F.extra), fontSize: size, lineHeight: Math.round(size * 1.12), letterSpacing: -size * 0.02 }}
+              style={{ color: pal.text, ...fw(F.light), fontSize: size, lineHeight: Math.round(size * 1.12), letterSpacing: -size * 0.03 }}
             >
               {value}
             </Txt>
@@ -265,7 +267,7 @@ function WordSticker({ word, pal, t, locale }) {
       <BigWord word={word.word} pal={pal} max={64} />
       <IpaPill ipa={word.ipa} pal={pal} style={{ marginTop: 10 }} />
       {word.translation ? (
-        <Txt numberOfLines={2} style={{ color: pal.text, ...type(22, F.semi), textAlign: 'center', marginTop: 14 }}>
+        <Txt numberOfLines={2} style={{ color: pal.text, ...type(22, F.reg), textAlign: 'center', marginTop: 14 }}>
           {word.translation}
         </Txt>
       ) : null}
@@ -305,12 +307,12 @@ function WordEntry({ word, pal, t, locale }) {
         ) : null}
         <View style={{ height: 1, backgroundColor: pal.line, marginTop: 22 }} />
         {word.translation ? (
-          <Txt numberOfLines={2} style={{ color: pal.text, ...type(28, F.extra), marginTop: 20 }}>
+          <Txt numberOfLines={2} style={{ color: pal.text, ...type(28, F.light), marginTop: 20 }}>
             {word.translation}
           </Txt>
         ) : null}
         {word.example ? (
-          <Txt numberOfLines={exampleLines} style={{ color: pal.text, ...fw(F.semi), fontSize: 18, lineHeight: 26, marginTop: 18 }}>
+          <Txt numberOfLines={exampleLines} style={{ color: pal.text, ...fw(F.reg), fontSize: 18, lineHeight: 26, marginTop: 18 }}>
             {quote(clipLines(word.example, exampleLines, 18), word.lang)}
           </Txt>
         ) : null}
@@ -325,14 +327,14 @@ function WordEntry({ word, pal, t, locale }) {
         {word.lang ? (
           <View>
             <Txt style={capsStyle(pal.muted, 10)}>{t('shareLang')}</Txt>
-            <Txt style={{ color: pal.text, ...fw(F.extra), fontSize: 17, lineHeight: 22, marginTop: 2 }}>
+            <Txt style={{ color: pal.text, ...fw(F.semi), fontSize: 17, lineHeight: 22, marginTop: 2 }}>
               {nameFor(word.lang)}
             </Txt>
           </View>
         ) : null}
         <View>
           <Txt style={capsStyle(pal.muted, 10)}>{t('shareDate')}</Txt>
-          <Txt style={{ color: pal.text, ...fw(F.extra), fontSize: 17, lineHeight: 22, marginTop: 2 }}>
+          <Txt style={{ color: pal.text, ...fw(F.semi), fontSize: 17, lineHeight: 22, marginTop: 2 }}>
             {dateLabel(word.addedAt || Date.now(), locale)}
           </Txt>
         </View>
@@ -370,7 +372,7 @@ function Medal({ id, tier, pal }) {
           width: 176,
           height: 176,
           borderRadius: 88,
-          borderWidth: 5,
+          borderWidth: 2,
           borderColor: tierColor(pal, tier),
           backgroundColor: pal.pill,
           alignItems: 'center',
@@ -401,7 +403,7 @@ function AchievementCard({ payload, pal, t, locale }) {
           numberOfLines={2}
           adjustsFontSizeToFit
           minimumFontScale={0.7}
-          style={{ color: pal.text, ...type(42, F.extra), textAlign: 'center', marginTop: 30 }}
+          style={{ color: pal.text, ...display(42, { dense: true }), textAlign: 'center', marginTop: 30 }}
         >
           {t('ach_' + achievement.id)}
         </Txt>
@@ -435,7 +437,8 @@ function WeekChart({ days, pal, t, height }) {
               width: 26,
               height: hs[i],
               borderRadius: Math.min(9, hs[i] / 2),
-              backgroundColor: d.value ? pal.accent : pal.line,
+              // монохромний графік: акцент лише для «сьогодні»
+              backgroundColor: d.value ? (i === days.length - 1 ? pal.accent : pal.muted) : pal.line,
             }}
           />
         ))}
@@ -468,7 +471,7 @@ function WeekCard({ payload, pal, t, locale }) {
       <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
         <View style={{ flex: 1 }}>
           <Txt style={capsStyle(pal.muted)}>{t('shareWeekLabel')}</Txt>
-          <Txt numberOfLines={1} adjustsFontSizeToFit style={{ color: pal.text, ...type(rangeSize, F.extra), marginTop: 4 }}>
+          <Txt numberOfLines={1} adjustsFontSizeToFit style={{ color: pal.text, ...type(rangeSize, F.light), marginTop: 4 }}>
             {range}
           </Txt>
         </View>

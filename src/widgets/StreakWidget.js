@@ -69,7 +69,7 @@ const Streak = (props, environment) => {
   const lit = stage >= 3 && !tinted;
   const link = (props.link || 'lingualens://streak') + ((props.link || '').indexOf('?') < 0 ? '?f=' : '&f=') + family;
   const a11y = [accessibilityElement('combine'), accessibilityLabel(props.a11y || 'LinguaLens')];
-  const rounded = (size, weight) => font({ size: size, weight: weight, design: 'rounded' });
+  const sf = (size, weight) => font({ size: size, weight: weight });
 
   // Вогник: розмір за стадією, на 3+ — градієнт від кінчика до тіла.
   const flameStyle = tinted
@@ -91,7 +91,7 @@ const Streak = (props, environment) => {
   );
   // Число серії: «перекручується», коли застосунок оновлює серію.
   const number = (size) => (
-    <Text modifiers={[rounded(size, 'heavy'), foregroundStyle(n === '0' ? faint : ink), monospacedDigit(), contentTransition('numericText'), lineLimit(1)]}>
+    <Text modifiers={[sf(size, 'light'), foregroundStyle(n === '0' ? faint : ink), monospacedDigit(), contentTransition('numericText'), lineLimit(1)]}>
       {n}
     </Text>
   );
@@ -105,7 +105,7 @@ const Streak = (props, environment) => {
         <Text
           timerInterval={{ lower: lower, upper: upper }}
           countsDown={true}
-          modifiers={[rounded(12, 'heavy'), foregroundStyle(flameInk), monospacedDigit(), lineLimit(1)]}
+          modifiers={[sf(12, 'semibold'), foregroundStyle(flameInk), monospacedDigit(), lineLimit(1)]}
         />
       </HStack>
     ) : null;
@@ -129,7 +129,7 @@ const Streak = (props, environment) => {
         <Gauge value={Number(props.goal) || 0} modifiers={[gaugeStyle('circular')]} />
         <VStack spacing={0}>
           <Image systemName={stage === 0 ? 'flame' : 'flame.fill'} size={12} modifiers={[foregroundStyle(primary)]} />
-          <Text modifiers={[rounded(18, 'heavy'), foregroundStyle(primary), monospacedDigit(), lineLimit(1), minimumScaleFactor(0.6)]}>{n}</Text>
+          <Text modifiers={[sf(18, 'semibold'), foregroundStyle(primary), monospacedDigit(), lineLimit(1), minimumScaleFactor(0.6)]}>{n}</Text>
         </VStack>
       </ZStack>
     );
@@ -143,8 +143,8 @@ const Streak = (props, environment) => {
       >
         <Image systemName={stage === 0 ? 'flame' : 'flame.fill'} size={30} modifiers={[foregroundStyle(primary)]} />
         <VStack alignment="leading" spacing={0}>
-          <Text modifiers={[rounded(17, 'bold'), foregroundStyle(primary), lineLimit(1), minimumScaleFactor(0.7)]}>{props.inline || n}</Text>
-          <Text modifiers={[rounded(13, 'medium'), foregroundStyle(secondary), lineLimit(2), minimumScaleFactor(0.85)]}>{props.short || ''}</Text>
+          <Text modifiers={[sf(17, 'semibold'), foregroundStyle(primary), lineLimit(1), minimumScaleFactor(0.7)]}>{props.inline || n}</Text>
+          <Text modifiers={[sf(13, 'medium'), foregroundStyle(secondary), lineLimit(2), minimumScaleFactor(0.85)]}>{props.short || ''}</Text>
         </VStack>
       </HStack>
     );
@@ -167,11 +167,11 @@ const Streak = (props, environment) => {
           <Spacer />
           {flame([22, 22, 28, 34, 40][stage] || 22)}
         </HStack>
-        <Text modifiers={[rounded(15, 'bold'), foregroundStyle(ink), lineLimit(1), minimumScaleFactor(0.7)]}>{props.unit || ''}</Text>
+        <Text modifiers={[sf(15, 'semibold'), foregroundStyle(ink), lineLimit(1), minimumScaleFactor(0.7)]}>{props.unit || ''}</Text>
         <Spacer />
         <VStack alignment="leading" spacing={5}>
           {timer}
-          <Text modifiers={[rounded(13, 'semibold'), foregroundStyle(phraseColor), lineLimit(3), minimumScaleFactor(0.85)]}>
+          <Text modifiers={[sf(13, 'semibold'), foregroundStyle(phraseColor), lineLimit(3), minimumScaleFactor(0.85)]}>
             {done ? props.line || '' : props.short || props.line || ''}
           </Text>
         </VStack>
@@ -199,7 +199,7 @@ const Streak = (props, environment) => {
     return (
       <VStack key={'d' + i} spacing={3} modifiers={[frame({ maxWidth: Infinity })]}>
         {dot}
-        <Text modifiers={[rounded(10, today ? 'heavy' : 'semibold'), foregroundStyle(today ? ink : faint), lineLimit(1), minimumScaleFactor(0.7)]}>
+        <Text modifiers={[sf(10, today ? 'semibold' : 'semibold'), foregroundStyle(today ? ink : faint), lineLimit(1), minimumScaleFactor(0.7)]}>
           {d.d || ' '}
         </Text>
       </VStack>
@@ -211,7 +211,7 @@ const Streak = (props, environment) => {
         {flame(26)}
         <HStack alignment="firstTextBaseline" spacing={6}>
           {number(34)}
-          <Text modifiers={[rounded(15, 'bold'), foregroundStyle(ink), lineLimit(1), minimumScaleFactor(0.7)]}>{props.unit || ''}</Text>
+          <Text modifiers={[sf(15, 'semibold'), foregroundStyle(ink), lineLimit(1), minimumScaleFactor(0.7)]}>{props.unit || ''}</Text>
         </HStack>
         <Spacer />
         {timer}
@@ -221,7 +221,7 @@ const Streak = (props, environment) => {
         {week.map(day)}
       </HStack>
       <Spacer />
-      <Text modifiers={[rounded(13, 'semibold'), foregroundStyle(phraseColor), lineLimit(2), minimumScaleFactor(0.85)]}>{props.line || ''}</Text>
+      <Text modifiers={[sf(13, 'semibold'), foregroundStyle(phraseColor), lineLimit(2), minimumScaleFactor(0.85)]}>{props.line || ''}</Text>
     </VStack>
   );
 };

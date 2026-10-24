@@ -13,6 +13,7 @@
 //     чистим списком під ним: номер у рядку — лише в тих, кого видно у
 //     вставці.
 // Сцена вже знята в 9:16, тож на перших двох вона йде на весь кадр.
+import { Blobs } from './Blobs';
 import { useId } from 'react';
 import { Image, Text, View } from 'react-native';
 import Svg, { Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
@@ -47,10 +48,10 @@ function Txt(props) {
 
 const caps = (color, size = 10) => ({
   color,
-  ...fw(F.extra),
+  ...fw(F.semi),
   fontSize: size,
   lineHeight: Math.round(size * 1.35),
-  letterSpacing: size * 0.14,
+  letterSpacing: size * 0.07,
   textTransform: 'uppercase',
 });
 
@@ -96,7 +97,7 @@ function Brand({ color, fg, tagline }) {
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
       <LogoMark size={22} color={color} fg={fg} />
       <View>
-        <Txt style={{ color, ...type(13, F.extra, { noLead: true }), lineHeight: 16 }}>LinguaLens</Txt>
+        <Txt style={{ color, ...type(13, F.semi, { noLead: true }), lineHeight: 16 }}>LinguaLens</Txt>
         {tagline ? <Txt style={{ color: tagline.color, ...fw(F.reg), fontSize: 10, lineHeight: 13 }}>{tagline.text}</Txt> : null}
       </View>
     </View>
@@ -376,14 +377,14 @@ function FrameCard({ scene, uri, pal, t, locale }) {
         {rows.map(({ o, n }) => (
           <View key={o.key} style={{ height: ROW_H, flexDirection: 'row', alignItems: 'center' }}>
             {n ? (
-              <Txt style={{ width: 26, color: pal.accent, ...fw(F.extra), fontSize: 13, lineHeight: 18 }}>{n}</Txt>
+              <Txt style={{ width: 26, color: pal.accent, ...fw(F.semi), fontSize: 13, lineHeight: 18 }}>{n}</Txt>
             ) : (
               // окремої крапки на фото в нього немає — тиха крапка замість номера
               <View style={{ width: 26 }}>
                 <View style={{ width: 5, height: 5, borderRadius: 2.5, marginLeft: 2, backgroundColor: pal.muted, opacity: 0.7 }} />
               </View>
             )}
-            <Txt numberOfLines={1} style={{ flex: 1, color: pal.text, ...fw(F.extra), fontSize: size, lineHeight: Math.round(size * 1.3), letterSpacing: -0.1 }}>
+            <Txt numberOfLines={1} style={{ flex: 1, color: pal.text, ...fw(F.semi), fontSize: size, lineHeight: Math.round(size * 1.3), letterSpacing: -0.1 }}>
               {o.word}
               {o.translation ? <Txt style={{ color: pal.muted, ...fw(F.reg) }}>{PAIR_SEP + o.translation}</Txt> : null}
             </Txt>
@@ -419,6 +420,7 @@ export function SceneCard({ payload, template, pal, t, locale, cardRef }) {
       collapsable={false}
       style={{ width: CARD_W, height: CARD_H, overflow: 'hidden', backgroundColor: photo ? '#000' : pal.bg }}
     >
+      {photo ? null : <Blobs pal={pal} />}
       {template === 'sceneStickers' ? <StickersCard {...props} /> : null}
       {template === 'sceneLabels' ? <LabelsCard {...props} /> : null}
       {template === 'sceneFrame' ? <FrameCard {...props} /> : null}

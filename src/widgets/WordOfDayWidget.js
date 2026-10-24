@@ -87,10 +87,12 @@ const WordOfDay = (props, environment) => {
   const label = hidden ? props.a11yShort || props.a11y || message : props.a11y || message;
   const a11y = [accessibilityElement('contain'), accessibilityLabel(label)];
 
-  // Шрифти: системний округлий — найближчий до Nunito застосунку
-  // (власні шрифти в розширення віджета не потрапляють).
+  // Шрифти: системний SF, як у застосунку; великі слова світлі (300).
+  // Власні шрифти в розширення віджета не потрапляють.
+  const sf = (size, weight) => font({ size: size, weight: weight });
+  // транскрипції потрібен IPA: у SF Pro Rounded він є весь
   const rounded = (size, weight) => font({ size: size, weight: weight, design: 'rounded' });
-  const caps = (color) => [rounded(11, 'heavy'), foregroundStyle(color), textCase('uppercase'), kerning(0.8), lineLimit(1)];
+  const caps = (color) => [sf(11, 'medium'), foregroundStyle(color), textCase('uppercase'), kerning(0.8), lineLimit(1)];
 
   // ── Екран блокування: один рядок над годинником ──
   if (family === 'accessoryInline') {
@@ -110,14 +112,14 @@ const WordOfDay = (props, environment) => {
         modifiers={[frame({ maxWidth: Infinity, alignment: 'leading' }), containerBackground('clear', 'widget'), widgetURL(link)].concat(a11y)}
       >
         {hasWord ? (
-          <Text modifiers={[rounded(19, 'bold'), foregroundStyle(primary), lineLimit(1), minimumScaleFactor(0.6), allowsTightening(true)]}>
+          <Text modifiers={[sf(19, 'semibold'), foregroundStyle(primary), lineLimit(1), minimumScaleFactor(0.6), allowsTightening(true)]}>
             {props.word}
           </Text>
         ) : (
           <Text modifiers={caps(secondary)}>{props.title || 'LinguaLens'}</Text>
         )}
         {hasWord && props.translation ? (
-          <Text modifiers={[rounded(15, 'semibold'), foregroundStyle(secondary), lineLimit(1), minimumScaleFactor(0.8)]}>
+          <Text modifiers={[sf(15, 'semibold'), foregroundStyle(secondary), lineLimit(1), minimumScaleFactor(0.8)]}>
             {props.translation}
           </Text>
         ) : null}
@@ -125,7 +127,7 @@ const WordOfDay = (props, environment) => {
           <Text modifiers={[rounded(13, 'regular'), foregroundStyle(secondary), lineLimit(1), minimumScaleFactor(0.8)]}>{props.ipa}</Text>
         ) : null}
         {hasWord ? null : (
-          <Text modifiers={[rounded(15, 'semibold'), foregroundStyle(primary), lineLimit(2), minimumScaleFactor(0.8)]}>{message}</Text>
+          <Text modifiers={[sf(15, 'semibold'), foregroundStyle(primary), lineLimit(2), minimumScaleFactor(0.8)]}>{message}</Text>
         )}
       </VStack>
     );
@@ -148,7 +150,7 @@ const WordOfDay = (props, environment) => {
         <Spacer />
         <VStack alignment="leading" spacing={large ? 10 : 6}>
           <Image systemName="sparkles" size={large ? 28 : medium ? 22 : 20} modifiers={[foregroundStyle(accent)]} />
-          <Text modifiers={[rounded(large ? 24 : medium ? 19 : 16, 'bold'), foregroundStyle(ink), lineLimit(3), minimumScaleFactor(0.8)]}>
+          <Text modifiers={[sf(large ? 24 : medium ? 19 : 16, 'semibold'), foregroundStyle(ink), lineLimit(3), minimumScaleFactor(0.8)]}>
             {message}
           </Text>
         </VStack>
@@ -168,7 +170,7 @@ const WordOfDay = (props, environment) => {
     >
       <HStack spacing={5} modifiers={[padding({ horizontal: 10, vertical: 5 }), background(accentSoft, shapes.capsule()), invalidatableContent()]}>
         <Image systemName="eye" size={12} modifiers={[foregroundStyle(accent)]} />
-        <Text modifiers={[rounded(13, 'bold'), foregroundStyle(accent), lineLimit(1), minimumScaleFactor(0.8)]}>
+        <Text modifiers={[sf(13, 'semibold'), foregroundStyle(accent), lineLimit(1), minimumScaleFactor(0.8)]}>
           {long ? props.revealLong : props.revealShort}
         </Text>
       </HStack>
@@ -177,7 +179,7 @@ const WordOfDay = (props, environment) => {
 
   const wordSize = large ? 40 : medium ? 34 : 28;
   const word = (
-    <Text modifiers={[rounded(wordSize, 'bold'), foregroundStyle(ink), lineLimit(1), minimumScaleFactor(0.45), allowsTightening(true)]}>
+    <Text modifiers={[sf(wordSize, 'light'), foregroundStyle(ink), lineLimit(1), minimumScaleFactor(0.45), allowsTightening(true)]}>
       {props.word}
     </Text>
   );
@@ -187,7 +189,7 @@ const WordOfDay = (props, environment) => {
   const translation = (size) =>
     props.translation ? (
       <Text
-        modifiers={[rounded(size, 'semibold'), foregroundStyle(soft), lineLimit(small ? 2 : 1), minimumScaleFactor(0.75), layoutPriority(1)]}
+        modifiers={[sf(size, 'semibold'), foregroundStyle(soft), lineLimit(small ? 2 : 1), minimumScaleFactor(0.75), layoutPriority(1)]}
       >
         {props.translation}
       </Text>
@@ -195,13 +197,13 @@ const WordOfDay = (props, environment) => {
   // Приклад зі словом жирним (markdown, md === '1'); інакше — звичайний текст.
   const example = (size, lines) =>
     props.example ? (
-      <Text markdownEnabled={props.md === '1'} modifiers={[rounded(size, 'medium'), foregroundStyle(soft), lineLimit(lines)]}>
+      <Text markdownEnabled={props.md === '1'} modifiers={[sf(size, 'medium'), foregroundStyle(soft), lineLimit(lines)]}>
         {props.example}
       </Text>
     ) : null;
   const exampleTr = (size) =>
     !hidden && props.exampleTr ? (
-      <Text modifiers={[rounded(size, 'regular'), foregroundStyle(dim), lineLimit(1)]}>{props.exampleTr}</Text>
+      <Text modifiers={[sf(size, 'regular'), foregroundStyle(dim), lineLimit(1)]}>{props.exampleTr}</Text>
     ) : null;
 
   // ── Малий: кепс, слово, транскрипція, «Переклад» або переклад ──
@@ -258,7 +260,7 @@ const WordOfDay = (props, environment) => {
                 modifiers={[frame({ width: 6, height: 6 }), foregroundStyle(i <= Number(props.slotI) ? accent : sep)]}
               />
             ))}
-          <Text modifiers={[rounded(11, 'heavy'), foregroundStyle(dim), lineLimit(1)]}>{props.slotLabel}</Text>
+          <Text modifiers={[sf(11, 'semibold'), foregroundStyle(dim), lineLimit(1)]}>{props.slotLabel}</Text>
         </HStack>
       ) : (
         <Text modifiers={caps(faint)}>{props.date}</Text>
@@ -280,15 +282,15 @@ const WordOfDay = (props, environment) => {
               : [padding({ horizontal: pro ? 8 : 0, vertical: 4 })]
           }
         >
-          {r.time ? <Text modifiers={[rounded(13, 'semibold'), foregroundStyle(dim), lineLimit(1)]}>{r.time}</Text> : null}
+          {r.time ? <Text modifiers={[sf(13, 'semibold'), foregroundStyle(dim), lineLimit(1)]}>{r.time}</Text> : null}
           {r.lock === '1' ? <Image systemName="lock.fill" size={11} modifiers={[foregroundStyle(faint)]} /> : null}
-          {r.w ? <Text modifiers={[rounded(16, 'bold'), foregroundStyle(ink), lineLimit(1)]}>{r.w}</Text> : null}
+          {r.w ? <Text modifiers={[sf(16, 'semibold'), foregroundStyle(ink), lineLimit(1)]}>{r.w}</Text> : null}
           {r.lock === '1' ? (
-            <Text modifiers={[rounded(15, 'medium'), foregroundStyle(dim), lineLimit(1)]}>{r.t}</Text>
+            <Text modifiers={[sf(15, 'medium'), foregroundStyle(dim), lineLimit(1)]}>{r.t}</Text>
           ) : hidden && r.t ? (
-            <Text modifiers={[rounded(15, 'heavy'), foregroundStyle(faint), kerning(2)]}>•••</Text>
+            <Text modifiers={[sf(15, 'semibold'), foregroundStyle(faint), kerning(2)]}>•••</Text>
           ) : r.t ? (
-            <Text modifiers={[rounded(15, 'medium'), foregroundStyle(dim), lineLimit(1), minimumScaleFactor(0.8)]}>{r.t}</Text>
+            <Text modifiers={[sf(15, 'medium'), foregroundStyle(dim), lineLimit(1), minimumScaleFactor(0.8)]}>{r.t}</Text>
           ) : null}
           <Spacer />
         </HStack>

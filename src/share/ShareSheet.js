@@ -41,7 +41,7 @@ import { IcCheck, IcCopy, IcDownload, IcMore, IcShare, IcStories, IcWarn } from 
 import { DUR, EASE, SPRING, layoutNext, safeSpring, useReducedMotion } from '../motion';
 import { useSafeAreaInsets } from '../SafeArea';
 import { CAPS, F, R, type, useTheme } from '../theme';
-import { FadeIn, Press } from '../ui';
+import { FadeIn, GlassSheet, Press } from '../ui';
 import { copyImage, dropFile, pickBackground, saveImage, storiesWith } from './actions';
 import { captureView, releaseShot, shareFile } from './capture';
 import { storiesAvailable, storiesSupported } from './instagram';
@@ -482,15 +482,15 @@ function Sheet({ payload, onClose, t }) {
           s.panel,
           {
             width: pageW,
-            backgroundColor: C.sheet,
-            paddingBottom: insets.bottom + SHEET_ROWS.bottom,
             opacity: a,
             transform: [{ translateY: panelY }],
           },
         ]}
       >
+        {/* Скляний аркуш (Soft Glass): радіус 40, нижні кути йдуть за екран */}
+        <GlassSheet grabber={false} style={[s.glass, { paddingBottom: insets.bottom + SHEET_ROWS.bottom + R.sheet }]}>
         <View style={s.header} testID="share-header" {...pan.panHandlers}>
-          <View style={[s.grabber, { backgroundColor: C.card3 }]} />
+          <View style={[s.grabber, { backgroundColor: C.hairline }]} />
           <Text style={[s.title, { color: C.text }]} accessibilityRole="header" numberOfLines={1} maxFontSizeMultiplier={1.3}>
             {title}
           </Text>
@@ -518,7 +518,7 @@ function Sheet({ payload, onClose, t }) {
           <View
             style={[
               s.statusTop,
-              { backgroundColor: C.sheet, height: SHEET_ROWS.top + SHEET_ROWS.title + (segment ? SHEET_ROWS.segment : 12) },
+              { backgroundColor: C.glassStrong, height: SHEET_ROWS.top + SHEET_ROWS.title + (segment ? SHEET_ROWS.segment : 12) },
             ]}
           >
             <Status status={status} okInk={okInk} t={t} C={C} top onDismiss={() => say(null)} />
@@ -651,7 +651,7 @@ function Sheet({ payload, onClose, t }) {
                       style={[s.swatchRing, { borderColor: on ? C.accent : 'transparent' }]}
                     >
                       {/* крапка кольору тексту — одразу видно, як читатиметься */}
-                      <View style={[s.swatch, { backgroundColor: p.bg, borderColor: C.sep }]}>
+                      <View style={[s.swatch, { backgroundColor: p.bg, borderColor: C.hairline }]}>
                         <View style={[s.swatchDot, { backgroundColor: p.text }]} />
                       </View>
                     </Pressable>
@@ -674,7 +674,7 @@ function Sheet({ payload, onClose, t }) {
                 accessibilityLabel={t(PRIMARY.label)}
                 accessibilityState={{ busy: busy === primary }}
               >
-                <View style={[s.cta, { backgroundColor: C.accent }, SHADOW]}>
+                <View style={[s.cta, { backgroundColor: C.accent, shadowColor: C.accent, shadowOpacity: isDark ? 0.35 : 0.3, shadowRadius: 16, shadowOffset: { width: 0, height: 6 }, elevation: 4 }]}>
                   {busy === primary ? (
                     <ActivityIndicator color={C.onAccent} />
                   ) : (
@@ -686,7 +686,7 @@ function Sheet({ payload, onClose, t }) {
                         adjustsFontSizeToFit
                         minimumFontScale={0.8}
                         maxFontSizeMultiplier={1.3}
-                        style={{ color: C.onAccent, flexShrink: 1, ...type(17, F.extra, { noLead: true }) }}
+                        style={{ color: C.onAccent, flexShrink: 1, ...type(17, F.semi, { noLead: true }) }}
                       >
                         {t(PRIMARY.label)}
                       </Text>
@@ -706,7 +706,7 @@ function Sheet({ payload, onClose, t }) {
                     {busy === 'stories_gallery' ? (
                       <ActivityIndicator color={C.accent} />
                     ) : (
-                      <Text numberOfLines={1} maxFontSizeMultiplier={1.3} style={{ color: C.accent, ...type(15, F.bold, { noLead: true }) }}>
+                      <Text numberOfLines={1} maxFontSizeMultiplier={1.3} style={{ color: C.accent, ...type(15, F.semi, { noLead: true }) }}>
                         {t('shareStoriesPickOther')}
                       </Text>
                     )}
@@ -729,7 +729,7 @@ function Sheet({ payload, onClose, t }) {
                         accessibilityLabel={t(label)}
                         accessibilityState={{ busy: on }}
                       >
-                        <View style={[s.tile, { backgroundColor: gradient ? STORIES_GRADIENT[1] : C.card2 }]}>
+                        <View style={[s.tile, gradient ? { backgroundColor: STORIES_GRADIENT[1] } : { backgroundColor: C.glass, borderWidth: 1, borderColor: C.hairline }]}>
                           {gradient ? <StoriesGradient /> : null}
                           {/* обгортка тримає іконку над градієнтом і на вебі, де
                               absolute-шар інакше малюється поверх сусіда */}
@@ -760,6 +760,7 @@ function Sheet({ payload, onClose, t }) {
             </Text>
           </Press>
         </View>
+        </GlassSheet>
       </Animated.View>
     </View>
   );
@@ -827,7 +828,7 @@ function Segment({ value, options, onChange, C, isDark, shadow, reduced }) {
   const shift = useMemo(() => Animated.multiply(a, thumb), [thumb]);
   return (
     <View
-      style={[s.segment, { backgroundColor: isDark ? C.bg : C.card2 }]}
+      style={[s.segment, { backgroundColor: C.soft }]}
       onLayout={(e) => setW(e.nativeEvent.layout.width)}
       accessibilityRole="tablist"
     >
@@ -853,7 +854,7 @@ function Segment({ value, options, onChange, C, isDark, shadow, reduced }) {
             <Text
               numberOfLines={1}
               maxFontSizeMultiplier={1.3}
-              style={{ color: on ? C.text : C.dim, ...type(15, on ? F.extra : F.bold, { noLead: true }) }}
+              style={{ color: on ? C.text : C.dim, ...type(15, on ? F.semi : F.reg, { noLead: true }) }}
             >
               {o.label}
             </Text>
@@ -880,7 +881,7 @@ function Dots({ items, current, onPick, label, C }) {
           accessibilityLabel={label(it)}
           accessibilityState={{ selected: i === current }}
         >
-          <View style={[s.dot, i === current ? { width: 18, backgroundColor: C.accent } : { backgroundColor: C.card3 }]} />
+          <View style={[s.dot, i === current ? { width: 18, backgroundColor: C.accent } : { backgroundColor: C.soft }]} />
         </Pressable>
       ))}
       <Text numberOfLines={1} maxFontSizeMultiplier={1.2} style={[CAPS, { color: C.dim, marginLeft: 6, flexShrink: 1 }]}>
@@ -925,22 +926,20 @@ function StoriesGradient() {
 const s = StyleSheet.create({
   // elevation поруч із zIndex: на Android порядок шарів рахується за нею
   root: { zIndex: 1000, elevation: 1000, justifyContent: 'flex-end', alignItems: 'center' },
-  backdrop: { backgroundColor: 'rgba(12,10,8,0.6)' },
-  panel: {
-    borderTopLeftRadius: R.xl,
-    borderTopRightRadius: R.xl,
-    paddingTop: 8,
-  },
+  backdrop: { backgroundColor: 'rgba(12,10,8,0.45)' },
+  // обгортка анімації; скло малює GlassSheet усередині
+  panel: {},
+  glass: { paddingTop: 8, marginBottom: -R.sheet },
   // Смуга потягу: ручка й заголовок. Мінус 8 зверху з тим самим відступом
   // всередині підхоплює й поле над ручкою, а розкладка не змінюється.
   header: { marginTop: -8, paddingTop: 8 },
   // ручка + відступ до заголовка = SHEET_ROWS.top
   grabber: { alignSelf: 'center', width: 36, height: 5, borderRadius: 3, marginBottom: 7 },
-  title: { ...type(19, F.extra, { noLead: true }), lineHeight: SHEET_ROWS.title, textAlign: 'center', paddingHorizontal: 20 },
+  title: { ...type(19, F.semi, { noLead: true }), lineHeight: SHEET_ROWS.title, textAlign: 'center', paddingHorizontal: 20 },
   segmentRow: { marginTop: SHEET_ROWS.segment - 36, alignItems: 'center' },
-  segment: { flexDirection: 'row', height: 36, borderRadius: 12, padding: 3, minWidth: 220 },
-  segThumb: { position: 'absolute', top: 3, bottom: 3, left: 3, borderRadius: 9 },
-  segBtn: { flex: 1, minWidth: 104, paddingHorizontal: 16, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
+  segment: { flexDirection: 'row', height: 36, borderRadius: 14, padding: 3, minWidth: 220 },
+  segThumb: { position: 'absolute', top: 3, bottom: 3, left: 3, borderRadius: 11 },
+  segBtn: { flex: 1, minWidth: 104, paddingHorizontal: 16, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
   stickerBox: { borderRadius: STICKER_RADIUS, overflow: 'hidden' },
   hint: { position: 'absolute', left: 12, right: 12, bottom: 0, height: STICKER_HINT_H, justifyContent: 'flex-start' },
   hintText: { ...type(13, F.semi, { noLead: true }), lineHeight: 18, textAlign: 'center' },
@@ -961,7 +960,7 @@ const s = StyleSheet.create({
   swatchDot: { width: 8, height: 8, borderRadius: 4 },
   cta: {
     height: 54,
-    borderRadius: R.lg,
+    borderRadius: R.pill,
     paddingHorizontal: 18,
     flexDirection: 'row',
     alignItems: 'center',
@@ -972,7 +971,7 @@ const s = StyleSheet.create({
   // 12 + плитка 54 + 4 + підпис 16 = SHEET_ROWS.tiles
   tiles: { flexDirection: 'row', justifyContent: 'center', marginTop: 12 },
   tileCol: { flex: 1, maxWidth: 92, alignItems: 'center' },
-  tile: { width: 54, height: 54, borderRadius: 18, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
+  tile: { width: 54, height: 54, borderRadius: 27, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
   tileLabel: { ...type(12.5, F.semi, { noLead: true }), lineHeight: 16, marginTop: 4, textAlign: 'center' },
   status: { marginTop: 8, borderRadius: R.md, paddingHorizontal: 12, paddingVertical: 9 },
   // поверх ручки, заголовка й перемикача (SHEET_ROWS.top + title + segment)
@@ -983,14 +982,14 @@ const s = StyleSheet.create({
     top: 0,
     paddingHorizontal: 16,
     paddingTop: 6,
-    borderTopLeftRadius: R.xl,
-    borderTopRightRadius: R.xl,
+    borderTopLeftRadius: R.sheet,
+    borderTopRightRadius: R.sheet,
     justifyContent: 'center',
     zIndex: 2,
   },
   statusFloat: { marginTop: 0, paddingVertical: 8 },
   statusRow: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
   statusText: { ...type(13.5, F.semi, { noLead: true }), lineHeight: 18 },
-  statusLink: { ...type(13.5, F.extra, { noLead: true }), lineHeight: 18, marginTop: 4 },
-  close: { ...type(16, F.bold, { noLead: true }), textAlign: 'center', lineHeight: 20, paddingVertical: 12 },
+  statusLink: { ...type(13.5, F.semi, { noLead: true }), lineHeight: 18, marginTop: 4 },
+  close: { ...type(16, F.semi, { noLead: true }), textAlign: 'center', lineHeight: 20, paddingVertical: 12 },
 });
