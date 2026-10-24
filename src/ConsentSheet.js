@@ -15,7 +15,7 @@ import { useMemo } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { PRIVACY_URL } from './config';
 import { Mascot } from './Mascot';
-import { FadeIn, GradBtn, Press, SecBtn } from './ui';
+import { FadeIn, GlassSheet, GradBtn, Press, SecBtn } from './ui';
 import { openLink } from './settings/links';
 import { F, R, type, useTheme } from './theme';
 
@@ -28,8 +28,7 @@ export default function ConsentSheet({ visible, onAllow, onClose, t }) {
       {/* Тап повз аркуш — те саме, що «Не зараз». VoiceOver тло пропускає:
           для нього є сама кнопка й жест виходу. */}
       <Pressable style={s.backdrop} onPress={onClose} accessible={false} />
-      <View style={s.sheet} onAccessibilityEscape={onClose}>
-        <View style={s.handle} />
+      <GlassSheet style={s.sheet} onAccessibilityEscape={onClose}>
         <FadeIn dy={14} style={{ alignItems: 'center' }}>
           <Mascot pose="encourage" size={96} />
           <Text style={s.title}>{t('aiConsentTitle')}</Text>
@@ -44,7 +43,7 @@ export default function ConsentSheet({ visible, onAllow, onClose, t }) {
           <GradBtn title={t('aiConsentAllow')} onPress={onAllow} />
           <SecBtn title={t('aiConsentLater')} onPress={onClose} />
         </FadeIn>
-      </View>
+      </GlassSheet>
     </Modal>
   );
 }
@@ -53,22 +52,8 @@ const makeStyles = (C) =>
   StyleSheet.create({
     // затемнення з теми: у темних версіях густіше (C.scrim)
     backdrop: { flex: 1, backgroundColor: C.scrim },
-    sheet: {
-      backgroundColor: C.sheet,
-      borderTopLeftRadius: R.xl,
-      borderTopRightRadius: R.xl,
-      padding: 24,
-      paddingBottom: 42,
-    },
-    handle: {
-      width: 36,
-      height: 5,
-      borderRadius: 3,
-      backgroundColor: C.card3,
-      alignSelf: 'center',
-      marginBottom: 14,
-    },
-    title: { color: C.text, ...type(24, F.extra), textAlign: 'center', marginTop: 10 },
+    sheet: { padding: 24, paddingTop: 12, paddingBottom: 42, borderBottomLeftRadius: 0, borderBottomRightRadius: 0 },
+    title: { color: C.text, ...type(24, F.semi), textAlign: 'center', marginTop: 10 },
     text: { color: C.dim, ...type(15, F.reg), textAlign: 'center', marginTop: 10, maxWidth: 330 },
     link: { color: C.accent, ...type(15, F.bold, { noLead: true }), marginTop: 14 },
     btns: { marginTop: 24, gap: 10 },

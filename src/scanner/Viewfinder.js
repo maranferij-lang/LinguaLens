@@ -15,7 +15,7 @@ import { EASE } from '../motion';
 import { CAM } from './CamGlass';
 import { FRAME_R } from './layout';
 
-const STROKE = 4;
+const STROKE = 2.5;
 const ARM = 44;
 // поле довкола кадру під штрих і його тінь
 const PAD = 6;
@@ -108,7 +108,9 @@ function Viewfinder({ frame, rootW, rootH, loading = false, reduced = false }) {
           </View>
         ) : null}
         <Svg width={w + PAD * 2} height={h + PAD * 2} style={{ position: 'absolute', left: -PAD, top: -PAD }}>
-          <Path d={corners} fill="none" stroke="rgba(0,0,0,0.2)" strokeWidth={STROKE + 3} strokeLinecap="round" strokeLinejoin="round" />
+          {/* тонка повна рамка під кутами */}
+          <Rect x={PAD + 0.5} y={PAD + 0.5} width={w - 1} height={h - 1} rx={FRAME_R} fill="none" stroke="rgba(255,255,255,0.28)" strokeWidth={1} />
+          <Path d={corners} fill="none" stroke="rgba(0,0,0,0.2)" strokeWidth={STROKE + 2} strokeLinecap="round" strokeLinejoin="round" />
           <Path
             testID="viewfinder-corners"
             d={corners}

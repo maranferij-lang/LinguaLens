@@ -95,7 +95,7 @@ export default function ModeSwitch({ mode, onChange, disabled, locked, reduced, 
                 }}
               >
                 <Text
-                  style={{ color: active ? CAM.ink : CAM.text, fontSize: 15, ...fw(F.bold) }}
+                  style={{ color: active ? CAM.ink : CAM.text, fontSize: 15, ...fw(F.semi) }}
                   maxFontSizeMultiplier={CAM_FONT}
                   numberOfLines={1}
                 >

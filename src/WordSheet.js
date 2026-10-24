@@ -29,9 +29,9 @@ import { StickerLarge } from './Sticker';
 import { PLATE } from './WordPlate';
 import { photoUri } from './photos';
 import { useSafeAreaInsets } from './SafeArea';
-import { FadeIn, GradBtn, Press } from './ui';
+import { FadeIn, GlassSheet, GradBtn, IconBtn, Press, SecBtn } from './ui';
 import { DUR, EASE, SPRING, haptic, safeSpring, useReducedMotion } from './motion';
-import { F, R, type, useTheme, fw } from './theme';
+import { F, R, display, ipaFont, type, useTheme, fw } from './theme';
 import { quote } from './share/layout';
 
 // ─── Артиклі ────────────────────────────────────────────────────────────────
@@ -258,7 +258,7 @@ export default function WordSheet({ item, onClose, onDelete, onShare, t }) {
           </Animated.View>
 
           <Animated.View
-            style={[s.sheet, { paddingBottom: Math.max(insets.bottom, 12) + 20, maxHeight: maxH }, sheetMotion]}
+            style={[s.sheetWrap, { maxHeight: maxH }, sheetMotion]}
             // аркуш уперся в maxHeight: вміст не влазить — вмикаємо гортання
             onLayout={(e) => {
               if (!scrollsRef.current && e.nativeEvent.layout.height >= maxH - 0.5) setScrolls(true);
@@ -266,7 +266,7 @@ export default function WordSheet({ item, onClose, onDelete, onShare, t }) {
             onAccessibilityEscape={() => dismiss()}
             {...pan.panHandlers}
           >
-            <View style={s.handle} />
+            <GlassSheet style={[s.sheet, { paddingBottom: Math.max(insets.bottom, 12) + 20 }]}>
             <SheetBody
               item={item}
               art={Math.round(Math.min(156, height * 0.2))}
@@ -285,6 +285,7 @@ export default function WordSheet({ item, onClose, onDelete, onShare, t }) {
               }
               onDelete={() => confirmDelete(t, item.word, () => dismiss(() => onDelete(item.id)))}
             />
+            </GlassSheet>
           </Animated.View>
         </View>
       ) : null}
@@ -314,11 +315,13 @@ function SheetBody({ item, art, scrolls, onScrollY, s, C, t, onShare, onDelete }
           <Text style={s.word} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.7}>
             {item.word}
           </Text>
-          <Press style={s.speakBtn} onPress={() => speak(item.word, lang)} accessibilityLabel={t('listen')}>
-            <IcSpeaker size={20} color={C.accent} />
-          </Press>
         </View>
-        {item.ipa ? <Text style={s.ipa}>{item.ipa}</Text> : null}
+        <View style={s.ipaRow}>
+          {item.ipa ? <Text style={s.ipa}>{item.ipa}</Text> : null}
+          <IconBtn size={36} onPress={() => speak(item.word, lang)} accessibilityLabel={t('listen')}>
+            <IcSpeaker size={18} color={C.accent} />
+          </IconBtn>
+        </View>
         {item.translation ? <Text style={s.translation}>{item.translation}</Text> : null}
       </FadeIn>
 
@@ -368,49 +371,17 @@ const makeStyles = (C) =>
     root: { flex: 1, justifyContent: 'flex-end' },
     // затемнення з теми: у темних версіях густіше (C.scrim)
     backdrop: { backgroundColor: C.scrim },
-    sheet: {
-      backgroundColor: C.sheet,
-      borderTopLeftRadius: R.xl,
-      borderTopRightRadius: R.xl,
-      paddingHorizontal: 24,
-      paddingTop: 10,
-    },
-    handle: {
-      width: 36,
-      height: 5,
-      borderRadius: 3,
-      backgroundColor: C.card3,
-      alignSelf: 'center',
-      marginBottom: 14,
-    },
+    sheetWrap: { borderTopLeftRadius: R.sheet, borderTopRightRadius: R.sheet },
+    sheet: { paddingHorizontal: 24, paddingTop: 12, flexShrink: 1, borderBottomLeftRadius: 0, borderBottomRightRadius: 0 },
     // не тягнеться понад вміст, а гортається, лише коли впирається в maxHeight аркуша
     scroll: { flexGrow: 0, flexShrink: 1 },
     art: { alignItems: 'center', marginBottom: 14 },
     wordRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12 },
-    word: { color: C.text, ...type(34, F.bold), textAlign: 'center', flexShrink: 1 },
-    speakBtn: {
-      backgroundColor: C.card2,
-      width: 42,
-      height: 42,
-      borderRadius: 21,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    // транскрипція — кольоровий піл-бейдж, як на картці результату скану
-    ipa: {
-      color: C.accent,
-      ...type(15, F.ipa, { noLead: true }),
-      fontWeight: '700',
-      marginTop: 10,
-      alignSelf: 'center',
-      backgroundColor: C.accentSoft,
-      paddingHorizontal: 12,
-      paddingVertical: 5,
-      borderRadius: R.pill,
-      overflow: 'hidden',
-    },
-    translation: { color: C.text, ...type(20, F.reg), textAlign: 'center', marginTop: 8, opacity: 0.85 },
-    exampleBox: { backgroundColor: C.card2, borderRadius: R.md, padding: 14, marginTop: 20 },
+    word: { color: C.text, ...display(40), textAlign: 'center', flexShrink: 1 },
+    ipaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 6 },
+    ipa: { color: C.accent, ...ipaFont('600'), fontSize: 16 },
+    translation: { color: C.text, ...type(20, F.semi), textAlign: 'center', marginTop: 8 },
+    exampleBox: { backgroundColor: C.soft, borderRadius: R.md, padding: 14, marginTop: 20 },
     exampleSpeaker: { position: 'absolute', top: 12, right: 12 },
     example: { color: C.text, ...type(15, F.reg), paddingRight: 22 },
     exampleTr: { color: C.dim, ...type(13, F.reg), marginTop: 6 },

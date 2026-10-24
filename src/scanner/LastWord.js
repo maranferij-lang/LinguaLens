@@ -74,20 +74,18 @@ function LastWord({ word, onPress, paused = false, disabled = false, reduced = f
           width: SIZE,
           height: SIZE,
           borderRadius: SIZE / 2,
-          backgroundColor: '#FFFFFF',
+          backgroundColor: CAM.glass,
+          borderWidth: 1,
+          borderColor: 'rgba(255,255,255,0.22)',
           alignItems: 'center',
           justifyContent: 'center',
-          shadowColor: '#000',
-          shadowOpacity: 0.25,
-          shadowRadius: 8,
-          shadowOffset: { width: 0, height: 3 },
           opacity: disabled ? 0.45 : 1,
         }}
       >
         {uri ? (
           <Sticker uri={uri} shape={word.shape} outline={word.outline} box={word.box} size={40} />
         ) : (
-          <Text style={{ color: CAM.violet, fontSize: 21, ...fw(F.extra) }} maxFontSizeMultiplier={CAM_FONT}>
+          <Text style={{ color: CAM.text, fontSize: 21, ...fw(F.light) }} maxFontSizeMultiplier={CAM_FONT}>
             {String(word.word || '?').trim().charAt(0).toUpperCase()}
           </Text>
         )}

@@ -13,8 +13,8 @@
 // тло своїм (rgba(25,25,25,.23)) — над світлою сценою це заблідо, тож там
 // завжди пласке скло. Android без BlurTargetView дає напівпрозоре тло —
 // прийнятно (документація expo-blur v57).
-import { Platform, View } from 'react-native';
 import { CAM_BLUR } from '../flags';
+import { GlassBar } from '../ui';
 
 // expo-blur є в Expo Go і в збірці; не знайшовся — тихо пласке скло (як
 // src/Chrome.js).
@@ -57,19 +57,12 @@ export const CAM = {
 // лише до 1,3 (core.md A.2).
 export const CAM_FONT = 1.3;
 
+// Скло камери — GlassBar camera з ui.js (Liquid Glass на iOS 26+, інакше blur)
 export function CamGlass({ children, style, radius = 999, blur = CAM_BLUR, ...rest }) {
-  const shape = { borderRadius: radius, overflow: 'hidden' };
-  if (blur && BlurView && Platform.OS !== 'web') {
-    return (
-      <BlurView intensity={30} tint="dark" style={[shape, { backgroundColor: CAM.glass }, style]} {...rest}>
-        {children}
-      </BlurView>
-    );
-  }
   return (
-    <View style={[shape, { backgroundColor: CAM.flat }, style]} {...rest}>
+    <GlassBar camera radius={radius} intensity={blur ? 30 : 0} style={style} {...rest}>
       {children}
-    </View>
+    </GlassBar>
   );
 }
 

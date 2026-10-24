@@ -13,6 +13,7 @@ import { Pressable, Text, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import { IcBolt, IcChevron, IcClose } from '../icons';
 import { PCrown } from '../ProIcons';
+import { IconBtn } from '../ui';
 import { flagFor, nameFor } from '../speech';
 import { variantOf } from '../langVariants';
 import { F, R, fw } from '../theme';
@@ -28,7 +29,7 @@ export function LangChip({ lang, onPress, disabled, t }) {
       <Text style={{ fontSize: 15, lineHeight: 19 }} maxFontSizeMultiplier={CAM_FONT} accessible={false}>
         {flagFor(lang, variant)}
       </Text>
-      <Text style={{ color: CAM.text, fontSize: 15, ...fw(F.extra), letterSpacing: 0.6 }} maxFontSizeMultiplier={CAM_FONT}>
+      <Text style={{ color: CAM.text, fontSize: 15, ...fw(F.semi), letterSpacing: 0.6 }} maxFontSizeMultiplier={CAM_FONT}>
         {String(lang || '').toUpperCase()}
       </Text>
       <IcChevron size={15} color={CAM.text} />
@@ -96,7 +97,7 @@ export function Status({ status, onPro, t }) {
         {/* корона лавандова, підпис кремовий: над світлою стіною лавандовий
             текст на склі не читається */}
         <PCrown size={14} color={CAM.accent} />
-        <Text style={{ color: CAM.text, fontSize: 12, ...fw(F.extra), letterSpacing: 1.2 }} maxFontSizeMultiplier={CAM_FONT}>
+        <Text style={{ color: CAM.text, fontSize: 12, ...fw(F.semi), letterSpacing: 1.2 }} maxFontSizeMultiplier={CAM_FONT}>
           PRO
         </Text>
       </CamGlass>
@@ -130,25 +131,18 @@ export function Status({ status, onPro, t }) {
 // Ліхтарик: вимкнений — скло з перекресленою блискавкою, увімкнений —
 // кремове коло з темною: стан видно не лише кольором.
 export function TorchButton({ on, onPress, t }) {
-  const inner = on ? (
-    <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: CAM.cream, alignItems: 'center', justifyContent: 'center' }}>
-      <IcBolt size={22} color={CAM.ink} />
-    </View>
-  ) : (
-    <CamGlass style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
-      <IcBolt size={22} color={CAM.text} off />
-    </CamGlass>
-  );
   return (
-    <Pressable
+    <IconBtn
+      camera
       onPress={onPress}
       accessibilityRole="switch"
       accessibilityLabel={t('scanTorch')}
       accessibilityState={{ checked: !!on }}
       testID="torch"
+      style={on ? { backgroundColor: CAM.cream, borderColor: CAM.cream } : null}
     >
-      {inner}
-    </Pressable>
+      <IcBolt size={22} color={on ? CAM.ink : CAM.text} off={!on} />
+    </IconBtn>
   );
 }
 
@@ -156,20 +150,18 @@ export function TorchButton({ on, onPress, t }) {
 // єдиний безкоштовний скан (запит летить далі, а результату вже ніхто не побачить)
 export function CloseButton({ onPress, disabled, t }) {
   return (
-    <Pressable
+    <IconBtn
+      camera
       onPress={onPress}
       disabled={disabled}
       hitSlop={6}
-      style={disabled ? { opacity: 0.45 } : null}
       accessibilityRole="button"
       accessibilityLabel={t('close')}
       accessibilityState={{ disabled: !!disabled }}
       testID="scan-close"
     >
-      <CamGlass style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
-        <IcClose size={20} color={CAM.text} />
-      </CamGlass>
-    </Pressable>
+      <IcClose size={20} color={CAM.text} />
+    </IconBtn>
   );
 }
 

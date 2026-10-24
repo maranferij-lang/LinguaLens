@@ -32,8 +32,8 @@ import { useSafeAreaInsets } from '../SafeArea';
 import ShareSheet from '../share/ShareSheet';
 import { speak } from '../speech';
 import { StickerLarge } from '../Sticker';
-import { F, R, type, useTheme } from '../theme';
-import { Press } from '../ui';
+import { F, R, display, type, useTheme } from '../theme';
+import { GlassSheet, Press } from '../ui';
 import { LiftedObjects, Leaders, SceneChip, sceneShapes } from './SceneArt';
 import { anchorOf, chipSize, fitContain, layoutChips, rectOf } from './sceneLayout';
 import { hasWord, sceneImageUri } from './scenes';
@@ -484,8 +484,8 @@ function WordCard({ o, lang, cut, saved, busy, shownOnCard, onToggle, onSave, on
       </Animated.View>
       {/* На великому шрифті (Dynamic Type) вміст не влазить у картку: гортається
           лише він, а «Зберегти» стоїть унизу, як в аркуші сканера. */}
-      <Animated.View style={[s.card, { paddingBottom: Math.max(insets.bottom, 12) + 16, maxHeight: H - insets.top - 8 }, motion]}>
-        <View style={s.handle} />
+      <Animated.View style={[s.card, { maxHeight: H - insets.top - 8 }, motion]}>
+        <GlassSheet style={[s.cardSheet, { paddingBottom: Math.max(insets.bottom, 12) + 16 }]}>
         <ScrollView style={s.cardScroll} contentContainerStyle={s.cardBody} bounces={false} showsVerticalScrollIndicator={false}>
           <View style={s.cardHead}>
             <View style={s.cardArt} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
@@ -541,6 +541,7 @@ function WordCard({ o, lang, cut, saved, busy, shownOnCard, onToggle, onSave, on
             </View>
           </Press>
         )}
+        </GlassSheet>
       </Animated.View>
     </View>
   );
@@ -567,12 +568,14 @@ const makeStyles = (C) =>
       width: 40,
       height: 40,
       borderRadius: 20,
-      backgroundColor: 'rgba(255,255,255,0.16)',
+      backgroundColor: 'rgba(0,0,0,0.4)',
+      borderWidth: 1,
+      borderColor: 'rgba(255,255,255,0.14)',
       alignItems: 'center',
       justifyContent: 'center',
     },
     iconSpacer: { width: 40 },
-    title: { flex: 1, color: '#FFFFFF', textAlign: 'center', ...type(17, F.extra, { noLead: true }) },
+    title: { flex: 1, color: '#FFFFFF', textAlign: 'center', ...type(17, F.semi, { noLead: true }) },
 
     bottom: {
       position: 'absolute',
@@ -587,8 +590,12 @@ const makeStyles = (C) =>
     },
     primary: {
       height: BTN_H,
-      borderRadius: R.lg,
+      borderRadius: R.pill,
       backgroundColor: C.accent,
+      shadowColor: C.accentGlow,
+      shadowOpacity: 1,
+      shadowRadius: 14,
+      shadowOffset: { width: 0, height: 6 },
       alignItems: 'center',
       justifyContent: 'center',
       paddingHorizontal: 16,
@@ -597,69 +604,57 @@ const makeStyles = (C) =>
     shareBtn: {
       width: BTN_H,
       height: BTN_H,
-      borderRadius: R.lg,
-      backgroundColor: 'rgba(255,255,255,0.16)',
+      borderRadius: R.pill,
+      backgroundColor: 'rgba(0,0,0,0.4)',
+      borderWidth: 1,
+      borderColor: 'rgba(255,255,255,0.14)',
       alignItems: 'center',
       justifyContent: 'center',
     },
     savedAll: {
       height: BTN_H,
-      borderRadius: R.lg,
-      backgroundColor: 'rgba(255,255,255,0.12)',
+      borderRadius: R.pill,
+      backgroundColor: 'rgba(0,0,0,0.4)',
       alignItems: 'center',
       justifyContent: 'center',
     },
     savedAllText: { color: '#FFFFFF', ...type(16, F.bold, { noLead: true }) },
 
     cardBackdrop: { backgroundColor: 'rgba(0,0,0,0.38)' },
-    card: {
-      position: 'absolute',
-      left: 0,
-      right: 0,
-      bottom: 0,
-      backgroundColor: C.sheet,
-      borderTopLeftRadius: R.xl,
-      borderTopRightRadius: R.xl,
-      paddingHorizontal: 22,
-      paddingTop: 10,
-      gap: 12,
-    },
-    handle: { width: 36, height: 5, borderRadius: 3, backgroundColor: C.card3, alignSelf: 'center', marginBottom: 4 },
+    card: { position: 'absolute', left: 0, right: 0, bottom: 0, borderTopLeftRadius: R.sheet, borderTopRightRadius: R.sheet },
+    cardSheet: { paddingHorizontal: 22, paddingTop: 12, gap: 12, flexShrink: 1, borderBottomLeftRadius: 0, borderBottomRightRadius: 0 },
     // не тягнеться понад вміст, а гортається, лише коли впирається в maxHeight картки
     cardScroll: { flexGrow: 0, flexShrink: 1 },
     cardBody: { gap: 12 },
     cardHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
     cardArt: { width: 72, height: 72, alignItems: 'center', justifyContent: 'center' },
-    cardWord: { color: C.text, ...type(28, F.bold) },
+    cardWord: { color: C.text, ...display(32) },
     ipa: {
       color: C.accent,
       ...type(14, F.ipa, { noLead: true }),
-      fontWeight: '700',
-      marginTop: 6,
+      fontWeight: '600',
+      marginTop: 4,
       alignSelf: 'flex-start',
-      backgroundColor: C.accentSoft,
-      paddingHorizontal: 10,
-      paddingVertical: 4,
-      borderRadius: R.pill,
-      overflow: 'hidden',
     },
     speakBtn: {
-      backgroundColor: C.card2,
-      width: 42,
-      height: 42,
-      borderRadius: 21,
+      backgroundColor: C.glass,
+      borderWidth: 1,
+      borderColor: C.glassBorder,
+      width: 44,
+      height: 44,
+      borderRadius: 22,
       alignItems: 'center',
       justifyContent: 'center',
     },
     cardTr: { color: C.text, ...type(19, F.semi), opacity: 0.85 },
-    exampleBox: { backgroundColor: C.card2, borderRadius: R.md, padding: 14 },
+    exampleBox: { backgroundColor: C.soft, borderRadius: R.md, padding: 14 },
     exampleSpeaker: { position: 'absolute', top: 12, right: 12 },
     example: { color: C.text, ...type(15, F.reg), paddingRight: 22 },
     exampleTr: { color: C.dim, ...type(13, F.reg), marginTop: 6 },
     toggleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 2 },
     toggleLabel: { color: C.text, ...type(15, F.semi) },
     toggleHint: { color: C.dim, ...type(13, F.reg) },
-    savedBadge: { height: BTN_H, borderRadius: R.lg, alignItems: 'center', justifyContent: 'center', backgroundColor: C.greenSoft },
+    savedBadge: { height: BTN_H, borderRadius: R.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: C.greenSoft },
     // текст успіху на greenSoft — greenInk (чистий green там лише 3,8:1)
     savedBadgeText: { color: C.greenInk, ...type(17, F.semi, { noLead: true }) },
   });

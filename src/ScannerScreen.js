@@ -23,7 +23,7 @@ import { track } from './analytics';
 import { captureScene, createCutter, cropToObject, dropFile, objectJpeg, scanBackdrop } from './cutout';
 import { DEV_SAMPLE, isSimulatorShot } from './devSample';
 import { speak } from './speech';
-import { IcCheck, IcClose, IcShare, IcSpeaker, IcWarn } from './icons';
+import { IcCheck, IcClose, IcSpeaker, IcWarn } from './icons';
 import { MascotBob } from './Mascot';
 import { StickerLarge } from './Sticker';
 import ShareSheet from './share/ShareSheet';
@@ -33,9 +33,9 @@ import SceneView from './scene/SceneView';
 import { fitContain } from './scene/sceneLayout';
 import { hasWord, newSceneId } from './scene/scenes';
 import { useSafeAreaInsets } from './SafeArea';
-import { FadeIn, GradBtn, Press, SecBtn } from './ui';
+import { FadeIn, GlassSheet, GradBtn, IconBtn, Press, SecBtn } from './ui';
 import { DUR, EASE, SPRING, haptic, layoutNext, useAnnounce, useReducedMotion } from './motion';
-import { CAPS, F, R, ipaFont, useTheme, fw } from './theme';
+import { CAPS, F, R, display, ipaFont, useTheme, fw } from './theme';
 import { CAM, CAM_FONT, CamGlass } from './scanner/CamGlass';
 import TopBar from './scanner/TopBar';
 import Viewfinder from './scanner/Viewfinder';
@@ -1059,11 +1059,10 @@ export default function ScannerScreen({
         {/* Від 7/10 під прикладом ще кілька виразів — і на маленькому
             iPhone аркуш може не влізти. Тоді гортається лише вміст, а кнопки
             стоять унизу: «Зберегти» видно завжди, без жодного гортання. */}
-        <View
+        <GlassSheet
           style={[s.sheet, compact && !insets.bottom && s.sheetCompact, { maxHeight: win.height - insets.top - 8 }]}
           onAccessibilityEscape={backFromResult}
         >
-          <View style={s.sheetHandle} />
           <ScrollView style={s.sheetScroll} bounces={false} showsVerticalScrollIndicator={false}>
             {view ? (
               <>
@@ -1083,11 +1082,13 @@ export default function ScannerScreen({
                 <FadeIn dy={14}>
                   <View style={s.wordRow}>
                     <Text style={s.word}>{view.result.word}</Text>
-                    <Press style={s.speakBtn} onPress={() => speak(view.result.word, targetLang)} accessibilityLabel={t('listen')}>
-                      <IcSpeaker size={20} color={C.accent} />
-                    </Press>
                   </View>
-                  {view.result.ipa ? <Text style={s.ipa}>{view.result.ipa}</Text> : null}
+                  <View style={s.ipaRow}>
+                    {view.result.ipa ? <Text style={s.ipa}>{view.result.ipa}</Text> : null}
+                    <IconBtn size={36} onPress={() => speak(view.result.word, targetLang)} accessibilityLabel={t('listen')}>
+                      <IcSpeaker size={18} color={C.accent} />
+                    </IconBtn>
+                  </View>
                   <Text style={s.translation}>{view.result.translation}</Text>
                 </FadeIn>
 
@@ -1136,6 +1137,7 @@ export default function ScannerScreen({
           {view ? (
             <FadeIn delay={90} style={s.sheetBtns}>
               <View style={s.btnRow}>
+                <SecBtn title={t('share')} onPress={share} accessibilityLabel={t('share')} style={{ flex: 1 }} />
                 <View style={{ flex: 1 }}>
                   {view.unsaved ? (
                     <Animated.View style={{ opacity: nudgeDip, transform: [{ scale: nudgeScale }] }}>
@@ -1151,9 +1153,6 @@ export default function ScannerScreen({
                     </FadeIn>
                   )}
                 </View>
-                <Press style={s.shareBtn} onPress={share} accessibilityLabel={t('share')}>
-                  <IcShare size={22} color={C.accent} />
-                </Press>
               </View>
               {/* «Сканувати ще» — явна відмова від слова. Після останнього
                   безкоштовного скану (і в онбордингу) її немає: затвор однаково
@@ -1163,7 +1162,7 @@ export default function ScannerScreen({
               {view.doneBtn ? <SecBtn title={t('finishBtn')} onPress={closeResult} /> : null}
             </FadeIn>
           ) : null}
-        </View>
+        </GlassSheet>
         {/* Картка «поділитись» живе всередині цього ж Modal: iOS не покаже
             другий нативний Modal поверх уже відкритого. */}
         <ShareSheet visible={!!sharing} payload={sharing} onClose={() => setSharing(null)} t={t} />
@@ -1290,55 +1289,23 @@ const makeStyles = (C) =>
     shutterRow: { position: 'absolute', left: 0, right: 0, height: SHUTTER },
 
     modalBackdrop: { flex: 1, backgroundColor: CAM.scrim },
-    sheet: {
-      backgroundColor: C.sheet,
-      borderTopLeftRadius: R.xl,
-      borderTopRightRadius: R.xl,
-      padding: 24,
-      paddingBottom: 42,
-    },
+    sheet: { padding: 24, paddingTop: 12, paddingBottom: 42 },
     // SE без домашнього індикатора: менше порожнього місця під кнопками
-    sheetCompact: { paddingTop: 16, paddingBottom: 18 },
-    sheetHandle: {
-      width: 36,
-      height: 5,
-      borderRadius: 3,
-      backgroundColor: C.card3,
-      alignSelf: 'center',
-      marginBottom: 18,
-    },
+    sheetCompact: { paddingTop: 12, paddingBottom: 18 },
     wordRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12 },
-    word: { color: C.text, fontSize: 34, letterSpacing: -0.75, ...fw(F.bold), textAlign: 'center' },
-    speakBtn: {
-      backgroundColor: C.card2,
-      width: 42,
-      height: 42,
-      borderRadius: 21,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    // транскрипція як кольоровий піл-бейдж (стиль Airy)
-    ipa: {
-      color: C.accent,
-      fontSize: 15,
-      ...ipaFont('700'),
-      marginTop: 10,
-      alignSelf: 'center',
-      backgroundColor: C.accentSoft,
-      paddingHorizontal: 12,
-      paddingVertical: 5,
-      borderRadius: R.pill,
-      overflow: 'hidden',
-    },
-    translation: { color: C.text, fontSize: 20, letterSpacing: -0.12, textAlign: 'center', marginTop: 8, opacity: 0.85, ...fw(F.semi) },
-    exampleBox: { backgroundColor: C.card2, borderRadius: R.md, padding: 14, marginTop: 20 },
+    word: { color: C.text, ...display(40), textAlign: 'center' },
+    ipaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 6 },
+    // транскрипція акцентом, без плашки
+    ipa: { color: C.accent, fontSize: 16, ...ipaFont('600') },
+    translation: { color: C.text, fontSize: 20, textAlign: 'center', marginTop: 8, ...fw(F.semi) },
+    exampleBox: { backgroundColor: C.soft, borderRadius: R.md, padding: 14, marginTop: 20 },
     exampleSpeaker: { position: 'absolute', top: 10, right: 10 },
     example: { color: C.text, fontSize: 15, lineHeight: 22, paddingRight: 20, ...fw(F.reg) },
     exampleTr: { color: C.dim, fontSize: 13, marginTop: 6, lineHeight: 19, ...fw(F.reg) },
     // не тягнеться понад вміст: аркуш лишається внизу, а гортається лише
     // тоді, коли впирається в maxHeight
     sheetScroll: { flexGrow: 0, flexShrink: 1 },
-    extras: { marginTop: 14, backgroundColor: C.card2, borderRadius: R.md, paddingHorizontal: 14, paddingTop: 12, paddingBottom: 4 },
+    extras: { marginTop: 14, backgroundColor: C.soft, borderRadius: R.md, paddingHorizontal: 14, paddingTop: 12, paddingBottom: 4 },
     extrasTitle: { color: C.dim, ...CAPS, marginBottom: 4 },
     extraRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 9 },
     extraLine: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.sep },
@@ -1346,17 +1313,11 @@ const makeStyles = (C) =>
     extraTr: { color: C.dim, fontSize: 13, lineHeight: 18, marginTop: 1, ...fw(F.reg) },
     sheetBtns: { marginTop: 22, gap: 10 },
     btnRow: { flexDirection: 'row', gap: 10, alignItems: 'stretch' },
-    shareBtn: {
-      width: 56,
-      borderRadius: R.lg,
-      backgroundColor: C.accentSoft,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
     // висота — як у «Зберегти» (paddingVertical 16), щоб ряд не стрибав
     savedBadge: {
-      borderRadius: R.md,
-      paddingVertical: 16,
+      borderRadius: R.pill,
+      minHeight: 54,
+      paddingVertical: 14,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
