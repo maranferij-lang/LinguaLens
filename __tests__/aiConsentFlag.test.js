@@ -1,8 +1,7 @@
 // Аркуш згоди на AI (ConsentSheet) — за прапорцем AI_CONSENT_SHEET у
-// src/flags.js. Рішення власника 5.10.2026: аркуш вимкнено, і «Спробувати» на
-// демо онбордингу відкриває камеру одразу. Увімкнений прапорець повертає все
-// як було: аркуш до камери, «Не зараз» лишає демо, «Дозволити» зберігає згоду
-// й відкриває сканер. Сканер і App з прапорцем — у scanner.test.js.
+// src/flags.js. Рішення власника 24.10.2026: аркуш увімкнено (з 5.10 до 24.10
+// був вимкнений, і «Спробувати» відкривала камеру одразу). Увімкнений: аркуш до
+// камери, «Не зараз» лишає демо, «Дозволити» зберігає згоду й відкриває сканер. Сканер і App з прапорцем — у scanner.test.js.
 // Демо відкриваємо з чернетки: так тест не залежить від порядку кроків.
 import { AccessibilityInfo, Text } from 'react-native';
 import { act, create } from 'react-test-renderer';
@@ -87,8 +86,8 @@ async function tryIt(tree) {
   });
 }
 
-test('the sheet is off by the owner’s decision (5.10.2026)', () => {
-  expect(jest.requireActual('../src/flags').AI_CONSENT_SHEET).toBe(false);
+test('the sheet is on by the owner’s decision (24.10.2026, App Review 5.1.2(i))', () => {
+  expect(jest.requireActual('../src/flags').AI_CONSENT_SHEET).toBe(true);
 });
 
 test('sheet off: “Try it” opens the camera at once, without asking or saving consent', async () => {

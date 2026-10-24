@@ -28,10 +28,9 @@ export const PALETTES_ENABLED = true;
 export const PRO_WOD_OPTIONS = [3, 5];
 
 // Аркуш згоди на AI (ConsentSheet) перед першим сканом — у сканері й на
-// демо онбордингу, до камери. Вимкнено рішенням власника 5.10.2026: текст
-// про Google Gemini / Anthropic псував перший скан, а куди йде фото, сказано
-// в політиці приватності (server/public/privacy.html). Ризик App Review
-// 5.1.2(i) — згода на передачу даних сторонньому AI — прийнято свідомо
-// (APPSTORE.md, «Нотатки для рецензента»). Відхилить Apple — true тут, і все
-// як до 5.10: перший затвор питає дозволу, згода лягає в settings.aiConsent.
-export const AI_CONSENT_SHEET = false;
+// демо онбордингу, до камери. Увімкнено рішенням власника 24.10.2026 перед
+// першою подачею: App Review 5.1.2(i) вимагає явної згоди на передачу фото
+// сторонньому AI (Google Gemini / Anthropic). Перший затвор питає дозволу,
+// згода лягає в settings.aiConsent. Нотатки для рецензента: варіант B
+// (APPSTORE.md). false вимикає аркуш, як було з 5.10 до 24.10.2026.
+export const AI_CONSENT_SHEET = true;
