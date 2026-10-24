@@ -271,7 +271,7 @@ const makeStyles = (pal, k = 1) => {
     phrase: { color: pal.dim, ...fw(F.semi), fontSize: z(11.5), lineHeight: z(14.5), marginTop: z(6) },
     wordsTop: { flexDirection: 'row', alignItems: 'flex-start', gap: z(6) },
     tile: { width: z(34), height: z(34), borderRadius: z(9), backgroundColor: pal.accentSoft, alignItems: 'center', justifyContent: 'center' },
-    tileLetter: { color: pal.accent, ...fw(F.light), fontSize: z(17) },
+    tileLetter: { color: pal.accent, ...fw(F.reg), fontSize: z(17) },
   });
 };
 

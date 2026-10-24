@@ -127,6 +127,38 @@ export function useReducedMotionCached() {
   return useSyncExternalStore(subscribeReduced, isReducedMotion);
 }
 
+// «Зменшити прозорість» (Параметри → Доступність): той самий кеш і підписка,
+// що й для руху. Скло тоді малюється суцільною заливкою.
+let transpCache = false;
+const transpListeners = new Set();
+function setTranspCache(v) {
+  const next = !!v;
+  if (next === transpCache) return;
+  transpCache = next;
+  transpListeners.forEach((fn) => fn(next));
+}
+try {
+  Promise.resolve(AccessibilityInfo.isReduceTransparencyEnabled?.())
+    .then((v) => {
+      if (v != null) setTranspCache(v);
+    })
+    .catch(() => {});
+  AccessibilityInfo.addEventListener?.('reduceTransparencyChanged', setTranspCache);
+} catch (_) {}
+
+export function isReducedTransparency() {
+  return transpCache;
+}
+
+const subscribeTransp = (fn) => {
+  transpListeners.add(fn);
+  return () => transpListeners.delete(fn);
+};
+
+export function useReduceTransparency() {
+  return useSyncExternalStore(subscribeTransp, isReducedTransparency);
+}
+
 // Те саме, але при монтуванні ще раз питає систему: екран, якому важливо
 // мати свіже значення (його могли змінити, поки застосунок спав).
 export function useReducedMotion() {

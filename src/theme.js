@@ -209,8 +209,8 @@ export const PALETTES = [
       card2: '#EFEEEA',
       card3: '#E6E5E0',
       text: '#141417',
-      dim: '#6A6A74',
-      faint: '#85858E',
+      dim: '#64646E',
+      faint: '#7A7A83',
       sep: '#E6E5E1',
       accent: '#5B4FD6',
       accentSoft: '#E4E1FB',
@@ -252,7 +252,7 @@ export const PALETTES = [
       card2: '#EBF0F7',
       card3: '#DFE6F0',
       text: '#14202E',
-      dim: '#5F6D7D',
+      dim: '#5C6A7A',
       faint: '#808D9D',
       sep: '#E1E7EF',
       accent: '#1F5BD1',
@@ -452,8 +452,8 @@ function buildTheme(palette, dark) {
     // колір тіні головної кнопки
     accentGlow: tint(p.accent, dark ? 0.35 : 0.3),
     // ледь тонований акцентом «герой» екрана (один на екран): від, до
-    heroFrom: dark ? tint(mix(p.card2, p.accent, 0.1), 0.75) : 'rgba(255,255,255,0.8)',
-    heroTo: dark ? tint(mix(p.card2, p.accent, 0.28), 0.6) : tint(p.accentSoft, 0.92),
+    heroFrom: dark ? tint(mix(p.card2, p.accent, 0.07), 0.75) : 'rgba(255,255,255,0.8)',
+    heroTo: dark ? tint(mix(p.card2, p.accent, 0.14), 0.6) : tint(p.accentSoft, 0.92),
     // три м'які плями за екраном (ScreenBackground)
     blob1: tint(palette.blobs[dark ? 'dark' : 'light'][0], dark ? 0.3 : 0.5),
     blob2: tint(palette.blobs[dark ? 'dark' : 'light'][1], dark ? 0.16 : 0.45),

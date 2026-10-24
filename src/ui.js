@@ -2,8 +2,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Defs, LinearGradient, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
-import { CAMERA_CHROME, GlassBlurView } from './Chrome';
-import { DUR, EASE, SPRING, haptic as fireHaptic, stagger, travel, useReducedMotionCached } from './motion';
+import { CAMERA_CHROME, CAMERA_SOLID, GlassBlurView } from './Chrome';
+import { DUR, EASE, SPRING, haptic as fireHaptic, stagger, travel, useReduceTransparency, useReducedMotionCached } from './motion';
 import { CAPS, F, R, type, useTheme } from './theme';
 
 // expo-glass-effect (Liquid Glass, iOS 26+). Без нативного модуля (старий
@@ -196,6 +196,7 @@ function HeroTint({ radius }) {
 //   strong — щільніша заливка (аркуші з текстом).
 function GlassLayer({ radius, camera, strong, intensity, interactive }) {
   const { C, isDark } = useTheme();
+  const solid = useReduceTransparency();
   const dark = camera || isDark;
   const clip = { borderRadius: radius, overflow: 'hidden' };
   const border = (
@@ -204,6 +205,16 @@ function GlassLayer({ radius, camera, strong, intensity, interactive }) {
       style={[StyleSheet.absoluteFill, { borderRadius: radius, borderWidth: 1, borderColor: camera ? 'rgba(255,255,255,0.14)' : C.glassBorder }]}
     />
   );
+  // «Зменшити прозорість»: без скла й blur, суцільна заливка
+  if (solid) {
+    const fill = camera ? CAMERA_SOLID : isDark ? C.card2 : C.card;
+    return (
+      <>
+        <View pointerEvents="none" style={[StyleSheet.absoluteFill, clip, { backgroundColor: fill }]} />
+        {border}
+      </>
+    );
+  }
   if (hasLiquidGlass()) {
     return (
       <>
@@ -270,16 +281,18 @@ export function GlassSheet({ children, style, camera = false, radius = R.sheet, 
 //   radius — інший радіус; решта пропсів (testID, accessibility…) — у View.
 export function Glass({ children, style, flat, big, hero, blur, radius = R.xl, ...rest }) {
   const { C, isDark, SHADOW, SHADOW_LG } = useTheme();
+  const solid = useReduceTransparency();
+  const fill = solid ? (isDark ? C.card2 : C.card) : C.glass;
   return (
     <View
       {...rest}
       style={[
-        { backgroundColor: C.glass, borderRadius: radius, padding: 16, borderWidth: 1, borderColor: C.glassBorder },
+        { backgroundColor: fill, borderRadius: radius, padding: 16, borderWidth: 1, borderColor: solid ? C.hairline : C.glassBorder },
         !flat && (big ? SHADOW_LG : SHADOW),
         style,
       ]}
     >
-      {blur && GlassBlurView ? (
+      {blur && !solid && GlassBlurView ? (
         <GlassBlurView pointerEvents="none" intensity={30} tint={isDark ? 'dark' : 'light'} style={[StyleSheet.absoluteFill, { borderRadius: radius, overflow: 'hidden' }]} />
       ) : null}
       {hero ? <HeroTint radius={radius} /> : null}
@@ -382,8 +395,10 @@ export function Segmented({ options, value, onChange, style, testID }) {
             accessibilityState={{ selected: on }}
             onPress={() => onChange?.(o.key)}
             style={[
-              { flex: 1, minHeight: 32, borderRadius: 11, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
-              on && { backgroundColor: isDark ? C.card3 : C.card, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 3, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
+              // рамка є завжди (прозора), щоб вибір не зсував текст
+              { flex: 1, minHeight: 32, borderRadius: 11, borderWidth: 1, borderColor: 'transparent', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
+              // волосяна рамка й тінь: повзунок видно й без кольору тексту
+              on && { backgroundColor: isDark ? C.card3 : C.card, borderColor: C.hairline, shadowColor: '#000', shadowOpacity: 0.14, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 2 },
             ]}
           >
             <Text numberOfLines={1} style={{ color: on ? C.text : C.dim, ...type(13, on ? F.semi : F.reg, { noLead: true }) }}>

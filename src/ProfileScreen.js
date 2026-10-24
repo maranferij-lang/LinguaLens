@@ -511,12 +511,12 @@ const makeStyles = (C) =>
     chart: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
     barCol: { alignItems: 'center', flex: 1, gap: 4 },
     bar: { width: 16, borderRadius: 5 },
-    barVal: { color: C.dim, fontSize: 10, letterSpacing: 0.2, height: 14, ...fw(F.semi) },
+    barVal: { color: C.dim, fontSize: 10, letterSpacing: 0.2, minHeight: 14, ...fw(F.semi) },
     barLabel: { color: C.dim, fontSize: 11, ...fw(F.semi) },
     sepLine: { height: StyleSheet.hairlineWidth, backgroundColor: C.hairline, marginLeft: 48 },
     langRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 11 },
     langName: { color: C.text, fontSize: 16, flex: 1, ...fw(F.reg) },
-    langCount: { color: C.dim, ...display(20) },
+    langCount: { color: C.dim, fontSize: 20, ...fw(F.semi) },
 
     achGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, justifyContent: 'space-between' },
     achCard: {

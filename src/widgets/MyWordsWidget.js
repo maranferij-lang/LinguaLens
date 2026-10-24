@@ -53,7 +53,7 @@ const MyWords = (props, environment) => {
   const bg = pick('bg', '#F7F6F3', '#121110');
   const ink = tinted ? primary : pick('ink', '#141417', '#F3F1EC');
   const soft = tinted ? primary : pick('soft', '#3E3B36', '#DCD7CF');
-  const dim = tinted ? secondary : pick('dim', '#6A6A74', '#9A978F');
+  const dim = tinted ? secondary : pick('dim', '#64646E', '#9A978F');
   const faint = tinted ? tertiary : pick('faint', '#8A857C', '#8A857D');
   const accent = tinted ? secondary : pick('accent', '#5B4FD6', '#9B8FFF');
   const accentSoft = tinted ? quaternary : pick('accentSoft', '#E4E1FB', '#221E45');
