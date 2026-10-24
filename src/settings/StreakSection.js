@@ -50,7 +50,7 @@ export default function StreakSection({ ctx }) {
           <Switch
             value={on}
             onValueChange={toggle}
-            trackColor={{ false: C.card3, true: C.accent }}
+            trackColor={{ false: C.soft, true: C.accent }}
             thumbColor="#fff"
             accessibilityLabel={t('streakRemind')}
             testID="streak-remind"

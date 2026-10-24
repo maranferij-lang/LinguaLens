@@ -62,7 +62,7 @@ export default function Footer({ ctx }) {
 
 const styles = StyleSheet.create({
   root: { alignItems: 'center', marginTop: 30, paddingVertical: 6 },
-  name: { ...type(19, F.extra, { noLead: true }), marginTop: 12 },
+  name: { ...type(19, F.semi, { noLead: true }), marginTop: 12 },
   slogan: { ...type(13, F.semi, { noLead: true }), marginTop: 5, textAlign: 'center' },
   version: { ...type(12, F.reg, { noLead: true }), marginTop: 4 },
 });

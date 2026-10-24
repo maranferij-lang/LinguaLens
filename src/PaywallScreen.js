@@ -57,9 +57,9 @@ import { formatDate } from './locale';
 import { ProIcon, PCrown } from './ProIcons';
 import { IcBell, IcCheck, IcClose, IcFlame, IcSpeaker } from './icons';
 import { Mascot, MascotBob } from './Mascot';
-import { FadeIn, GradBtn, Press, Skeleton } from './ui';
+import { FadeIn, GradBtn, Press, ScreenBackground, Skeleton } from './ui';
 import { DUR, EASE, useAnnounce } from './motion';
-import { CAPS, F, PALETTE_KEYS, PRO_PALETTES, R, THEMES, ipaFont, themeKeyOf, type, useTheme } from './theme';
+import { CAPS, F, PALETTE_KEYS, PRO_PALETTES, R, THEMES, ipaFont, themeKeyOf, display, type, useTheme } from './theme';
 
 // Нижче за це (iPhone SE, mini, збільшений шрифт дисплея) — без Lingo і з
 // тіснішою шапкою: тарифи мають влізти над кнопкою без прокрутки.
@@ -391,6 +391,7 @@ export default function PaywallScreen({
 
   return (
     <View style={s.root}>
+      <ScreenBackground />
       {/* Хрестик — у власній смужці поза прокруткою: ціни під ним не їздять */}
       <View style={[s.topBar, short && s.topBarShort]}>
         <Press style={s.close} onPress={onClose} hitSlop={4} minTarget={0} feedback="dim" accessibilityRole="button" accessibilityLabel={t('close')}>
@@ -414,7 +415,7 @@ export default function PaywallScreen({
               тарифи мають лишитись над підвалом */}
           {themes && short ? null : (
             <View style={[s.proBadge, themes && s.proBadgeAfterDots]}>
-              <PCrown size={17} color={C.onAccent} />
+              <PCrown size={16} color={C.dim} />
               <Text style={s.proBadgeText}>PRO</Text>
             </View>
           )}
@@ -986,7 +987,6 @@ const makeStyles = (C) =>
       alignItems: 'center',
       justifyContent: 'flex-end',
       paddingHorizontal: 10,
-      backgroundColor: C.bg,
     },
     // на SE — рівно на висоту цілі: кожен пункт тут на рахунку
     topBarShort: { height: 44 },
@@ -995,7 +995,9 @@ const makeStyles = (C) =>
       width: 36,
       height: 36,
       borderRadius: 18,
-      backgroundColor: C.card2,
+      backgroundColor: C.glass,
+      borderWidth: 1,
+      borderColor: C.glassBorder,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -1005,18 +1007,16 @@ const makeStyles = (C) =>
       flexDirection: 'row',
       alignItems: 'center',
       gap: 6,
-      backgroundColor: C.accent,
-      borderRadius: R.pill,
-      paddingHorizontal: 13,
+      paddingHorizontal: 4,
       paddingVertical: 6,
       marginTop: 4,
     },
-    proBadgeText: { color: C.onAccent, ...CAPS, letterSpacing: 1.6 },
+    proBadgeText: { color: C.dim, ...CAPS, letterSpacing: 1.6 },
     // під кружечками палітр — трохи повітря, щоб бейдж не злипався з ними
     proBadgeAfterDots: { marginTop: 12 },
 
-    title: { color: C.text, ...type(28, F.extra), textAlign: 'center', marginTop: 14 },
-    titleShort: { ...type(26, F.extra), marginTop: 10 },
+    title: { color: C.text, ...type(28, F.semi), textAlign: 'center', marginTop: 10 },
+    titleShort: { ...type(26, F.semi), marginTop: 8 },
     text: {
       color: C.dim,
       ...type(15, F.reg),
@@ -1028,8 +1028,10 @@ const makeStyles = (C) =>
 
     table: {
       marginTop: 22,
-      backgroundColor: C.card,
-      borderRadius: R.lg,
+      backgroundColor: C.glass,
+      borderWidth: 1,
+      borderColor: C.glassBorder,
+      borderRadius: R.xl,
       paddingHorizontal: 16,
       paddingVertical: 6,
     },
@@ -1045,16 +1047,16 @@ const makeStyles = (C) =>
     },
     colPro: { color: C.accent, ...CAPS, letterSpacing: 1.4 },
     tableRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 13 },
-    tableRowLine: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.sep },
+    tableRowLine: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.hairline },
     rowLabelWrap: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 6, rowGap: 4, paddingRight: 4 },
-    rowLabel: { flexShrink: 1, color: C.text, ...type(14, F.semi, { noLead: true }) },
+    rowLabel: { flexShrink: 1, color: C.text, ...type(14, F.reg, { noLead: true }) },
     // «нове» — тихо, мʼяким бурштином, а не другим акцентом
     newTag: { backgroundColor: C.warmSoft, borderRadius: R.pill, paddingHorizontal: 7, paddingVertical: 2 },
     newTagText: { color: C.text, ...type(11, F.extra, { noLead: true }) },
     cellFree: { width: FREE_COL, alignItems: 'center' },
-    cellFreeText: { color: C.dim, ...type(14, F.semi, { noLead: true }) },
+    cellFreeText: { color: C.dim, ...type(14, F.reg, { noLead: true }) },
     cellPro: { width: PRO_COL, alignItems: 'center', backgroundColor: C.accentSoft, paddingVertical: 8 },
-    cellProText: { color: C.accent, ...type(15, F.extra, { noLead: true }) },
+    cellProText: { color: C.accent, ...type(15, F.semi, { noLead: true }) },
 
     benefits: { marginTop: 20, gap: 12 },
     benefitRow: { flexDirection: 'row', alignItems: 'center', gap: 13 },
@@ -1062,19 +1064,19 @@ const makeStyles = (C) =>
       width: 38,
       height: 38,
       borderRadius: 12,
-      backgroundColor: C.accentSoft,
+      backgroundColor: C.soft,
       alignItems: 'center',
       justifyContent: 'center',
     },
-    benefitText: { flex: 1, color: C.text, ...type(15, F.semi) },
+    benefitText: { flex: 1, color: C.text, ...type(15, F.reg) },
 
     plan: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 13,
-      backgroundColor: C.card,
-      borderRadius: R.lg,
-      padding: 15,
+      backgroundColor: C.glass,
+      borderRadius: R.xl,
+      padding: 16,
       borderWidth: 2,
       borderColor: 'transparent',
     },
@@ -1088,16 +1090,17 @@ const makeStyles = (C) =>
       left: -2,
       right: -2,
       bottom: -2,
-      borderRadius: R.lg,
+      borderRadius: R.xl,
       borderWidth: 2,
       borderColor: C.accent,
+      backgroundColor: C.accentSoft,
     },
     radio: {
       width: 22,
       height: 22,
       borderRadius: 11,
       borderWidth: 2,
-      borderColor: C.card3,
+      borderColor: C.faint,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -1114,10 +1117,10 @@ const makeStyles = (C) =>
       justifyContent: 'center',
     },
     planTop: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 8, rowGap: 2 },
-    planName: { color: C.dim, ...type(16, F.bold, { noLead: true }) },
+    planName: { color: C.dim, ...type(16, F.semi, { noLead: true }) },
     // dim, а не faint: «7 днів безкоштовно» — частина умов, ≥ 4.5:1
     planPer: { color: C.dim, ...type(13, F.reg, { noLead: true }), marginTop: 3 },
-    planPrice: { color: C.text, ...type(18, F.extra, { noLead: true }) },
+    planPrice: { color: C.text, ...display(20) },
     saveText: { color: C.greenInk, ...CAPS, marginTop: 3 },
 
     bestTag: {
@@ -1134,21 +1137,26 @@ const makeStyles = (C) =>
       flexDirection: 'row',
       alignItems: 'center',
       gap: 14,
-      backgroundColor: C.card,
-      borderRadius: R.lg,
+      backgroundColor: C.glass,
+      borderWidth: 1,
+      borderColor: C.glassBorder,
+      borderRadius: R.xl,
       paddingHorizontal: 18,
       paddingVertical: 16,
     },
-    todayText: { flex: 1, color: C.text, ...type(15, F.bold) },
+    todayText: { flex: 1, color: C.text, ...type(15, F.semi) },
 
     footer: {
-      backgroundColor: C.card,
+      backgroundColor: C.glassStrong,
+      borderWidth: 1,
+      borderColor: C.glassBorder,
+      borderBottomWidth: 0,
       paddingHorizontal: 22,
       paddingTop: 16,
       // App уже додає відступ домашнього індикатора — свій лише невеликий
       paddingBottom: 16,
-      borderTopLeftRadius: R.xl,
-      borderTopRightRadius: R.xl,
+      borderTopLeftRadius: R.sheet,
+      borderTopRightRadius: R.sheet,
     },
     // Юридичний рядок — частина розкриття умов (App Review 3.1.2): дрібний,
     // але читабельний — dim, а не faint (у темній темі faint ледь видно).
@@ -1161,41 +1169,45 @@ const makeStyles = (C) =>
     note: { color: C.redInk, ...type(13, F.semi), textAlign: 'center', marginTop: 8 },
     notePending: { color: C.dim },
     supportHit: { alignSelf: 'center', minHeight: 44, justifyContent: 'center', paddingVertical: 10, marginTop: -6, marginBottom: -10 },
-    supportLink: { color: C.accent, ...type(13, F.bold, { noLead: true }) },
-    failedText: { color: C.text, ...type(16, F.bold), textAlign: 'center' },
+    supportLink: { color: C.accent, ...type(13, F.semi, { noLead: true }) },
+    failedText: { color: C.text, ...type(16, F.semi), textAlign: 'center' },
     failedHint: { color: C.dim, ...type(14, F.reg), textAlign: 'center', marginTop: 4 },
     legalRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', columnGap: 16, marginTop: 2 },
     linkHit: { minHeight: 44, paddingVertical: 10, justifyContent: 'center' },
-    legalLink: { color: C.dim, ...type(13, F.semi, { noLead: true }) },
+    legalLink: { color: C.dim, ...type(13, F.reg, { noLead: true }), textDecorationLine: 'underline' },
     freeBtn: {
       marginTop: 10,
       minHeight: 44,
-      borderRadius: R.lg,
-      backgroundColor: C.card2,
+      borderRadius: R.pill,
+      backgroundColor: C.glass,
+      borderWidth: 1,
+      borderColor: C.hairline,
       alignItems: 'center',
       justifyContent: 'center',
       paddingHorizontal: 12,
       paddingVertical: 8,
     },
-    freeBtnText: { color: C.text, ...type(15, F.bold), textAlign: 'center' },
+    freeBtnText: { color: C.text, ...type(15, F.semi), textAlign: 'center' },
 
     timeline: {
       marginTop: 24,
-      backgroundColor: C.card,
-      borderRadius: R.lg,
+      backgroundColor: C.glass,
+      borderWidth: 1,
+      borderColor: C.glassBorder,
+      borderRadius: R.xl,
       paddingHorizontal: 18,
       paddingTop: 18,
       paddingBottom: 6,
     },
     tlRow: { flexDirection: 'row', gap: 14 },
     tlRail: { width: 16, alignItems: 'center' },
-    tlDot: { width: 14, height: 14, borderRadius: 7, borderWidth: 3, borderColor: C.accent, backgroundColor: C.card, marginTop: 3 },
+    tlDot: { width: 14, height: 14, borderRadius: 7, borderWidth: 3, borderColor: C.accent, backgroundColor: C.bg, marginTop: 3 },
     tlDotNow: { backgroundColor: C.accent },
     tlLine: { flex: 1, width: 2, borderRadius: 1, backgroundColor: C.accentSoft, marginVertical: 4 },
     tlBody: { flex: 1, paddingBottom: 16 },
     timelineDense: { marginTop: 14, paddingTop: 14, paddingBottom: 2 },
     tlBodyDense: { paddingBottom: 10 },
-    tlLabel: { color: C.text, ...type(16, F.extra) },
-    tlDate: { color: C.dim, ...type(14, F.semi) },
+    tlLabel: { color: C.text, ...type(16, F.semi) },
+    tlDate: { color: C.dim, ...type(14, F.reg) },
     tlText: { color: C.dim, ...type(14, F.reg), marginTop: 2 },
   });

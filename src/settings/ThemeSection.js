@@ -124,7 +124,7 @@ function Swatch({ palette, st }) {
   const L = THEMES[themeKeyOf(palette.key, false)].C;
   const D = THEMES[themeKeyOf(palette.key, true)].C;
   return (
-    <View style={[st.swatch, { backgroundColor: L.bg, borderColor: L.sep }]}>
+    <View style={[st.swatch, { backgroundColor: L.bg, borderColor: L.hairline }]}>
       <View style={[st.half, { backgroundColor: D.bg }]} />
       <View style={st.bars}>
         <View style={[st.bar, { backgroundColor: L.accent }]} />
@@ -195,8 +195,8 @@ const makeStyles = (C, dark) =>
     // (у темному вигляді — на тон світліша, як у системному перемикачі).
     track: {
       flexDirection: 'row',
-      backgroundColor: dark ? C.card : C.card2,
-      borderRadius: R.md,
+      backgroundColor: C.soft,
+      borderRadius: 14,
       padding: TRACK_PAD,
       minHeight: 44,
     },
@@ -205,7 +205,7 @@ const makeStyles = (C, dark) =>
       top: TRACK_PAD,
       bottom: TRACK_PAD,
       left: TRACK_PAD,
-      borderRadius: R.md - TRACK_PAD,
+      borderRadius: 14 - TRACK_PAD,
       backgroundColor: dark ? C.card3 : C.card,
       shadowColor: '#000',
       shadowOpacity: dark ? 0 : 0.08,
@@ -215,7 +215,7 @@ const makeStyles = (C, dark) =>
     },
     segment: { flex: 1, minHeight: 38, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
     segText: { color: C.dim, ...type(15, F.semi, { noLead: true }) },
-    segTextOn: { color: C.text, ...fw(F.bold) },
+    segTextOn: { color: C.text, ...fw(F.semi) },
 
     card: { paddingHorizontal: 12, paddingTop: 14, paddingBottom: 14 },
     tiles: { flexDirection: 'row', gap: 4 },
@@ -227,14 +227,14 @@ const makeStyles = (C, dark) =>
       maxWidth: 66,
       padding: 2,
       borderRadius: 19,
-      borderWidth: 2.5,
+      borderWidth: 2,
       borderColor: 'transparent',
     },
     ringOn: { borderColor: C.accent },
     swatch: {
       width: '100%',
       aspectRatio: 0.78,
-      borderRadius: 13,
+      borderRadius: 15,
       borderWidth: StyleSheet.hairlineWidth,
       overflow: 'hidden',
     },
@@ -261,7 +261,7 @@ const makeStyles = (C, dark) =>
       alignItems: 'center',
       justifyContent: 'center',
     },
-    name: { color: C.dim, ...type(13, F.semi, { noLead: true }), textAlign: 'center' },
-    nameOn: { color: C.text, ...fw(F.bold) },
+    name: { color: C.dim, ...type(13, F.reg, { noLead: true }), textAlign: 'center' },
+    nameOn: { color: C.text, ...fw(F.semi) },
     hintRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginTop: 14, paddingHorizontal: 4 },
   });

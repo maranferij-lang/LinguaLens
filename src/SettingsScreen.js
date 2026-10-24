@@ -40,10 +40,10 @@ import { expandOptions, optionKey, parseOption } from './langVariants';
 import { IcCheck, IcChevron, IcCloud } from './icons';
 import { PCrown } from './ProIcons';
 import { Mascot } from './Mascot';
-import { FadeIn, Glass, Press } from './ui';
+import { FadeIn, Glass, Press, ScreenBackground } from './ui';
 import { UNDER_TAB } from './Chrome';
 import { announce, layoutNext } from './motion';
-import { F, R, type, useTheme, fw } from './theme';
+import { CAPS, F, R, type, useTheme, fw } from './theme';
 import WodSection from './settings/WodSection';
 import StreakSection from './settings/StreakSection';
 import WidgetsSection from './settings/WidgetsSection';
@@ -132,7 +132,7 @@ function LangPicker({ label, hint, value, variant = null, variants = false, onCh
                   accessibilityLabel={locked ? t('langA11yPro', { l: nameFor(code, v) }) : undefined}
                 >
                   <Text style={{ fontSize: 18 }}>{flagFor(code, v || undefined)}</Text>
-                  <Text style={[s.listName, active && { color: C.text, ...fw(F.bold) }]}>
+                  <Text style={[s.listName, active && { color: C.text, opacity: 1, ...fw(F.semi) }]}>
                     {nameFor(code, v)}
                   </Text>
                   {locked ? (
@@ -522,6 +522,8 @@ export default function SettingsScreen(props) {
   }
 
   return (
+    <View style={s.screen}>
+    <ScreenBackground />
     <ScrollView
       style={s.root}
       contentContainerStyle={{ paddingBottom: UNDER_TAB + 24 }}
@@ -705,7 +707,7 @@ export default function SettingsScreen(props) {
                   value={analyticsOn}
                   onValueChange={onToggleAnalytics}
                   accessibilityLabel={t('analyticsTitle')}
-                  trackColor={{ false: C.card3, true: C.accent }}
+                  trackColor={{ false: C.soft, true: C.accent }}
                   thumbColor="#fff"
                 />
               </View>
@@ -741,24 +743,17 @@ export default function SettingsScreen(props) {
         <Footer ctx={ctx} extra={extra} />
       </FadeIn>
     </ScrollView>
+    </View>
   );
 }
 
 const makeStyles = (C) =>
   StyleSheet.create({
-    root: { flex: 1, backgroundColor: C.bg, padding: 20 },
+    screen: { flex: 1, backgroundColor: C.bg },
+    root: { flex: 1, padding: 20 },
     // кегль і накреслення — T.largeTitle, як на інших вкладках
     title: { marginBottom: 2 },
-    sectionLabel: {
-      color: C.dim,
-      fontSize: 12,
-      ...fw(F.extra),
-      textTransform: 'uppercase',
-      letterSpacing: 1,
-      marginBottom: 8,
-      marginTop: 20,
-      marginLeft: 4,
-    },
+    sectionLabel: { color: C.dim, ...CAPS, marginBottom: 8, marginTop: 24, marginLeft: 4 },
     dimText: { color: C.dim, fontSize: 13, lineHeight: 19, ...fw(F.reg) },
 
     proCard: {
@@ -766,54 +761,58 @@ const makeStyles = (C) =>
       alignItems: 'center',
       gap: 13,
       backgroundColor: C.accentSoft,
-      borderRadius: R.lg,
-      padding: 15,
+      borderWidth: 1,
+      borderColor: C.glassBorder,
+      borderRadius: R.xl,
+      padding: 16,
       marginBottom: 6,
     },
     proCardOff: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 13,
-      backgroundColor: C.card,
-      borderRadius: R.lg,
-      padding: 15,
+      backgroundColor: C.accentSoft,
+      borderWidth: 1,
+      borderColor: C.glassBorder,
+      borderRadius: R.xl,
+      padding: 16,
       marginBottom: 6,
     },
     proIconWrap: {
       width: 40,
       height: 40,
-      borderRadius: 13,
+      borderRadius: 12,
       backgroundColor: C.accent,
       alignItems: 'center',
       justifyContent: 'center',
     },
     afterAccount: { marginTop: 14 },
-    proTitle: { color: C.text, ...type(16, F.bold, { noLead: true }) },
+    proTitle: { color: C.text, ...type(16, F.semi, { noLead: true }) },
     proHint: { color: C.dim, ...type(13, F.reg, { noLead: true }), marginTop: 2 },
-    sep: { height: StyleSheet.hairlineWidth, backgroundColor: C.sep, marginLeft: 14 },
-    sepInner: { height: StyleSheet.hairlineWidth, backgroundColor: C.sep, marginVertical: 14 },
-    linkRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 14 },
-    linkText: { color: C.text, fontSize: 16, ...fw(F.semi) },
+    sep: { height: StyleSheet.hairlineWidth, backgroundColor: C.hairline, marginLeft: 16 },
+    sepInner: { height: StyleSheet.hairlineWidth, backgroundColor: C.hairline, marginVertical: 14 },
+    linkRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 14 },
+    linkText: { color: C.text, fontSize: 16, ...fw(F.reg) },
 
     pickerHead: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16 },
-    pickerValue: { color: C.text, fontSize: 16, letterSpacing: -0.1, ...fw(F.bold) },
+    pickerValue: { color: C.text, fontSize: 16, letterSpacing: -0.1, ...fw(F.semi) },
     pickerHint: { color: C.dim, fontSize: 12, marginTop: 2, ...fw(F.reg) },
     list: {
       borderTopWidth: StyleSheet.hairlineWidth,
-      borderTopColor: C.sep,
+      borderTopColor: C.hairline,
       paddingVertical: 6,
       maxHeight: 196,
     },
     listRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 11 },
     listRowActive: { backgroundColor: C.accentSoft },
-    listName: { color: C.text, fontSize: 15, flex: 1, opacity: 0.85, ...fw(F.semi) },
+    listName: { color: C.text, fontSize: 15, flex: 1, opacity: 0.85, ...fw(F.reg) },
     // така сама позначка, як біля «3» і «5» у «Слів на день» (WodSection)
     proPill: { backgroundColor: C.accentSoft, borderRadius: R.pill, paddingHorizontal: 6, paddingVertical: 1 },
     proPillText: { color: C.accent, ...type(11, F.extra, { noLead: true }) },
 
     switchRow: { flexDirection: 'row', alignItems: 'center' },
     profileRow: { flexDirection: 'row', alignItems: 'center', minHeight: 44 },
-    switchTitle: { color: C.text, fontSize: 16, letterSpacing: -0.1, ...fw(F.bold), marginBottom: 3 },
+    switchTitle: { color: C.text, fontSize: 16, letterSpacing: -0.1, ...fw(F.semi), marginBottom: 3 },
     // П'ять годин в один ряд навіть на SE: кожна — рівна частка ширини,
     // 44 pt заввишки (мінімум Apple для пальця)
     hourRow: { flexDirection: 'row', gap: 6, marginTop: 10 },
@@ -824,10 +823,10 @@ const makeStyles = (C) =>
       alignItems: 'center',
       justifyContent: 'center',
       borderRadius: R.pill,
-      backgroundColor: C.card2,
+      backgroundColor: C.soft,
     },
     hourChipActive: { backgroundColor: C.accent },
-    hourText: { color: C.dim, fontSize: 13, ...fw(F.bold) },
+    hourText: { color: C.dim, fontSize: 13, ...fw(F.semi) },
 
     serverUrl: {
       color: C.dim,
@@ -840,7 +839,7 @@ const makeStyles = (C) =>
       paddingVertical: 10,
       overflow: 'hidden',
     },
-    checkBtn: { backgroundColor: C.accent, borderRadius: R.md, paddingVertical: 12, alignItems: 'center', marginTop: 12 },
+    checkBtn: { backgroundColor: C.accent, borderRadius: R.pill, paddingVertical: 12, alignItems: 'center', marginTop: 12 },
     checkBtnText: { color: C.onAccent, fontSize: 15, ...fw(F.bold) },
     okText: { color: C.greenInk, fontSize: 13, marginTop: 10, ...fw(F.bold) },
     badText: { color: C.redInk, fontSize: 13, marginTop: 10, lineHeight: 19, ...fw(F.semi) },
@@ -852,7 +851,7 @@ const makeStyles = (C) =>
     acctIcon: {
       width: 40,
       height: 40,
-      borderRadius: 13,
+      borderRadius: 12,
       backgroundColor: C.accentSoft,
       alignItems: 'center',
       justifyContent: 'center',
@@ -862,17 +861,19 @@ const makeStyles = (C) =>
     appleBtn: { width: '100%', height: 50, marginTop: 16 },
     appleBusy: { alignItems: 'center', justifyContent: 'center' },
     acctError: { color: C.redInk, ...type(13, F.semi), marginTop: 10 },
-    syncNote: { color: C.dim, ...type(13, F.bold), marginTop: 3 },
+    syncNote: { color: C.dim, ...type(13, F.semi), marginTop: 3 },
     syncBtn: {
-      backgroundColor: C.card2,
-      borderRadius: R.md,
+      backgroundColor: C.glass,
+      borderWidth: 1,
+      borderColor: C.hairline,
+      borderRadius: R.pill,
       minHeight: 46,
       paddingVertical: 12,
       alignItems: 'center',
       justifyContent: 'center',
       marginTop: 14,
     },
-    syncBtnText: { color: C.text, ...type(15, F.bold, { noLead: true }) },
+    syncBtnText: { color: C.text, ...type(15, F.semi, { noLead: true }) },
     signOutBtn: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
     dangerText: { color: C.redInk, fontSize: 16, letterSpacing: -0.1, ...fw(F.semi) },
   });

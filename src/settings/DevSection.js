@@ -155,5 +155,5 @@ const makeStyles = (C) =>
       borderRadius: R.xl,
     },
     row: { minHeight: 44, justifyContent: 'center' },
-    title: { ...type(16, F.bold), marginBottom: 3 },
+    title: { ...type(16, F.semi), marginBottom: 3 },
   });

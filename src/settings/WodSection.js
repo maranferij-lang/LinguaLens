@@ -157,7 +157,7 @@ export default function WodSection({ ctx, extra = {} }) {
             accessibilityLabel={t('dailyPush')}
             accessibilityHint={t('dailyPushHint')}
             testID="wod-enabled"
-            trackColor={{ false: C.card3, true: C.accent }}
+            trackColor={{ false: C.soft, true: C.accent }}
             thumbColor="#fff"
           />
         </View>
@@ -249,7 +249,7 @@ export default function WodSection({ ctx, extra = {} }) {
 const makeStyles = (C) =>
   StyleSheet.create({
     // 1 · 3 · 5 — три рівні сегменти, як перемикач у Параметрах iOS
-    segRow: { flexDirection: 'row', gap: 6, marginTop: 10, backgroundColor: C.card2, borderRadius: R.pill, padding: 4 },
+    segRow: { flexDirection: 'row', gap: 6, marginTop: 10, backgroundColor: C.soft, borderRadius: R.pill, padding: 4 },
     seg: {
       flex: 1,
       minHeight: 40,
@@ -260,16 +260,16 @@ const makeStyles = (C) =>
       borderRadius: R.pill,
     },
     segActive: { backgroundColor: C.card, shadowColor: C.text, shadowOpacity: 0.08, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
-    segText: { color: C.dim, ...type(16, F.bold, { noLead: true }) },
-    segTextActive: { color: C.text, ...fw(F.extra) },
+    segText: { color: C.dim, ...type(16, F.reg, { noLead: true }) },
+    segTextActive: { color: C.text, ...fw(F.semi) },
     proPill: { backgroundColor: C.accentSoft, borderRadius: R.pill, paddingHorizontal: 6, paddingVertical: 1 },
     proText: { color: C.accent, ...type(11, F.extra, { noLead: true }) },
     segHint: { marginTop: 8 },
     slots: { marginTop: 10, gap: 2 },
     slotRow: { flexDirection: 'row', alignItems: 'center', minHeight: 48 },
-    slotName: { flex: 1, color: C.text, ...type(15, F.semi) },
+    slotName: { flex: 1, color: C.text, ...type(15, F.reg) },
     stepper: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-    stepBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: C.card2, alignItems: 'center', justifyContent: 'center' },
+    stepBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: C.soft, alignItems: 'center', justifyContent: 'center' },
     stepOff: { opacity: 0.35 },
-    slotTime: { minWidth: 70, textAlign: 'center', color: C.accent, ...type(16, F.extra, { noLead: true }), fontVariant: ['tabular-nums'] },
+    slotTime: { minWidth: 70, textAlign: 'center', color: C.accent, ...type(16, F.semi, { noLead: true }), fontVariant: ['tabular-nums'] },
   });

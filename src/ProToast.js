@@ -89,7 +89,7 @@ export default function ProToast({ toast, onHide, t }) {
         onAccessibilityAction={(e) => e.nativeEvent.actionName === 'dismiss' && hide()}
         testID="pro-toast"
       >
-        <View style={[styles.card, { backgroundColor: C.card }, SHADOW_LG]}>
+        <View style={[styles.card, { backgroundColor: C.glassStrong, borderWidth: 1, borderColor: C.glassBorder }, SHADOW_LG]}>
           <View style={[styles.iconWrap, { backgroundColor: C.accentSoft }]}>
             <IcSparkle size={26} color={C.accent} />
           </View>
@@ -116,7 +116,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     borderRadius: R.xl,
-    padding: 12,
+    padding: 14,
   },
   iconWrap: {
     width: 46,
@@ -125,5 +125,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  text: { ...type(15, F.bold, { noLead: true }), marginTop: 3 },
+  text: { ...type(15, F.semi, { noLead: true }), marginTop: 3 },
 });

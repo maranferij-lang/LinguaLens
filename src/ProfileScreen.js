@@ -13,10 +13,10 @@ import { evaluate, computeMetrics, levelFromWords, unlockedCount } from './achie
 import { IcCheck, IcShare } from './icons';
 import { Mascot, MascotBob } from './Mascot';
 import { AchIcon } from './AchIcons';
-import { Bar, FadeIn, Glass, GradBtn, Press } from './ui';
+import { Bar, FadeIn, Glass, GradBtn, Press, ScreenBackground } from './ui';
 import { UNDER_TAB } from './Chrome';
 import { DUR, EASE, layoutNext, useReducedMotionCached } from './motion';
-import { F, R, useTheme, fw } from './theme';
+import { CAPS, F, R, useTheme, fw, display } from './theme';
 
 const WEEK = 7 * 24 * 60 * 60 * 1000;
 const AVATARS = ['wave', 'celebrate', 'think', 'encourage'];
@@ -30,7 +30,7 @@ function Pencil({ size = 12, color }) {
         d="M15.5 4.5 19.5 8.5 8.5 19.5H4.5V15.5zM13 7l4 4"
         fill="none"
         stroke={color}
-        strokeWidth={2.2}
+        strokeWidth={1.8}
         strokeLinecap="round"
         strokeLinejoin="round"
       />
@@ -74,7 +74,7 @@ function ActivityBars({ days, maxVal, labels, s, C }) {
             <Animated.View
               style={[
                 s.bar,
-                d.value ? { height: 10 + (d.value / maxVal) * 78, backgroundColor: C.accent } : { height: 10, backgroundColor: C.card2 },
+                d.value ? { height: 10 + (d.value / maxVal) * 78, backgroundColor: i === days.length - 1 ? C.accent : C.dim } : { height: 10, backgroundColor: C.soft },
                 { opacity, transform: [{ scaleY }], transformOrigin: 'bottom' },
               ]}
             />
@@ -266,6 +266,8 @@ export default function ProfileScreen({
   }
 
   return (
+    <View style={s.screen}>
+    <ScreenBackground />
     <ScrollView
       ref={scroll}
       onLayout={(e) => {
@@ -284,7 +286,7 @@ export default function ProfileScreen({
 
       {/* Шапка профілю */}
       <FadeIn>
-        <View style={[s.hero, SHADOW]}>
+        <Glass hero style={s.hero}>
           {/* Олівець на аватарі каже, що його можна змінити; підказка
               словами — лише поки імені ще немає */}
           <Pressable
@@ -310,8 +312,8 @@ export default function ProfileScreen({
             <Text style={s.levelText}>{t('collStage', { n: lvl.level })}</Text>
             <Text style={s.levelNext}>{t('collWords', { c: lvl.current, n: lvl.nextNeed })}</Text>
           </View>
-          <Bar progress={lvl.progress} color={C.accent} bg={C.card2} accessibilityLabel={t('collStage', { n: lvl.level })} />
-        </View>
+          <Bar progress={lvl.progress} color={C.accent} accessibilityLabel={t('collStage', { n: lvl.level })} />
+        </Glass>
       </FadeIn>
 
       {/* Перемикач Статистика / Досягнення */}
@@ -416,7 +418,7 @@ export default function ProfileScreen({
                   </View>
                 ) : null}
                 <View style={!a.unlocked && { opacity: 0.32 }}>
-                  <AchIcon id={a.id} size={34} color={a.unlocked ? C.accent : C.faint} />
+                  <AchIcon id={a.id} size={32} color={a.unlocked ? C.accent : C.faint} />
                 </View>
                 <Text style={[s.achTitle, !a.unlocked && { color: C.dim }]} numberOfLines={2}>
                   {t('ach_' + a.id)}
@@ -428,7 +430,7 @@ export default function ProfileScreen({
                   </View>
                 ) : (
                   <>
-                    <Bar progress={a.progress} color={C.accent} bg={C.card2} height={5} decorative />
+                    <Bar progress={a.progress} color={C.text} height={4} decorative />
                     <Text style={s.achProgress}>
                       {Math.min(a.value, a.goal)}/{a.goal}
                     </Text>
@@ -453,6 +455,7 @@ export default function ProfileScreen({
         SHADOW={SHADOW}
       />
     </ScrollView>
+    </View>
   );
 }
 
@@ -465,19 +468,14 @@ const makeStyles = (C) =>
       gap: 8,
       marginTop: 14,
       paddingVertical: 11,
-      borderRadius: R.md,
+      borderRadius: R.pill,
       backgroundColor: C.accentSoft,
     },
-    shareWeekText: { color: C.accent, fontSize: 15, ...fw(F.bold) },
-    root: { flex: 1, backgroundColor: C.bg, padding: 20 },
+    shareWeekText: { color: C.accent, fontSize: 15, ...fw(F.semi) },
+    screen: { flex: 1, backgroundColor: C.bg },
+    root: { flex: 1, padding: 20 },
     title: { marginBottom: 14 },
-    hero: {
-      backgroundColor: C.card,
-      borderRadius: R.xl,
-      padding: 20,
-      alignItems: 'center',
-      marginBottom: 14,
-    },
+    hero: { padding: 20, alignItems: 'center', marginBottom: 12 },
     avatarWrap: { marginBottom: 2 },
     // значок-олівець у куті аватара
     editBadge: {
@@ -489,62 +487,55 @@ const makeStyles = (C) =>
       borderRadius: 13,
       backgroundColor: C.accent,
       borderWidth: 2,
-      borderColor: C.card,
+      borderColor: C.bg,
       alignItems: 'center',
       justifyContent: 'center',
     },
-    name: { color: C.text, fontSize: 22, letterSpacing: -0.31, ...fw(F.extra), textAlign: 'center' },
+    name: { color: C.text, fontSize: 24, letterSpacing: -0.4, ...fw(F.semi), textAlign: 'center' },
     email: { color: C.dim, fontSize: 13, ...fw(F.reg), marginTop: 2, marginBottom: 16 },
     levelRow: { flexDirection: 'row', justifyContent: 'space-between', alignSelf: 'stretch', marginBottom: 6 },
-    levelText: { color: C.text, fontSize: 14, ...fw(F.bold) },
+    levelText: { color: C.text, fontSize: 14, ...fw(F.semi) },
     levelNext: { color: C.dim, fontSize: 13, ...fw(F.semi) },
 
-    segment: { flexDirection: 'row', backgroundColor: C.card2, borderRadius: R.md, padding: 3, marginBottom: 14 },
-    segmentBtn: { flex: 1, paddingVertical: 9, borderRadius: R.md - 3, alignItems: 'center' },
+    segment: { flexDirection: 'row', backgroundColor: C.soft, borderRadius: 14, padding: 3, marginBottom: 12 },
+    segmentBtn: { flex: 1, paddingVertical: 9, borderRadius: 11, alignItems: 'center' },
     segmentBtnActive: { backgroundColor: C.card },
-    segmentText: { color: C.dim, fontSize: 14, ...fw(F.semi) },
-    segmentTextActive: { color: C.text, ...fw(F.extra) },
+    segmentText: { color: C.dim, fontSize: 14, ...fw(F.reg) },
+    segmentTextActive: { color: C.text, ...fw(F.semi) },
 
-    rowCards: { flexDirection: 'row', gap: 10 },
-    miniCard: { flex: 1, paddingVertical: 14, alignItems: 'center', borderRadius: R.lg },
-    miniNum: { color: C.text, fontSize: 24, ...fw(F.extra) },
-    miniLabel: { color: C.dim, fontSize: 11, marginTop: 3, ...fw(F.reg) },
-    sectionLabel: {
-      color: C.dim,
-      fontSize: 12,
-      ...fw(F.extra),
-      textTransform: 'uppercase',
-      letterSpacing: 1,
-      marginBottom: 8,
-      marginTop: 18,
-      marginLeft: 4,
-    },
+    rowCards: { flexDirection: 'row', gap: 12, marginTop: 12 },
+    miniCard: { flex: 1, paddingVertical: 16, paddingHorizontal: 8, alignItems: 'center', borderRadius: R.xl },
+    miniNum: { color: C.text, ...display(30) },
+    miniLabel: { color: C.dim, fontSize: 11, marginTop: 4, textAlign: 'center', ...fw(F.reg) },
+    sectionLabel: { color: C.dim, ...CAPS, marginBottom: 8, marginTop: 24, marginLeft: 4 },
     chart: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
     barCol: { alignItems: 'center', flex: 1, gap: 4 },
     bar: { width: 16, borderRadius: 5 },
     barVal: { color: C.dim, fontSize: 10, letterSpacing: 0.2, height: 14, ...fw(F.semi) },
     barLabel: { color: C.dim, fontSize: 11, ...fw(F.semi) },
-    sepLine: { height: StyleSheet.hairlineWidth, backgroundColor: C.sep, marginLeft: 48 },
+    sepLine: { height: StyleSheet.hairlineWidth, backgroundColor: C.hairline, marginLeft: 48 },
     langRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 11 },
-    langName: { color: C.text, fontSize: 16, flex: 1, ...fw(F.semi) },
-    langCount: { color: C.dim, fontSize: 16, ...fw(F.bold) },
+    langName: { color: C.text, fontSize: 16, flex: 1, ...fw(F.reg) },
+    langCount: { color: C.dim, ...display(20) },
 
-    achGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'space-between' },
+    achGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, justifyContent: 'space-between' },
     achCard: {
       width: '48%',
-      backgroundColor: C.card,
-      borderRadius: R.lg,
-      padding: 14,
-      minHeight: 132,
+      backgroundColor: C.glass,
+      borderWidth: 1,
+      borderColor: C.glassBorder,
+      borderRadius: R.xl,
+      padding: 16,
+      minHeight: 140,
       justifyContent: 'space-between',
     },
     achUnlocked: {},
     achLocked: { opacity: 0.9 },
     achIcon: { fontSize: 30 },
-    achTitle: { color: C.text, fontSize: 13, ...fw(F.bold), marginTop: 8, marginBottom: 8, lineHeight: 17 },
+    achTitle: { color: C.text, fontSize: 13, ...fw(F.semi), marginTop: 8, marginBottom: 8, lineHeight: 17 },
     achDone: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-    achDoneText: { color: C.greenInk, fontSize: 12, ...fw(F.bold) },
-    achProgress: { color: C.dim, fontSize: 11, ...fw(F.semi), marginTop: 5 },
+    achDoneText: { color: C.greenInk, fontSize: 12, ...fw(F.semi) },
+    achProgress: { color: C.dim, fontSize: 11, ...fw(F.reg), marginTop: 5 },
     achShare: {
       position: 'absolute',
       top: 10,
@@ -563,25 +554,17 @@ const makeStyles = (C) =>
     kav: { flex: 1, justifyContent: 'flex-end' },
     sheet: {
       backgroundColor: C.sheet,
-      borderTopLeftRadius: R.xl,
-      borderTopRightRadius: R.xl,
+      borderTopLeftRadius: R.sheet,
+      borderTopRightRadius: R.sheet,
       maxHeight: '92%',
     },
     sheetScroll: { flexGrow: 0 },
     // клавіатура майже завжди відкрита, тож знизу лише невеликий відступ (як у LangSheet)
     sheetBody: { padding: 22, paddingBottom: 30 },
-    sheetTitle: { color: C.text, fontSize: 20, ...fw(F.extra), marginBottom: 10 },
-    label: {
-      color: C.dim,
-      fontSize: 11,
-      ...fw(F.extra),
-      letterSpacing: 1,
-      textTransform: 'uppercase',
-      marginTop: 12,
-      marginBottom: 6,
-    },
+    sheetTitle: { color: C.text, fontSize: 22, ...fw(F.semi), marginBottom: 10 },
+    label: { color: C.dim, ...CAPS, marginTop: 12, marginBottom: 6 },
     input: {
-      backgroundColor: C.input,
+      backgroundColor: C.soft,
       borderRadius: R.md,
       paddingHorizontal: 14,
       paddingVertical: 12,
@@ -595,8 +578,8 @@ const makeStyles = (C) =>
       alignItems: 'center',
       paddingVertical: 8,
       borderRadius: R.md,
-      backgroundColor: C.card2,
-      borderWidth: 2,
+      backgroundColor: C.soft,
+      borderWidth: 1.5,
       borderColor: 'transparent',
     },
     avatarActive: { borderColor: C.accent, backgroundColor: C.accentSoft },

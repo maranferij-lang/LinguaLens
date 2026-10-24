@@ -1,8 +1,8 @@
 // Іконки для пейволу — власні вектори в стилі решти набору.
-// Сітка 24, штрих 1.8, круглі кінці. Жодних готових картинок ззовні.
+// Сітка 24, штрих 1.5, круглі кінці. Жодних готових картинок ззовні.
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 
-const S = (c, w = 1.8) => ({
+const S = (c, w = 1.5) => ({
   fill: 'none',
   stroke: c,
   strokeWidth: w,
@@ -66,8 +66,8 @@ const PHeart = ({ size, color }) => (
 // Корона для заголовка Pro.
 export const PCrown = ({ size = 28, color }) => (
   <Svg width={size} height={size} viewBox="0 0 28 28">
-    <Path d="M5 19 3.6 8.4l5.4 3.8L14 6l5 6.2 5.4-3.8L23 19z" {...S(color, 2)} />
-    <Path d="M5.6 22.4h16.8" {...S(color, 2)} />
+    <Path d="M5 19 3.6 8.4l5.4 3.8L14 6l5 6.2 5.4-3.8L23 19z" {...S(color, 1.6)} />
+    <Path d="M5.6 22.4h16.8" {...S(color, 1.6)} />
   </Svg>
 );
 
