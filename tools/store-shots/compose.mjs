@@ -374,12 +374,17 @@ const FRAMES = {
     const left = Math.round((W - (x1 - x0) * k) / 2);
     const at = (r) => ({ x: left + (r.x - x0) * k, y: CT + (r.y - y0) * k, w: r.w * k, h: r.h * k });
     const MARGIN = 0.05 + 0.03 * 2 + 0.025;
+    // «Місце» наліпки: той самий знімок плитки без наліпки (dict-grid-empty),
+    // вирізаний у прямокутнику наліпки з запасом на її тінь, плюс пунктир
+    const PAD = 8;
     const slot = (key) => {
       const r = g['sticker_' + key];
       const p = at(r);
       const size = p.w, m = size * MARGIN;
       const { d } = stickerPath({ shape: shapes().objects[key].shape }, size);
-      return `<div class="abs" style="left:${p.x}px;top:${p.y}px;width:${p.w}px;height:${p.h}px;background:${r.bg};z-index:3"></div>
+      return `<div class="abs" style="left:${p.x - PAD * k}px;top:${p.y - PAD * k}px;width:${p.w + 2 * PAD * k}px;height:${p.h + 2 * PAD * k}px;overflow:hidden;z-index:3">
+          <img src="${UI(loc, 'dict-grid-empty')}" style="position:absolute;left:${-(r.x - PAD - 0) * k}px;top:${-(r.y - PAD) * k}px;width:${PT.w * k}px;height:${PT.h * k}px;max-width:none">
+        </div>
         <svg class="abs" style="left:${p.x}px;top:${p.y}px;z-index:4" width="${size}" height="${size}" viewBox="${-m} ${-m} ${size + m * 2} ${size + m * 2}">
           <path d="${d}" fill="rgba(91,79,214,0.05)" stroke="#C9C2E8" stroke-width="${size * 0.022}" stroke-dasharray="${size * 0.05} ${size * 0.04}" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>`;
@@ -392,7 +397,7 @@ const FRAMES = {
       ${uiCard(loc, 'dict-grid', { y0, y1, x0, x1, k, left, z: 2 })}
       ${slot('lemon')}${slot('camera')}
       ${pop('lemon', 150, -80, 470, 12)}
-      ${pop('camera', -95, -20, 400, -10)}`;
+      ${pop('camera', -125, -25, 400, -10)}`;
   },
 
   // 3 — картки, що не дають забути. Та сама чашка, що на кадрі 1: велике
@@ -473,7 +478,7 @@ const FRAMES = {
     const x0 = 12, x1 = 428, k = CW / (x1 - x0);
     if (!ach.ach0 || !pr.streak) {
       // без вкладки досягнень — як раніше: до рядка «слів усього»
-      const y1 = pr.stats ? pr.stats.y + pr.stats.h + 12 : Math.min(pr.tabbar.y - 8, pr.share.y + pr.share.h + 28);
+      const y1 = pr.stats ? pr.stats.y + pr.stats.h + 12 : pr.tabbar.y - 8;
       return `${bgDark()}${captionA(cp, counts)}
         ${uiCard(loc, 'profile-dark', { y1, x0, x1, z: 2, extra: glow })}`;
     }

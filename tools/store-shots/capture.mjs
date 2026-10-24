@@ -95,16 +95,20 @@ const ACH_IDS = () => {
 // older   — ще 14 старіших слів без фото: разом 30 слів, і саме 30 кажуть
 //           і словник («Збережено: 30»), і профіль («30 слів усього»).
 //           Старіші — найдавніші, тож у колекції вони нижче за край кадру.
-// at      — [ключ, місце]: слово на цьому місці у сховищі (квіз іде в
-//           порядку сховища, коли Math.random пришпилено: сьоме питання)
+// at      — [ключ, місце] чи список таких пар: слово на цьому місці у
+//           сховищі (квіз іде в порядку сховища, коли Math.random
+//           пришпилено: сьоме питання; словник показує колекцію в тому
+//           ж порядку)
 export function seedFor(loc, { theme = 'light', withScene = false, words: wordKeys = COLLECTION, origin, shapes, mugSaved = true, first = null, at = null, exclude = [], older = true, avatar = 'wave' }) {
   const L = LOCALES[loc];
   const now = Date.now();
   let keys = wordKeys.filter((k) => (mugSaved || k !== 'mug') && !exclude.includes(k));
   if (first && keys.includes(first)) keys = [first, ...keys.filter((k) => k !== first)];
-  if (at && keys.includes(at[0])) {
-    keys = keys.filter((k) => k !== at[0]);
-    keys.splice(at[1], 0, at[0]);
+  // at — одна пара або список пар [[ключ, місце], …], по черзі
+  for (const [key, pos] of at ? (Array.isArray(at[0]) ? at : [at]) : []) {
+    if (!keys.includes(key)) continue;
+    keys = keys.filter((k) => k !== key);
+    keys.splice(pos, 0, key);
   }
   const words = keys
     .map((k, i) => {
@@ -512,16 +516,30 @@ export async function captureAll({ locales = STORE_LOCALES, only = null } = {}) 
     });
 
     // 2 — словник, колекція наліпок
-    await run('dict', {}, async (a) => {
+    // Колекція в застосунку тепер у дві колонки: на екрані видно лише чотири
+    // плитки з половиною третього ряду. Лимон і фотоапарат, які кадр 2
+    // «відклеює», стоять тут на 2-му й 3-му місцях: лимон угорі праворуч,
+    // фотоапарат ліворуч під ним (так само, як це лягло б у сховищі).
+    const POP = ['lemon', 'camera'];
+    await run('dict', { seed: { at: [['lemon', 1], ['camera', 2]] } }, async (a) => {
       await a.click(t('tabDict'));
       await a.wait(900);
       await a.click(t('viewCollection'));
       await a.wait(1600);
-      await a.shot('dict-grid');
-      const grid = COLLECTION.slice(0, 12);
+      const grid = ['mug', ...POP, 'plant'];
       await a.measure('dict-grid', { ...Object.fromEntries(grid.map((k) => [k, { text: vocab(loc, k).word }])), seg: { text: t('viewList'), mode: 'card' } });
       await a.measureStickers('dict-grid', grid);
       await a.measureTabBar('dict-grid', t('tabProfile'));
+      await a.shot('dict-grid');
+      // ті самі плитки без наліпок: порожні «місця» на кадрі 2 беруться
+      // з цього знімка, піксель у піксель
+      await a.page.evaluate((keys) => {
+        for (const im of document.querySelectorAll('image')) {
+          const h = im.getAttribute('href') || im.getAttribute('xlink:href') || '';
+          if (keys.some((k) => h.includes('obj-' + k + '.'))) im.closest('svg').style.visibility = 'hidden';
+        }
+      }, POP);
+      await a.shot('dict-grid-empty', 150);
     });
 
     // 3 і 5 — «Навчання»: відкрита картка слова дня (кадр 5) і картки (кадр 3:
@@ -582,12 +600,14 @@ export async function captureAll({ locales = STORE_LOCALES, only = null } = {}) 
         if (i < 6) await a.wait(1300);
       }
       await a.wait(250);
-      await a.shot('quiz', 0);
+      // міряємо ДО знімка: знімок 3× триває довше, ніж застосунок тримає
+      // зелену відповідь, і після нього він уже на восьмому питанні
       await a.measure('quiz', {
         meta: { text: t('quizQ', { i: 7, n: 10 }) },
         word: { text: vocab(loc, QUIZ).word },
         right: { text: vocab(loc, QUIZ).translation, mode: 'card' },
       });
+      await a.shot('quiz', 0);
     });
 
     // 4 — сцена кухні з історії (усі її предмети нові: «Зберегти всі (9)»)
@@ -635,7 +655,6 @@ export async function captureAll({ locales = STORE_LOCALES, only = null } = {}) 
       await a.measure('profile-dark', {
         streak: { text: t('streakN', { n: 12 }), mode: 'card' },
         name: { text: L.name },
-        share: { text: t('shareWeek'), mode: 'card' },
         stats: { text: t('wordsTotal'), mode: 'card' },
       });
       await a.measureTabBar('profile-dark', t('tabProfile'));
