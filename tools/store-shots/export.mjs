@@ -27,7 +27,9 @@ function copyPure(srcRoot, rel, seen = new Set()) {
   seen.add(rel);
   const file = path.join(srcRoot, rel + '.js');
   let code = fs.readFileSync(file, 'utf8');
-  code = code.replace(/(from\s+|import\s+)'([^']+)'/g, (m, kw, spec) => {
+  // лише справжні import/export з початку рядка: «import … from '…'» у
+  // коментарі (підказка інтегратору) модулем не є
+  code = code.replace(/^((?:import|export)\b[^;'"]*?from\s+|import\s+)'([^']+)'/gm, (m, kw, spec) => {
     if (!spec.startsWith('.')) throw new Error(`${rel}.js імпортує '${spec}' — це не чистий модуль`);
     const dep = path.posix.normalize(path.posix.join(path.posix.dirname(rel), spec));
     copyPure(srcRoot, dep, seen);
