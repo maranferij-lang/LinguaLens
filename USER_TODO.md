@@ -9,6 +9,42 @@
 
 Позначення: 🔑 — отримаєш ключ/значення, яке треба кудись вписати.
 
+## Стан релізу на 25 жовтня 2026
+
+**Уже зроблено (без твоїх рук):**
+- Сервер: https://lingualens-server-ph27dyrjha-lm.a.run.app (GCP-проєкт
+  `lingualens-server-ua`, Cloud Run, `europe-central2`, Firestore з PITR і
+  щоденними копіями, бюджет-алерт $5/міс). Секрети лише в Secret Manager:
+  `gemini-api-key` (зараз безкоштовний ключ, лише для тестів: перед публічним
+  релізом заміни на платний, умови Gemini не дозволяють безкоштовний тариф для
+  користувачів з ЄС і Британії), `auth-secret`, `app-token`,
+  `revenuecat-webhook-auth`, `revenuecat-secret`. `SUPPORT_EMAIL` задано.
+- Support URL: `…/support`, Privacy Policy URL: `…/privacy` (адреса вище).
+- RevenueCat (проєкт `projb3065faa`): застосунок «LinguaLens iOS»
+  (`com.marik.lingualens`), продукти `com.marik.lingualens.pro.month`,
+  `.pro.year`, `.pro.lifetime` у `lingualens_pro` і в пакетах offering
+  `default`, метадані `{"onboarding_paywall":"show","paywall_ui":"custom"}`,
+  вебхук на сервер.
+- `eas.json`: `appleTeamId` 678UZS2JFH, `ascAppId` 6825841817.
+
+**Лишилось (через браузер, сесія з Claude in Chrome на Mac):**
+1. App Store Connect → Integrations → App Store Connect API: ключ з роллю
+   App Manager; Issuer ID і Key ID; `.p8` у `~/.appstoreconnect/private_keys/`
+   (chmod 600).
+2. App Store Connect → Integrations → In-App Purchase: ключ «RevenueCat» →
+   завантажити в RevenueCat → LinguaLens iOS → In-app purchase key.
+3. developer.apple.com → Keys: ключ Sign in with Apple для
+   `com.marik.lingualens` → у Secret Manager `apple-key-id`,
+   `apple-private-key` → `gcloud run services update lingualens-server
+   --region europe-central2 --project lingualens-server-ua --update-secrets
+   APPLE_KEY_ID=apple-key-id:latest,APPLE_PRIVATE_KEY=apple-private-key:latest`
+   → `/health` має показати `appleRevoke: true`.
+4. Покупки в App Store Connect: крок 3 нижче.
+5. expo.dev → Access tokens: токен «LinguaLens CI» у `~/.expo-token`
+   (chmod 600).
+
+Ключі не вставляти в чат і не комітити.
+
 > **Терміново, цього тижня (до 11 жовтня).** Дедлайн 6 жовтня (запис
 > застосунку, Small Business Program, номінація на фічеринг) уже минув. Що
 > робити тепер, по черзі:
