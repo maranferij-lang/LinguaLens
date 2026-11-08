@@ -174,3 +174,19 @@ describe('store shots copy', () => {
     }
   });
 });
+
+describe('store shots plain style copy (Guideline 2.3.3)', () => {
+  const { PLAIN } = require('../tools/store-shots/copy');
+  const CAPTURES = ['camera', 'dict-grid', 'cards-front', 'scene', 'learn-wod', 'quiz', 'profile-dark', 'profile-ach'];
+  test('eight frames per locale, one real screen each, no dashes, length limits', () => {
+    for (const loc of LOCALES) {
+      expect(PLAIN[loc].map((c) => c.shot)).toEqual(CAPTURES);
+      for (const cp of PLAIN[loc]) {
+        expect(plainHead(cp).length).toBeLessThanOrEqual(28);
+        const sub = fill(cp.sub, counts);
+        expect(sub.length).toBeLessThanOrEqual(46);
+        for (const s of [cp.head, cp.sub]) expect(/[‐-―−⸺⸻﹘﹣－-]/.test(s)).toBe(false);
+      }
+    }
+  });
+});
