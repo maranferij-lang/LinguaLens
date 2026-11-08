@@ -90,3 +90,51 @@ function countIn(src, table, item) {
 }
 export const countLangs = (speechSrc) => countIn(speechSrc, 'LANGS', /\{ code: '/g);
 export const countAchievements = (achSrc) => countIn(achSrc, 'ACHIEVEMENTS', /\{ id: '/g);
+
+// ─── Стиль «plain» (Guideline 2.3.3) ───────────────────────────────────────
+// Кожен кадр показує ОДИН цілий справжній екран застосунку, нічого поверх
+// нього. Тому заголовок має описувати саме той екран, що під ним (shot: ім'я
+// знімка з capture.mjs). Ті самі правила тексту: без тире, заголовок ≤ 28
+// символів, підрядок ≤ 46, PRO лише там, де екран належить Pro (сцена).
+export const PLAIN = {
+  uk: [
+    { slug: 'scan', shot: 'camera', head: 'Фотографуй\nі [вчи англійську]', sub: 'Наведи камеру на предмет і натисни кнопку' },
+    { slug: 'dictionary', shot: 'dict-grid', head: 'Твій\n[фотословник]', sub: 'Слова з твого життя, {LANGS} мов на вибір' },
+    { slug: 'flashcards', shot: 'cards-front', head: 'Картки, що\n[не дають забути]', sub: 'Повторення повертає слово саме вчасно' },
+    { slug: 'scene', shot: 'scene', head: 'Ціла кімната\n[за один кадр]', sub: 'Кожен предмет отримає англійську назву', pro: true },
+    { slug: 'wod', shot: 'learn-wod', head: 'Нове слово\n[щодня]', sub: 'Слово дня з вимовою й прикладом' },
+    { slug: 'quiz', shot: 'quiz', head: 'Перевір себе\nу [квізі]', sub: 'Десять питань за твоїми словами' },
+    { slug: 'streak', shot: 'profile-dark', head: 'Не переривай\n[серію]', sub: 'Серія днів і твої слова в профілі' },
+    { slug: 'achievements', shot: 'profile-ach', head: 'Збирай\n[досягнення]', sub: 'Відкривай {ACH} досягнень, поки вчишся' },
+  ],
+  'en-US': [
+    { slug: 'scan', shot: 'camera', head: 'Snap it, [learn it\nin Spanish]', sub: 'Point the camera at any object' },
+    { slug: 'dictionary', shot: 'dict-grid', head: 'Your [picture dictionary]', sub: 'Words from your own life, in {LANGS} languages' },
+    { slug: 'flashcards', shot: 'cards-front', head: 'Flashcards [that stick]', sub: 'Spaced repetition brings words back on time' },
+    { slug: 'scene', shot: 'scene', head: 'Label your [whole room]', sub: 'One shot, every object named in Spanish', pro: true },
+    { slug: 'wod', shot: 'learn-wod', head: 'A new word [every day]', sub: 'Word of the Day with pronunciation' },
+    { slug: 'quiz', shot: 'quiz', head: 'Test yourself with a [quiz]', sub: 'Ten questions from your own words' },
+    { slug: 'streak', shot: 'profile-dark', head: 'Keep your [streak] going', sub: 'Your daily streak and words in your profile' },
+    { slug: 'achievements', shot: 'profile-ach', head: 'Earn [achievements]', sub: 'Unlock {ACH} achievements as you learn' },
+  ],
+  'en-GB': [
+    { slug: 'scan', shot: 'camera', head: 'Snap it, [learn it\nin English]', sub: 'Point the camera at any object' },
+    { slug: 'dictionary', shot: 'dict-grid', head: 'Your [picture dictionary]', sub: 'Words from your own life, in {LANGS} languages' },
+    { slug: 'flashcards', shot: 'cards-front', head: 'Flashcards [that stick]', sub: 'Spaced repetition brings words back on time' },
+    { slug: 'scene', shot: 'scene', head: 'Label your [whole room]', sub: 'One shot, every object named in English', pro: true },
+    { slug: 'wod', shot: 'learn-wod', head: 'A new word [every day]', sub: 'Word of the Day with pronunciation' },
+    { slug: 'quiz', shot: 'quiz', head: 'Test yourself with a [quiz]', sub: 'Ten questions from your own words' },
+    { slug: 'streak', shot: 'profile-dark', head: 'Keep your [streak] going', sub: 'Your daily streak and words in your profile' },
+    { slug: 'achievements', shot: 'profile-ach', head: 'Earn [achievements]', sub: 'Unlock {ACH} achievements as you learn' },
+  ],
+  'es-MX': [
+    { slug: 'scan', shot: 'camera', head: 'Tómale foto y [aprende inglés]', sub: 'Apunta la cámara a cualquier objeto' },
+    { slug: 'dictionary', shot: 'dict-grid', head: 'Tu [diccionario de fotos]', sub: 'Palabras de tu vida, en {LANGS} idiomas' },
+    { slug: 'flashcards', shot: 'cards-front', head: 'Tarjetas [para no olvidar]', sub: 'Repasa cada palabra justo antes de olvidarla' },
+    { slug: 'scene', shot: 'scene', head: 'Etiqueta todo\n[con una foto]', sub: 'Cada objeto, con su nombre en inglés', pro: true },
+    { slug: 'wod', shot: 'learn-wod', head: 'Una palabra\n[nueva al día]', sub: 'Palabra del día con pronunciación' },
+    { slug: 'quiz', shot: 'quiz', head: 'Ponte a prueba\ncon un [quiz]', sub: 'Diez preguntas con tus propias palabras' },
+    { slug: 'streak', shot: 'profile-dark', head: 'No rompas [tu racha]', sub: 'Tu racha diaria y tus palabras en el perfil' },
+    { slug: 'achievements', shot: 'profile-ach', head: 'Gana [logros]', sub: 'Desbloquea {ACH} logros mientras aprendes' },
+  ],
+};

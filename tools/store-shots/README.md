@@ -62,6 +62,24 @@ REF=v1.3.0 node tools/store-shots/render.mjs
 Окремі кроки теж запускаються самі: `export.mjs`, `art/build-art.mjs`,
 `capture.mjs [назва-знімка]`.
 
+## Стиль `plain` (Guideline 2.3.3)
+
+Apple відхилила маркетингові композити («кадри мають показувати застосунок у
+дії»). `--style=plain` дає кадри 1320×2868, де кожен є ОДНИМ цілим справжнім
+екраном: шапка із заголовком (480 px) і повний знімок екрана, зменшений,
+по центру, із заокругленими кутами й тінню. Нічого не лежить поверх екрана
+й не обрізає його. Типовий стиль лишається старим.
+
+```sh
+node tools/store-shots/render.mjs --style=plain            # знімки + кадри
+node tools/store-shots/render.mjs --style=plain --frames-only
+```
+
+Підписи — `PLAIN` у `copy.js` (поле `shot` — який знімок із `capture.mjs`),
+компонування — `compose-plain.mjs`. Екрани: camera, dict-grid, cards-front,
+scene, learn-wod, quiz, profile-dark, profile-ach. Файли ті самі
+(`<loc>/<loc>_<nn>_<slug>.png`), тож у `OUT` краще вказати іншу теку.
+
 ## Куди падає результат
 
 Типово `store-shots-out/` у корені репозиторію (теку ігнорує git), або

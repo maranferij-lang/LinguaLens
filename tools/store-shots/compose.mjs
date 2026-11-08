@@ -44,9 +44,9 @@ const pngSize = (loc, name) => info(path.join(UI_DIR, loc, name + '.png'));
 // Справжні числа з тієї ж версії, що й екрани.
 export const achievementCount = () => countAchievements(fs.readFileSync(path.join(LIB, 'achievements.mjs'), 'utf8'));
 export const languageCount = () => countLangs(fs.readFileSync(path.join(LIB, 'speech.src.js'), 'utf8'));
-export function countsFor(loc) {
+export function countsFor(loc, table = COPY) {
   const counts = { langs: languageCount(), ach: achievementCount() };
-  const used = COPY[loc].map((cp) => cp.sub).join(' ');
+  const used = table[loc].map((cp) => cp.sub).join(' ');
   if (loc === 'uk') {
     for (const [key, n] of [['LANGS', counts.langs], ['ACH', counts.ach]]) {
       if (used.includes(`{${key}}`) && !ukGenitivePlural(n)) throw new Error(`uk: «${n} …» не узгоджується з підписом; перепиши {${key}} у copy.js`);
