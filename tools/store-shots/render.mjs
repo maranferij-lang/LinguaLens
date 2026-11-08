@@ -15,6 +15,7 @@
 //   --locales=uk,es-MX лише ці локалі
 //   --no-sheets       без аркушів
 //   --style=plain     кадри для Guideline 2.3.3: шапка + один цілий екран
+//   --style=showcase  те саме, але телефон у корпусі на панорамному тлі
 //   --icon=icon-eye.png  інша іконка на кадрі 6 (тест іконки, PPO), те саме,
 //                     що ICON=…; аркуш тоді один: contact-icon.png
 // Змінні середовища: REF, OUT, WORK, PLAYWRIGHT, CHROMIUM, PHOTOS, ICON, PORT
@@ -68,12 +69,12 @@ if (!flag('--frames-only')) {
 }
 
 // ─── 2. кадри ──────────────────────────────────────────────────────────────
-const { COPY, PLAIN } = await import('./copy.js');
+const { COPY, PLAIN, SHOWCASE } = await import('./copy.js');
 // --style=plain: один цілий справжній екран під заголовком (Guideline 2.3.3)
 const STYLE = (args.find((a) => a.startsWith('--style=')) || '--style=marketing').split('=')[1];
-if (!['marketing', 'plain'].includes(STYLE)) throw new Error(`невідомий --style=${STYLE}; є marketing, plain`);
-const { FRAME_NUMBERS, H, W, frameHtml } = await import(STYLE === 'plain' ? './compose-plain.mjs' : './compose.mjs');
-const TEXTS = STYLE === 'plain' ? PLAIN : COPY;
+if (!['marketing', 'plain', 'showcase'].includes(STYLE)) throw new Error(`невідомий --style=${STYLE}; є marketing, plain, showcase`);
+const { FRAME_NUMBERS, H, W, frameHtml } = await import(STYLE === 'plain' ? './compose-plain.mjs' : STYLE === 'showcase' ? './compose-showcase.mjs' : './compose.mjs');
+const TEXTS = STYLE === 'plain' ? PLAIN : STYLE === 'showcase' ? SHOWCASE : COPY;
 const { exportedRev } = await import('./export.mjs');
 const rev = exportedRev();
 if (rev !== wantRev) console.warn(`увага: екрани знято з ${rev}, а REF=${ref} — це ${wantRev}`);
@@ -95,8 +96,8 @@ async function renderFrame(n, loc) {
   // заголовок у два рядки, як на сусідніх кадрах (однорядковий compose
   // центрує, але краще поставити \n у copy.js)
   const lines = await page.evaluate(() => document.body.dataset.lines);
-  if (STYLE === 'plain' && (lines > '2' || (await page.evaluate(() => document.body.dataset.fit)) !== '1')) console.warn(`увага: ${loc} кадр ${n}: заголовок у ${lines} рядок(и) або не вміщається в шапку`);
-  else if (STYLE !== 'plain' && lines !== '2') console.warn(`увага: ${loc} кадр ${n}: заголовок у ${lines} рядок(и); перенос \n у copy.js вирівняє його з сусідами`);
+  if (STYLE !== 'marketing' && (lines > '2' || (await page.evaluate(() => document.body.dataset.fit)) !== '1')) console.warn(`увага: ${loc} кадр ${n}: заголовок у ${lines} рядок(и) або не вміщається в шапку`);
+  else if (STYLE === 'marketing' && lines !== '2') console.warn(`увага: ${loc} кадр ${n}: заголовок у ${lines} рядок(и); перенос \n у copy.js вирівняє його з сусідами`);
   const shot = await page.screenshot({ clip: { x: 0, y: 0, width: W, height: H } });
   const dest = frameFile(loc, n);
   fs.mkdirSync(path.dirname(dest), { recursive: true });

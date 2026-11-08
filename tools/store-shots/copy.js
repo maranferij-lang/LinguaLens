@@ -138,3 +138,51 @@ export const PLAIN = {
     { slug: 'achievements', shot: 'profile-ach', head: 'Gana [logros]', sub: 'Desbloquea {ACH} logros mientras aprendes' },
   ],
 };
+
+// ─── Стиль «showcase» (Guideline 2.3.3, але привабливіше) ──────────────────
+// Телефон у корпусі на панорамному тлі, над ним лише заголовок: без
+// підрядків, одне виділене слово в [дужках], не більше двох рядків (\n).
+// Кадр 1 показує РЕЗУЛЬТАТ скану (знімок scan-result), решта як у PLAIN.
+// Без тире й дефісів; PRO лише на кадрі сцени, і лише в шапці.
+export const SHOWCASE = {
+  uk: [
+    { slug: 'scan', shot: 'scan-result', head: 'Фото й [слово]\nанглійською' },
+    { slug: 'dictionary', shot: 'dict-grid', head: 'Твій\n[фотословник]' },
+    { slug: 'flashcards', shot: 'cards-front', head: 'Картки, що\nне дають [забути]' },
+    { slug: 'scene', shot: 'scene', head: 'Ціла кімната\nза [один] кадр', pro: true },
+    { slug: 'wod', shot: 'learn-wod', head: 'Нове слово\n[щодня]' },
+    { slug: 'quiz', shot: 'quiz', head: 'Перевір себе\nу [квізі]' },
+    { slug: 'streak', shot: 'profile-dark', head: 'Не переривай\n[серію]' },
+    { slug: 'achievements', shot: 'profile-ach', head: 'Збирай\n[досягнення]' },
+  ],
+  'en-US': [
+    { slug: 'scan', shot: 'scan-result', head: 'Snap it, learn\nit in [Spanish]' },
+    { slug: 'dictionary', shot: 'dict-grid', head: 'Your picture\n[dictionary]' },
+    { slug: 'flashcards', shot: 'cards-front', head: 'Flashcards\nthat [stick]' },
+    { slug: 'scene', shot: 'scene', head: 'Label your\n[whole] room', pro: true },
+    { slug: 'wod', shot: 'learn-wod', head: 'A new word\n[every] day' },
+    { slug: 'quiz', shot: 'quiz', head: 'Test yourself\nwith a [quiz]' },
+    { slug: 'streak', shot: 'profile-dark', head: 'Keep your\n[streak] going' },
+    { slug: 'achievements', shot: 'profile-ach', head: 'Earn\n[achievements]' },
+  ],
+  'en-GB': [
+    { slug: 'scan', shot: 'scan-result', head: 'Snap it, learn\nit in [English]' },
+    { slug: 'dictionary', shot: 'dict-grid', head: 'Your picture\n[dictionary]' },
+    { slug: 'flashcards', shot: 'cards-front', head: 'Flashcards\nthat [stick]' },
+    { slug: 'scene', shot: 'scene', head: 'Label your\n[whole] room', pro: true },
+    { slug: 'wod', shot: 'learn-wod', head: 'A new word\n[every] day' },
+    { slug: 'quiz', shot: 'quiz', head: 'Test yourself\nwith a [quiz]' },
+    { slug: 'streak', shot: 'profile-dark', head: 'Keep your\n[streak] going' },
+    { slug: 'achievements', shot: 'profile-ach', head: 'Earn\n[achievements]' },
+  ],
+  'es-MX': [
+    { slug: 'scan', shot: 'scan-result', head: 'Tómale foto y\n[aprende] inglés' },
+    { slug: 'dictionary', shot: 'dict-grid', head: 'Tu diccionario\nde [fotos]' },
+    { slug: 'flashcards', shot: 'cards-front', head: 'Tarjetas para\nno [olvidar]' },
+    { slug: 'scene', shot: 'scene', head: 'Etiqueta todo\ncon una [foto]', pro: true },
+    { slug: 'wod', shot: 'learn-wod', head: 'Una palabra\n[nueva] al día' },
+    { slug: 'quiz', shot: 'quiz', head: 'Ponte a prueba\ncon un [quiz]' },
+    { slug: 'streak', shot: 'profile-dark', head: 'No rompas\ntu [racha]' },
+    { slug: 'achievements', shot: 'profile-ach', head: 'Gana\n[logros]' },
+  ],
+};

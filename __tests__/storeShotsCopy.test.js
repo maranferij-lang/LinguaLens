@@ -190,3 +190,30 @@ describe('store shots plain style copy (Guideline 2.3.3)', () => {
     }
   });
 });
+
+describe('store shots showcase style copy (Guideline 2.3.3)', () => {
+  const { SHOWCASE } = require('../tools/store-shots/copy');
+  const CAPTURES = ['scan-result', 'dict-grid', 'cards-front', 'scene', 'learn-wod', 'quiz', 'profile-dark', 'profile-ach'];
+  test('eight frames per locale, frame 1 shows the scan result, no sub-lines', () => {
+    for (const loc of LOCALES) {
+      expect(SHOWCASE[loc].map((c) => c.shot)).toEqual(CAPTURES);
+      expect(SHOWCASE[loc].map((c) => c.slug)).toEqual(SLUGS_SHOWCASE);
+      for (const cp of SHOWCASE[loc]) expect(cp.sub).toBeUndefined();
+    }
+  });
+  test('headline: two lines at most, one highlighted word, short, no dashes or hyphens', () => {
+    for (const loc of LOCALES) {
+      for (const cp of SHOWCASE[loc]) {
+        expect((cp.head.match(/\n/g) || []).length).toBeLessThanOrEqual(1);
+        expect(plainHead(cp).length).toBeLessThanOrEqual(28);
+        expect(cp.head.match(/\[[^[\]\s]+\]/g)).toHaveLength(1);
+        expect(/[‐-―−⸺⸻﹘﹣－-]/.test(cp.head)).toBe(false);
+        for (const line of cp.head.replace(/[[\]]/g, '').split('\n')) expect(line.length).toBeLessThanOrEqual(16);
+      }
+    }
+  });
+  test('only the scene frame carries PRO', () => {
+    for (const loc of LOCALES) for (const cp of SHOWCASE[loc]) expect(!!cp.pro).toBe(cp.slug === 'scene');
+  });
+});
+const SLUGS_SHOWCASE = ['scan', 'dictionary', 'flashcards', 'scene', 'wod', 'quiz', 'streak', 'achievements'];

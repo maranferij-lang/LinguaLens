@@ -200,7 +200,7 @@ export function seedFor(loc, { theme = 'light', withScene = false, words: wordKe
 }
 
 // ─── одна сесія браузера ───────────────────────────────────────────────────
-async function session(browser, { loc, theme = 'light', seed, port, outDir, steps, camera = null }) {
+async function session(browser, { loc, theme = 'light', seed, port, outDir, steps, camera = null, scanReply = null }) {
   const L = LOCALES[loc];
   const origin = `http://127.0.0.1:${port}`;
   const ctx = await browser.newContext({
@@ -263,6 +263,7 @@ async function session(browser, { loc, theme = 'light', seed, port, outDir, step
   const wodWords = JSON.parse(seed.ll_wod_v1).words;
   await ctx.route(/\/(health|scan|scene|me|me\/profile|word-of-day|auth\/[^?]*|sync|events?|track)(\?.*)?$/, async (route) => {
     const u = route.request().url();
+    if (scanReply && /\/scan(\?.*)?$/.test(u)) return route.fulfill({ json: scanReply });
     if (u.includes('/health')) return route.fulfill({ json: { ok: true, provider: 'gemini' } });
     if (u.includes('/word-of-day')) return route.fulfill({ json: { words: wodWords } });
     if (u.includes('/auth/')) return route.fulfill({ json: { token: 't', user: { id: 'u1', seed: 's' } } });
@@ -497,7 +498,7 @@ export async function captureAll({ locales = STORE_LOCALES, only = null } = {}) 
     const run = async (name, opts, steps) => {
       if (!want(name)) return;
       const seed = seedFor(loc, { origin, shapes, theme: opts.theme || 'light', ...opts.seed });
-      const l = await session(browser, { loc, port, outDir, seed, steps, theme: opts.theme, camera: opts.camera });
+      const l = await session(browser, { loc, port, outDir, seed, steps, theme: opts.theme, camera: opts.camera, scanReply: opts.scanReply });
       logs.push(...l.map((x) => name + ': ' + x));
       console.log(`  ${loc} ${name}${l.length ? ' (' + l.length + ' log lines)' : ''}`);
     };
@@ -514,6 +515,41 @@ export async function captureAll({ locales = STORE_LOCALES, only = null } = {}) 
       await a.measure('camera', { hint: { text: t('hint') }, mode: { text: t('modeObject'), mode: 'card' } });
       await a.measureTestId('camera', { shutter: 'shutter', corners: 'viewfinder-corners' });
     });
+
+    // 1б — результат скану (кадр 1 стилю showcase): та сама камера, але
+    // натиснуто кнопку, а відповідь /scan підроблено словом, транскрипцією,
+    // перекладом і прикладом із data.mjs. box і outline — у координатах
+    // кадру 0..1000 [y, x] (art/shapes.json, hero.objects.mug); застосунок
+    // сам вирізає чашку в наліпку й показує аркуш результату поверх камери.
+    {
+      const mugV = vocab(loc, 'mug');
+      const hero = shapes.hero.objects.mug;
+      await run(
+        'scan-result',
+        {
+          seed: { mugSaved: false },
+          camera: { image: 'hero.jpg' },
+          scanReply: {
+            word: mugV.word,
+            ipa: mugV.ipa,
+            translation: mugV.translation,
+            example: mugV.example,
+            example_translation: mugV.exampleTranslation,
+            box: hero.box,
+            outline: hero.outline,
+            extras: [],
+            usage: { scans: 19, limit: null },
+          },
+        },
+        async (a) => {
+          await a.click(t('tabScan'));
+          await a.wait(1800);
+          await a.tap('shutter');
+          await a.wait(3500);
+          await a.shot('scan-result');
+        },
+      );
+    }
 
     // 2 — словник, колекція наліпок
     // Колекція в застосунку тепер у дві колонки: на екрані видно лише чотири
