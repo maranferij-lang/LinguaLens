@@ -206,7 +206,7 @@ export function syncedLabel(at, now, t, lang) {
 // Акаунт Apple. Без входу — що він дає і офіційна кнопка Apple (HIG вимагає
 // саме її: системний вигляд, локалізований текст, доступність з коробки).
 // Після входу — коли востаннє синхронізовано, «Синхронізувати зараз» і вихід.
-function AccountCard({ account, sync, pro, onSignIn, onSignOut, onSyncNow, lang, t, C, isDark, s }) {
+function AccountCard({ account, sync, pro, onSignIn, onSignOut, onSyncNow, onDeleteAccount, deleting, lang, t, C, isDark, s }) {
   const [busy, setBusy] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const [error, setError] = useState(null);
@@ -355,6 +355,21 @@ function AccountCard({ account, sync, pro, onSignIn, onSignOut, onSyncNow, lang,
         >
           {leaving ? <ActivityIndicator color={C.red} size="small" /> : <Text style={s.dangerText}>{t('signOut')}</Text>}
         </Press>
+        {/* Видалення акаунта — тут, поруч із виходом, де його шукають (App
+            Review 5.1.1(v)). Те саме повне стирання, що й у «Даних»: акаунт і
+            словник на сервері, відкликання входу через Apple, дані телефона. */}
+        <View style={s.sepInner} />
+        <Press
+          style={s.signOutBtn}
+          onPress={onDeleteAccount}
+          disabled={leaving || deleting}
+          testID="delete-account"
+          accessibilityRole="button"
+          accessibilityLabel={t('deleteAccount')}
+          accessibilityState={{ busy: !!deleting, disabled: leaving || !!deleting }}
+        >
+          {deleting ? <ActivityIndicator color={C.red} size="small" /> : <Text style={s.dangerText}>{t('deleteAccount')}</Text>}
+        </Press>
       </Glass>
     </>
   );
@@ -468,10 +483,10 @@ export default function SettingsScreen(props) {
   // Сервер має бути досяжний: інакше людина думала б, що її дані стерто.
   function confirmErase() {
     if (erasingRef.current) return;
-    Alert.alert(t('eraseTitle'), t(synced ? 'eraseMsgAccount' : 'eraseMsg'), [
+    Alert.alert(t(synced ? 'deleteAccountTitle' : 'eraseTitle'), t(synced ? 'eraseMsgAccount' : 'eraseMsg'), [
       { text: t('cancel'), style: 'cancel' },
       {
-        text: t('eraseConfirm'),
+        text: t(synced ? 'deleteAccount' : 'eraseConfirm'),
         style: 'destructive',
         onPress: async () => {
           if (erasingRef.current) return;
@@ -544,6 +559,8 @@ export default function SettingsScreen(props) {
             onSignIn={onSignIn}
             onSignOut={onSignOut}
             onSyncNow={onSyncNow}
+            onDeleteAccount={confirmErase}
+            deleting={erasing}
             lang={uiLang}
             t={t}
             C={C}
@@ -730,10 +747,14 @@ export default function SettingsScreen(props) {
             style={s.dangerBtn}
             onPress={confirmErase}
             busy={erasing}
-            accessibilityLabel={t('eraseAll')}
+            accessibilityLabel={t(synced ? 'deleteAccount' : 'eraseAll')}
             accessibilityState={{ busy: erasing, disabled: erasing }}
           >
-            {erasing ? <ActivityIndicator color={C.dim} size="small" /> : <Text style={[s.dangerText, { color: C.dim }]}>{t('eraseAll')}</Text>}
+            {erasing ? (
+              <ActivityIndicator color={C.dim} size="small" />
+            ) : (
+              <Text style={[s.dangerText, { color: synced ? C.red : C.dim }]}>{t(synced ? 'deleteAccount' : 'eraseAll')}</Text>
+            )}
           </Press>
         </Glass>
 

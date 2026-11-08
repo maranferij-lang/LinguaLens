@@ -176,8 +176,30 @@ describe('signed in', () => {
     expect(hasText(tree, t('eraseHintAccount'))).toBe(true);
     await press(tree, t('clearDict'));
     expect(alert.mock.calls[0][1]).toBe(t('clearMsgSynced', { n: 3 }));
-    await press(tree, t('eraseAll'));
+    // увійшовши, людина бачить «Видалити акаунт» (App Review 5.1.1(v)), а не «Стерти дані»
+    expect(hasText(tree, t('eraseAll'))).toBe(false);
+    await press(tree, t('deleteAccount'));
+    expect(alert.mock.calls[1][0]).toBe(t('deleteAccountTitle'));
     expect(alert.mock.calls[1][1]).toBe(t('eraseMsgAccount'));
+    expect(alert.mock.calls[1][2][1].text).toBe(t('deleteAccount'));
+    await act(async () => tree.unmount());
+  });
+
+  test('the account card itself offers Delete account, next to Sign out', async () => {
+    const tree = await render({ account: { available: true, signedIn: true }, sync: { status: 'idle', at, error: null } });
+    const btn = tree.root.findAll((x) => x.props.testID === 'delete-account' && typeof x.props.onPress === 'function')[0];
+    expect(btn).toBeTruthy();
+    expect(btn.props.accessibilityLabel).toBe(t('deleteAccount'));
+    await act(async () => btn.props.onPress());
+    expect(alert.mock.calls[0][0]).toBe(t('deleteAccountTitle'));
+    expect(alert.mock.calls[0][1]).toBe(t('eraseMsgAccount'));
+    await act(async () => tree.unmount());
+  });
+
+  test('signed out: no Delete account in the account card', async () => {
+    const tree = await render({ account: { available: true, signedIn: false }, sync: { status: 'idle', at: 0, error: null } });
+    expect(tree.root.findAll((x) => x.props.testID === 'delete-account').length).toBe(0);
+    expect(hasText(tree, t('eraseAll'))).toBe(true);
     await act(async () => tree.unmount());
   });
 });
