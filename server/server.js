@@ -46,7 +46,8 @@ function loadPage(file) {
     const html = fs.readFileSync(path.join(__dirname, 'public', file), 'utf8');
     if (!SUPPORT_EMAIL) return html;
     const link = `<a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a>`;
-    return html.replace(/<span class="contact">[^<]*<\/span>/g, link);
+    // Функція-замінник: «$» у значенні не стає спецпослідовністю заміни.
+    return html.replace(/<span class="contact">[^<]*<\/span>/g, () => link);
   } catch (_) {
     return null;
   }
@@ -413,8 +414,9 @@ async function handleScan(req, res, user) {
   // Тіло читаємо ДО слота: від нього залежить, що саме займати. Сцена
   // займає ще й довічну безкоштовну пробу, і обидва лічильники пишуться одним
   // умовним записом (див. billing.reserveScan). Погане тіло — просто 400.
-  // Апка надсилає кадр 1024px/JPEG ≈ 150–400 КБ у base64. 4 МБ із запасом.
-  const body = await readJson(req, 4 * 1024 * 1024);
+  // Апка надсилає кадр 1024px/JPEG ≈ 150–400 КБ у base64. 2 МБ — усе ще вп'ятеро
+  // більше за реальний кадр, але вдвічі менший пік пам'яті під навантаженням.
+  const body = await readJson(req, 2 * 1024 * 1024);
   if (!body) return json(res, 400, { error: 'Некоректний JSON' });
   // Кадр — чистий base64 JPEG. Префікс data:image/…;base64, знімаємо; все, що
   // не base64, відхиляємо ДО слота: провайдер відповів би помилкою, а людина
@@ -907,7 +909,7 @@ async function handle(req, res) {
 // unhandledRejection, а з Node 15 це валить увесь процес — разом із запитами
 // інших користувачів. Тут він перетворюється на звичайну відповідь.
 function createServer() {
-  return http.createServer((req, res) => {
+  const server = http.createServer((req, res) => {
     handle(req, res).catch((e) => {
       if (e && e.message === 'TOO_LARGE') {
         const scan = req.url.split('?')[0] === '/scan';
@@ -930,6 +932,11 @@ function createServer() {
       }
     });
   });
+  // Повільні атаки (slow-loris): заголовки мусять прийти за 20 с, а весь
+  // запит укластися в 45 с (бюджет AI 21 с, стеля Cloud Run 60 с).
+  server.headersTimeout = 20000;
+  server.requestTimeout = 45000;
+  return server;
 }
 
 // Cloud Run перед зупинкою інстансу (передеплой, зменшення кількості)
@@ -956,6 +963,19 @@ function drainOnSigterm(server) {
 }
 
 if (require.main === module) {
+  // На Cloud Run (K_SERVICE) слабкий/відсутній AUTH_SECRET або файловий режим
+  // замість Firestore — це тихе псування: токени злітають при рестарті на
+  // іншому інстансі, а дані зникають. Краще не брати трафік зовсім: невдала
+  // ревізія не отримає трафіку, а стара версія працюватиме далі.
+  if (process.env.K_SERVICE && ai.PROVIDER !== 'mock') {
+    const fatal = [];
+    if (auth.secretStatus() !== 'ok') fatal.push('AUTH_SECRET відсутній або коротший за 32 символи');
+    if (store.MODE !== 'firestore') fatal.push('FIRESTORE_PROJECT не заданий (дані жили б у файлі контейнера)');
+    if (fatal.length) {
+      for (const line of fatal) console.error('FATAL: ' + line);
+      process.exit(1);
+    }
+  }
   const server = createServer();
   drainOnSigterm(server);
   server.listen(PORT, '0.0.0.0', () => {

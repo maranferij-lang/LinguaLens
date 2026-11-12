@@ -335,6 +335,41 @@ test('PROVIDER=mock on Cloud Run (K_SERVICE set) is flagged: a warning, and the 
   });
 });
 
+// ---------- fail-closed на Cloud Run ----------
+// Запускає server.js і повертає {exitCode, out}, не чекаючи старту: тут ми
+// навпаки хочемо впасти.
+async function bootOutcome(env) {
+  const port = await freePort();
+  const child = spawn('sh', ['-c', 'exec node server.js 2>&1'], {
+    cwd: SERVER_DIR,
+    env: { PATH: process.env.PATH, ...BLANK, DATA_FILE: path.join(dir, `data-boot-${++seq}.json`), ...env, PORT: String(port) },
+    stdio: ['ignore', 'pipe', 'ignore'],
+  });
+  let out = '';
+  child.stdout.on('data', (d) => (out += d));
+  const code = await new Promise((r) => {
+    const t = setTimeout(() => { child.kill('SIGKILL'); r(null); }, 8000);
+    child.on('exit', (c) => { clearTimeout(t); r(c); });
+  });
+  if (code === null) child.kill('SIGTERM');
+  return { code, out, booted: out.includes('/health') };
+}
+
+test('fail-closed on Cloud Run: a real provider without AUTH_SECRET or Firestore refuses to take traffic', async () => {
+  // Без AUTH_SECRET — вихід 1, сервіс не стартує
+  const a = await bootOutcome({ PROVIDER: 'gemini', GEMINI_API_KEY: 'g', K_SERVICE: 'lingualens', FIRESTORE_PROJECT: 'demo' });
+  assert.equal(a.code, 1, a.out);
+  assert.equal(a.booted, false, a.out);
+  assert.match(a.out, /FATAL: AUTH_SECRET/);
+  // Без FIRESTORE_PROJECT (файловий режим) — так само вихід 1
+  const b = await bootOutcome({ PROVIDER: 'gemini', GEMINI_API_KEY: 'g', K_SERVICE: 'lingualens', AUTH_SECRET: crypto.randomBytes(32).toString('hex') });
+  assert.equal(b.code, 1, b.out);
+  assert.match(b.out, /FATAL: FIRESTORE_PROJECT/);
+  // Повний набір на Cloud Run — стартує нормально (вихід null: ми його вбили)
+  const c = await bootOutcome({ ...fullEnv(), K_SERVICE: 'lingualens' });
+  assert.equal(c.booted, true, c.out);
+});
+
 test('APP_TOKEN is only a recommendation: one warning when missing, the flag is true when set, and the value never leaks', async () => {
   await withServer({ ...fullEnv(), APP_TOKEN: '' }, async (srv) => {
     assert.equal(srv.warnings.length, 1, srv.out);
